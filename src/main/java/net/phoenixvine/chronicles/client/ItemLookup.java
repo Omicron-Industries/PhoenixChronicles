@@ -1,0 +1,92 @@
+package net.phoenixvine.chronicles.client;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
+import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.model.QuestTask;
+import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * FTB Quests' "item lookup": press {@link ChronicleKeyBindings#ITEM_LOOKUP} while hovering an
+ * item slot (in any container screen) or just holding an item, and jump the questbook to
+ * whichever quest(s) need it as a task item.
+ */
+public final class ItemLookup {
+
+    private ItemLookup() {}
+
+    // Vanilla's hoveredSlot field is protected; ObfuscationReflectionHelper resolves the mapped
+    // name to the right field in both the dev (mapped) and production (obfuscated) environment.
+    private static final Field HOVERED_SLOT_FIELD = ObfuscationReflectionHelper.findField(AbstractContainerScreen.class,
+            "hoveredSlot");
+
+    public static void performLookup() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+
+        ItemStack stack = getInspectedItem(mc);
+        if (stack.isEmpty()) {
+            mc.player.displayClientMessage(Component.literal("§7Hold or hover an item, then press the lookup key."),
+                    true);
+            return;
+        }
+
+        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (itemId == null) return;
+
+        List<QuestNode> matches = findQuestsRequiring(itemId);
+        if (matches.isEmpty()) {
+            mc.player.displayClientMessage(Component.literal(
+                    "§7No quest requires " + stack.getHoverName().getString() + "§7."), true);
+            return;
+        }
+
+        QuestNode target = matches.get(0);
+        ChronicleOverviewScreen screen = new ChronicleOverviewScreen();
+        mc.setScreen(screen);
+        screen.navigateToNode(target);
+
+        if (matches.size() > 1) {
+            mc.player.displayClientMessage(Component.literal(
+                    "§7Found §f" + matches.size() + " §7quest(s) requiring this - showing the first."), true);
+        }
+    }
+
+    private static ItemStack getInspectedItem(Minecraft mc) {
+        if (mc.screen instanceof AbstractContainerScreen<?> containerScreen && HOVERED_SLOT_FIELD != null) {
+            try {
+                Slot hovered = (Slot) HOVERED_SLOT_FIELD.get(containerScreen);
+                if (hovered != null && hovered.hasItem()) return hovered.getItem();
+            } catch (Exception ignored) {}
+        }
+        ItemStack held = mc.player.getMainHandItem();
+        if (!held.isEmpty()) return held;
+        return mc.player.getOffhandItem();
+    }
+
+    private static List<QuestNode> findQuestsRequiring(ResourceLocation itemId) {
+        List<QuestNode> matches = new ArrayList<>();
+        for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+            if (node.isLinkStub()) continue;
+            for (QuestTask task : node.getTasks()) {
+                ResourceLocation id = task.getDisplayItemId();
+                if (id != null && id.equals(itemId)) {
+                    matches.add(node);
+                    break;
+                }
+            }
+        }
+        return matches;
+    }
+}

@@ -3,9 +3,7 @@ buildscript {
         maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
         mavenCentral()
     }
-    dependencies {
-        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
-    }
+
 }
 
 plugins {
@@ -59,14 +57,24 @@ repositories {
         }
     }
     maven {
+        name = "ftbMavenReleases"
+        url = uri("https://maven.ftb.dev/releases")
+    }
+    maven {
         // EMI
 		name = "TerraformersMC"
 		url = "https://maven.terraformersmc.com/"
 	}
     maven {
-        url = "https://thedarkcolour.github.io/KotlinForForge/"
+        url = "https://maven.architectury.dev"
     }
 
+    maven {
+        url = "https://thedarkcolour.github.io/KotlinForForge/"
+    }
+    flatDir {
+        dir 'libs'
+    }
 }
 
 version = mod_version
@@ -127,19 +135,14 @@ legacyForge {
         }
     }
 }
-jar {
-    manifest.attributes([
-            "MixinConfigs": "examplemod.mixins.json"
-    ])
-}
+
 
 apply from: "$rootDir/gradle/scripts/spotless.gradle"
 
 dependencies {
     compileOnly("org.jetbrains:annotations:26.0.1")
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    // Mixin
-    annotationProcessor('org.spongepowered:mixin:0.8.5:processor')
 
     // JEI, EMI, Jade
     modCompileOnly("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
@@ -147,6 +150,15 @@ dependencies {
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
+
+    modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
+    modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
+    modCompileOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
+
+    modRuntimeOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
+    modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
+
+    modImplementation 'local:phoenix_guilds:0.1.0'
 
     // GregTech and dependencies
     modImplementation("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}:slim") { transitive = false }
@@ -159,11 +171,8 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.24'
 }
 
-// See com.example.examplemod.mixin.DummyMixin for information about mixins
-mixin {
-    add sourceSets.main, "mixins.${mod_id}.refmap.json"
-    config "${mod_id}.mixins.json"
-}
+
+
 
 tasks.named('processResources', ProcessResources).configure {
     var properties = [

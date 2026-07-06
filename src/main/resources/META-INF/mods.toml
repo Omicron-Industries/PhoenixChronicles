@@ -11,6 +11,7 @@ license = "${mod_license}"
     modId = "${mod_id}"
     version = "${version}"
     displayName = "${mod_name}"
+    mixinConfigs = "phoenix_chronicles.mixins.json"
     displayURL = "${mod_url}"
     # This will be displayed as your mod's logo in the Mods panel.
     # logoFile="icon.png" #optional
@@ -19,8 +20,7 @@ license = "${mod_license}"
     # Some more fluff displayed in the Mods panel. Plug your stuff here!
     authors="${mod_author}"
     description = '''
-Example Description
-...ain is there anyone who loves or pursues or desires to obtain pain of itself, because it is pain,... (Lorem Ipsum translated to english.)
+Welcome to Phoenix's Chronicles, the next gen quest mod! Meant to be better than ftbquests if that is your fancy.
 '''
 
     [[dependencies.${mod_id}]]
@@ -37,7 +37,7 @@ Example Description
         side = "BOTH"
     [[dependencies.${mod_id}]]
         modId = "gtceu"
-        mandatory = true
+        mandatory = false
         versionRange = "[${gtceu_version},)"
         ordering = "AFTER"
         side = "BOTH"
