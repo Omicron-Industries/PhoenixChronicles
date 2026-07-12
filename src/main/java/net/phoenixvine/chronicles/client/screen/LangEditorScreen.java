@@ -285,7 +285,8 @@ public class LangEditorScreen extends Screen {
             } else if (hov) {
                 g.fill(2, ty - 1, SIDEBAR_W - 2, ty + 14, 0xFF161620);
             }
-            g.drawString(font, sel ? "§f" + friendly(cat) : "§8" + friendly(cat), 6, ty + 2, ChroniclesThemePalette.TEXT_DIM);
+            g.drawString(font, sel ? "§f" + friendly(cat) : "§8" + friendly(cat), 6, ty + 2,
+                    ChroniclesThemePalette.TEXT_DIM);
             ty += 15;
         }
         g.disableScissor();
@@ -659,9 +660,18 @@ public class LangEditorScreen extends Screen {
             Files.createDirectories(langDir);
             net.phoenixvine.chronicles.registry.QuestLangRegistry.ensurePackStructure(base);
             Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-            Files.writeString(langDir.resolve("en_us.json"), gson.toJson(lang), StandardCharsets.UTF_8);
+            Path enUsFile = langDir.resolve("en_us.json");
+            // Only reload resource packs (a multi-second stall on a heavily modded pack, same
+            // concern CategoryThemeScreen already guards against for its own lang key) if the
+            // lang content actually changed - this used to fire unconditionally on every save,
+            // which is what made even a pure position/shape/task edit in QuestCreatorScreen pop
+            // the "Reloading Resources" screen.
+            String newJson = gson.toJson(lang);
+            boolean changed = !Files.exists(enUsFile) ||
+                    !Files.readString(enUsFile, StandardCharsets.UTF_8).equals(newJson);
+            Files.writeString(enUsFile, newJson, StandardCharsets.UTF_8);
             syncOtherLangFiles(langDir, lang, gson);
-            net.phoenixvine.chronicles.client.ChroniclesLangPack.reload();
+            if (changed) net.phoenixvine.chronicles.client.ChroniclesLangPack.reload();
         } catch (IOException e) {
             e.printStackTrace();
         }

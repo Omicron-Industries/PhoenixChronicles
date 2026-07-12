@@ -37,7 +37,7 @@ public class DevWikiScreen extends Screen {
     // ── Pages ─────────────────────────────────────────────────────────────────
     private static final String[] PAGE_NAMES = {
             "Overview", "Canvas", "Quest Fields", "Tasks", "Rewards", "Rich Text", "SNBT Format", "Live Stats",
-            "API Reference"
+            "API Reference", "Customization"
     };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -123,23 +123,12 @@ public class DevWikiScreen extends Screen {
 
         clearWidgets();
 
-        // Sidebar page buttons (clamp to footer so they never bleed over it)
-        int tabY = HEADER_H + 8;
-        int sidebarBot = height - FOOTER_H - 4;
-        for (int i = 0; i < PAGE_NAMES.length; i++) {
-            final int idx = i;
-            if (tabY + 14 > sidebarBot) break; // stop adding buttons that would overflow
-            boolean sel = i == activePage;
-            addRenderableWidget(Button.builder(
-                    Component.literal((sel ? "§f" : "§8") + PAGE_NAMES[i]),
-                    b -> {
-                        activePage = idx;
-                        scrollY = 0;
-                        rebuildWidgets();
-                    })
-                    .bounds(2, tabY, SIDEBAR_W - 4, 14).build());
-            tabY += 16;
-        }
+        // Sidebar page list is hand-drawn in render()/sidebarRowAt() now, not vanilla Button
+        // widgets - vanilla's gray 9-slice background plus its own text drop-shadow made the §8
+        // (dark_gray) unselected label color read as barely-legible shadowy text against a
+        // similarly dark, busy background. Hand-drawn rows use this screen's actual theme colors
+        // (C_TEXT_DIM, which is tuned for exactly this "readable but secondary" role elsewhere in
+        // this mod) instead.
 
         // Close button
         addRenderableWidget(Button.builder(Component.literal("§7✕ Close"),
@@ -147,11 +136,6 @@ public class DevWikiScreen extends Screen {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })
                 .bounds(width / 2 - 36, height - FOOTER_H + 6, 72, 16).build());
-    }
-
-    protected void rebuildWidgets() {
-        clearWidgets();
-        init();
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -171,8 +155,20 @@ public class DevWikiScreen extends Screen {
         int sidebarClipBot = height - FOOTER_H;
         g.enableScissor(0, HEADER_H, SIDEBAR_W, sidebarClipBot);
         g.fill(0, HEADER_H, SIDEBAR_W, sidebarClipBot, C_PANEL);
-        int tabY = HEADER_H + 8 + activePage * 16;
-        g.fill(0, tabY - 1, 2, tabY + 15, C_ACCENT);
+        for (int i = 0; i < PAGE_NAMES.length; i++) {
+            int rowY = HEADER_H + 8 + i * 16;
+            if (rowY + 14 > sidebarClipBot) break; // clamp to footer, same as the old button loop
+            boolean sel = i == activePage;
+            boolean hov = mx >= 0 && mx < SIDEBAR_W && my >= rowY - 1 && my < rowY + 15;
+            if (sel) {
+                g.fill(0, rowY - 1, SIDEBAR_W, rowY + 15, 0x22FFFFFF);
+                g.fill(0, rowY - 1, 2, rowY + 15, C_ACCENT);
+            } else if (hov) {
+                g.fill(0, rowY - 1, SIDEBAR_W, rowY + 15, 0x14FFFFFF);
+            }
+            int textCol = sel ? C_TEXT : (hov ? C_TEXT : C_TEXT_DIM);
+            g.drawString(font, PAGE_NAMES[i], 8, rowY + 3, textCol, false);
+        }
         g.disableScissor();
         g.fill(SIDEBAR_W - 1, HEADER_H, SIDEBAR_W, height, C_BORDER);
 
@@ -258,7 +254,8 @@ public class DevWikiScreen extends Screen {
                     boolean hov = mx >= btnX && mx < btnX + btnW && my >= btnY2 && my < btnY2 + btnH2;
 
                     // Centralized Monospace Code block painter processing
-                    ChroniclesThemeRenderer.drawCodeBlock(g, font, line.a(), x, y, w, lh, mx, my, C_BORDER, C_ACCENT, hov);
+                    ChroniclesThemeRenderer.drawCodeBlock(g, font, line.a(), x, y, w, lh, mx, my, C_BORDER, C_ACCENT,
+                            hov);
 
                     // Register standard interaction boundary data mirrors back onto screen fields
                     copyBtnBounds.add(new int[] { btnX, btnY2, btnX + btnW, btnY2 + btnH2 });
@@ -294,6 +291,7 @@ public class DevWikiScreen extends Screen {
             case 6 -> pageSnbtFormat();
             case 7 -> pageLiveStats();
             case 8 -> pageApiReference();
+            case 9 -> pageCustomization();
             default -> List.of();
         };
     }
@@ -325,6 +323,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv("Rich Text", "{#RRGGBB} colour, [img:…] inline textures, [links]"));
         lines.add(WLine.kv("SNBT Format", "Full file format reference and folder layout"));
         lines.add(WLine.kv("Live Stats", "Per-category quest counts and type breakdown"));
+        lines.add(WLine.kv("Customization", "Sidebar, chapter theme, background pictures, toasts"));
         lines.add(WLine.sp());
         lines.add(WLine.div());
         lines.add(WLine.sh("Tutorial quests"));
@@ -342,8 +341,13 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv("Left drag", "Pan the canvas"));
         lines.add(WLine.kv("Scroll wheel", "Zoom in / out"));
         lines.add(WLine.kv("Left click node", "Select / open quest detail"));
-        lines.add(WLine.kv("Right click node", "Context menu: Edit, Delete, Move category…"));
-        lines.add(WLine.kv("Right click canvas", "Context menu: Add quest, dep-line settings, dev toggles"));
+        lines.add(WLine.kv("Right click node",
+                "Context menu: Edit, Tasks/Rewards, Texts, Design toast…, Delete, Move category…"));
+        lines.add(WLine.kv("Right click canvas",
+                "Context menu: Add quest, Add group, Chapter theme…, Add picture…, dep-line settings"));
+        lines.add(
+                WLine.kv("Right click picture", "Its own menu: Resize, Resize (scroll+drag)…, Move category, Delete"));
+        lines.add(WLine.kv("Shift + drag", "Move a node, group, or background picture (dev mode)"));
         lines.add(WLine.kv("Alt + drag node", "Draw dependency line to another node"));
         lines.add(WLine.kv("Middle click", "Reset pan offset"));
         lines.add(WLine.sp());
@@ -386,6 +390,79 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.t("Toolbar holds: category selector, filter pills, zoom pill, ? wiki button."));
         lines.add(WLine.t("Dev toggles and destructive actions are in the right-click menu to avoid"));
         lines.add(WLine.t("toolbar overflow at smaller window sizes."));
+        return lines;
+    }
+
+    private List<WLine> pageCustomization() {
+        var lines = new ArrayList<WLine>();
+        lines.add(WLine.h("Customization"));
+        lines.add(WLine.t("Everything below is dev-mode-only pack authoring - players never see any of"));
+        lines.add(WLine.t("these editors, only their results."));
+        lines.add(WLine.sp());
+
+        lines.add(WLine.sh("Sidebar & Questbook Title"));
+        lines.add(WLine.kv("Category tile", "Left-click select, right-click → chapter theme editor"));
+        lines.add(WLine.kv("Collapse toggle", "Small arrow above the category list - reclaims canvas width"));
+        lines.add(WLine.kv("Questbook icon/name", "Top-left of the sidebar - click to open the naming popup"));
+        lines.add(WLine.t("Book icon + name default to a generic \"Quest Book\" until set."));
+        lines.add(WLine.sp());
+        lines.add(WLine.div());
+
+        lines.add(WLine.sh("Chapter theme  (right-click canvas → Edit chapter theme…)"));
+        lines.add(WLine.kv("Display name", "Raw override; empty = derived from the category slug"));
+        lines.add(WLine.kv("Icon", "Sidebar tile icon for this chapter"));
+        lines.add(WLine.kv("Style", "DOT_GRID / GRID_LINES / HEX_GRID / DIAGONAL_LINES / SOLID / CUSTOM"));
+        lines.add(WLine.kv("Color tint", "#RRGGBB overlay on the canvas background"));
+        lines.add(WLine.t("Picking a texture (Browse…) auto-switches Style to CUSTOM - the two used to"));
+        lines.add(WLine.t("be independent, so choosing a texture silently did nothing until Style was"));
+        lines.add(WLine.t("also changed by hand. That's fixed; a texture pick sets both now."));
+        lines.add(WLine.sp());
+        lines.add(WLine.sh("Custom textures  (Browse… button, or Add picture…)"));
+        lines.add(WLine.t("Drop PNGs in config/phoenix_chronicles/textures/ - the browser lists them as"));
+        lines.add(WLine.t("phoenixcore:textures/custom/<relative-path>. That location was never a real"));
+        lines.add(WLine.t("game asset path (Minecraft only loads assets/<namespace>/... from a jar or"));
+        lines.add(WLine.t("resource pack), so these are dynamically registered at runtime the first time"));
+        lines.add(WLine.t("they're drawn (see CustomTextureCache) instead of needing a resource pack."));
+        lines.add(WLine.kv("Left-click a thumbnail", "Select and apply"));
+        lines.add(WLine.kv("Right-click a thumbnail", "Copy its resource location to clipboard"));
+        lines.add(WLine.sp());
+        lines.add(WLine.div());
+
+        lines.add(WLine.sh("Background pictures  (right-click canvas → Add picture…)"));
+        lines.add(WLine.t("Freestanding decorative images, separate from the chapter theme above -"));
+        lines.add(WLine.t("positioned in canvas space, so they pan/zoom with the graph like nodes do."));
+        lines.add(WLine.kv("Add", "Right-click empty canvas → Add picture… → pick a texture"));
+        lines.add(WLine.kv("Move", "Shift+drag the picture directly"));
+        lines.add(WLine.kv("Right-click a picture",
+                "Move / Resize ▸ / Resize (scroll+drag)… / Move to category ▸ / Delete"));
+        lines.add(WLine.kv("Resize ▸", "Fixed presets: 32 / 64 / 128 / 256 / 512 / 1024 px"));
+        lines.add(WLine.kv("Resize (scroll+drag)…", "Interactive mode - bypasses canvas zoom/pan entirely"));
+        lines.add(WLine.in("Scroll = resize (±20%, shift = fine ±5%), drag = move, right-click/Esc = done"));
+        lines.add(WLine.t("Every add/move/resize/category-move/delete is one Ctrl+Z-undoable step, even"));
+        lines.add(WLine.t("a whole interactive resize session (one entry covers the full edit)."));
+        lines.add(WLine.sp());
+        lines.add(WLine.div());
+
+        lines.add(WLine.sh("Dependency lines  (right-click canvas → Dependency lines…, or per-quest)"));
+        lines.add(WLine.kv("Line Style", "THIN / NORMAL / BOLD / THICK / WIDE / GLOW - controls rail width"));
+        lines.add(WLine.kv("Line Anim Speed", "How fast the arrow chain travels on hover"));
+        lines.add(WLine.t("Base rail/arrow colors (locked/active/done) come from the active theme's"));
+        lines.add(WLine.t("locked/activeColor/done colors - editing the theme recolors dependency lines"));
+        lines.add(WLine.t("along with everything else. The hover-boost colors (cyan for what a quest"));
+        lines.add(WLine.t("needs, amber for what it unlocks) are intentionally fixed, not themed."));
+        lines.add(WLine.t("Lines are static until you hover a connected quest; only that quest's own"));
+        lines.add(WLine.t("edges animate, to avoid the whole tree moving at once."));
+        lines.add(WLine.sp());
+        lines.add(WLine.div());
+
+        lines.add(WLine.sh("Quest toasts  (Settings screen, or right-click a quest → Design toast…)"));
+        lines.add(WLine.kv("Toast Style", "COMPACT (corner banner) / ABOVE_HOTBAR / BIG_CENTER - global default"));
+        lines.add(WLine.kv("Toast Position", "Which corner, for the COMPACT style"));
+        lines.add(WLine.t("Any quest without its own design uses whichever Toast Style is selected."));
+        lines.add(WLine.kv("Design toast…", "Per-quest custom layout - freeform icon/title/label position+color"));
+        lines.add(WLine.t("Drag the icon/title/label directly in the live preview; side panel edits"));
+        lines.add(WLine.t("scale, color, and bold for whichever element is selected."));
+        lines.add(WLine.kv("Reset to default style", "Deletes the quest's custom design (only shown once one exists)"));
         return lines;
     }
 
@@ -825,6 +902,18 @@ public class DevWikiScreen extends Screen {
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
         if (btn == 0) {
+            int sidebarClipBot = height - FOOTER_H;
+            if (mx >= 0 && mx < SIDEBAR_W && my >= HEADER_H) {
+                for (int i = 0; i < PAGE_NAMES.length; i++) {
+                    int rowY = HEADER_H + 8 + i * 16;
+                    if (rowY + 14 > sidebarClipBot) break;
+                    if (my >= rowY - 1 && my < rowY + 15) {
+                        activePage = i;
+                        scrollY = 0;
+                        return true;
+                    }
+                }
+            }
             for (int i = 0; i < copyBtnBounds.size(); i++) {
                 int[] b = copyBtnBounds.get(i);
                 if (mx >= b[0] && mx < b[2] && my >= b[1] && my < b[3]) {

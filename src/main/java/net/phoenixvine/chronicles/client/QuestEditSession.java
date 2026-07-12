@@ -1,8 +1,10 @@
 package net.phoenixvine.chronicles.client;
 
+import net.phoenixvine.chronicles.capability.PlayerQuestData;
+
 import lombok.Getter;
 import lombok.Setter;
-import net.phoenixvine.chronicles.capability.PlayerQuestData;
+
 import java.util.Stack;
 
 /**
@@ -10,6 +12,7 @@ import java.util.Stack;
  * Decouples edit state, tool selections, and historical data from transient UI screens.
  */
 public class QuestEditSession {
+
     // History Tracking
     private static final Stack<Runnable> undoStack = new Stack<>();
     private static final Stack<Runnable> redoStack = new Stack<>();
@@ -76,7 +79,11 @@ public class QuestEditSession {
         if (open) statsOpen = false;
     }
 
-    public static void resetTestData() { testModeData = new PlayerQuestData(); }
+    public static void resetTestData() {
+        testModeData = new PlayerQuestData();
+    }
 
-    public static boolean hasClipboardData() { return questClipboard != null && !questClipboard.isBlank(); }
+    public static boolean hasClipboardData() {
+        return questClipboard != null && !questClipboard.isBlank();
+    }
 }

@@ -178,7 +178,7 @@ public class VariantEditorScreen extends Screen {
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
-        g.fill(0, 0, width, height, 0xFF000000);
+        g.fill(0, 0, width, height, C_BG);
 
         // Header
         g.fill(0, 0, width, HEADER_H, C_HEADER);

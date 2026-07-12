@@ -1,5 +1,8 @@
 package net.phoenixvine.chronicles.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * A purely cosmetic colored region that visually clusters related quest nodes
  * within a chapter on the canvas — similar to FTB Quests chapter sections.
@@ -13,6 +16,34 @@ public class QuestGroup {
     private int borderColor;  // ARGB border color
     private int x, y, width, height; // logical canvas coords (same space as node customX/customY)
     private String category;
+
+    /** One small icon shown in the group's label bar — an item, a fluid, or an arbitrary texture. */
+    public enum IconKind {
+        ITEM,
+        FLUID,
+        TEXTURE
+    }
+
+    public static final class GroupIcon {
+
+        public final IconKind kind;
+        /** Item/fluid registry id, or a texture resource location string, depending on {@link #kind}. */
+        public final String id;
+
+        public GroupIcon(IconKind kind, String id) {
+            this.kind = kind;
+            this.id = id;
+        }
+    }
+
+    /** Small icon strip rendered in the group's label bar — addable/removable, any mix of kinds. */
+    private final List<GroupIcon> icons = new ArrayList<>();
+
+    /**
+     * Optional Phantasia machine id — lets the group editor preview a related build, purely as
+     * an editor convenience (does not render live on the canvas; see the group popup editor).
+     */
+    private String phantasiaMachineId = "";
 
     private static final int DEFAULT_COLOR = 0x22FFFFFF;
     private static final int DEFAULT_BORDER = 0x44FFFFFF;
@@ -65,6 +96,31 @@ public class QuestGroup {
 
     public String getCategory() {
         return category;
+    }
+
+    public List<GroupIcon> getIcons() {
+        return icons;
+    }
+
+    public void addIcon(IconKind kind, String id) {
+        if (id == null || id.isBlank()) return;
+        icons.add(new GroupIcon(kind, id));
+    }
+
+    public void removeIcon(int index) {
+        if (index >= 0 && index < icons.size()) icons.remove(index);
+    }
+
+    public void clearIcons() {
+        icons.clear();
+    }
+
+    public String getPhantasiaMachineId() {
+        return phantasiaMachineId;
+    }
+
+    public void setPhantasiaMachineId(String id) {
+        this.phantasiaMachineId = id != null ? id : "";
     }
 
     // ── Setters ───────────────────────────────────────────────────────────────

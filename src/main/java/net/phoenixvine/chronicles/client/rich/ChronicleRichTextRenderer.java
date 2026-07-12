@@ -36,7 +36,8 @@ public final class ChronicleRichTextRenderer {
                     curY += LINE_H;
                 }
                 if (curY + img.h() >= clipTop && curY < clipBot)
-                    g.blit(img.texture(), curX, curY, 0, 0, img.w(), img.h(), img.w(), img.h());
+                    g.blit(net.phoenixvine.chronicles.client.CustomTextureCache.resolve(img.texture()),
+                            curX, curY, 0, 0, img.w(), img.h(), img.w(), img.h());
                 regions.add(new RichSpan.Region(curX, curY, curX + img.w(), curY + img.h(), img));
                 curY += img.h() + 2;
                 curX = x;

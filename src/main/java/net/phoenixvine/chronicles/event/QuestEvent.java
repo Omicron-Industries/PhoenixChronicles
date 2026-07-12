@@ -16,6 +16,8 @@ import net.phoenixvine.chronicles.model.QuestState;
  * QuestEvent.StateChanged — quest state transition (LOCKED→UNLOCKED→COMPLETED)
  * QuestEvent.RewardClaimed — player just claimed rewards for a completed quest
  * QuestEvent.PlayerTick — (cancelable) suppress default task evaluation for one quest/player
+ * QuestEvent.PinChanged — player pinned/unpinned a quest on the HUD tracker
+ * QuestEvent.TreeReloaded — the quest tree was (re)loaded from disk; not player/node-scoped
  *
  * ── Inbound (world → quest system) ───────────────────────────────────────────
  * Use {@link QuestAPI#fireExternalEvent}
@@ -84,7 +86,7 @@ public class QuestEvent extends Event {
      * Example (KubeJS server_scripts):
      * 
      * <pre>{@code
-     * ForgeEvents.onEvent('net.phoenix.core.integration.phoenix_chronicles.event.QuestEvent$RewardClaimed',
+     * ForgeEvents.onEvent('net.phoenixvine.chronicles.event.QuestEvent$RewardClaimed',
      *   event => {
      *     event.player.tell('You claimed rewards for: ' + event.node.title.string)
      *   })
@@ -134,4 +136,34 @@ public class QuestEvent extends Event {
             return data;
         }
     }
+
+    /**
+     * Fired right after a player pins or unpins a quest on the HUD tracker (from the overview
+     * screen keybind, the quest detail screen's pin button, or the HUD's own auto-unpin cleanup
+     * for a removed quest). Lets other HUD/overlay mods react to what the player is tracking.
+     */
+    public static class PinChanged extends QuestEvent {
+
+        private final boolean pinned;
+
+        public PinChanged(Player player, QuestNode node, boolean pinned) {
+            super(player, node);
+            this.pinned = pinned;
+        }
+
+        /** {@code true} if the quest was just pinned, {@code false} if just unpinned. */
+        public boolean isPinned() {
+            return pinned;
+        }
+    }
+
+    /**
+     * Fired after the quest tree has been (re)loaded from disk — on server start and after
+     * every live SNBT reload (e.g. {@code QuestFileWatcher} picking up an in-editor change).
+     * Not player/node-scoped: {@link #getPlayer()} and {@link #getNode()} are always
+     * {@code null} on this event. Useful for other mods to invalidate their own caches that
+     * reference quest data instead of going stale after a reload replaces every
+     * {@code QuestNode} instance.
+     */
+    public static class TreeReloaded extends net.minecraftforge.eventbus.api.Event {}
 }

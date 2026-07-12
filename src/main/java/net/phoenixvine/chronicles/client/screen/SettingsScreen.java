@@ -28,13 +28,22 @@ public class SettingsScreen extends Screen {
     private static final int MARGIN = 8;
     private static final int ROW_H = 24;
     private static final int ROW_GAP = 4;
+    // Section header labels ("HUD Settings", "Dev Mode", ...) are a single text line, not a
+    // full interactive row - spacing them with the same ROW_H used for actual settings rows
+    // left a visibly bigger gap under every section header than between ordinary rows.
+    private static final int LABEL_LINE_H = 10;
+    // Rows previously stretched across the full window width (MARGIN on each edge), which put
+    // the label hard against the left screen edge and the value/arrows hard against the right
+    // edge on any reasonably wide window - looked disjointed rather than like one settings
+    // panel. Capped to a fixed width and centered instead.
+    private static final int PANEL_W = 460;
 
     private final Screen parent;
     private QuestChroniclesSettings settings;
     private int scrollY = 0;
 
     public SettingsScreen(Screen parent) {
-        super(Component.literal("Quest Chronicles Settings"));
+        super(Component.literal("Chronicles Settings"));
         this.parent = parent;
         this.settings = QuestChroniclesSettings.load();
     }
@@ -62,7 +71,7 @@ public class SettingsScreen extends Screen {
         // Header
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
-        g.drawCenteredString(font, "§fQuest Chronicles Settings", width / 2, 9, C_TEXT);
+        g.drawCenteredString(font, "§fChronicles Settings", width / 2, 9, C_TEXT);
 
         // Content area
         int contentTop = HEADER_H + MARGIN;
@@ -71,15 +80,15 @@ public class SettingsScreen extends Screen {
         g.enableScissor(0, contentTop, width, contentTop + contentH);
 
         int y = contentTop - scrollY;
-        int x = MARGIN;
-        int w = width - MARGIN * 2;
+        int x = (width - PANEL_W) / 2;
+        int w = PANEL_W;
 
         // Settings rows
         y = renderSetting(g, x, y, w, "§fText Scale", settings.getTextScale().name(), mx, my) + ROW_GAP;
         y = renderSetting(g, x, y, w, "§fTheme", settings.getTheme().name(), mx, my) + ROW_GAP;
         y = renderSetting(g, x, y, w, "§fLayout Density", settings.getDensity().name(), mx, my) + ROW_GAP;
         y = renderSetting(g, x, y, w, "§fShow Dev Info by Default",
-                settings.isShowDevInfoByDefault() ? "§aYes" : "§cNo", mx, my) + ROW_GAP * 2;
+                settings.isShowDevInfoByDefault() ? "§aYes" : "§cNo", mx, my) + ROW_GAP;
 
         // Theme Editor link row
         boolean themeHov = mx >= x && mx < x + w && my >= y && my < y + ROW_H;
@@ -89,8 +98,8 @@ public class SettingsScreen extends Screen {
         g.drawCenteredString(font, "§7→", x + w - ARROW_W / 2, textY, themeHov ? C_ACCENT : C_TEXT_DIM);
         y += ROW_H + ROW_GAP * 2;
 
-        g.drawString(font, "§8HUD Settings:", x, y, C_TEXT_FAINT, false);
-        y += ROW_H + ROW_GAP;
+        g.drawString(font, "§8HUD Settings", x, y, C_TEXT_FAINT, false);
+        y += LABEL_LINE_H + ROW_GAP;
 
         y = renderSetting(g, x, y, w, "§fHUD Position", settings.getHudPosition().name(), mx, my) + ROW_GAP;
         y = renderSetting(g, x, y, w, "§fHUD Opacity", String.format("%.0f%%", settings.getHudOpacity() * 100), mx,
@@ -100,15 +109,34 @@ public class SettingsScreen extends Screen {
         y = renderSetting(g, x, y, w, "§fShow HUD Progress", settings.isShowHUDProgress() ? "§aYes" : "§cNo", mx, my) +
                 ROW_GAP;
         y = renderSetting(g, x, y, w, "§fShow HUD Rewards", settings.isShowHUDRewards() ? "§aYes" : "§cNo", mx, my) +
-                ROW_GAP;
+                ROW_GAP * 2;
 
-        y += ROW_GAP;
-        g.drawString(font, "§8Inventory Button:", x, y, C_TEXT_FAINT, false);
-        y += ROW_H + ROW_GAP;
+        g.drawString(font, "§8Quest Pop-Ups", x, y, C_TEXT_FAINT, false);
+        y += LABEL_LINE_H + ROW_GAP;
+
+        y = renderSetting(g, x, y, w, "§fPop-Up Style", settings.getToastStyle().name(), mx, my) + ROW_GAP;
+        y = renderSetting(g, x, y, w, "§fPop-Up Position", settings.getToastPosition().name(), mx, my) + ROW_GAP;
+        g.drawString(font, "§8Individual Pop-Ups: right-click quest → Design Pop-Up",
+                x, y, C_TEXT_FAINT, false);
+        y += LABEL_LINE_H + ROW_GAP * 2;
+
+        g.drawString(font, "§8Inventory Button", x, y, C_TEXT_FAINT, false);
+        y += LABEL_LINE_H + ROW_GAP;
 
         y = renderSetting(g, x, y, w, "§fShow in Inventory", settings.isShowInventoryButton() ? "§aYes" : "§cNo",
                 mx, my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fButton Position", settings.getInvButtonPos().name(), mx, my) + ROW_GAP;
+        y = renderSetting(g, x, y, w, "§fButton Position", settings.getInvButtonPos().name(), mx, my) + ROW_GAP * 2;
+
+        g.drawString(font, "§8Dev Mode", x, y, C_TEXT_FAINT, false);
+        y += LABEL_LINE_H + ROW_GAP;
+        y = renderSetting(g, x, y, w, "§fDev Mode Enabled",
+                settings.isDevModeDisabled() ? "§cOff" : "§aOn", mx, my) + ROW_GAP;
+        g.drawString(font, "§8Off by default - click to opt in. Still only takes effect if",
+                x, y, C_TEXT_FAINT, false);
+        y += ROW_H;
+        g.drawString(font, "§8you're creative or op level 2+; this can't grant dev tools by itself.",
+                x, y, C_TEXT_FAINT, false);
+        y += ROW_H + ROW_GAP;
 
         g.drawString(font, "§8Dep line appearance is controlled via right-click on the quest canvas.",
                 x, y, C_TEXT_FAINT, false);
@@ -194,8 +222,8 @@ public class SettingsScreen extends Screen {
 
         if (my >= contentTop && my < contentTop + contentH) {
             int y = contentTop - scrollY;
-            int x = MARGIN;
-            int w = width - MARGIN * 2;
+            int x = (width - PANEL_W) / 2;
+            int w = PANEL_W;
 
             // Text Scale
             if (handleSettingClick(x, y, w, mx, my)) {
@@ -231,7 +259,7 @@ public class SettingsScreen extends Screen {
                 settings.setShowDevInfoByDefault(!settings.isShowDevInfoByDefault());
                 return true;
             }
-            y += ROW_H + ROW_GAP * 2;
+            y += ROW_H + ROW_GAP;
 
             // Theme Editor
             if (my >= y && my < y + ROW_H && mx >= x && mx < x + w) {
@@ -240,7 +268,7 @@ public class SettingsScreen extends Screen {
             }
             y += ROW_H + ROW_GAP * 2;
 
-            y += ROW_H + ROW_GAP; // Skip HUD Settings label
+            y += LABEL_LINE_H + ROW_GAP; // Skip "HUD Settings" label
 
             // HUD Position
             if (handleSettingClick(x, y, w, mx, my)) {
@@ -280,9 +308,32 @@ public class SettingsScreen extends Screen {
                 settings.setShowHUDRewards(!settings.isShowHUDRewards());
                 return true;
             }
+            y += ROW_H + ROW_GAP * 2;
+
+            y += LABEL_LINE_H + ROW_GAP; // Skip "Quest Pop-Ups" label
+
+            // Pop-Up Style
+            if (handleSettingClick(x, y, w, mx, my)) {
+                QuestChroniclesSettings.ToastStyle[] styles = QuestChroniclesSettings.ToastStyle.values();
+                int idx = settings.getToastStyle().ordinal();
+                settings.setToastStyle(
+                        styles[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + styles.length) % styles.length]);
+                return true;
+            }
             y += ROW_H + ROW_GAP;
 
-            y += ROW_GAP + ROW_H + ROW_GAP; // Skip "Inventory Button:" label
+            // Pop-Up Position
+            if (handleSettingClick(x, y, w, mx, my)) {
+                HUDPosition[] positions = HUDPosition.values();
+                int idx = settings.getToastPosition().ordinal();
+                settings.setToastPosition(
+                        positions[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + positions.length) % positions.length]);
+                return true;
+            }
+            y += ROW_H + ROW_GAP;
+            y += LABEL_LINE_H + ROW_GAP * 2; // Skip the "Individual Pop-Ups" info line
+
+            y += LABEL_LINE_H + ROW_GAP; // Skip "Inventory Button" label
 
             // Show in Inventory
             if (handleSettingClick(x, y, w, mx, my)) {
@@ -297,6 +348,18 @@ public class SettingsScreen extends Screen {
                 int idx = settings.getInvButtonPos().ordinal();
                 settings.setInvButtonPos(
                         positions[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + positions.length) % positions.length]);
+                return true;
+            }
+            y += ROW_H + ROW_GAP * 2;
+
+            y += LABEL_LINE_H + ROW_GAP; // Skip "Dev Mode" label
+
+            // Dev Mode Enabled - saved immediately (not just on the footer Save button) since
+            // closing this screen any other way (Escape, clicking away) previously discarded
+            // the toggle silently, making it look like the choice didn't persist across restarts.
+            if (handleSettingClick(x, y, w, mx, my)) {
+                settings.setDevModeDisabled(!settings.isDevModeDisabled());
+                settings.save();
                 return true;
             }
             y += ROW_H + ROW_GAP;

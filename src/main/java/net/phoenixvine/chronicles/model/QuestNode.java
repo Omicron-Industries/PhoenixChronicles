@@ -31,6 +31,12 @@ public class QuestNode {
     // ── Appearance ────────────────────────────────────────────────────────────
     private String category = "MAIN";
     private String shapeType = "SQUARE";
+    /**
+     * An arbitrary registered texture (same TextureBrowserScreen mechanism as
+     * {@link #iconTexture}) used as this node's outline shape when {@link #shapeType} is
+     * {@code "CUSTOM"}. Ignored for every other shape type.
+     */
+    private String shapeTexture = "";
 
     public enum NodeSize {
         SMALL,
@@ -234,6 +240,21 @@ public class QuestNode {
         this.devNotes = s != null ? s : "";
     }
 
+    /**
+     * Optional Phantasia machine id shown as a live embedded build preview inside the quest
+     * viewer's own content area — independent of any {@code view_machine} task requirement, so a
+     * quest can show a build reference without forcing the player to view it to complete.
+     */
+    private String previewMachineId = "";
+
+    public String getPreviewMachineId() {
+        return previewMachineId;
+    }
+
+    public void setPreviewMachineId(String s) {
+        this.previewMachineId = s != null ? s : "";
+    }
+
     /** 0 = all non-optional tasks required; >0 = need exactly this many tasks. */
     private int taskMinCount = 0;
 
@@ -357,6 +378,32 @@ public class QuestNode {
     private final List<QuestTask> tasks = new ArrayList<>();
     private final List<QuestReward> rewards = new ArrayList<>();
 
+    // ── Pack-mode variants ────────────────────────────────────────────────────
+    /**
+     * One conditional override block: when {@link #condition} evaluates true (same flag-
+     * expression syntax as {@link #enableIf}, via {@link PhoenixQuestFlags#evaluate}), any
+     * non-null field here overrides the quest's own base value. {@code tasks}/{@code rewards}
+     * REPLACE the base list entirely rather than merging - a variant is meant to describe "this
+     * quest looks like THIS in this pack mode", not a patch. {@code rewards} can itself contain a
+     * {@code {type: "reward_table", table_id: "..."}} entry, reusing the existing weighted-
+     * reward-table feature instead of needing a separate table-reference field here.
+     */
+    public static final class QuestVariant {
+
+        public String condition;
+        public String title;
+        public String description;
+        public Visibility visibility;
+        public List<QuestTask> tasks;
+        public List<QuestReward> rewards;
+
+        public QuestVariant(String condition) {
+            this.condition = condition == null ? "" : condition;
+        }
+    }
+
+    private final List<QuestVariant> variants = new ArrayList<>();
+
     // ── Constructor ───────────────────────────────────────────────────────────
     public QuestNode(ResourceLocation id, Component title, Component description) {
         this.id = id;
@@ -433,6 +480,14 @@ public class QuestNode {
 
     public void setShapeType(String t) {
         this.shapeType = t;
+    }
+
+    public String getShapeTexture() {
+        return shapeTexture;
+    }
+
+    public void setShapeTexture(String texture) {
+        this.shapeTexture = texture == null ? "" : texture.trim();
     }
 
     public NodeSize getNodeSize() {
@@ -756,6 +811,71 @@ public class QuestNode {
 
     public List<QuestReward> getRewards() {
         return Collections.unmodifiableList(rewards);
+    }
+
+    // ── Pack-mode variants ────────────────────────────────────────────────────
+
+    public void addVariant(QuestVariant v) {
+        if (v != null) variants.add(v);
+    }
+
+    public void clearVariants() {
+        variants.clear();
+    }
+
+    public List<QuestVariant> getVariants() {
+        return Collections.unmodifiableList(variants);
+    }
+
+    /**
+     * Returns the first variant whose condition currently evaluates true, or {@code null} if
+     * none match (including when this quest has no variants at all). Same evaluation call
+     * {@link #isFlagEnabled()} already uses for {@link #enableIf} - no new flag machinery.
+     */
+    public QuestVariant resolveVariant(net.minecraft.server.MinecraftServer server) {
+        for (QuestVariant v : variants) {
+            if (PhoenixQuestFlags.evaluate(v.condition, server)) return v;
+        }
+        return null;
+    }
+
+    /**
+     * See {@link #getTitleRaw()} - the resolved variant's title, or the base title if no
+     * variant matches or the matching variant doesn't override it.
+     */
+    public Component getEffectiveTitleRaw(net.minecraft.server.MinecraftServer server) {
+        QuestVariant v = resolveVariant(server);
+        return (v != null && v.title != null && !v.title.isBlank()) ? Component.literal(v.title) : getTitleRaw();
+    }
+
+    /** See {@link #getEffectiveTitleRaw}. */
+    public Component getEffectiveDescriptionRaw(net.minecraft.server.MinecraftServer server) {
+        QuestVariant v = resolveVariant(server);
+        return (v != null && v.description != null && !v.description.isBlank()) ? Component.literal(v.description) :
+                getDescriptionRaw();
+    }
+
+    /** See {@link #getEffectiveTitleRaw}. */
+    public Visibility getEffectiveVisibility(net.minecraft.server.MinecraftServer server) {
+        QuestVariant v = resolveVariant(server);
+        return (v != null && v.visibility != null) ? v.visibility : visibility;
+    }
+
+    /**
+     * The active variant's task list if one matches and overrides tasks, else this quest's own
+     * base tasks. REPLACES rather than merges - use this (not {@link #getTasks()}) for anything
+     * player-facing (completion checks, sync, display) so pack-mode variants actually take
+     * effect; {@link #getTasks()} stays the raw base definition the editor shows/edits.
+     */
+    public List<QuestTask> getEffectiveTasks(net.minecraft.server.MinecraftServer server) {
+        QuestVariant v = resolveVariant(server);
+        return (v != null && v.tasks != null) ? Collections.unmodifiableList(v.tasks) : getTasks();
+    }
+
+    /** See {@link #getEffectiveTasks}. */
+    public List<QuestReward> getEffectiveRewards(net.minecraft.server.MinecraftServer server) {
+        QuestVariant v = resolveVariant(server);
+        return (v != null && v.rewards != null) ? Collections.unmodifiableList(v.rewards) : getRewards();
     }
 
     // ── Emergency items ───────────────────────────────────────────────────────

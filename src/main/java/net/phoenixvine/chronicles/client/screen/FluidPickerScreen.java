@@ -10,9 +10,9 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.registries.ForgeRegistries;
-
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -102,20 +102,36 @@ public class FluidPickerScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us instead */ }
+
+    @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        g.fill(0, 0, width, height, 0x88000000);
+        // Draw the overview screen behind this picker (like CategoryThemeScreen's modal pattern)
+        // instead of leaving whatever the 3D world last rendered showing through - this picker
+        // never rendered any parent at all before, so with a fully transparent/no-op fill it was
+        // the raw game world bleeding through, not the overview screen.
+        if (parent != null) parent.render(g, -1, -1, partial);
+        g.flush();
+
+        // Fully opaque background of its own - see ItemPickerScreen's identical fix for why.
+        g.pose().pushPose();
+        g.pose().translate(0f, 0f, 300f);
+        g.flush();
+        g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
 
         g.fill(panelLeft, panelTop, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL);
         ChroniclesUIKit.drawBorder(g, panelLeft, panelTop, PANEL_W, PANEL_H, ChroniclesThemePalette.BORDER_LIT);
 
         g.fill(panelLeft, panelTop, panelLeft + PANEL_W, panelTop + HEADER_H, ChroniclesThemePalette.HEADER);
-        g.fill(panelLeft, panelTop + HEADER_H - 1, panelLeft + PANEL_W, panelTop + HEADER_H, ChroniclesThemePalette.BORDER);
+        g.fill(panelLeft, panelTop + HEADER_H - 1, panelLeft + PANEL_W, panelTop + HEADER_H,
+                ChroniclesThemePalette.BORDER);
         g.drawCenteredString(font, "§3Pick Fluid", panelLeft + PANEL_W / 2, panelTop + 7, ChroniclesThemePalette.TEXT);
 
         int footerY = panelTop + PANEL_H - FOOTER_H;
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, footerY + 1, ChroniclesThemePalette.BORDER);
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL_DARK);
-        g.drawString(font, "§8" + displayFluids.size() + " fluids", panelLeft + 62, footerY + 7, ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8" + displayFluids.size() + " fluids", panelLeft + 62, footerY + 7,
+                ChroniclesThemePalette.TEXT_FAINT);
 
         super.render(g, mx, my, partial);
 
@@ -176,6 +192,8 @@ public class FluidPickerScreen extends Screen {
             String selStr = selId != null ? selId.toString() : "?";
             g.drawString(font, "§f" + selStr, panelLeft + 24, prevY + 5, ChroniclesThemePalette.TEXT);
         }
+
+        g.pose().popPose();
     }
 
     @Override
@@ -184,7 +202,20 @@ public class FluidPickerScreen extends Screen {
             selectedFluid = hoveredFluid;
             return true;
         }
+        if (btn == 0 && (mx < panelLeft || mx >= panelLeft + PANEL_W || my < panelTop || my >= panelTop + PANEL_H)) {
+            if (minecraft != null) minecraft.setScreen(parent);
+            return true;
+        }
         return super.mouseClicked(mx, my, btn);
+    }
+
+    @Override
+    public boolean keyPressed(int key, int scan, int mods) {
+        if (key == 256) { // ESC
+            if (minecraft != null) minecraft.setScreen(parent);
+            return true;
+        }
+        return super.keyPressed(key, scan, mods);
     }
 
     @Override

@@ -416,6 +416,28 @@ public final class PhoenixTaskRegistry {
                 .field(FieldDef.integer("required_level", "Min Level"))
                 .register();
 
+        register("view_machine", tag -> {
+            ViewMachineTask t = new ViewMachineTask(taskId(tag), desc(tag), "", 3.0f);
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b⬡").label("View Machine (Phantasia)")
+                .tooltip(
+                        "Completes when the player views a Phantasia build guide for a specific machine for at least the required time.\nTarget: machine id (Phantasia multiblock definition id).")
+                .field(FieldDef.text("machine_id", "Machine ID"))
+                .field(FieldDef.integer("min_seconds", "Min Seconds"))
+                .register();
+
+        register("view_scene", tag -> {
+            ViewSceneTask t = new ViewSceneTask(taskId(tag), desc(tag), "", 5.0f);
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b⬢").label("View Scene (Phantasia)")
+                .tooltip(
+                        "Completes when the player views a multi-machine Phantasia scene for at least the required time.\nTarget: scene id (Phantasia scene definition id).")
+                .field(FieldDef.text("scene_id", "Scene ID"))
+                .field(FieldDef.integer("min_seconds", "Min Seconds"))
+                .register();
+
         register("external_trigger", tag -> {
             ExternalTriggerTask t = new ExternalTriggerTask(taskId(tag), desc(tag), "", 1);
             t.deserializeNBT(tag);

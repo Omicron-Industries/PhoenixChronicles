@@ -49,7 +49,7 @@ public class QuestProgressTracker {
                 // Flag-disabled quests are fully inert — skip all processing
                 if (node.isFlagDisabled()) continue;
                 // DISABLED visibility quests are shown but cannot be completed
-                if (node.getVisibility() == QuestNode.Visibility.DISABLED) continue;
+                if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
 
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
 
@@ -65,7 +65,7 @@ public class QuestProgressTracker {
 
                 if (!MinecraftForge.EVENT_BUS.post(new QuestEvent.PlayerTick(player, node))) {
                     // Let polling tasks update their state (biome, structure, etc.)
-                    for (QuestTask task : node.getTasks()) {
+                    for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
                         if (!task.isCompletedFor(player)) task.onTick(player);
                     }
                     checkAndTryComplete(player, node);
@@ -78,12 +78,13 @@ public class QuestProgressTracker {
 
     public static void checkAndTryComplete(Player player, QuestNode node) {
         // Flag-disabled or visibility-DISABLED quests can never be completed
-        if (node.isFlagDisabled() || node.getVisibility() == QuestNode.Visibility.DISABLED) return;
+        if (node.isFlagDisabled() || node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
+            return;
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
             QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
             if (state == QuestState.COMPLETED) return;
 
-            java.util.List<QuestTask> tasks = node.getTasks();
+            java.util.List<QuestTask> tasks = node.getEffectiveTasks(player.getServer());
             int minCount = node.getTaskMinCount();
 
             boolean complete;
@@ -194,11 +195,11 @@ public class QuestProgressTracker {
             for (QuestNode child : completedNode.getChildren()) {
                 if (data.getQuestState(child.getId(), QuestState.LOCKED) != QuestState.LOCKED) continue;
 
-                if (prereqsSatisfied(child, data)) {
+                if (prereqsSatisfied(child, data, player.getServer())) {
                     changeQuestState(player, child, QuestState.UNLOCKED);
 
                     // Auto-complete if the player already satisfied the child quest's tasks
-                    if (!child.getTasks().isEmpty()) {
+                    if (!child.getEffectiveTasks(player.getServer()).isEmpty()) {
                         checkAndTryComplete(player, child);
                     }
                 }
@@ -220,7 +221,8 @@ public class QuestProgressTracker {
      *
      * DISABLED quests are skipped — they don't gate their children.
      */
-    public static boolean prereqsSatisfied(QuestNode node, PlayerQuestData data) {
+    public static boolean prereqsSatisfied(QuestNode node, PlayerQuestData data,
+                                           net.minecraft.server.MinecraftServer server) {
         List<QuestNode> prereqs = node.getPrerequisites();
         if (prereqs.isEmpty()) return true;
 
@@ -240,7 +242,8 @@ public class QuestProgressTracker {
             if (p.isFlagDisabled()) continue;
             if (node.isPrereqForbidden(p.getId())) continue;
             if (node.isPrereqCosmetic(p.getId())) continue;
-            if (p.getVisibility() == QuestNode.Visibility.DISABLED && !p.isDisabledBlocksChildren()) continue;
+            if (p.getEffectiveVisibility(server) == QuestNode.Visibility.DISABLED && !p.isDisabledBlocksChildren())
+                continue;
             active.add(p);
         }
         if (active.isEmpty()) return true;
@@ -310,7 +313,7 @@ public class QuestProgressTracker {
     private static void resetForRepeat(Player player, QuestNode node, PlayerQuestData data) {
         // Wipe all task progress so accumulator tasks (kill, craft, stat) start fresh
         // — clears both per-player and (if pooled) team-shared progress for each task.
-        for (QuestTask task : node.getTasks()) {
+        for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
             net.phoenixvine.chronicles.capability.TaskProgressAccess.clear(player, task.getTaskId());
         }
         // Allow claiming rewards again
@@ -333,7 +336,7 @@ public class QuestProgressTracker {
             if (MinecraftForge.EVENT_BUS.post(
                     new QuestEvent.RewardClaimed(player, node)))
                 return; // cancelled — mod vetoed the reward grant
-            for (QuestReward reward : node.getRewards()) {
+            for (QuestReward reward : node.getEffectiveRewards(player.getServer())) {
                 reward.grant(player);
             }
             data.markRewardsClaimed(node.getId());
@@ -364,8 +367,9 @@ public class QuestProgressTracker {
     public static void grantChosenReward(ServerPlayer player, QuestNode node, int choiceIndex) {
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
             if (data.hasClaimedRewards(node.getId())) return;
-            if (choiceIndex < 0 || choiceIndex >= node.getRewards().size()) return;
-            node.getRewards().get(choiceIndex).grant(player);
+            List<QuestReward> effectiveRewards = node.getEffectiveRewards(player.getServer());
+            if (choiceIndex < 0 || choiceIndex >= effectiveRewards.size()) return;
+            effectiveRewards.get(choiceIndex).grant(player);
             data.setChosenRewardIndex(node.getId(), choiceIndex);
             data.markRewardsClaimed(node.getId());
             sendProgressSync(player);

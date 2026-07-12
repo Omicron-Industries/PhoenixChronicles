@@ -784,6 +784,13 @@ public class FtbQuestsImporter {
         return null;
     }
 
+    /**
+     * FTB Quests stores a description as a LIST of lines - each entry is one line/paragraph as
+     * authored in the FTBQ editor, and a blank entry is a deliberate paragraph break. This used
+     * to join every entry with a single space, which flattened multi-paragraph descriptions (e.g.
+     * Monifactory's cleanroom quest) into one run-on blob. Now each entry becomes its own line via
+     * "\n", which ChronicleRichTextRenderer already splits on when laying out text.
+     */
     private static String buildDescription(ListTag lines, Map<String, String> langMap, List<String> warnings) {
         if (lines == null || lines.isEmpty()) return "";
         StringBuilder sb = new StringBuilder();
@@ -793,17 +800,18 @@ public class FtbQuestsImporter {
             if (line.startsWith("{image:")) {
                 String inner = line.substring(1, line.length() - 1);
                 String imgBody = normalizeImageBody(inner.substring("image:".length()));
-                if (sb.length() > 0 && !sb.toString().endsWith(" ")) sb.append(" ");
+                if (sb.length() > 0) sb.append("\n");
                 sb.append("[img:").append(imgBody).append("]");
                 continue;
             }
             line = resolveText(line, langMap, warnings, true).trim();
-            if (!line.isEmpty()) {
-                if (sb.length() > 0 && !sb.toString().endsWith(" ")) sb.append(" ");
-                sb.append(line);
-            }
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(line);
         }
-        return sb.toString().trim();
+        // Trim leading/trailing blank lines only - blank lines in the middle are the
+        // paragraph-break separators FTBQ authors relied on.
+        String result = sb.toString();
+        return result.replaceAll("^\n+", "").replaceAll("\n+$", "");
     }
 
     private static String normalizeImageBody(String raw) {
@@ -874,7 +882,14 @@ public class FtbQuestsImporter {
                 .replaceAll("\\[([^]]*)]\\([^)]*\\)", "$1").trim();
     }
 
-    /** Turns "the_factory" / "some-thing" into "The Factory" / "Some Thing". */
+    /**
+     * Turns "the_factory" / "some-thing" into "The Factory" / "Some Thing" - used only as a
+     * fallback when a chapter has no usable title in the file itself, so this reads a filename.
+     * Words that are ALREADY fully uppercase (2+ letters) are left exactly as-is instead of
+     * being title-cased, so tech-tier acronyms like "UHV"/"LuV" in a filename survive intact
+     * rather than coming out "Uhv"/"Luv" - title-casing every word indiscriminately doesn't know
+     * the difference between an ordinary word and an acronym.
+     */
     private static String humanize(String raw) {
         if (raw == null || raw.isBlank()) return "Imported Chapter";
         String[] words = raw.replace('_', ' ').replace('-', ' ').trim().split("\\s+");
@@ -882,7 +897,11 @@ public class FtbQuestsImporter {
         for (String w : words) {
             if (w.isEmpty()) continue;
             if (sb.length() > 0) sb.append(' ');
-            sb.append(Character.toUpperCase(w.charAt(0))).append(w.length() > 1 ? w.substring(1) : "");
+            if (w.length() > 1 && w.equals(w.toUpperCase())) {
+                sb.append(w); // already an acronym - don't "correct" its casing
+            } else {
+                sb.append(Character.toUpperCase(w.charAt(0))).append(w.length() > 1 ? w.substring(1) : "");
+            }
         }
         return sb.length() == 0 ? "Imported Chapter" : sb.toString();
     }

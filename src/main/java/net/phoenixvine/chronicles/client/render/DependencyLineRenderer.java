@@ -27,29 +27,29 @@ import java.util.function.Function;
  */
 public class DependencyLineRenderer {
 
-    public static final int C_LINE_LOCKED = 0x38FFFFFF;
-    public static final int C_LINE_DONE = 0x9900CC66;
-    public static final int C_LINE_ACTIVE = 0x88FFAA00;
-
     private static final float[] EMPTY_FLOATS = new float[0];
     private static final int TRIM_SAMPLE_STEPS = 48;
 
-    /** How far a trimmed line end runs UNDER the node icon's edge (rather than stopping exactly
-     *  at it), so the icon's own paint guarantees the connector reads as touching the quest with
-     *  no stray subpixel gap. */
+    /**
+     * How far a trimmed line end runs UNDER the node icon's edge (rather than stopping exactly
+     * at it), so the icon's own paint guarantees the connector reads as touching the quest with
+     * no stray subpixel gap.
+     */
     private static final float TRIM_OVERLAP_PX = 2f;
 
-    /** Target apparent speed for flowing dependency-line arrows, in screen px/ms - each edge's
-     *  actual traversal period is derived from this against its own trimmed length instead of
-     *  sharing one fixed period, so short and long edges read as moving at the same rate. */
+    /**
+     * Target apparent speed for flowing dependency-line arrows, in screen px/ms - each edge's
+     * actual traversal period is derived from this against its own trimmed length instead of
+     * sharing one fixed period, so short and long edges read as moving at the same rate.
+     */
     private static final float ARROW_SPEED_PX_PER_MS = 0.15f;
 
     /**
      * Dependency-line arrowhead sprite. Transparent-background variant, since this is drawn
      * as a rotated overlay on top of the line ribbon rather than a standalone icon.
      */
-    private static final ResourceLocation ARROW_SPRITE =
-            new ResourceLocation("phoenix_chronicles", "textures/gui/sprites/arrow_no_background.png");
+    private static final ResourceLocation ARROW_SPRITE = new ResourceLocation("phoenix_chronicles",
+            "textures/gui/sprites/arrow_no_background.png");
 
     private final List<int[]> lineCache = new ArrayList<>();
     private final List<ResourceLocation[]> lineCacheNodes = new ArrayList<>();
@@ -68,7 +68,7 @@ public class DependencyLineRenderer {
      * ChronicleOverviewScreen's buildLineCache() once it's finished walking the quest graph.
      */
     public void rebuild(List<int[]> edges, List<ResourceLocation[]> edgeNodes,
-                         float zoom, float nodeSizePx, QuestChroniclesSettings settings) {
+                        float zoom, float nodeSizePx, QuestChroniclesSettings settings) {
         lineCache.clear();
         lineCache.addAll(edges);
         lineCacheNodes.clear();
@@ -110,60 +110,80 @@ public class DependencyLineRenderer {
      * is a cheap integer modulo to pick the dash phase.
      */
     private static final class LineGeometry {
-        /** 8 floats per segment: x0,y0,x1,y1,x2,y2,x3,y3 (quad corners, already screen-space). */
-        final float[] outlineQuads;
-        final float[] coreQuads;
+
+        /**
+         * 16 floats per segment: two thin rail quads (top rail x0..x3 at [0..7], bottom rail at
+         * [8..15]), already screen-space. A hollow channel rather than one filled bar - a solid
+         * fill drawn under the arrow chain showed through the transparent notch at the back of
+         * each chevron sprite as a stray rectangle cutting through it. The arrow chain (tiled the
+         * full length of the edge, see arrowCount below) travels inside this channel and is what
+         * actually reads as "the connection"; the rails are just the FTBQ-style encapsulation.
+         */
+        final float[] quads;
         final int segmentCount;
-        final int outlineColor;
-        final int coreColor;
-        final boolean drawOutline;
+        final int color;
         final boolean isSolid;
         final int dashPeriod;
         final int dashOn;
         final long effectiveSpeedDiv;
-        /** FTBQ-style flowing arrows: instead of one static arrowhead, a few small chevrons
-         *  travel continuously along the curve from parent to child. Since that position moves
-         *  every frame, the quad corners can't be pre-baked like the ribbon - instead the control
-         *  points are cached so emitLineGeometry() can cheaply re-sample a handful of points on
-         *  the curve (not the full 16-64 segment walk) each frame. */
+        /**
+         * Arrows tile the entire path edge-to-edge (see buildLineGeometry's arrowCount calc)
+         * rather than a handful of widely-spaced chevrons. Since their position moves every
+         * frame when animated, the quad corners can't be pre-baked like the ribbon - instead the
+         * control points are cached so emitLineGeometry() can cheaply re-sample a handful of
+         * points on the curve (not the full 16-64 segment walk) each frame.
+         */
         final boolean showArrow;
         float xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb;
         final float arrowSize;
         final int arrowColor;
         final int arrowCount;
-        /** Outline half-width, reused as the rounded-end-cap radius so the cap seamlessly caps
-         *  off the ribbon's own width instead of an arbitrary separate size. */
+        /**
+         * Ribbon half-width, reused as the rounded-end-cap radius so the cap seamlessly caps
+         * off the ribbon's own width instead of an arbitrary separate size.
+         */
         final float capRadius;
-        /** Time for one arrow to travel this edge's own (now-trimmed) visible span, scaled to
-         *  the edge's length instead of a single shared constant - a fixed period made short
-         *  connectors between nearby nodes crawl at a much lower apparent px/sec than long ones. */
+        /**
+         * Time for one arrow to travel this edge's own (now-trimmed) visible span, scaled to
+         * the edge's length instead of a single shared constant - a fixed period made short
+         * connectors between nearby nodes crawl at a much lower apparent px/sec than long ones.
+         */
         final long arrowPeriodMs;
+        /**
+         * arcT[k] = the bezier t-parameter whose cumulative arc length is k/(arcT.length-1) of
+         * the curve's total length - lets arrow placement be arc-length-uniform (evenly spaced
+         * in actual screen pixels) instead of t-uniform (which bunches near the ends of a
+         * non-uniform-speed bezier and spreads out mid-curve). See emitLineGeometry.
+         */
+        final float[] arcT;
 
-        LineGeometry(float[] outlineQuads, float[] coreQuads, int segmentCount, int outlineColor, int coreColor,
-                     boolean drawOutline, boolean isSolid, int dashPeriod, int dashOn, long effectiveSpeedDiv,
+        LineGeometry(float[] quads, int segmentCount, int color,
+                     boolean isSolid, int dashPeriod, int dashOn, long effectiveSpeedDiv,
                      boolean showArrow, float xa, float ya, float cp1x, float cp1y, float cp2x, float cp2y,
                      float xb, float yb, float arrowSize, int arrowColor, int arrowCount, float capRadius,
-                     long arrowPeriodMs) {
-            this.outlineQuads = outlineQuads;
-            this.coreQuads = coreQuads;
+                     long arrowPeriodMs, float[] arcT) {
+            this.quads = quads;
             this.segmentCount = segmentCount;
-            this.outlineColor = outlineColor;
-            this.coreColor = coreColor;
-            this.drawOutline = drawOutline;
+            this.color = color;
             this.isSolid = isSolid;
             this.dashPeriod = dashPeriod;
             this.dashOn = dashOn;
             this.effectiveSpeedDiv = effectiveSpeedDiv;
             this.showArrow = showArrow;
-            this.xa = xa; this.ya = ya;
-            this.cp1x = cp1x; this.cp1y = cp1y;
-            this.cp2x = cp2x; this.cp2y = cp2y;
-            this.xb = xb; this.yb = yb;
+            this.xa = xa;
+            this.ya = ya;
+            this.cp1x = cp1x;
+            this.cp1y = cp1y;
+            this.cp2x = cp2x;
+            this.cp2y = cp2y;
+            this.xb = xb;
+            this.yb = yb;
             this.arrowSize = arrowSize;
             this.arrowColor = arrowColor;
             this.arrowCount = arrowCount;
             this.capRadius = capRadius;
             this.arrowPeriodMs = arrowPeriodMs;
+            this.arcT = arcT;
         }
 
         /**
@@ -172,18 +192,18 @@ public class DependencyLineRenderer {
          * Lets panShift() keep this cache in sync without falling back to a full rebuild.
          */
         void shiftBy(float dx, float dy) {
-            for (int i = 0; i < outlineQuads.length; i += 2) {
-                outlineQuads[i] += dx;
-                outlineQuads[i + 1] += dy;
+            for (int i = 0; i < quads.length; i += 2) {
+                quads[i] += dx;
+                quads[i + 1] += dy;
             }
-            for (int i = 0; i < coreQuads.length; i += 2) {
-                coreQuads[i] += dx;
-                coreQuads[i + 1] += dy;
-            }
-            xa += dx; ya += dy;
-            cp1x += dx; cp1y += dy;
-            cp2x += dx; cp2y += dy;
-            xb += dx; yb += dy;
+            xa += dx;
+            ya += dy;
+            cp1x += dx;
+            cp1y += dy;
+            cp2x += dx;
+            cp2y += dy;
+            xb += dx;
+            yb += dy;
         }
     }
 
@@ -200,8 +220,8 @@ public class DependencyLineRenderer {
      * to the quest at all. Returns null when the icons overlap/sit too close for any gap to exist.
      */
     private static float[] findTrimRange(float xa, float ya, float cp1x, float cp1y,
-                                          float cp2x, float cp2y, float xb, float yb,
-                                          float startHalfSize, float endHalfSize) {
+                                         float cp2x, float cp2y, float xb, float yb,
+                                         float startHalfSize, float endHalfSize) {
         float t0 = -1f, t1 = -1f;
         for (int i = 0; i <= TRIM_SAMPLE_STEPS; i++) {
             float t = (float) i / TRIM_SAMPLE_STEPS;
@@ -221,7 +241,7 @@ public class DependencyLineRenderer {
 
     /** de Casteljau split of a cubic bezier at parameter t - the [0,t] half, re-expressed as its own cubic. */
     private static float[] bezierLeftHalf(float p0x, float p0y, float p1x, float p1y,
-                                           float p2x, float p2y, float p3x, float p3y, float t) {
+                                          float p2x, float p2y, float p3x, float p3y, float t) {
         float ax = lerp(p0x, p1x, t), ay = lerp(p0y, p1y, t);
         float bx = lerp(p1x, p2x, t), by = lerp(p1y, p2y, t);
         float cx = lerp(p2x, p3x, t), cy = lerp(p2y, p3y, t);
@@ -233,7 +253,7 @@ public class DependencyLineRenderer {
 
     /** de Casteljau split of a cubic bezier at parameter t - the [t,1] half, re-expressed as its own cubic. */
     private static float[] bezierRightHalf(float p0x, float p0y, float p1x, float p1y,
-                                            float p2x, float p2y, float p3x, float p3y, float t) {
+                                           float p2x, float p2y, float p3x, float p3y, float t) {
         float ax = lerp(p0x, p1x, t), ay = lerp(p0y, p1y, t);
         float bx = lerp(p1x, p2x, t), by = lerp(p1y, p2y, t);
         float cx = lerp(p2x, p3x, t), cy = lerp(p2y, p3y, t);
@@ -249,8 +269,8 @@ public class DependencyLineRenderer {
      * points (which would silently change the curve's shape instead of trimming it).
      */
     private static float[] bezierSubArc(float xa, float ya, float cp1x, float cp1y,
-                                         float cp2x, float cp2y, float xb, float yb,
-                                         float t0, float t1) {
+                                        float cp2x, float cp2y, float xb, float yb,
+                                        float t0, float t1) {
         float[] left = bezierLeftHalf(xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb, t1);
         float t0n = t1 > 1e-6f ? t0 / t1 : 0f;
         return bezierRightHalf(left[0], left[1], left[2], left[3], left[4], left[5], left[6], left[7], t0n);
@@ -263,12 +283,12 @@ public class DependencyLineRenderer {
     private LineGeometry buildLineGeometry(int[] ln, QuestChroniclesSettings settings, float zoom, float nodeSizePx) {
         int x1 = ln[0], y1 = ln[1], x2 = ln[2], y2 = ln[3];
         int color = ln[4], style = ln[5];
-        QuestChroniclesSettings.LineStyle shapeOverride =
-                ln[6] >= 0 ? QuestChroniclesSettings.LineStyle.values()[ln[6]] : null;
-        QuestChroniclesSettings.LineVisualStyle visOverride =
-                ln[7] >= 0 ? QuestChroniclesSettings.LineVisualStyle.values()[ln[7]] : null;
-        QuestChroniclesSettings.LineAnimSpeed speedOverride =
-                ln[8] >= 0 ? QuestChroniclesSettings.LineAnimSpeed.values()[ln[8]] : null;
+        QuestChroniclesSettings.LineStyle shapeOverride = ln[6] >= 0 ?
+                QuestChroniclesSettings.LineStyle.values()[ln[6]] : null;
+        QuestChroniclesSettings.LineVisualStyle visOverride = ln[7] >= 0 ?
+                QuestChroniclesSettings.LineVisualStyle.values()[ln[7]] : null;
+        QuestChroniclesSettings.LineAnimSpeed speedOverride = ln[8] >= 0 ?
+                QuestChroniclesSettings.LineAnimSpeed.values()[ln[8]] : null;
         Boolean arrowOverride = ln[9] < 0 ? null : ln[9] == 1;
 
         boolean spline = (shapeOverride != null ? shapeOverride : settings.getLineStyle()) ==
@@ -281,22 +301,31 @@ public class DependencyLineRenderer {
         float adx = Math.abs(xb - xa), ady = Math.abs(yb - ya);
         float cp1x, cp1y, cp2x, cp2y;
         if (!spline) {
-            cp1x = xa; cp1y = ya; cp2x = xb; cp2y = yb;
+            cp1x = xa;
+            cp1y = ya;
+            cp2x = xb;
+            cp2y = yb;
         } else if (adx >= ady) {
             float mx = (xa + xb) / 2f;
-            cp1x = mx; cp1y = ya; cp2x = mx; cp2y = yb;
+            cp1x = mx;
+            cp1y = ya;
+            cp2x = mx;
+            cp2y = yb;
         } else {
             float my = (ya + yb) / 2f;
             // Collapsing the second control point onto the endpoint made vertical-dominant
             // edges an asymmetric curve instead of a symmetric S like the horizontal-dominant
             // branch above (which mirrors mx at both ends).
-            cp1x = xa; cp1y = my; cp2x = xb; cp2y = my;
+            cp1x = xa;
+            cp1y = my;
+            cp2x = xb;
+            cp2y = my;
         }
 
         float dist = (float) Math.sqrt(adx * adx + ady * ady);
         if (dist < 0.5f) {
-            return new LineGeometry(EMPTY_FLOATS, EMPTY_FLOATS, 0, 0, 0, false, true, 8, 5, 1L,
-                    false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L);
+            return new LineGeometry(EMPTY_FLOATS, 0, 0, true, 8, 5, 1L,
+                    false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, EMPTY_FLOATS);
         }
 
         // Clip the rendered span to the visible gap between the two node icons (FTBQ-style)
@@ -312,12 +341,20 @@ public class DependencyLineRenderer {
         if (trimRange == null) {
             // Nodes overlap or sit too close for any visible gap - nothing to draw between
             // icons that are already touching/overlapping each other.
-            return new LineGeometry(EMPTY_FLOATS, EMPTY_FLOATS, 0, 0, 0, false, true, 8, 5, 1L,
-                    false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L);
+            return new LineGeometry(EMPTY_FLOATS, 0, 0, true, 8, 5, 1L,
+                    false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, EMPTY_FLOATS);
         }
         float[] sub = bezierSubArc(xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb, trimRange[0], trimRange[1]);
-        xa = sub[0]; ya = sub[1]; cp1x = sub[2]; cp1y = sub[3]; cp2x = sub[4]; cp2y = sub[5]; xb = sub[6]; yb = sub[7];
-        adx = Math.abs(xb - xa); ady = Math.abs(yb - ya);
+        xa = sub[0];
+        ya = sub[1];
+        cp1x = sub[2];
+        cp1y = sub[3];
+        cp2x = sub[4];
+        cp2y = sub[5];
+        xb = sub[6];
+        yb = sub[7];
+        adx = Math.abs(xb - xa);
+        ady = Math.abs(yb - ya);
         dist = (float) Math.sqrt(adx * adx + ady * ady);
 
         int steps = Math.min(Math.max(16, (int) (dist / 4.0f)), 64);
@@ -334,103 +371,202 @@ public class DependencyLineRenderer {
             default -> 0.75f; // NORMAL
         };
 
-        // Scales WITH zoom (proportional, like FTBQ) instead of inversely - clamped on both ends
-        // so it never vanishes at extreme zoom-out or bloats at zoom-in.
+        // Scales WITH zoom (proportional, like FTBQ) instead of inversely - the FACTOR is what
+        // gets floored at 0.5, not the resulting width, so it never vanishes at extreme zoom-out
+        // without also washing different styles into the same clamped value.
         //
-        // The zoom floor used to be a flat pixel value (0.6 core / 0.5 outline) shared by every
-        // visual style. At typical zoomed-out tree views (~30-50%), baseCoreW*zoom for THIN,
-        // NORMAL, BOLD and even THICK all landed under that flat floor, so they all rendered at
-        // the exact same clamped width and only WIDE ever looked different - i.e. the thickness
-        // setting silently did nothing below a certain zoom. Floor is now proportional to each
-        // style's OWN base width instead of a shared constant, so the relative difference between
-        // styles survives at any zoom level.
+        // This clamp used to apply directly to the final widthScale (a flat "never more than
+        // 1.6" cap) - THICK (1.8 base) and WIDE (2.6 base) both got capped to the exact same
+        // 1.6 at normal zoom, so they rendered identically and the setting looked like it did
+        // nothing between those two options. Left uncapped here; channelHalfW below has its own
+        // (generous) upper clamp as the actual safety net against extreme zoom-in.
         float currentZoom = Math.max(0.05f, zoom);
         float zoomFactor = Math.max(0.5f, currentZoom);
-        float coreHalfW = Math.min(3.2f, baseCoreW * zoomFactor);
-        float outlineHalfW = coreHalfW + Math.min(2.0f, baseCoreW * 0.6f * zoomFactor);
+        float widthScale = baseCoreW * zoomFactor;
 
         boolean isSolid = (style == 1 || style == 6 || style == 8);
         boolean isMarching = (style == 2 || style == 9);
         int dashPeriod = 8, dashOn = 5;
-        if (style == 0) { dashPeriod = 10; dashOn = 3; }
-        else if (style == 3 || style == 4) { dashPeriod = 14; dashOn = 6; }
-        else if (style == 5) { dashPeriod = 8; dashOn = 3; }
-        else if (style == 7 || style == 9) { dashPeriod = 20; dashOn = 5; }
-        else if (style == 10) { dashPeriod = 16; dashOn = 2; }
+        if (style == 0) {
+            dashPeriod = 10;
+            dashOn = 3;
+        } else if (style == 3 || style == 4) {
+            dashPeriod = 14;
+            dashOn = 6;
+        } else if (style == 5) {
+            dashPeriod = 8;
+            dashOn = 3;
+        } else if (style == 7 || style == 9) {
+            dashPeriod = 20;
+            dashOn = 5;
+        } else if (style == 10) {
+            dashPeriod = 16;
+            dashOn = 2;
+        }
 
         long effectiveSpeedDiv = isMarching ? speedDiv : 1L;
 
-        // Hollow tube look: the wide outer pass carries the STATE color (locked/active/done) at
-        // moderate opacity - the "wall" of the channel - while the narrow inner pass is just a
-        // bright highlight spine, not a second solid fill of the same color. That leaves a
-        // visible gap between the two, reading as a hollow guide the arrow travels through rather
-        // than one solid filled bar, and leaves the arrow as the strongest, most saturated
-        // element on the line - which is the point, since it's what actually carries
-        // directionality.
-        int outlineAlpha = Math.min(235, Math.max(120, alpha));
-        int outlineColor = (outlineAlpha << 24) | rgb;
-        int highlightRgb = settings.getTheme() == QuestChroniclesSettings.Theme.LIGHT ? 0x1A1A1A : 0xFFFFFF;
-        int coreColor = (Math.min(255, alpha + 40) << 24) | highlightRgb;
+        int lineAlpha = Math.min(235, Math.max(120, alpha));
+        int lineColor = (lineAlpha << 24) | rgb;
+
+        // Channel sized first, from widthScale alone - arrows are sized to fit INSIDE it below,
+        // not the other way around. Sizing the channel off the arrow (as before) meant the arrow
+        // sprite's own half-width could come out wider than the channel it was supposed to travel
+        // through, so its edges clipped past the rails - the area where both the rail's color and
+        // the arrow's color showed at once, which read as visually broken rather than one clean
+        // chevron sliding through a tube.
+        //
+        // railHalfThickness is computed FIRST and is the dominant term now - it's the actual
+        // stroke width of each rail, i.e. the part your eye reads as "how thick is this line".
+        // The old formula derived it as a small fraction (0.4x, capped at 1.2) of a channel that
+        // was itself sized off widthScale - so between THIN and WIDE the visible STROKE only grew
+        // from ~0.25px to ~1.04px (barely perceptible) while the GAP between the two rails grew
+        // much more (0.31 to 2.6), which reads as "the rails drifting apart" rather than "the line
+        // getting thicker". Rail thickness now gets the large multiplier and channelHalfW is built
+        // outward from it (rail + a smaller gap term), so growing the size setting visibly thickens
+        // the stroke itself instead of mostly just widening empty space between two thin strokes.
+        float railHalfThickness = Math.min(2.0f, Math.max(0.35f, widthScale * 0.9f));
+
+        // Arrow size scales off widthScale directly (same term driving rail thickness), and the
+        // gap is now derived FROM the arrow instead of the other way around - it's sized with a
+        // guaranteed margin around whatever the arrow's own half-width works out to. That used to
+        // be backwards (gap sized off widthScale independently, arrow capped against it as a loose
+        // safety net) - since railHalfThickness above claims a bigger share of widthScale than the
+        // arrow's own growth needed, thicker styles ended up with an arrow that outgrew its gap
+        // and visually smushed into the rails on both sides. Deriving the gap from the arrow makes
+        // that impossible by construction: growing the size setting only pushes railHalfThickness
+        // (and therefore the rails) further OUTWARD from a fixed, always-sufficient inner
+        // clearance, rather than the clearance shrinking around a growing arrow.
+        float arrowSize = Math.min(7.0f, Math.max(0.9f, widthScale * 1.6f));
+        float arrowHalfWidth = arrowSize * (45f / 75f);
+        float gapHalf = arrowHalfWidth * 1.2f;
+        float channelHalfW = railHalfThickness + gapHalf;
+        int arrowAlpha = Math.max(alpha, 200);
+        int arrowColor = (arrowAlpha << 24) | rgb;
+        // FTBQ tiles chevrons the full length of the connection rather than a sparse handful -
+        // the arrow chain itself is what reads as "the line". Spaced so consecutive arrows sit
+        // almost edge-to-edge (arrowSize*2 is one sprite's full length), clamped so it can't
+        // explode into hundreds of quads on an extreme zoomed-out long edge.
+        int arrowCount = showArrow ? Math.min(80, Math.max(1, Math.round(dist / (arrowSize * 2.1f)))) : 0;
 
         float[] pathX = new float[steps + 1];
         float[] pathY = new float[steps + 1];
+        // Per-VERTEX normals, not one normal per segment - each is the analytic tangent at that
+        // exact t, so segment i's end normal and segment i+1's start normal are computed from the
+        // literal same t and come out bit-for-bit identical. Segments used to each pick a single
+        // normal at their own midpoint, so neighboring segments' shared corner was built from two
+        // slightly different angles - the tiny wedge-shaped gap/overlap that showed up as a seam
+        // at every one of the ~64 joints along a long or sharply curved edge. This also reads as
+        // generally smoother/less faceted overall, not just seam-free, since the offset now varies
+        // continuously along the curve instead of being constant across each whole segment.
+        float[] normX = new float[steps + 1];
+        float[] normY = new float[steps + 1];
         for (int i = 0; i <= steps; i++) {
             float t = (float) i / steps;
             float mt = 1f - t;
             pathX[i] = mt * mt * mt * xa + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * xb;
             pathY[i] = mt * mt * mt * ya + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * yb;
+
+            float tdx = 3 * mt * mt * (cp1x - xa) + 6 * mt * t * (cp2x - cp1x) + 3 * t * t * (xb - cp2x);
+            float tdy = 3 * mt * mt * (cp1y - ya) + 6 * mt * t * (cp2y - cp1y) + 3 * t * t * (yb - cp2y);
+            float len = (float) Math.sqrt(tdx * tdx + tdy * tdy);
+            if (len < 0.0001f) {
+                // True zero-tangent only happens right at t=0/1 of a non-spline (straight-style)
+                // curve - nudge inward and re-evaluate rather than leaving a degenerate normal.
+                float tt = t < 0.5f ? t + 0.001f : t - 0.001f;
+                float mtt = 1f - tt;
+                tdx = 3 * mtt * mtt * (cp1x - xa) + 6 * mtt * tt * (cp2x - cp1x) + 3 * tt * tt * (xb - cp2x);
+                tdy = 3 * mtt * mtt * (cp1y - ya) + 6 * mtt * tt * (cp2y - cp1y) + 3 * tt * tt * (yb - cp2y);
+                len = (float) Math.sqrt(tdx * tdx + tdy * tdy);
+            }
+            if (len < 0.0001f) {
+                normX[i] = 0;
+                normY[i] = 0;
+            } else {
+                normX[i] = -tdy / len;
+                normY[i] = tdx / len;
+            }
         }
 
-        float[] outlineQuads = outlineAlpha > 0 ? new float[steps * 8] : EMPTY_FLOATS;
-        float[] coreQuads = new float[steps * 8];
+        // 16 floats per segment: two rail quads (top rail at [0..7], bottom rail at [8..15]).
+        float[] quads = new float[steps * 16];
+        float outerOff = channelHalfW + railHalfThickness;
+        float innerOff = channelHalfW - railHalfThickness;
 
         for (int i = 0; i < steps; i++) {
             float sx = pathX[i], sy = pathY[i];
             float ex = pathX[i + 1], ey = pathY[i + 1];
-            float dx = ex - sx, dy = ey - sy;
-            float len = (float) Math.sqrt(dx * dx + dy * dy);
-            if (len < 0.01f) continue;
-            float nx = -dy / len, ny = dx / len;
+            float nsx = normX[i], nsy = normY[i];
+            float nex = normX[i + 1], ney = normY[i + 1];
 
-            if (outlineAlpha > 0) {
-                float ox = nx * outlineHalfW, oy = ny * outlineHalfW;
-                int b = i * 8;
-                outlineQuads[b] = sx + ox; outlineQuads[b + 1] = sy + oy;
-                outlineQuads[b + 2] = sx - ox; outlineQuads[b + 3] = sy - oy;
-                outlineQuads[b + 4] = ex - ox; outlineQuads[b + 5] = ey - oy;
-                outlineQuads[b + 6] = ex + ox; outlineQuads[b + 7] = ey + oy;
-            }
+            float sOxOuter = nsx * outerOff, sOyOuter = nsy * outerOff;
+            float sOxInner = nsx * innerOff, sOyInner = nsy * innerOff;
+            float eOxOuter = nex * outerOff, eOyOuter = ney * outerOff;
+            float eOxInner = nex * innerOff, eOyInner = ney * innerOff;
 
-            float cx = nx * coreHalfW, cy = ny * coreHalfW;
-            int b = i * 8;
-            coreQuads[b] = sx + cx; coreQuads[b + 1] = sy + cy;
-            coreQuads[b + 2] = sx - cx; coreQuads[b + 3] = sy - cy;
-            coreQuads[b + 4] = ex - cx; coreQuads[b + 5] = ey - cy;
-            coreQuads[b + 6] = ex + cx; coreQuads[b + 7] = ey + cy;
+            int b = i * 16;
+            // Top rail
+            quads[b] = sx + sOxOuter;
+            quads[b + 1] = sy + sOyOuter;
+            quads[b + 2] = sx + sOxInner;
+            quads[b + 3] = sy + sOyInner;
+            quads[b + 4] = ex + eOxInner;
+            quads[b + 5] = ey + eOyInner;
+            quads[b + 6] = ex + eOxOuter;
+            quads[b + 7] = ey + eOyOuter;
+            // Bottom rail (mirrored)
+            quads[b + 8] = sx - sOxInner;
+            quads[b + 9] = sy - sOyInner;
+            quads[b + 10] = sx - sOxOuter;
+            quads[b + 11] = sy - sOyOuter;
+            quads[b + 12] = ex - eOxOuter;
+            quads[b + 13] = ey - eOyOuter;
+            quads[b + 14] = ex - eOxInner;
+            quads[b + 15] = ey - eOyInner;
         }
-
-        // Sized off the line's own (now zoom-balanced) rendered thickness rather than an
-        // independent zoom formula, so the arrow reads as part of the line instead of a separate
-        // floating blob - it's meant to be the strongest element on the line (the actual
-        // direction indicator), so it's allowed to run a bit bigger than the line's own width,
-        // still clamped so it can't balloon past the nodes it points at when zoomed out.
-        float arrowSize = Math.min(6.5f, Math.max(2.5f, outlineHalfW * 1.8f));
-        int arrowAlpha = Math.max(alpha, 200);
-        int arrowColor = (arrowAlpha << 24) | rgb;
-        // A few small chevrons per edge, like FTBQ's flowing dependency arrows, rather than one
-        // static arrowhead - more on long edges, fewer on short ones so they don't crowd.
-        int arrowCount = showArrow ? Math.max(1, Math.min(4, (int) (dist / 50f) + 1)) : 0;
 
         // Traversal time scaled to THIS edge's (trimmed) length instead of one shared constant -
         // a fixed period made short connectors between nearby nodes crawl at a much lower
         // apparent px/sec than long ones once trimming shrank their visible span, which is what
         // read as the arrow "moving like a turtle" on closely-spaced quests.
-        long arrowPeriodMs = (long) Math.min(2200f, Math.max(350f, dist / ARROW_SPEED_PX_PER_MS));
+        long baseArrowPeriodMs = (long) Math.min(2200f, Math.max(350f, dist / ARROW_SPEED_PX_PER_MS));
+        // speedDiv (the LineAnimSpeed setting/override) used to only affect the old marching-ants
+        // dash animation, which the hollow-rail redesign dropped - so "Very Slow" etc had quietly
+        // stopped doing anything visible. NORMAL's divisor (35) is the baseline the constant above
+        // was tuned against, so everything else scales relative to it: SLOWEST (120) stretches the
+        // period ~3.4x, VERY_FAST (7) compresses it to ~0.2x.
+        long arrowPeriodMs = Math.max(80L, Math.min(8000L,
+                Math.round(baseArrowPeriodMs * (speedDiv / 35.0))));
 
-        return new LineGeometry(outlineQuads, coreQuads, steps, outlineColor, coreColor,
-                outlineAlpha > 0, isSolid, dashPeriod, dashOn, effectiveSpeedDiv,
-                showArrow, xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb, arrowSize, arrowColor, arrowCount, outlineHalfW,
-                arrowPeriodMs);
+        // Arc-length remap table for arrow placement (see emitLineGeometry) - a cubic bezier
+        // isn't uniform-speed, so arrows spaced evenly in t landed unevenly spaced in actual
+        // screen pixels (bunched near the ends, spread out mid-curve, worse the longer/straighter
+        // the edge). arcT[k] is the t-parameter whose cumulative arc length equals k/steps of the
+        // curve's total length, letting arrows be placed evenly by distance instead of by t.
+        float[] cumLen = new float[steps + 1];
+        for (int i = 1; i <= steps; i++) {
+            float ddx = pathX[i] - pathX[i - 1], ddy = pathY[i] - pathY[i - 1];
+            cumLen[i] = cumLen[i - 1] + (float) Math.sqrt(ddx * ddx + ddy * ddy);
+        }
+        float totalLen = cumLen[steps];
+        float[] arcT = new float[steps + 1];
+        if (totalLen < 0.001f) {
+            for (int k = 0; k <= steps; k++) arcT[k] = (float) k / steps;
+        } else {
+            int j = 0;
+            for (int k = 0; k <= steps; k++) {
+                float target = (float) k / steps * totalLen;
+                while (j < steps - 1 && cumLen[j + 1] < target) j++;
+                float segLen = cumLen[j + 1] - cumLen[j];
+                float frac = segLen > 0.0001f ? (target - cumLen[j]) / segLen : 0f;
+                arcT[k] = (j + frac) / steps;
+            }
+        }
+
+        return new LineGeometry(quads, steps, lineColor,
+                isSolid, dashPeriod, dashOn, effectiveSpeedDiv,
+                showArrow, xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb, arrowSize, arrowColor, arrowCount, railHalfThickness,
+                arrowPeriodMs, arcT);
     }
 
     /**
@@ -449,51 +585,98 @@ public class DependencyLineRenderer {
      * corner data and uploads it directly via Tesselator + BufferUploader. This mirrors that
      * exact mechanism for the ribbon instead.
      */
-    private void emitLineGeometry(GuiGraphics g, LineGeometry geo, long animTick, Integer coreColorOverride) {
+    /**
+     * animated=false freezes dash phase and arrow phase at 0 instead of deriving them from
+     * animTick - every non-solid edge (locked/optional/forbidden) was re-deriving its dash
+     * offset from animTick with effectiveSpeedDiv=1 (only genuinely "marching" styles slow that
+     * down), which cycles the whole dashPeriod within single-digit milliseconds - faster than
+     * frame time, so it read as flicker rather than motion across the ENTIRE tree simultaneously.
+     * That's what prompted this: static by default, motion reserved for the hovered quest's own
+     * edges (see render()).
+     */
+    /** Alpha-only dim for the static (non-hover) arrow pass - see emitLineGeometry's javadoc. */
+    private static int dimArrowColor(int color) {
+        int a = (color >>> 24) & 0xFF;
+        int rgb = color & 0x00FFFFFF;
+        int dimmed = Math.max(45, Math.round(a * 0.4f));
+        return (dimmed << 24) | rgb;
+    }
+
+    /** Linear interpolation into an arc-length remap table (see LineGeometry.arcT's javadoc). */
+    private static float lookupArcT(float[] arcT, float f) {
+        float idx = Math.max(0f, Math.min(1f, f)) * (arcT.length - 1);
+        int lo = (int) idx;
+        int hi = Math.min(arcT.length - 1, lo + 1);
+        float frac = idx - lo;
+        return arcT[lo] + (arcT[hi] - arcT[lo]) * frac;
+    }
+
+    private void emitLineGeometry(GuiGraphics g, LineGeometry geo, long animTick, Integer colorOverride,
+                                  boolean animated) {
         if (geo.segmentCount == 0) return;
 
-        if (geo.drawOutline) {
-            for (int i = 0; i < geo.segmentCount; i++) {
-                int b = i * 8;
-                queueRibbonQuad(geo.outlineQuads[b], geo.outlineQuads[b + 1],
-                        geo.outlineQuads[b + 2], geo.outlineQuads[b + 3],
-                        geo.outlineQuads[b + 4], geo.outlineQuads[b + 5],
-                        geo.outlineQuads[b + 6], geo.outlineQuads[b + 7], geo.outlineColor);
-            }
-            // Rounded end caps - rounds off the flat perpendicular cut at each node connection
-            // point instead of leaving a hard square edge, using the ribbon's own outline color
-            // and width so the cap reads as part of the same shape.
-            queueRoundCap(geo.xa, geo.ya, geo.capRadius, geo.outlineColor);
-            queueRoundCap(geo.xb, geo.yb, geo.capRadius, geo.outlineColor);
-        }
-
-        int coreColor = coreColorOverride != null ? coreColorOverride : geo.coreColor;
-        int dashOffset = (int) ((animTick / geo.effectiveSpeedDiv) % geo.dashPeriod);
+        // Rails are always drawn continuously now, not dash-gated - the dash pattern used to cut
+        // the whole ~2px-wide channel into ~30px on/off chunks, which read as broken/missing
+        // rendering rather than a deliberate dashed style once the line was this thin. State is
+        // now conveyed entirely by color; the arrow chain is what carries motion/direction.
+        int color = colorOverride != null ? colorOverride : geo.color;
         for (int i = 0; i < geo.segmentCount; i++) {
-            if (!geo.isSolid && ((i + dashOffset) % geo.dashPeriod) >= geo.dashOn) continue;
-            int b = i * 8;
-            queueRibbonQuad(geo.coreQuads[b], geo.coreQuads[b + 1],
-                    geo.coreQuads[b + 2], geo.coreQuads[b + 3],
-                    geo.coreQuads[b + 4], geo.coreQuads[b + 5],
-                    geo.coreQuads[b + 6], geo.coreQuads[b + 7], coreColor);
+            int b = i * 16;
+            // Top rail
+            queueRibbonQuad(geo.quads[b], geo.quads[b + 1],
+                    geo.quads[b + 2], geo.quads[b + 3],
+                    geo.quads[b + 4], geo.quads[b + 5],
+                    geo.quads[b + 6], geo.quads[b + 7], color);
+            // Bottom rail
+            queueRibbonQuad(geo.quads[b + 8], geo.quads[b + 9],
+                    geo.quads[b + 10], geo.quads[b + 11],
+                    geo.quads[b + 12], geo.quads[b + 13],
+                    geo.quads[b + 14], geo.quads[b + 15], color);
         }
+        // Rounded end caps - rounds off the flat perpendicular cut at each node connection point
+        // instead of leaving a hard square edge.
+        queueRoundCap(geo.xa, geo.ya, geo.capRadius, color);
+        queueRoundCap(geo.xb, geo.yb, geo.capRadius, color);
 
         if (geo.showArrow && geo.arrowCount > 0) {
-            float phase = (animTick % geo.arrowPeriodMs) / (float) geo.arrowPeriodMs;
+            // FTBQ-style: a fixed fan of static chevrons when not animated (phase pinned to 0
+            // reuses the exact same spacing formula, just frozen), flowing only once hovered.
+            float phase = animated ? (animTick % geo.arrowPeriodMs) / (float) geo.arrowPeriodMs : 0f;
+            // Static (non-hover) arrows were rendered at the same near-full alpha as the animated
+            // hover ones (arrowAlpha floor of 200/255 in buildLineGeometry) - with every edge in
+            // the tree showing its own full-brightness arrow chain at once, that read as constant
+            // visual noise rather than a UI you could scan. Dimmed here instead of at build time
+            // so the hovered pass (animated=true) still gets full brightness for contrast.
+            int arrowColor = animated ? geo.arrowColor : dimArrowColor(geo.arrowColor);
             for (int i = 0; i < geo.arrowCount; i++) {
-                // Kept off the 0/1 endpoints: cubic bezier's derivative is zero there for a
-                // straight (non-spline) edge since cp1==p0 and cp2==p3 in that mode.
-                float t = 0.12f + ((phase + (float) i / geo.arrowCount) % 1f) * 0.76f;
+                // Nudged off the exact 0/1 endpoints (a straight, non-spline edge has zero
+                // tangent right at t=0/1 since cp1==p0 and cp2==p3 in that mode) but only by
+                // enough to dodge that one degenerate point, not a whole 12% of the edge's
+                // length on each end - that used to leave a visibly empty stretch of rail right
+                // next to the node before the arrow chain actually started, reading as a gap/
+                // missing-arrows bug rather than a deliberate margin.
+                float f = 0.02f + ((phase + (float) i / geo.arrowCount) % 1f) * 0.96f;
+                // f is a fraction of ARC LENGTH, not of t - remapped through arcT since a cubic
+                // bezier isn't uniform-speed (slow near the ends, fast mid-curve). Placing arrows
+                // at evenly-spaced t values instead used to bunch them up near both nodes and
+                // spread them out in the middle - "unevenly spaced" despite the formula above
+                // evenly dividing [0,1].
+                float t = lookupArcT(geo.arcT, f);
                 float mt = 1f - t;
-                float px = mt * mt * mt * geo.xa + 3 * mt * mt * t * geo.cp1x + 3 * mt * t * t * geo.cp2x + t * t * t * geo.xb;
-                float py = mt * mt * mt * geo.ya + 3 * mt * mt * t * geo.cp1y + 3 * mt * t * t * geo.cp2y + t * t * t * geo.yb;
+                float px = mt * mt * mt * geo.xa + 3 * mt * mt * t * geo.cp1x + 3 * mt * t * t * geo.cp2x +
+                        t * t * t * geo.xb;
+                float py = mt * mt * mt * geo.ya + 3 * mt * mt * t * geo.cp1y + 3 * mt * t * t * geo.cp2y +
+                        t * t * t * geo.yb;
                 // Analytic bezier derivative - exact tangent, no extra curve sampling needed.
-                float dx = 3 * mt * mt * (geo.cp1x - geo.xa) + 6 * mt * t * (geo.cp2x - geo.cp1x) + 3 * t * t * (geo.xb - geo.cp2x);
-                float dy = 3 * mt * mt * (geo.cp1y - geo.ya) + 6 * mt * t * (geo.cp2y - geo.cp1y) + 3 * t * t * (geo.yb - geo.cp2y);
+                float dx = 3 * mt * mt * (geo.cp1x - geo.xa) + 6 * mt * t * (geo.cp2x - geo.cp1x) +
+                        3 * t * t * (geo.xb - geo.cp2x);
+                float dy = 3 * mt * mt * (geo.cp1y - geo.ya) + 6 * mt * t * (geo.cp2y - geo.cp1y) +
+                        3 * t * t * (geo.yb - geo.cp2y);
                 float dLen = (float) Math.sqrt(dx * dx + dy * dy);
                 if (dLen < 0.0001f) continue;
-                dx /= dLen; dy /= dLen;
-                drawArrowSprite(g, px, py, dx, dy, geo.arrowSize, geo.arrowColor);
+                dx /= dLen;
+                dy /= dLen;
+                drawArrowSprite(g, px, py, dx, dy, geo.arrowSize, arrowColor);
             }
         }
     }
@@ -501,59 +684,80 @@ public class DependencyLineRenderer {
     // ── Main per-frame render ───────────────────────────────────────────────
 
     /**
-     * Renders every cached edge (ribbon + flowing arrows), boosts hovered-node edges, draws the
-     * active-quest spark, and flushes both batched queues. hoveredNodeId/stateResolver are
+     * Renders every cached edge as a static ribbon (no dash/arrow motion - see emitLineGeometry's
+     * javadoc for why constant motion across the whole tree read as noise), then re-emits only
+     * the hovered quest's own edges animated and colored by direction: edges INTO the hovered
+     * quest are its dependencies/prerequisites, edges OUT of it are its dependents (what it
+     * unlocks) - distinct hues so "what do I need" vs "what does this unlock" is legible at a
+     * glance the moment you hover, matching the FTBQ request. hoveredNodeId/stateResolver are
      * injected since node-hover detection and quest state are screen/domain concerns.
      */
     public void render(GuiGraphics g, long animTick, ResourceLocation hoveredNodeId,
-                        Function<QuestNode, QuestState> stateResolver) {
+                       Function<QuestNode, QuestState> stateResolver) {
         FrameProfiler.begin("dep lines");
         FrameProfiler.setCounter("edges", lineCache.size());
 
-        int outlineCountExpected = 0, arrowCountExpected = 0, outlineWidthPxTenths = -1;
-        for (LineGeometry geo : lineGeometryCache) {
-            if (geo.drawOutline) {
-                outlineCountExpected++;
+        int lineCountExpected = 0, arrowCountExpected = 0, lineWidthPxTenths = -1;
+        for (int i = 0; i < lineGeometryCache.size(); i++) {
+            LineGeometry geo = lineGeometryCache.get(i);
+            if (geo.segmentCount > 0) {
+                lineCountExpected++;
                 // Ground-truth width of the actual cached quad (not the formula that produced
                 // it) - grabs the first real sample so we can tell "computed as invisible-thin"
                 // apart from "computed fine but not drawing/showing" without guessing.
-                if (outlineWidthPxTenths < 0 && geo.outlineQuads.length >= 4) {
-                    float w = (float) Math.hypot(geo.outlineQuads[2] - geo.outlineQuads[0],
-                            geo.outlineQuads[3] - geo.outlineQuads[1]);
-                    outlineWidthPxTenths = Math.round(w * 10);
+                if (lineWidthPxTenths < 0 && geo.quads.length >= 4) {
+                    float w = (float) Math.hypot(geo.quads[2] - geo.quads[0],
+                            geo.quads[3] - geo.quads[1]);
+                    lineWidthPxTenths = Math.round(w * 10);
                 }
             }
             if (geo.showArrow) arrowCountExpected += geo.arrowCount;
-            emitLineGeometry(g, geo, animTick, null);
+
+            // Edges touching the hovered quest are drawn ONCE, animated and direction-colored,
+            // below - drawing the static pass here too as well as the animated pass down there
+            // used to double up the arrow chain (a static set and a moving set overlapping and
+            // sliding through each other), which was pure visual noise.
+            boolean isHoverEdge = hoveredNodeId != null && i < lineCacheNodes.size() &&
+                    (lineCacheNodes.get(i)[0].equals(hoveredNodeId) || lineCacheNodes.get(i)[1].equals(hoveredNodeId));
+            if (!isHoverEdge) emitLineGeometry(g, geo, animTick, null, false);
         }
 
-        // Hover line overlay processing
+        // Hover line overlay processing - only the hovered quest's own edges render here, once,
+        // animated and colored by direction relative to it.
         if (hoveredNodeId != null) {
             for (int i = 0; i < lineCache.size() && i < lineCacheNodes.size() && i < lineGeometryCache.size(); i++) {
                 ResourceLocation[] pair = lineCacheNodes.get(i);
-                if (pair[0].equals(hoveredNodeId) || pair[1].equals(hoveredNodeId)) {
-                    int[] ln = lineCache.get(i);
-                    emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedLineColor(ln[4]));
+                int[] ln = lineCache.get(i);
+                if (pair[1].equals(hoveredNodeId)) {
+                    // parent -> hovered: a dependency/prerequisite of the hovered quest.
+                    emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependencyColor(ln[4]), true);
+                } else if (pair[0].equals(hoveredNodeId)) {
+                    // hovered -> child: a dependent - what the hovered quest unlocks.
+                    emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependentColor(ln[4]), true);
                 }
             }
         }
 
-        FrameProfiler.setCounter("outlinesExpected", outlineCountExpected);
-        FrameProfiler.setCounter("outlineWidthPxTenths", outlineWidthPxTenths);
+        FrameProfiler.setCounter("linesExpected", lineCountExpected);
+        FrameProfiler.setCounter("lineWidthPxTenths", lineWidthPxTenths);
         FrameProfiler.setCounter("arrowsExpected", arrowCountExpected);
         FrameProfiler.end("dep lines");
 
         FrameProfiler.begin("sparks/hover/flush");
-        // Dynamic sparks processing
-        for (int i = 0; i < lineCache.size() && i < lineCacheNodes.size(); i++) {
-            ResourceLocation[] pair = lineCacheNodes.get(i);
-            QuestNode pn = QuestTreeRegistry.getQuest(pair[0]);
-            QuestNode cn = QuestTreeRegistry.getQuest(pair[1]);
-            if (pn == null || cn == null) continue;
-            QuestState pst = stateResolver.apply(pn), cst = stateResolver.apply(cn);
-            if (pst != QuestState.ACTIVE && cst != QuestState.ACTIVE) continue;
-            int[] ln = lineCache.get(i);
-            drawBezierSpark(g, ln[0], ln[1], ln[2], ln[3], animTick, i);
+        // Active-quest spark - also hover-gated now (used to run continuously on every edge
+        // touching an active quest, which added to the constant-motion clutter).
+        if (hoveredNodeId != null) {
+            for (int i = 0; i < lineCache.size() && i < lineCacheNodes.size(); i++) {
+                ResourceLocation[] pair = lineCacheNodes.get(i);
+                if (!pair[0].equals(hoveredNodeId) && !pair[1].equals(hoveredNodeId)) continue;
+                QuestNode pn = QuestTreeRegistry.getQuest(pair[0]);
+                QuestNode cn = QuestTreeRegistry.getQuest(pair[1]);
+                if (pn == null || cn == null) continue;
+                QuestState pst = stateResolver.apply(pn), cst = stateResolver.apply(cn);
+                if (pst != QuestState.ACTIVE && cst != QuestState.ACTIVE) continue;
+                int[] ln = lineCache.get(i);
+                drawBezierSpark(g, ln[0], ln[1], ln[2], ln[3], animTick, i);
+            }
         }
 
         // Ribbon quads queued above upload as one raw-Tesselator draw call, same mechanism as
@@ -712,8 +916,8 @@ public class DependencyLineRenderer {
      * ChronicleOverviewScreen, so this class doesn't need a back-reference to the screen.
      */
     public void handleContextMenuClick(int mx, int my, int screenW, int screenH,
-                                        Runnable requestRebuild, Consumer<String> feedback,
-                                        Consumer<QuestNode> openLineSettings) {
+                                       Runnable requestRebuild, Consumer<String> feedback,
+                                       Consumer<QuestNode> openLineSettings) {
         if (!lineCtxOpen) return;
         QuestNode parentNode = lineCtxParentId == null ? null : QuestTreeRegistry.getQuest(lineCtxParentId);
         QuestNode childNode = lineCtxChildId == null ? null : QuestTreeRegistry.getQuest(lineCtxChildId);
@@ -819,27 +1023,47 @@ public class DependencyLineRenderer {
         }
     }
 
-    /** Brightens a line color for hover highlighting. */
-    private static int boostedLineColor(int col) {
-        int r = Math.min(255, ((col >> 16) & 0xFF) + 90);
-        int g2 = Math.min(255, ((col >> 8) & 0xFF) + 90);
-        int b = Math.min(255, (col & 0xFF) + 90);
-        return 0xFF000000 | (r << 16) | (g2 << 8) | b;
+    /** Cool cyan boost for edges INTO the hovered quest - its dependencies/prerequisites. */
+    private static int boostedDependencyColor(int col) {
+        return blendTowardHue(col, 0x33CFFF);
+    }
+
+    /** Warm amber boost for edges OUT of the hovered quest - its dependents (what it unlocks). */
+    private static int boostedDependentColor(int col) {
+        return blendTowardHue(col, 0xFFAA33);
+    }
+
+    /**
+     * Blends a line's existing state color partway toward a target hue rather than just
+     * brightening it uniformly - a flat "+90 per channel" boost barely changes hue (locked vs
+     * done vs active already look very different from each other), so dependency/dependent
+     * edges wouldn't read as consistently different colors from one another. Blending toward a
+     * fixed hue does, regardless of the edge's underlying state color.
+     */
+    private static int blendTowardHue(int col, int targetRgb) {
+        int alpha = Math.max(200, (col >>> 24) & 0xFF);
+        int r = (col >> 16) & 0xFF, g = (col >> 8) & 0xFF, b = col & 0xFF;
+        int tr = (targetRgb >> 16) & 0xFF, tg = (targetRgb >> 8) & 0xFF, tb = targetRgb & 0xFF;
+        float a = 0.6f;
+        int nr = Math.min(255, Math.round(r + (tr - r) * a));
+        int ng = Math.min(255, Math.round(g + (tg - g) * a));
+        int nb = Math.min(255, Math.round(b + (tb - b) * a));
+        return (alpha << 24) | (nr << 16) | (ng << 8) | nb;
     }
 
     // ── Uncached bezier draw (link-drag preview only) ───────────────────────
 
     private void drawBezierLine(GuiGraphics g, int x1, int y1, int x2, int y2,
-                                 int color, int style, long animTick, float zoom) {
+                                int color, int style, long animTick, float zoom) {
         drawBezierLine(g, x1, y1, x2, y2, color, style, animTick, zoom, null, null, null, null);
     }
 
     private void drawBezierLine(GuiGraphics g, int x1, int y1, int x2, int y2,
-                                 int color, int style, long animTick, float zoom,
-                                 QuestChroniclesSettings.LineStyle shapeOverride,
-                                 QuestChroniclesSettings.LineVisualStyle visualOverride,
-                                 QuestChroniclesSettings.LineAnimSpeed speedOverride,
-                                 Boolean arrowOverride) {
+                                int color, int style, long animTick, float zoom,
+                                QuestChroniclesSettings.LineStyle shapeOverride,
+                                QuestChroniclesSettings.LineVisualStyle visualOverride,
+                                QuestChroniclesSettings.LineAnimSpeed speedOverride,
+                                Boolean arrowOverride) {
         QuestChroniclesSettings settings = QuestChroniclesSettings.get();
         boolean spline = (shapeOverride != null ? shapeOverride : settings.getLineStyle()) ==
                 QuestChroniclesSettings.LineStyle.SPLINE;
@@ -851,9 +1075,9 @@ public class DependencyLineRenderer {
     }
 
     private void drawBezierLine(GuiGraphics g, int x1, int y1, int x2, int y2,
-                                 int color, int style, long animTick, boolean spline,
-                                 QuestChroniclesSettings.LineVisualStyle vis, long speedDiv, boolean showArrow,
-                                 float zoom) {
+                                int color, int style, long animTick, boolean spline,
+                                QuestChroniclesSettings.LineVisualStyle vis, long speedDiv, boolean showArrow,
+                                float zoom) {
         // Cleanly cast inputs to local GUI floats to prevent rounding gaps
         float xa = (float) x1;
         float ya = (float) y1;
@@ -864,13 +1088,22 @@ public class DependencyLineRenderer {
         float adx = Math.abs(xb - xa), ady = Math.abs(yb - ya);
         float cp1x, cp1y, cp2x, cp2y;
         if (!spline) {
-            cp1x = xa; cp1y = ya; cp2x = xb; cp2y = yb;
+            cp1x = xa;
+            cp1y = ya;
+            cp2x = xb;
+            cp2y = yb;
         } else if (adx >= ady) {
             float mx = (xa + xb) / 2f;
-            cp1x = mx; cp1y = ya; cp2x = mx; cp2y = yb;
+            cp1x = mx;
+            cp1y = ya;
+            cp2x = mx;
+            cp2y = yb;
         } else {
             float my = (ya + yb) / 2f;
-            cp1x = xa; cp1y = my; cp2x = xb; cp2y = yb;
+            cp1x = xa;
+            cp1y = my;
+            cp2x = xb;
+            cp2y = yb;
         }
 
         float dist = (float) Math.sqrt(adx * adx + ady * ady);
@@ -904,11 +1137,22 @@ public class DependencyLineRenderer {
         boolean isSolid = (style == 1 || style == 6 || style == 8);
         boolean isMarching = (style == 2 || style == 9);
         int dashPeriod = 8, dashOn = 5;
-        if (style == 0) { dashPeriod = 10; dashOn = 3; }
-        else if (style == 3 || style == 4) { dashPeriod = 14; dashOn = 6; }
-        else if (style == 5) { dashPeriod = 8; dashOn = 3; }
-        else if (style == 7 || style == 9) { dashPeriod = 20; dashOn = 5; }
-        else if (style == 10) { dashPeriod = 16; dashOn = 2; }
+        if (style == 0) {
+            dashPeriod = 10;
+            dashOn = 3;
+        } else if (style == 3 || style == 4) {
+            dashPeriod = 14;
+            dashOn = 6;
+        } else if (style == 5) {
+            dashPeriod = 8;
+            dashOn = 3;
+        } else if (style == 7 || style == 9) {
+            dashPeriod = 20;
+            dashOn = 5;
+        } else if (style == 10) {
+            dashPeriod = 16;
+            dashOn = 2;
+        }
 
         long effectiveSpeedDiv = isMarching ? speedDiv : 1L;
         int dashOffset = (int) ((animTick / effectiveSpeedDiv) % dashPeriod);
@@ -917,12 +1161,13 @@ public class DependencyLineRenderer {
         // against this screen's near-black canvas background - bump the floor hard so the
         // casing actually shows as a distinct dark border regardless of what's behind it.
         int outlineAlpha = Math.min(255, Math.max(170, alpha));
-        int outlineRgb = QuestChroniclesSettings.get().getTheme() == QuestChroniclesSettings.Theme.LIGHT
-                ? 0x1A1A1A : 0xEDEDED;
+        int outlineRgb = QuestChroniclesSettings.get().getTheme() == QuestChroniclesSettings.Theme.LIGHT ? 0x1A1A1A :
+                0xEDEDED;
         int outlineColor = (outlineAlpha << 24) | outlineRgb;
 
         // Fetch the running batch stream consumer and local screen matrix context
-        com.mojang.blaze3d.vertex.VertexConsumer vc = g.bufferSource().getBuffer(net.minecraft.client.renderer.RenderType.gui());
+        com.mojang.blaze3d.vertex.VertexConsumer vc = g.bufferSource()
+                .getBuffer(net.minecraft.client.renderer.RenderType.gui());
         org.joml.Matrix4f mat = g.pose().last().pose();
 
         // Pre-calculate path segments to ensure lightning fast execution loops
@@ -990,13 +1235,16 @@ public class DependencyLineRenderer {
             float arrowSize = Math.min(9f, 5.0f / currentZoom);
             float tipT = dist > 0.1f ? Math.max(0.5f, 1f - (arrowSize * 1.5f) / dist) : 0.5f;
             float mt2 = 1f - tipT;
-            float tipX = mt2 * mt2 * mt2 * xa + 3 * mt2 * mt2 * tipT * cp1x + 3 * mt2 * tipT * tipT * cp2x + tipT * tipT * tipT * xb;
-            float tipY = mt2 * mt2 * mt2 * ya + 3 * mt2 * mt2 * tipT * cp1y + 3 * mt2 * tipT * tipT * cp2y + tipT * tipT * tipT * yb;
+            float tipX = mt2 * mt2 * mt2 * xa + 3 * mt2 * mt2 * tipT * cp1x + 3 * mt2 * tipT * tipT * cp2x +
+                    tipT * tipT * tipT * xb;
+            float tipY = mt2 * mt2 * mt2 * ya + 3 * mt2 * mt2 * tipT * cp1y + 3 * mt2 * tipT * tipT * cp2y +
+                    tipT * tipT * tipT * yb;
 
             float dirX = xb - cp2x, dirY = yb - cp2y;
             float dLen = (float) Math.sqrt(dirX * dirX + dirY * dirY);
             if (dLen > 0.01f) {
-                dirX /= dLen; dirY /= dLen;
+                dirX /= dLen;
+                dirY /= dLen;
                 int arrowAlpha = Math.max(alpha, 200);
                 int arrowColor = (arrowAlpha << 24) | rgb;
                 drawArrowSprite(g, tipX, tipY, dirX, dirY, arrowSize, arrowColor);
@@ -1004,7 +1252,8 @@ public class DependencyLineRenderer {
         }
     }
 
-    private static void writeVert(com.mojang.blaze3d.vertex.VertexConsumer vc, org.joml.Matrix4f mat, float x, float y, int color) {
+    private static void writeVert(com.mojang.blaze3d.vertex.VertexConsumer vc, org.joml.Matrix4f mat, float x, float y,
+                                  int color) {
         vc.vertex(mat, x, y, 0.0f)
                 .color((color >>> 16) & 0xFF, (color >>> 8) & 0xFF, color & 0xFF, (color >>> 24) & 0xFF)
                 .endVertex();
@@ -1039,47 +1288,65 @@ public class DependencyLineRenderer {
 
     // ── Batched ribbon quads ────────────────────────────────────────────────
 
-    /** One frame's queued arrowhead instances. RenderType.guiTextured(...) doesn't exist on
-     *  1.20.1 (it's part of the later GuiGraphics rework) and GuiGraphics.blit() on this
-     *  version issues its own immediate Tesselator draw per call rather than batching through
-     *  bufferSource() - so textured quads here can't just get "another getBuffer() call for the
-     *  same RenderType" the way the untextured line ribbon does. Instead every arrow queues its
-     *  corner data here, and flushArrowQueue() builds ONE BufferBuilder covering every arrow on
-     *  screen and uploads it in a single draw call, which is what's actually being asked for. */
+    /**
+     * One frame's queued arrowhead instances. RenderType.guiTextured(...) doesn't exist on
+     * 1.20.1 (it's part of the later GuiGraphics rework) and GuiGraphics.blit() on this
+     * version issues its own immediate Tesselator draw per call rather than batching through
+     * bufferSource() - so textured quads here can't just get "another getBuffer() call for the
+     * same RenderType" the way the untextured line ribbon does. Instead every arrow queues its
+     * corner data here, and flushArrowQueue() builds ONE BufferBuilder covering every arrow on
+     * screen and uploads it in a single draw call, which is what's actually being asked for.
+     */
     private static final class ArrowInstance {
+
         final float tipX, tipY, dirX, dirY, halfSize;
         final int color;
+
         ArrowInstance(float tipX, float tipY, float dirX, float dirY, float halfSize, int color) {
-            this.tipX = tipX; this.tipY = tipY; this.dirX = dirX; this.dirY = dirY;
-            this.halfSize = halfSize; this.color = color;
+            this.tipX = tipX;
+            this.tipY = tipY;
+            this.dirX = dirX;
+            this.dirY = dirY;
+            this.halfSize = halfSize;
+            this.color = color;
         }
     }
 
     /** Queues one arrowhead instance for the batched flush at the end of the canvas pass. */
     private void drawArrowSprite(GuiGraphics g, float tipX, float tipY, float dirX, float dirY,
-                                  float halfSize, int color) {
+                                 float halfSize, int color) {
         arrowQueue.add(new ArrowInstance(tipX, tipY, dirX, dirY, halfSize, color));
     }
 
     /** One queued ribbon (outline or core) quad - four corners, already screen-space, one color. */
     private static final class RibbonQuad {
+
         final float x0, y0, x1, y1, x2, y2, x3, y3;
         final int color;
+
         RibbonQuad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, int color) {
-            this.x0 = x0; this.y0 = y0; this.x1 = x1; this.y1 = y1;
-            this.x2 = x2; this.y2 = y2; this.x3 = x3; this.y3 = y3;
+            this.x0 = x0;
+            this.y0 = y0;
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+            this.x3 = x3;
+            this.y3 = y3;
             this.color = color;
         }
     }
 
     private void queueRibbonQuad(float x0, float y0, float x1, float y1,
-                                  float x2, float y2, float x3, float y3, int color) {
+                                 float x2, float y2, float x3, float y3, int color) {
         ribbonQueue.add(new RibbonQuad(x0, y0, x1, y1, x2, y2, x3, y3, color));
     }
 
-    /** Approximates a filled circle as a fan of thin triangular wedges (degenerate quads - two
-     *  corners collapsed to the center point), queued through the same ribbon batch. Good enough
-     *  at the small radii these end caps use to read as genuinely rounded rather than square. */
+    /**
+     * Approximates a filled circle as a fan of thin triangular wedges (degenerate quads - two
+     * corners collapsed to the center point), queued through the same ribbon batch. Good enough
+     * at the small radii these end caps use to read as genuinely rounded rather than square.
+     */
     private void queueRoundCap(float cx, float cy, float radius, int color) {
         if (radius < 0.6f) return;
         int segs = 8;
@@ -1113,7 +1380,8 @@ public class DependencyLineRenderer {
         // regardless of what 3D item rendering left behind.
         com.mojang.blaze3d.systems.RenderSystem.disableCull();
 
-        com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
+        com.mojang.blaze3d.systems.RenderSystem
+                .setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
         com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
 
@@ -1157,7 +1425,8 @@ public class DependencyLineRenderer {
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.disableCull();
 
-        com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionTexColorShader);
+        com.mojang.blaze3d.systems.RenderSystem
+                .setShader(net.minecraft.client.renderer.GameRenderer::getPositionTexColorShader);
         com.mojang.blaze3d.systems.RenderSystem.setShaderTexture(0, ARROW_SPRITE);
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
         com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();

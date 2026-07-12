@@ -5,8 +5,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.minecraft.util.Mth;
+import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 
 import org.jetbrains.annotations.NotNull;

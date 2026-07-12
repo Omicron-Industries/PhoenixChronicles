@@ -10,9 +10,9 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
-
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -110,7 +110,8 @@ public class ItemPickerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal(eiLabel), b -> switchTab(SourceTab.EMI_JEI))
                 .bounds(panelLeft + 6 + tabW * 2, tabY, tabW, 12).build());
 
-        // Search bar (only for REGISTRY and EMI_JEI tabs)
+        // Search bar - shown on every tab, including Inventory, for consistency (it used to be
+        // hidden there specifically, which was the odd one out next to Registry/EMI-JEI).
         int searchY = panelTop + HEADER_H + 16;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
@@ -121,7 +122,6 @@ public class ItemPickerScreen extends Screen {
             scrollOffset = 0;
             rebuildDisplayList();
         });
-        searchBox.visible = (activeTab != SourceTab.INVENTORY);
         addRenderableWidget(searchBox);
 
         // Confirm button
@@ -140,7 +140,6 @@ public class ItemPickerScreen extends Screen {
         activeTab = tab;
         scrollOffset = 0;
         selectedStack = null;
-        if (searchBox != null) searchBox.visible = (tab != SourceTab.INVENTORY);
         rebuildDisplayList();
     }
 
@@ -173,8 +172,11 @@ public class ItemPickerScreen extends Screen {
 
     private void populateFromInventory() {
         if (minecraft == null || minecraft.player == null) return;
+        String q = searchQuery.toLowerCase().trim();
         for (ItemStack stack : minecraft.player.getInventory().items) {
-            if (!stack.isEmpty()) displayItems.add(stack.copy());
+            if (stack.isEmpty()) continue;
+            if (!q.isEmpty() && !stack.getHoverName().getString().toLowerCase().contains(q)) continue;
+            displayItems.add(stack.copy());
         }
     }
 
@@ -265,8 +267,25 @@ public class ItemPickerScreen extends Screen {
     // ── Render ─────────────────────────────────────────────────────────────────
 
     @Override
+    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us instead */ }
+
+    @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        g.fill(0, 0, width, height, 0x88000000);
+        // An earlier pass here dropped the parent-render call because the dimmed overview screen
+        // still read as "bleeding" behind this picker - but that was because
+        // ChroniclesThemePalette.refresh() was never actually being called anywhere, so BG/PANEL
+        // etc. were all transparent/black regardless of what got drawn behind them. Now that the
+        // palette is populated correctly (see ChronicleOverviewScreen.init()), draw the overview
+        // behind this picker like every other modal in this pack (CategoryThemeScreen, etc.)
+        // instead of leaving the raw 3D world showing through a no-op fill.
+        if (parent != null) parent.render(g, -1, -1, partial);
+        g.flush();
+
+        // Fully opaque background of its own on top of that.
+        g.pose().pushPose();
+        g.pose().translate(0f, 0f, 300f);
+        g.flush();
+        g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
 
         // Panel
         g.fill(panelLeft, panelTop, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL);
@@ -274,7 +293,8 @@ public class ItemPickerScreen extends Screen {
 
         // Header
         g.fill(panelLeft, panelTop, panelLeft + PANEL_W, panelTop + HEADER_H, ChroniclesThemePalette.HEADER);
-        g.fill(panelLeft, panelTop + HEADER_H - 1, panelLeft + PANEL_W, panelTop + HEADER_H, ChroniclesThemePalette.BORDER);
+        g.fill(panelLeft, panelTop + HEADER_H - 1, panelLeft + PANEL_W, panelTop + HEADER_H,
+                ChroniclesThemePalette.BORDER);
         g.drawCenteredString(font, "§fPick Item", panelLeft + PANEL_W / 2, panelTop + 7, ChroniclesThemePalette.TEXT);
 
         // Tab underlines
@@ -293,13 +313,14 @@ public class ItemPickerScreen extends Screen {
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL_DARK);
 
         // Item count hint
-        g.drawString(font, "§8" + displayItems.size() + " items", panelLeft + 62, footerY + 7, ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8" + displayItems.size() + " items", panelLeft + 62, footerY + 7,
+                ChroniclesThemePalette.TEXT_FAINT);
 
         // Render widgets (tabs, search, buttons)
         super.render(g, mx, my, partial);
 
         // ── Item grid ─────────────────────────────────────────────────────────
-        int gridTop = panelTop + HEADER_H + (activeTab == SourceTab.INVENTORY ? 16 : 34);
+        int gridTop = panelTop + HEADER_H + 34;
         int gridBottom = footerY - (selectedStack != null ? 20 : 2);
         int visibleRows = Math.max(1, (gridBottom - gridTop) / SLOT_SIZE);
 
@@ -361,6 +382,8 @@ public class ItemPickerScreen extends Screen {
             if (font.width(selName) > maxW) selName = font.plainSubstrByWidth(selName, maxW - 6) + "…";
             g.drawString(font, "§f" + selName, panelLeft + 22, prevY + 5, ChroniclesThemePalette.TEXT);
         }
+
+        g.pose().popPose();
     }
 
     // ── Mouse ──────────────────────────────────────────────────────────────────
@@ -371,16 +394,26 @@ public class ItemPickerScreen extends Screen {
             selectedStack = hoveredStack.copy();
             return true;
         }
-        if (btn == 0 && hoveredStack == null) {
-            // Double-click anywhere with a selection confirms immediately
+        if (btn == 0 && (mx < panelLeft || mx >= panelLeft + PANEL_W || my < panelTop || my >= panelTop + PANEL_H)) {
+            if (minecraft != null) minecraft.setScreen(parent);
+            return true;
         }
         return super.mouseClicked(mx, my, btn);
     }
 
     @Override
+    public boolean keyPressed(int key, int scan, int mods) {
+        if (key == 256) { // ESC
+            if (minecraft != null) minecraft.setScreen(parent);
+            return true;
+        }
+        return super.keyPressed(key, scan, mods);
+    }
+
+    @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
         int maxRows = (int) Math.ceil(displayItems.size() / (double) SLOTS_PER_ROW);
-        int gridTop = panelTop + HEADER_H + (activeTab == SourceTab.INVENTORY ? 16 : 34);
+        int gridTop = panelTop + HEADER_H + 34;
         int gridBottom = panelTop + PANEL_H - FOOTER_H - (selectedStack != null ? 20 : 2);
         int visibleRows = Math.max(1, (gridBottom - gridTop) / SLOT_SIZE);
 
@@ -396,7 +429,6 @@ public class ItemPickerScreen extends Screen {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
-
 
     private static boolean isModLoaded(String modId) {
         try {

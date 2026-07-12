@@ -71,6 +71,10 @@ public class ExternalTriggerTask extends QuestTask {
         this.kjsTypeId = id;
     }
 
+    public String getKjsTypeId() {
+        return kjsTypeId;
+    }
+
     @Override
     public boolean isCompletedFor(Player player) {
         return TaskProgressAccess.getOrEmpty(player, getTaskId()).getInt("current") >= required;

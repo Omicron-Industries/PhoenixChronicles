@@ -5,6 +5,7 @@ package net.phoenixvine.chronicles.client;
  * screen space pixels to internal logical grid coordinates.
  */
 public class CanvasViewport {
+
     // Zoom constraints matching your design parameters
     private static final float ZOOM_MIN = 0.3f;
     private static final float ZOOM_MAX = 2.0f;
@@ -58,12 +59,31 @@ public class CanvasViewport {
     }
 
     // Coordinate Translation Vectors
-    public int toCanvasX(double screenX, int sidebarW) { return (int) ((screenX - sidebarW - offsetX) / zoom); }
-    public int toCanvasY(double screenY, int headerH) { return (int) ((screenY - headerH - offsetY) / zoom); }
-    public int toScreenX(int canvasX, int sidebarW) { return (int) (canvasX * zoom) + sidebarW + (int) offsetX; }
-    public int toScreenY(int canvasY, int headerH) { return (int) (canvasY * zoom) + headerH + (int) offsetY; }
+    public int toCanvasX(double screenX, int sidebarW) {
+        return (int) ((screenX - sidebarW - offsetX) / zoom);
+    }
 
-    public double getOffsetX() { return offsetX; }
-    public double getOffsetY() { return offsetY; }
-    public float getZoom() { return zoom; }
+    public int toCanvasY(double screenY, int headerH) {
+        return (int) ((screenY - headerH - offsetY) / zoom);
+    }
+
+    public int toScreenX(int canvasX, int sidebarW) {
+        return (int) (canvasX * zoom) + sidebarW + (int) offsetX;
+    }
+
+    public int toScreenY(int canvasY, int headerH) {
+        return (int) (canvasY * zoom) + headerH + (int) offsetY;
+    }
+
+    public double getOffsetX() {
+        return offsetX;
+    }
+
+    public double getOffsetY() {
+        return offsetY;
+    }
+
+    public float getZoom() {
+        return zoom;
+    }
 }

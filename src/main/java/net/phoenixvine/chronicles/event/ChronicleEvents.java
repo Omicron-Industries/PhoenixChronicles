@@ -51,20 +51,32 @@ public class ChronicleEvents {
         return net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
     }
 
+    /**
+     * True once onServerStarting() has run for the currently-live server instance. Used by
+     * ChronicleDataLoader.apply() to tell "this is the initial world-boot datapack reload, which
+     * onServerStarting() is about to (or already did) handle its own .snbt load for" apart from
+     * "this is a later, manually-triggered /reload, which onServerStarting() will never fire
+     * again for" - relying on getCachedServer() being null during the very first boot reload
+     * (as the old comment here assumed) isn't a guaranteed timing, and getting it wrong meant a
+     * full duplicate disk-walk-and-parse of every .snbt file on every world boot.
+     */
+    private static volatile boolean hasServerStarted = false;
+
+    public static boolean hasServerFullyStarted() {
+        return hasServerStarted;
+    }
+
     @SubscribeEvent
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(new ChronicleDataLoader());
     }
 
-    // Handles the initial server start — apply() runs before the server exists on integrated servers,
-    // so getCachedServer() returns null there. ServerStartingEvent fires after datapacks are applied
-    // and the server instance is guaranteed available.
     /**
      * Returns the world-specific config dir if it exists (saves/<world>/phoenix_chronicles),
      * otherwise falls back to the global config dir. This lets pack devs ship per-world
      * quest configs in singleplayer worlds without affecting other worlds on the same instance.
      */
-    private static java.nio.file.Path resolveConfigDir(MinecraftServer server) {
+    public static java.nio.file.Path resolveConfigDir(MinecraftServer server) {
         try {
             java.nio.file.Path worldSpecific = server
                     .getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
@@ -86,10 +98,13 @@ public class ChronicleEvents {
         net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
         QuestFileLoader.loadAdditiveFromDisk(configDir);
         net.phoenixvine.chronicles.codec.QuestFileWatcher.start(event.getServer(), configDir);
+        hasServerStarted = true;
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new QuestEvent.TreeReloaded());
     }
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
+        hasServerStarted = false;
         net.phoenixvine.chronicles.codec.QuestFileWatcher.stop();
     }
 
@@ -343,14 +358,16 @@ public class ChronicleEvents {
                                                 net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx,
                                                         "player"))))))
 
-                // /chronicles reset <quest> [<player>]
+                // /chronicles reset <quest> [<player>] - full reset (state + task progress +
+                // claimed rewards + completion timestamp), not just a state flip to LOCKED like
+                // the other devSetState commands - see devResetQuest().
                 .then(Commands.literal("reset")
                         .requires(src -> src.hasPermission(2))
                         .then(Commands.argument("quest", questArg)
-                                .executes(ctx -> devSetState(ctx, QuestState.LOCKED, null))
+                                .executes(ctx -> devResetQuest(ctx, null))
                                 .then(Commands
                                         .argument("player", net.minecraft.commands.arguments.EntityArgument.player())
-                                        .executes(ctx -> devSetState(ctx, QuestState.LOCKED,
+                                        .executes(ctx -> devResetQuest(ctx,
                                                 net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx,
                                                         "player"))))))
 
@@ -382,7 +399,8 @@ public class ChronicleEvents {
                             net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
                             QuestFileLoader.loadAdditiveFromDisk(configDir);
                             int questCount = QuestTreeRegistry.getAllQuests().size();
-                            S2CSyncQuestsPacket syncPacket = new S2CSyncQuestsPacket(QuestTreeRegistry.getAllQuests());
+                            S2CSyncQuestsPacket syncPacket = new S2CSyncQuestsPacket(QuestTreeRegistry.getAllQuests(),
+                                    server);
                             int playerCount = 0;
                             for (net.minecraft.server.level.ServerPlayer sp : server.getPlayerList().getPlayers()) {
                                 ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), syncPacket);
@@ -514,6 +532,52 @@ public class ChronicleEvents {
         return 1;
     }
 
+    /**
+     * Full reset: state, every task's progress, claimed-rewards flag, chosen-reward index, and
+     * completion timestamp - unlike devSetState(..., LOCKED), which only flips the state key and
+     * leaves old task progress/claimed rewards sitting underneath a re-lockable quest.
+     */
+    private static int devResetQuest(com.mojang.brigadier.context.CommandContext<net.minecraft.commands.CommandSourceStack> ctx,
+                                     @Nullable net.minecraft.server.level.ServerPlayer explicitPlayer) {
+        net.minecraft.server.level.ServerPlayer sp = explicitPlayer;
+        if (sp == null) {
+            if (!(ctx.getSource().getEntity() instanceof net.minecraft.server.level.ServerPlayer self)) {
+                ctx.getSource().sendFailure(Component.literal("Must specify a player when running from console."));
+                return 0;
+            }
+            sp = self;
+        }
+        String questArg = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "quest");
+        net.minecraft.resources.ResourceLocation questId;
+        try {
+            questId = new net.minecraft.resources.ResourceLocation(questArg);
+        } catch (Exception e) {
+            ctx.getSource().sendFailure(Component.literal("Invalid quest ID: " + questArg));
+            return 0;
+        }
+        QuestNode node = QuestTreeRegistry.getQuest(questId);
+        if (node == null) {
+            ctx.getSource().sendFailure(Component.literal("Quest not found: " + questArg));
+            return 0;
+        }
+        List<net.minecraft.resources.ResourceLocation> taskIds = new java.util.ArrayList<>();
+        for (net.phoenixvine.chronicles.model.QuestTask t : node.getTasks()) taskIds.add(t.getTaskId());
+        final net.minecraft.server.level.ServerPlayer fsp = sp;
+        fsp.getCapability(
+                QuestCapabilityProvider.PLAYER_QUESTS)
+                .ifPresent(data -> {
+                    data.resetQuestProgress(questId, taskIds);
+                    ChronicleNetwork.CHANNEL.send(
+                            net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> fsp),
+                            new S2CSyncPlayerProgressPacket(
+                                    data));
+                });
+        String name = fsp.getName().getString();
+        ctx.getSource().sendSuccess(
+                () -> Component.literal("Quest §7progress reset§r for " + name + ": " + questArg), true);
+        return 1;
+    }
+
     private static int doImport(com.mojang.brigadier.context.CommandContext<net.minecraft.commands.CommandSourceStack> ctx,
                                 String subfolder) {
         MinecraftServer server = getCachedServer();
@@ -531,7 +595,7 @@ public class ChronicleEvents {
         net.phoenixvine.chronicles.codec.QuestFileLoader.loadAdditiveFromDisk(importDir);
         int added = QuestTreeRegistry.getAllQuests().size() - before;
         net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket syncPacket = new net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket(
-                QuestTreeRegistry.getAllQuests());
+                QuestTreeRegistry.getAllQuests(), server);
         int playerCount = 0;
         for (net.minecraft.server.level.ServerPlayer sp : server.getPlayerList().getPlayers()) {
             ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), syncPacket);
@@ -624,7 +688,7 @@ public class ChronicleEvents {
                     }
                 } else {
                     net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket syncPacket = new net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket(
-                            QuestTreeRegistry.getAllQuests());
+                            QuestTreeRegistry.getAllQuests(), server);
                     for (net.minecraft.server.level.ServerPlayer sp : server.getPlayerList().getPlayers()) {
                         ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), syncPacket);
                         playerCount++;
@@ -689,17 +753,19 @@ public class ChronicleEvents {
             Map<ResourceLocation, QuestNode> serverQuests = QuestTreeRegistry.getAllQuests();
             ChronicleNetwork.CHANNEL.send(
                     PacketDistributor.PLAYER.with(() -> serverPlayer),
-                    new S2CSyncQuestsPacket(serverQuests));
+                    new S2CSyncQuestsPacket(serverQuests, serverPlayer.getServer()));
 
             // Auto-unlock any quest whose prerequisites are already satisfied (covers root
             // quests that have no parent and would otherwise stay LOCKED forever).
             serverPlayer.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
                 for (QuestNode node : serverQuests.values()) {
                     if (node.isFlagDisabled()) continue;
-                    if (node.getVisibility() == QuestNode.Visibility.DISABLED) continue;
+                    if (node.getEffectiveVisibility(serverPlayer.getServer()) == QuestNode.Visibility.DISABLED)
+                        continue;
                     if (data.getQuestState(node.getId(), net.phoenixvine.chronicles.model.QuestState.LOCKED) ==
                             net.phoenixvine.chronicles.model.QuestState.LOCKED) {
-                        if (net.phoenixvine.chronicles.tracker.QuestProgressTracker.prereqsSatisfied(node, data)) {
+                        if (net.phoenixvine.chronicles.tracker.QuestProgressTracker.prereqsSatisfied(node, data,
+                                serverPlayer.getServer())) {
                             net.phoenixvine.chronicles.tracker.QuestProgressTracker
                                     .changeQuestState(serverPlayer, node,
                                             net.phoenixvine.chronicles.model.QuestState.UNLOCKED);

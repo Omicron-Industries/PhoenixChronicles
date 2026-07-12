@@ -123,6 +123,21 @@ public class QuestGroupManager {
                 g.setY(getInt(obj, "y", 0));
                 g.setWidth(getInt(obj, "width", 120));
                 g.setHeight(getInt(obj, "height", 80));
+                g.setPhantasiaMachineId(getString(obj, "phantasiaMachineId", ""));
+
+                JsonElement iconsEl = obj.get("icons");
+                if (iconsEl != null && iconsEl.isJsonArray()) {
+                    for (JsonElement iconEl : iconsEl.getAsJsonArray()) {
+                        if (!iconEl.isJsonObject()) continue;
+                        JsonObject iconObj = iconEl.getAsJsonObject();
+                        String kindStr = getString(iconObj, "kind", "ITEM");
+                        String iconId = getString(iconObj, "id", null);
+                        if (iconId == null || iconId.isBlank()) continue;
+                        try {
+                            g.addIcon(QuestGroup.IconKind.valueOf(kindStr.toUpperCase()), iconId);
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                }
 
                 GROUPS.put(id, g);
             }
@@ -150,6 +165,20 @@ public class QuestGroupManager {
                 obj.addProperty("y", g.getY());
                 obj.addProperty("width", g.getWidth());
                 obj.addProperty("height", g.getHeight());
+                if (!g.getPhantasiaMachineId().isEmpty())
+                    obj.addProperty("phantasiaMachineId", g.getPhantasiaMachineId());
+
+                if (!g.getIcons().isEmpty()) {
+                    JsonArray iconsArr = new JsonArray();
+                    for (QuestGroup.GroupIcon icon : g.getIcons()) {
+                        JsonObject iconObj = new JsonObject();
+                        iconObj.addProperty("kind", icon.kind.name());
+                        iconObj.addProperty("id", icon.id);
+                        iconsArr.add(iconObj);
+                    }
+                    obj.add("icons", iconsArr);
+                }
+
                 arr.add(obj);
             }
 

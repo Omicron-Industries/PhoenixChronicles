@@ -140,7 +140,7 @@ public final class QuestFileWatcher {
                     playerCount++;
                 }
             } else {
-                S2CSyncQuestsPacket syncPacket = new S2CSyncQuestsPacket(QuestTreeRegistry.getAllQuests());
+                S2CSyncQuestsPacket syncPacket = new S2CSyncQuestsPacket(QuestTreeRegistry.getAllQuests(), server);
                 for (net.minecraft.server.level.ServerPlayer sp : server.getPlayerList().getPlayers()) {
                     ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), syncPacket);
                     playerCount++;
@@ -148,6 +148,8 @@ public final class QuestFileWatcher {
             }
             System.out.printf("[Phoenix Chronicles] Auto-reloaded %d quest(s) from disk (synced to %d player(s))%n",
                     questCount, playerCount);
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
+                    new net.phoenixvine.chronicles.event.QuestEvent.TreeReloaded());
         });
     }
 

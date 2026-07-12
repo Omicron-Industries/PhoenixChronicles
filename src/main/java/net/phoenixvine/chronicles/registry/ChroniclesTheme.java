@@ -114,6 +114,13 @@ public class ChroniclesTheme {
         if (t != null) {
             active = t;
             activeName = name;
+            // This used to be purely in-memory - none of the three callers (theme editor's
+            // picker, its "reset to DARK" button, the terminal's `theme` command) ever followed
+            // up with a save, so the selection lived only for the current session and silently
+            // reverted to whatever was last actually written to disk (or DARK, if nothing ever
+            // had been) on every relaunch/rejoin. Persisting here means every caller gets this
+            // for free instead of needing to remember it individually.
+            saveAll();
         }
     }
 

@@ -1,66 +1,42 @@
 package net.phoenixvine.chronicles.integration.phantasia;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.common.Mod;
+import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.network.ChronicleNetwork;
+import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
+import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.tasks.ViewMachineTask;
 import net.phoenixvine.chronicles.tasks.ViewSceneTask;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Phantasia API imports — uncomment once 'phantasia' is added as a compile dep
-// in build.gradle:
-//
-// dependencies {
-// compileOnly("net.phoenixvine:phantasia:${phantasia_version}")
-// // or: implementation fg.deobf("net.phoenixvine:phantasia:${phantasia_version}")
-// }
-//
-// import net.phoenixvine.phantasia.api.PhantasiaAPI;
-// import net.phoenixvine.phantasia.api.PhantasiaBlockInspectCompat;
-// import net.phoenixvine.phantasia.api.events.PhantasiaEvents;
-// ═══════════════════════════════════════════════════════════════════════════════
+import net.phoenixvine.phantasia.api.PhantasiaAPI;
+import net.phoenixvine.phantasia.api.PhantasiaEvents;
+import net.phoenixvine.phantasia.api.PhantasiaMachinePreview;
 
 /**
  * Phantasia mod integration for Phoenix Chronicles.
  *
- * This class is structured but NOT yet wired up — Phantasia isn't published yet.
- *
- * ── TO ACTIVATE ──────────────────────────────────────────────────────────────
- *
- * 1. Add Phantasia as a compile-time dependency in build.gradle (see imports above).
- *
- * 2. In PhoenixCore's mod constructor (or FMLCommonSetupEvent), add:
- * if (PhantasiaCompat.isAvailable()) PhantasiaCompat.init();
- *
- * 3. Register C2SPhantasiaTaskCompletePacket in PhoenixNetwork:
- * CHANNEL.registerMessage(nextId++, C2SPhantasiaTaskCompletePacket.class,
- * C2SPhantasiaTaskCompletePacket::encode,
- * C2SPhantasiaTaskCompletePacket::new,
- * C2SPhantasiaTaskCompletePacket::handle);
- *
- * 4. Uncomment the imports above and the API calls marked [UNCOMMENT] below.
- *
- * 5. Register ViewMachineTask and ViewSceneTask in QuestTask deserialization:
- * In QuestFileLoader (or wherever task types are parsed from SNBT), add:
- * case "view_machine" -> new ViewMachineTask(taskId, desc,
- * tag.getString("machine_id"),
- * tag.contains("min_seconds") ? tag.getFloat("min_seconds") : 3.0f);
- * case "view_scene" -> new ViewSceneTask(taskId, desc,
- * tag.getString("scene_id"),
- * tag.contains("min_seconds") ? tag.getFloat("min_seconds") : 5.0f);
+ * Backed by {@code curse.maven:phantasia-1589286:8326565} (see build.gradle). All calls are safe
+ * no-ops when Phantasia isn't installed on the running client/server — check {@link #isAvailable()}
+ * where it matters, but the individual helpers below already guard themselves.
  *
  * ── WHAT THIS GIVES YOU ──────────────────────────────────────────────────────
  *
- * • view_machine tasks — quest objective that completes when the player views
- * a Phantasia build guide for a specific machine (with a configurable time floor).
+ * • view_machine / view_scene quest tasks (see ViewMachineTask / ViewSceneTask) — complete when
+ * the player views a Phantasia build guide/scene for at least a configurable time floor.
+ * Registered in PhoenixTaskRegistry and selectable from TaskRewardEditorScreen's task dropdown.
  *
- * • view_scene tasks — same, but for multi-machine scenes.
+ * • "View in Phantasia ▶" button — QuestTasksScreen opens the viewer for any task where
+ * {@link #canOpenForTask(Object)} returns true.
  *
- * • Block inspector compat — quests that involve a machine (view_machine tasks)
- * show a "Needed for: <quest>" hint in Phantasia's block inspector overlay.
- *
- * • Multiblock provider — PhoenixCore's own machines are registered with Phantasia
- * so they appear in the viewer without separate data-pack JSON.
- * (See PhoenixMultiblockProvider for the implementation.)
+ * • Embedded 3D preview widget — see the preview helpers below, used by ChronicleOverviewScreen's
+ * node inspector for quests carrying a ViewMachineTask.
  */
 public class PhantasiaCompat {
 
@@ -71,128 +47,83 @@ public class PhantasiaCompat {
         return ModList.get().isLoaded(PHANTASIA_MOD_ID);
     }
 
-    /**
-     * Call from your mod constructor or FMLCommonSetupEvent, guarded by isAvailable().
-     * All lines marked [UNCOMMENT] require the Phantasia dep to be on the classpath.
-     */
+    /** Call from your mod constructor or FMLCommonSetupEvent, guarded by isAvailable(). */
     public static void init() {
-        // Register block inspector compat — adds "Needed for: <quest>" hints
-        // to Phantasia's right-click block inspector overlay.
-        // [UNCOMMENT] PhantasiaBlockInspectCompat.register((block, lines, setRole) -> {
-        // for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-        // for (QuestTask task : node.getTasks()) {
-        // if (task instanceof ViewMachineTask vmt) {
-        // // [UNCOMMENT] if (PhantasiaAPI.isAvailable(vmt.getMachineId())) {
-        // // lines.add(net.minecraft.network.chat.Component.literal(
-        // // "§8Needed for: §7" + node.getTitle().getString()));
-        // // }
-        // }
-        // }
-        // }
-        // });
+        // Client-side event subscription happens automatically via ClientEvents' own
+        // @Mod.EventBusSubscriber annotation below — nothing to do here beyond the isAvailable()
+        // gate the caller already applies. Kept as an explicit entry point for symmetry with
+        // other compat modules and so future non-event wiring has an obvious home.
     }
 
     // ── Client-side Phantasia event subscribers ───────────────────────────────
-    //
-    // This inner class is registered on the Forge event bus. When Phantasia is
-    // added as a dep, remove the surrounding comment block so the @SubscribeEvent
-    // methods become active.
-    //
-    // The annotation @Mod.EventBusSubscriber(value = Dist.CLIENT) ensures these
-    // are only registered on the logical client — Phantasia events are client-only.
 
-    /*
-     * [UNCOMMENT THIS ENTIRE BLOCK when Phantasia dep is available]
-     * 
-     * @Mod.EventBusSubscriber(modid = PhoenixCore.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
-     * public static class ClientEvents {
-     * 
-     * @SubscribeEvent
-     * public static void onMachineViewerClose(PhantasiaEvents.ViewerClose event) {
-     * Player player = Minecraft.getInstance().player;
-     * if (player == null) return;
-     * 
-     * String closedMachineId = event.getMachineId();
-     * float secondsViewed = event.getSecondsViewed();
-     * 
-     * player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-     * for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-     * QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
-     * if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
-     * 
-     * for (QuestTask task : node.getTasks()) {
-     * if (!(task instanceof ViewMachineTask vmt)) continue;
-     * if (task.isCompletedFor(player)) continue;
-     * if (!closedMachineId.equals(vmt.getMachineId())) continue;
-     * if (secondsViewed < vmt.getMinSeconds()) continue;
-     * 
-     * // Mark locally so the UI updates immediately without waiting for server round-trip
-     * vmt.markCompletedClient(player);
-     * 
-     * // Notify the server so it persists and triggers quest completion checks
-     * PhoenixNetwork.CHANNEL.sendToServer(
-     * new C2SPhantasiaTaskCompletePacket(node.getId(), task.getTaskId()));
-     * }
-     * }
-     * });
-     * }
-     * 
-     * @SubscribeEvent
-     * public static void onSceneViewerClose(PhantasiaEvents.SceneViewerClose event) {
-     * Player player = Minecraft.getInstance().player;
-     * if (player == null) return;
-     * 
-     * String closedSceneId = event.getSceneId();
-     * float secondsViewed = event.getSecondsViewed();
-     * 
-     * player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-     * for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-     * QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
-     * if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
-     * 
-     * for (QuestTask task : node.getTasks()) {
-     * if (!(task instanceof ViewSceneTask vst)) continue;
-     * if (task.isCompletedFor(player)) continue;
-     * if (!closedSceneId.equals(vst.getSceneId())) continue;
-     * if (secondsViewed < vst.getMinSeconds()) continue;
-     * 
-     * vst.markCompletedClient(player);
-     * 
-     * PhoenixNetwork.CHANNEL.sendToServer(
-     * new C2SPhantasiaTaskCompletePacket(node.getId(), task.getTaskId()));
-     * }
-     * }
-     * });
-     * }
-     * }
-     * 
-     */  // end [UNCOMMENT BLOCK]
+    @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID,
+                            bus = Mod.EventBusSubscriber.Bus.FORGE,
+                            value = Dist.CLIENT)
+    public static class ClientEvents {
+
+        @SubscribeEvent
+        public static void onMachineViewerClose(PhantasiaEvents.ViewerClose event) {
+            Player player = Minecraft.getInstance().player;
+            if (player == null) return;
+
+            String closedMachineId = event.getMachineId();
+            float secondsViewed = event.getSecondsViewed();
+
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                for (Object taskObj : node.getTasks()) {
+                    if (!(taskObj instanceof ViewMachineTask vmt)) continue;
+                    if (vmt.isCompletedFor(player)) continue;
+                    if (!vmt.getMachineId().equals(closedMachineId)) continue;
+                    if (secondsViewed < vmt.getMinSeconds()) continue;
+
+                    // Mark locally so the UI updates immediately without waiting for a server round-trip
+                    vmt.markCompletedClient(player);
+
+                    // Notify the server so it persists and triggers quest completion checks
+                    ChronicleNetwork.CHANNEL.sendToServer(
+                            new C2SPhantasiaTaskCompletePacket(node.getId(), vmt.getTaskId()));
+                }
+            }
+        }
+
+        @SubscribeEvent
+        public static void onSceneViewerClose(PhantasiaEvents.SceneViewerClose event) {
+            Player player = Minecraft.getInstance().player;
+            if (player == null) return;
+
+            String closedSceneId = event.getSceneId();
+            float secondsViewed = event.getSecondsViewed();
+
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                for (Object taskObj : node.getTasks()) {
+                    if (!(taskObj instanceof ViewSceneTask vst)) continue;
+                    if (vst.isCompletedFor(player)) continue;
+                    if (!vst.getSceneId().equals(closedSceneId)) continue;
+                    if (secondsViewed < vst.getMinSeconds()) continue;
+
+                    vst.markCompletedClient(player);
+
+                    ChronicleNetwork.CHANNEL.sendToServer(
+                            new C2SPhantasiaTaskCompletePacket(node.getId(), vst.getTaskId()));
+                }
+            }
+        }
+    }
 
     // ── "View in Phantasia" button helper ─────────────────────────────────────
-    //
-    // Use this in ChronicleOverviewScreen / QuestTasksScreen to show a
-    // "View in Phantasia ▶" button next to any ViewMachineTask.
-    //
-    // Example (in your screen's render or mouseClicked):
-    //
-    // if (PhantasiaCompat.canOpenForTask(task)) {
-    // // render the button at (bx, by)
-    // // on click: PhantasiaCompat.openForTask(task, this);
-    // }
 
     /**
-     * Returns true if the given task is a ViewMachineTask whose machine id is
+     * Returns true if the given task is a ViewMachineTask/ViewSceneTask whose target id is
      * known to Phantasia. Safe to call even when Phantasia is absent — returns false.
      */
     public static boolean canOpenForTask(Object task) {
         if (!isAvailable()) return false;
         if (task instanceof ViewMachineTask vmt) {
-            // [UNCOMMENT] return PhantasiaAPI.hasScript(vmt.getMachineId());
-            return false; // placeholder until dep is available
+            return PhantasiaAPI.hasScript(vmt.getMachineId());
         }
         if (task instanceof ViewSceneTask vst) {
-            // [UNCOMMENT] return PhantasiaAPI.hasScene(vst.getSceneId());
-            return false;
+            return PhantasiaAPI.hasScene(vst.getSceneId());
         }
         return false;
     }
@@ -204,24 +135,20 @@ public class PhantasiaCompat {
      * @param task   the task to open a viewer for
      * @param parent the Screen Phantasia should return to on close
      */
-    public static void openForTask(Object task, net.minecraft.client.gui.screens.Screen parent) {
+    public static void openForTask(Object task, Screen parent) {
         if (!isAvailable()) return;
         if (task instanceof ViewMachineTask vmt) {
-            // [UNCOMMENT] PhantasiaAPI.openForMachine(vmt.getMachineId(), parent);
+            PhantasiaAPI.openForMachine(vmt.getMachineId(), parent);
         } else if (task instanceof ViewSceneTask vst) {
-            // [UNCOMMENT] PhantasiaAPI.openScene(vst.getSceneId(), parent);
+            PhantasiaAPI.openScene(vst.getSceneId(), parent);
         }
     }
 
     // ── Embedded 3D preview widget ────────────────────────────────────────────
     //
-    // These helpers let ChronicleOverviewScreen manage a PhantasiaMachinePreview
-    // without importing the Phantasia type directly. All methods are safe no-ops
-    // (or return null) when Phantasia is absent.
-    //
-    // The preview is stored as Object in the screen to avoid the compile dep.
-    // Cast to PhantasiaMachinePreview inside the [UNCOMMENT] blocks once the dep
-    // is on the classpath.
+    // The preview is stored as Object in callers to avoid a hard compile-time reference to
+    // PhantasiaMachinePreview leaking into screens that don't otherwise need the Phantasia dep
+    // (matters for anyone building without CurseMaven access) — cast happens only inside here.
 
     /**
      * Creates a preview for the first ViewMachineTask on the given quest node,
@@ -232,67 +159,65 @@ public class PhantasiaCompat {
      */
     public static Object createPreviewForNode(QuestNode node) {
         if (!isAvailable() || node == null) return null;
-        for (Object task : node.getTasks()) {
-            if (task instanceof ViewMachineTask vmt) {
-                // [UNCOMMENT]
-                // var preview = PhantasiaAPI.createPreview(vmt.getMachineId());
-                // if (preview != null) {
-                // preview.setAutoSpin(20f); // gentle spin
-                // }
-                // return preview;
-                return null; // placeholder
+        // A quest's own content-level preview (set directly on the node, independent of any
+        // view_machine task requirement) takes priority over one implied by a task.
+        String contentMachineId = node.getPreviewMachineId();
+        if (contentMachineId != null && !contentMachineId.isBlank()) {
+            Object preview = createPreview(contentMachineId);
+            if (preview != null) return preview;
+        }
+        for (Object taskObj : node.getTasks()) {
+            if (taskObj instanceof ViewMachineTask vmt) {
+                return PhantasiaAPI.createPreview(vmt.getMachineId());
             }
         }
         return null;
     }
 
     /**
-     * Advances the preview camera animation. Call once per render frame
-     * (before rendering) if preview is non-null.
+     * Creates a preview for an arbitrary machine id, independent of any quest/task. Used by the
+     * quest group ("popup") editor and by quest content previews that aren't tied to a
+     * ViewMachineTask. Returns null if Phantasia is absent or the id isn't a known machine.
      */
+    public static Object createPreview(String machineId) {
+        if (!isAvailable() || machineId == null || machineId.isBlank()) return null;
+        if (!PhantasiaAPI.hasScript(machineId)) return null;
+        return PhantasiaAPI.createPreview(machineId);
+    }
+
+    /** Advances the preview camera animation. Call once per render frame (before rendering). */
     public static void tickPreview(Object preview) {
         if (preview == null) return;
-        // [UNCOMMENT] ((net.phoenixvine.phantasia.api.PhantasiaMachinePreview) preview).tick();
+        ((PhantasiaMachinePreview) preview).tick();
     }
 
-    /**
-     * Renders the preview into the given screen rectangle.
-     * Safe to call before isPreviewReady() — Phantasia shows a "Loading…" placeholder.
-     */
-    public static void renderPreview(Object preview,
-                                     net.minecraft.client.gui.GuiGraphics g,
-                                     int x, int y, int w, int h, float partialTick) {
+    /** True once Phantasia has given up on this preview's pattern load (distinct from "still loading"). */
+    public static boolean isPreviewLoadFailed(Object preview) {
+        if (preview == null) return false;
+        return ((PhantasiaMachinePreview) preview).isLoadFailed();
+    }
+
+    /** Renders the preview into the given screen rectangle. */
+    public static void renderPreview(Object preview, GuiGraphics g, int x, int y, int w, int h,
+                                     float partialTick) {
         if (preview == null) return;
-        // [UNCOMMENT]
-        // ((net.phoenixvine.phantasia.api.PhantasiaMachinePreview) preview)
-        // .render(g, x, y, w, h, partialTick);
+        ((PhantasiaMachinePreview) preview).render(g, x, y, w, h, partialTick);
     }
 
-    /**
-     * Returns true once the async pattern load is complete and the 3D view is live.
-     * Use to drive your own placeholder while loading if desired.
-     */
+    /** Returns true once the async pattern load is complete and the 3D view is live. */
     public static boolean isPreviewReady(Object preview) {
         if (preview == null) return false;
-        // [UNCOMMENT] return ((net.phoenixvine.phantasia.api.PhantasiaMachinePreview) preview).isReady();
-        return false;
+        return ((PhantasiaMachinePreview) preview).isReady();
     }
 
     /**
      * Forwards a mouse click to the preview (lets the player drag-to-rotate).
      * Returns true if the preview consumed the click.
-     *
-     * @param x/y/w/h the rectangle the preview was rendered into
      */
-    public static boolean previewMouseClicked(Object preview,
-                                              double mx, double my,
-                                              int x, int y, int w, int h,
-                                              net.minecraft.client.gui.screens.Screen parent) {
+    public static boolean previewMouseClicked(Object preview, double mx, double my, int x, int y, int w, int h,
+                                              Screen parent) {
         if (preview == null) return false;
-        // [UNCOMMENT]
-        // return ((net.phoenixvine.phantasia.api.PhantasiaMachinePreview) preview)
-        // .mouseClicked(mx, my, x, y, w, h, parent);
-        return false;
+        return ((PhantasiaMachinePreview) preview).mouseClicked(mx, my, x, y, w, h, parent);
     }
 
     /**
@@ -301,6 +226,6 @@ public class PhantasiaCompat {
      */
     public static void closePreview(Object preview) {
         if (preview == null) return;
-        // [UNCOMMENT] ((net.phoenixvine.phantasia.api.PhantasiaMachinePreview) preview).close();
+        ((PhantasiaMachinePreview) preview).close();
     }
 }

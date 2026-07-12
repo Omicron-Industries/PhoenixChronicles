@@ -3,13 +3,13 @@ package net.phoenixvine.chronicles.client.screen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
+import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
@@ -87,6 +87,12 @@ public class QuestTasksScreen extends Screen {
     private int inspectorContentH = 0; // tracked last frame for clamping
     private boolean isFullscreen = false;
 
+    // Embedded live Phantasia build preview — shown as part of the quest's own content when the
+    // quest has a preview machine id set (either directly, or implied by a view_machine task).
+    // Stored as Object (see PhantasiaCompat) to avoid a hard compile-time Phantasia dependency.
+    private Object phantasiaPreview;
+    private int previewX, previewY, previewW, previewH;
+
     public QuestTasksScreen(Screen parent, QuestNode node, FullQuestData content, PlayerQuestData playerData) {
         super(Component.literal("Quest Details"));
         this.parent = parent;
@@ -101,6 +107,7 @@ public class QuestTasksScreen extends Screen {
         super.init();
         openTimeMs = System.currentTimeMillis();
         isEditMode = player != null && (player.isCreative() || player.hasPermissions(2));
+        phantasiaPreview = net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.createPreviewForNode(node);
 
         // Auto-acknowledge all InfoTasks client-side immediately (responsive UI),
         // and tell the server to do the same so it can advance quest state.
@@ -131,6 +138,14 @@ public class QuestTasksScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float partial) {
+        // This screen opens on top of the quest canvas mid-frame (from a node click), and the
+        // canvas can leave an active scissor rect from whatever was last clipped there (e.g. a
+        // scrolled panel) - without clearing it first, the very first fills below
+        // (overview.renderForChildScreen()'s background) get clipped to that stale rect instead
+        // of covering the whole screen, leaving old canvas pixels showing through elsewhere for
+        // the frame, which read as this "non-fullscreen" card bleeding the canvas behind it.
+        com.mojang.blaze3d.systems.RenderSystem.disableScissor();
+
         if (isFullscreen) {
             renderFullscreen(g, mx, my, partial);
         } else {
@@ -146,10 +161,19 @@ public class QuestTasksScreen extends Screen {
             }
         }
 
-        // Rich-text hover tooltips (rendered last so they appear above everything)
+        // Rich-text hover tooltips (rendered last so they appear above everything). Popping the
+        // pose stack above only resets the matrix, not the depth buffer already written by the
+        // panel content (up to z=400 in renderFullscreen/renderCompact) and the parent canvas's
+        // node icons (z=100) drawn earlier this frame - without its own elevated z this tooltip
+        // lost the depth test against them. Push above the highest z used elsewhere in this screen.
         for (net.phoenixvine.chronicles.client.rich.RichSpan.Region r : richRegions) {
             if (r.contains(mx, my) && r.span() instanceof net.phoenixvine.chronicles.client.rich.RichSpan.Tip t) {
+                g.pose().pushPose();
+                g.pose().translate(0f, 0f, 500f);
+                g.flush();
                 g.renderTooltip(font, Component.literal(t.tooltip()), mx, my);
+                g.flush();
+                g.pose().popPose();
                 break;
             }
         }
@@ -162,10 +186,17 @@ public class QuestTasksScreen extends Screen {
     // Reward mini-slots shown inline in the tasks header
     private static final int REWARD_MINI_SZ = 14;
 
+    private static final int PREVIEW_H_COMPACT = 46;
+
+    /** Extra height the embedded Phantasia preview block reserves in the compact card, or 0 if none. */
+    private int previewBlockH() {
+        return phantasiaPreview != null ? PREVIEW_H_COMPACT + 1 : 0;
+    }
+
     private int compactCardH(List<QuestTask> tasks, List<QuestReward> rewards,
                              java.util.List<net.minecraft.util.FormattedCharSequence> descLines) {
         // header(20) + divider(1) + icon strip + pad(2) + divider(1) + footer(18)
-        int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18;
+        int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int allDescLines = buildAllDescLines(tasks, descLines).size();
         int rawDesc = Math.min(allDescLines, CARD_MAX_DESC);
         int fitted = Math.max(0, Math.min(rawDesc, ((height - 20) - fixedH - 9) / 10));
@@ -207,6 +238,12 @@ public class QuestTasksScreen extends Screen {
     private boolean isEditMode = false;
     private boolean hoveredDescBox = false;
     private int descBoxX, descBoxY, descBoxW, descBoxH;
+    // The compact card silently truncated long descriptions to whatever fit in CARD_MAX_DESC
+    // lines with no way to see the rest short of noticing the tiny "[+]" expand button - scrolled
+    // in place instead, same as the fullscreen view already does via descScrollY.
+    private int compactDescScrollLine = 0;
+    private int compactDescTotalLines = 0;
+    private int compactDescFittedLines = 0;
     // Same edit-box affordance as the compact card's description, for the fullscreen content panel.
     private boolean hoveredFsDescBox = false;
     private int fsDescBoxX, fsDescBoxY, fsDescBoxW, fsDescBoxH;
@@ -239,10 +276,24 @@ public class QuestTasksScreen extends Screen {
             g.fill(0, 0, width, height, C_BG);
         }
 
+        // Force everything the parent (including quest node icons, which g.renderItem() writes
+        // to the depth buffer at z=100) just queued to actually submit before this card starts
+        // drawing - renderForChildScreen() already flushes internally, but this pack's rendering
+        // pipeline has repeatedly shown it needs an explicit flush at every layer boundary, not
+        // just an upstream one, or content from the layer below can still bleed through what's
+        // supposed to be an opaque layer on top of it (this was the clicked quest's own canvas
+        // icon showing through above the card instead of staying hidden behind it).
+        g.flush();
+
         // Elevate z so the card is ALWAYS drawn in front of any parent content,
         // regardless of render-buffer ordering or leftover scissor state.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
+        // Same missing-flush bleed-through bug fixed elsewhere this session - without this, a
+        // quest node's own icon (z=100 via g.renderItem()) could still win the depth test
+        // against this dim fill and show through it specifically, instead of just reading as
+        // part of the deliberately-dimmed parent canvas behind everything else.
+        g.flush();
         g.fill(0, 0, width, height, 0x88000000);
 
         List<QuestTask> tasks = node.getTasks();
@@ -257,7 +308,7 @@ public class QuestTasksScreen extends Screen {
         java.util.List<net.minecraft.util.FormattedCharSequence> descLines = buildAllDescLines(tasks, questDescLines);
 
         // Layout constants — icon strip replaces the old per-task row list
-        int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18;
+        int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int rawDesc = Math.min(descLines.size(), CARD_MAX_DESC);
         int fittedDesc = Math.max(0, Math.min(rawDesc, ((height - 20) - fixedH - 9) / 10));
         int descH = fittedDesc > 0 ? 4 + fittedDesc * 10 + 4 : (isEditMode ? 24 : 0);
@@ -378,6 +429,23 @@ public class QuestTasksScreen extends Screen {
         g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
         cy += 1;
 
+        // ── Embedded Phantasia build preview — part of the quest's own content, shown whether
+        // or not the quest also has a view_machine task requiring it to be viewed.
+        if (phantasiaPreview != null) {
+            g.fill(cardX + 2, cy + 1, cardX + cardW() - 2, cy + PREVIEW_H_COMPACT - 1, 0xFF0A0A10);
+            drawBorder(g, cardX + 2, cy + 1, cardW() - 4, PREVIEW_H_COMPACT - 2);
+            previewX = cardX + 3;
+            previewY = cy + 2;
+            previewW = cardW() - 6;
+            previewH = PREVIEW_H_COMPACT - 4;
+            net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.tickPreview(phantasiaPreview);
+            net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.renderPreview(phantasiaPreview, g,
+                    previewX, previewY, previewW, previewH, partial);
+            cy += PREVIEW_H_COMPACT;
+            g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
+            cy += 1;
+        }
+
         // ── Description (bottom) - the card's main content area ─────────────
         hoveredDescBox = false;
         if (descH > 0) {
@@ -398,15 +466,28 @@ public class QuestTasksScreen extends Screen {
                 }
             }
 
+            compactDescTotalLines = descLines.size();
+            compactDescFittedLines = fittedDesc;
+            int maxScrollLine = Math.max(0, compactDescTotalLines - compactDescFittedLines);
+            compactDescScrollLine = Math.max(0, Math.min(compactDescScrollLine, maxScrollLine));
+
             int dy = cy + 4;
             if (fittedDesc == 0 && isEditMode) {
                 g.drawString(font, "§8Click to add a description", cardX + CARD_PAD, dy, C_TEXT_FAINT, false);
             }
             for (int i = 0; i < fittedDesc; i++) {
-                g.drawString(font, descLines.get(i), cardX + CARD_PAD, dy, C_TEXT_DIM, false);
+                int lineIdx = compactDescScrollLine + i;
+                if (lineIdx >= descLines.size()) break;
+                g.drawString(font, descLines.get(lineIdx), cardX + CARD_PAD, dy, C_TEXT_DIM, false);
                 dy += 10;
             }
-            if (isEditMode) {
+            // Scroll hint - only shown when there's actually more text than fits, so it doesn't
+            // clutter short descriptions.
+            if (maxScrollLine > 0) {
+                String hint = compactDescScrollLine < maxScrollLine ? "§7▼ scroll for more" : "§7▲ scroll up";
+                g.drawString(font, hint, cardX + cardW() - font.width(hint) - CARD_PAD - 2,
+                        cy + descH - 11, C_TEXT_FAINT, false);
+            } else if (isEditMode) {
                 String hint = "§7✎ edit";
                 g.drawString(font, hint, cardX + cardW() - font.width(hint) - CARD_PAD - 2,
                         cy + descH - 11, hoveredDescBox ? C_ACTIVE : C_TEXT_FAINT, false);
@@ -504,9 +585,9 @@ public class QuestTasksScreen extends Screen {
             g.fill(btnX, btnY, btnX + btnW, btnY + 1, hov ? C_DONE : 0xFF333333);
             g.drawCenteredString(font, "§a✓ Claim Rewards", btnX + btnW / 2, btnY + 4, hov ? C_DONE : C_TEXT);
         } else if (rewardsClaimed()) {
-            g.drawCenteredString(font, "§8Rewards claimed", cardX + cardW / 2, cy + 5, C_TEXT_FAINT);
+            g.drawCenteredString(font, "§8Rewards Claimed", cardX + cardW / 2, cy + 5, C_TEXT_FAINT);
         } else {
-            g.drawCenteredString(font, "§8Complete tasks to claim", cardX + cardW / 2, cy + 5, C_TEXT_FAINT);
+            g.drawCenteredString(font, "§8Complete Tasks to Claim", cardX + cardW / 2, cy + 5, C_TEXT_FAINT);
         }
     }
 
@@ -536,7 +617,7 @@ public class QuestTasksScreen extends Screen {
 
         g.fill(MARGIN, contentTop, contentRight, contentTop + contentH, C_PANEL);
         drawBorder(g, MARGIN, contentTop, contentRight - MARGIN, contentH);
-        renderContent(g, MARGIN + 6, contentTop + 6, contentRight - MARGIN - 12, contentH - 12, mx, my);
+        renderContent(g, MARGIN + 6, contentTop + 6, contentRight - MARGIN - 12, contentH - 12, mx, my, partial);
 
         int inspX = contentRight + MARGIN;
         renderInspector(g, inspX, contentTop, inspW, contentH, mx, my);
@@ -706,7 +787,7 @@ public class QuestTasksScreen extends Screen {
         g.fill(x + sz - 1, y, x + sz, y + sz, border);
     }
 
-    private void renderContent(GuiGraphics g, int x, int y, int w, int h, int mx, int my) {
+    private void renderContent(GuiGraphics g, int x, int y, int w, int h, int mx, int my, float partial) {
         // Edit-mode affordance for the description, matching the compact card's dashed edit box.
         fsDescBoxX = x - 6;
         fsDescBoxY = y - 6;
@@ -743,6 +824,26 @@ public class QuestTasksScreen extends Screen {
         int ly = y +
                 net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureHeight(font, richSpans, w) -
                 descScrollY;
+
+        // Embedded Phantasia build preview — part of the quest's own content, appended after the
+        // description text in the same scrollable flow as the prerequisites list below it.
+        if (phantasiaPreview != null) {
+            if (ly > y) ly += 8;
+            int pvH = 100;
+            if (ly + pvH >= y - 10 && ly < y + h) {
+                g.fill(x, ly, x + w, ly + pvH, 0xFF0A0A10);
+                drawBorder(g, x, ly, w, pvH);
+                previewX = x + 1;
+                previewY = ly + 1;
+                previewW = w - 2;
+                previewH = pvH - 2;
+                net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.tickPreview(phantasiaPreview);
+                net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.renderPreview(phantasiaPreview, g,
+                        previewX, previewY, previewW, previewH, partial);
+            }
+            ly += pvH + 8;
+        }
+
         List<QuestNode> prereqs = node.getPrerequisites();
         if (!prereqs.isEmpty()) {
             if (ly > y) ly += 8;
@@ -1081,6 +1182,8 @@ public class QuestTasksScreen extends Screen {
         if (task instanceof EnergyStorageTask) return "§6⚡";
         if (task instanceof FilterItemTask) return "§e◈";
         if (task instanceof FilterFluidTask) return "§3◈";
+        if (task instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "§b⬡";
+        if (task instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "§b⬢";
         return "§8◇";
     }
 
@@ -1130,6 +1233,12 @@ public class QuestTasksScreen extends Screen {
             return t.getFilter().describe() + " — " + String.format("%,d", t.getAmount()) + " mB" +
                     (t.isConsume() ? "  (consumed)" : "");
         }
+        if (task instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask t) {
+            return "Phantasia: " + t.getMachineId();
+        }
+        if (task instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask t) {
+            return "Phantasia scene: " + t.getSceneId();
+        }
         return null;
     }
 
@@ -1166,12 +1275,15 @@ public class QuestTasksScreen extends Screen {
     /** Tries to open EMI or JEI for the given ItemStack via reflection (no hard dependency). */
     private void tryOpenInRecipeViewer(ItemStack stack) {
         if (stack.isEmpty() || minecraft == null) return;
-        // EMI
+        // EMI — displayRecipes() takes the EmiIngredient interface, not the concrete EmiStack
+        // class, so getMethod(esClass) never matched (NoSuchMethodException, silently swallowed)
+        // and this always fell through to the fullscreen-expand fallback below.
         try {
             Class<?> api = Class.forName("dev.emi.emi.api.EmiApi");
             Class<?> esClass = Class.forName("dev.emi.emi.api.stack.EmiStack");
+            Class<?> ingredientClass = Class.forName("dev.emi.emi.api.stack.EmiIngredient");
             Object es = esClass.getMethod("of", ItemStack.class).invoke(null, stack);
-            api.getMethod("displayRecipes", esClass).invoke(null, es);
+            api.getMethod("displayRecipes", ingredientClass).invoke(null, es);
             return;
         } catch (Exception ignored) {}
         // JEI fallback
@@ -1202,10 +1314,19 @@ public class QuestTasksScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
+        if (phantasiaPreview != null && previewW > 0 &&
+                net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.previewMouseClicked(phantasiaPreview,
+                        mx, my, previewX, previewY, previewW, previewH, this)) {
+            return true;
+        }
         return isFullscreen ? handleFullscreenClick(mx, my, btn) : handleCompactClick(mx, my, btn);
     }
 
     private boolean handleCompactClick(double mx, double my, int btn) {
+        if (btn == 1 && isEditMode && minecraft != null && (hoveredTask != null || hoveredReward != null)) {
+            minecraft.setScreen(new TaskRewardEditorScreen(this, node));
+            return true;
+        }
         if (btn != 0) return super.mouseClicked(mx, my, btn);
 
         List<QuestTask> tasks = node.getTasks();
@@ -1255,6 +1376,10 @@ public class QuestTasksScreen extends Screen {
         // Task / reward slot clicks (use hovered slot tracked during last render)
         if (hoveredTask != null) {
             if (tryCompleteCheckmark(hoveredTask)) return true;
+            if (net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.canOpenForTask(hoveredTask)) {
+                net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.openForTask(hoveredTask, this);
+                return true;
+            }
             ItemStack icon = getTaskIcon(hoveredTask);
             if (!icon.isEmpty()) tryOpenInRecipeViewer(icon);
             else isFullscreen = true; // non-item tasks → expand for detail
@@ -1281,6 +1406,12 @@ public class QuestTasksScreen extends Screen {
     }
 
     private boolean handleFullscreenClick(double mx, double my, int btn) {
+        if (btn == 1 && isEditMode && minecraft != null &&
+                (hoveredStripTask != null || hoveredStripReward != null ||
+                        hoveredTaskFs != null || hoveredRewardFs != null)) {
+            minecraft.setScreen(new TaskRewardEditorScreen(this, node));
+            return true;
+        }
         // Icon strip — task icon click jumps to the Tasks tab. Rewards are always visible
         // in their own column now, so a reward icon click doesn't need to switch anything.
         if (hoveredStripTask != null) {
@@ -1315,7 +1446,11 @@ public class QuestTasksScreen extends Screen {
         }
         // Pin — toggles just this quest, leaving any other pinned quests untouched
         if (mx >= pinX2 && mx < width - 4 && my >= 6 && my < 22 && btn == 0) {
-            if (playerData != null) playerData.togglePin(node.getId());
+            if (playerData != null) {
+                playerData.togglePin(node.getId());
+                net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.sendToServer(
+                        new net.phoenixvine.chronicles.network.packet.C2STogglePinPacket(node.getId()));
+            }
             return true;
         }
         // Inspector tabs
@@ -1338,6 +1473,10 @@ public class QuestTasksScreen extends Screen {
         // Inspector content clicks (tasks and rewards tabs)
         if (hoveredTaskFs != null) {
             if (tryCompleteCheckmark(hoveredTaskFs)) return true;
+            if (net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.canOpenForTask(hoveredTaskFs)) {
+                net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.openForTask(hoveredTaskFs, this);
+                return true;
+            }
             ItemStack icon = getTaskIcon(hoveredTaskFs);
             if (!icon.isEmpty()) tryOpenInRecipeViewer(icon);
             return true;
@@ -1390,7 +1529,15 @@ public class QuestTasksScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        if (!isFullscreen) return false;
+        if (!isFullscreen) {
+            int maxScrollLine = Math.max(0, compactDescTotalLines - compactDescFittedLines);
+            if (maxScrollLine == 0) return false;
+            if (mx < descBoxX || mx >= descBoxX + descBoxW || my < descBoxY || my >= descBoxY + descBoxH) {
+                return false;
+            }
+            compactDescScrollLine = Math.max(0, Math.min(maxScrollLine, compactDescScrollLine - (int) (delta * 2)));
+            return true;
+        }
         int contentTop = HEADER_H + reqBarH() + MARGIN;
         int inspW3 = calcInspW();
         int contentRight = width - inspW3 - calcRewardW() - MARGIN * 3;
@@ -1418,6 +1565,10 @@ public class QuestTasksScreen extends Screen {
 
     @Override
     public void onClose() {
+        if (phantasiaPreview != null) {
+            net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.closePreview(phantasiaPreview);
+            phantasiaPreview = null;
+        }
         if (minecraft != null) minecraft.setScreen(parent);
     }
 

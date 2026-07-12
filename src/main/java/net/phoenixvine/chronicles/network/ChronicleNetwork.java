@@ -7,7 +7,9 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.network.packet.C2SCompleteCheckmarkTaskPacket;
+import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
 import net.phoenixvine.chronicles.network.packet.C2SSetQuestStatePacket;
+import net.phoenixvine.chronicles.network.packet.C2STogglePinPacket;
 import net.phoenixvine.chronicles.network.packet.S2CReloadQuestsFromDiskPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
@@ -78,5 +80,19 @@ public class ChronicleNetwork {
                 S2CReloadQuestsFromDiskPacket::new,
                 S2CReloadQuestsFromDiskPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+
+        CHANNEL.registerMessage(id++,
+                C2STogglePinPacket.class,
+                C2STogglePinPacket::encode,
+                C2STogglePinPacket::new,
+                C2STogglePinPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                C2SPhantasiaTaskCompletePacket.class,
+                C2SPhantasiaTaskCompletePacket::encode,
+                C2SPhantasiaTaskCompletePacket::new,
+                C2SPhantasiaTaskCompletePacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

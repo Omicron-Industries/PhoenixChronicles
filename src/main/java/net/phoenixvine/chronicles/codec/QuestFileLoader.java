@@ -67,7 +67,10 @@ public class QuestFileLoader {
                                String devNotes,
                                QuestNode.NodeSize nodeSize,
                                ResourceLocation linkTarget,
-                               String iconTexture) {}
+                               String iconTexture,
+                               String shapeTexture,
+                               List<QuestNode.QuestVariant> variants,
+                               String previewMachineId) {}
 
     /** Applies this edge's per-line shape/style/speed overrides (if any) onto {@code node}. */
     private static void applyLineOverrides(QuestNode node, QuestNode prereq, QuestRecord rec, String pid) {
@@ -190,9 +193,11 @@ public class QuestFileLoader {
             node.setRewardChoice(rec.rewardChoice());
             node.setRewardChoiceCount(rec.rewardChoiceCount());
             node.setDevNotes(rec.devNotes());
+            node.setPreviewMachineId(rec.previewMachineId());
             node.setNodeSize(rec.nodeSize());
             node.setLinkTarget(rec.linkTarget());
             node.setIconTexture(rec.iconTexture());
+            node.setShapeTexture(rec.shapeTexture());
             if (!rec.iconItemId().isEmpty()) node.setIconItemById(rec.iconItemId());
             node.setRepeatMode(rec.repeatMode());
             node.setRepeatCooldownHours(rec.repeatCooldownHours());
@@ -200,6 +205,7 @@ public class QuestFileLoader {
             node.setOptionalPrereqMinCount(rec.optionalPrereqMinCount());
             for (QuestReward r : rec.rewards()) node.addReward(r);
             for (QuestTask t : rec.tasks()) node.addTask(t);
+            for (QuestNode.QuestVariant v : rec.variants()) node.addVariant(v);
             if (rec.emergencyItems() != null) node.deserializeEmergencyItems(rec.emergencyItems());
             for (TutorialStep step : rec.tutorialSteps()) node.addTutorialStep(step);
             QuestTreeRegistry.registerBareQuestNode(node);
@@ -295,6 +301,7 @@ public class QuestFileLoader {
             String shape = tag.contains("shape") ? tag.getString("shape") : "SQUARE";
             String iconItem = tag.contains("icon_item") ? tag.getString("icon_item") : "";
             String iconTexture = tag.contains("icon_texture") ? tag.getString("icon_texture") : "";
+            String shapeTexture = tag.contains("shape_texture") ? tag.getString("shape_texture") : "";
             int posX = tag.contains("positionX") ? tag.getInt("positionX") : 40;
             int posY = tag.contains("positionY") ? tag.getInt("positionY") : 70;
 
@@ -325,23 +332,31 @@ public class QuestFileLoader {
             }
             int taskMinCount = tag.contains("task_min_count") ? tag.getInt("task_min_count") : 0;
 
-            // Rewards
-            List<QuestReward> rewards = new ArrayList<>();
-            if (tag.contains("rewards")) {
-                ListTag rewardList = tag.getList("rewards", Tag.TAG_COMPOUND);
-                for (int ri = 0; ri < rewardList.size(); ri++) {
-                    QuestReward r = QuestReward.deserializeNBT(rewardList.getCompound(ri));
-                    if (r != null) rewards.add(r);
-                }
-            }
+            List<QuestReward> rewards = parseRewards(tag);
+            List<QuestTask> tasks = parseTasks(tag);
 
-            // Tasks (fix pre-existing persistence bug: tasks were never loaded)
-            List<QuestTask> tasks = new ArrayList<>();
-            if (tag.contains("tasks")) {
-                ListTag taskList = tag.getList("tasks", Tag.TAG_COMPOUND);
-                for (int ti = 0; ti < taskList.size(); ti++) {
-                    QuestTask t = deserializeTask(taskList.getCompound(ti));
-                    if (t != null) tasks.add(t);
+            // Pack-mode variants: each entry reuses the exact same title/description/visibility/
+            // tasks/rewards parsing as the base quest above - a variant is "this quest looks like
+            // THIS when its condition is true", not a patch format of its own.
+            List<QuestNode.QuestVariant> variants = new ArrayList<>();
+            if (tag.contains("variants")) {
+                ListTag variantList = tag.getList("variants", Tag.TAG_COMPOUND);
+                for (int vi = 0; vi < variantList.size(); vi++) {
+                    CompoundTag vTag = variantList.getCompound(vi);
+                    String condition = vTag.contains("condition") ? vTag.getString("condition") : "";
+                    if (condition.isBlank()) continue;
+                    QuestNode.QuestVariant variant = new QuestNode.QuestVariant(condition);
+                    if (vTag.contains("title")) variant.title = vTag.getString("title");
+                    if (vTag.contains("description")) variant.description = vTag.getString("description");
+                    if (vTag.contains("visibility")) {
+                        try {
+                            variant.visibility = QuestNode.Visibility
+                                    .valueOf(vTag.getString("visibility").toUpperCase());
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                    if (vTag.contains("tasks")) variant.tasks = parseTasks(vTag);
+                    if (vTag.contains("rewards")) variant.rewards = parseRewards(vTag);
+                    variants.add(variant);
                 }
             }
 
@@ -391,6 +406,7 @@ public class QuestFileLoader {
             boolean rewardChoice = tag.contains("reward_choice") && tag.getBoolean("reward_choice");
             int rewardChoiceCount = tag.contains("reward_choice_count") ? tag.getInt("reward_choice_count") : 1;
             String devNotes = tag.contains("dev_notes") ? tag.getString("dev_notes") : "";
+            String previewMachineId = tag.contains("preview_machine_id") ? tag.getString("preview_machine_id") : "";
             QuestNode.NodeSize nodeSize = QuestNode.NodeSize.NORMAL;
             if (tag.contains("node_size")) {
                 try {
@@ -425,7 +441,8 @@ public class QuestFileLoader {
                     prereqRequired, optionalPrereqMinCount, enableIf, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, hideDepLine,
                     disabledBlocksChildren, shared, pooledProgress, tutorialSteps, autoClaimRewards, rewardChoice,
-                    rewardChoiceCount, devNotes, nodeSize, linkTarget, iconTexture);
+                    rewardChoiceCount, devNotes, nodeSize, linkTarget, iconTexture, shapeTexture, variants,
+                    previewMachineId);
 
         } catch (Exception e) {
             String msg = "Failed to parse '" + file.getFileName() + "': " + e.getMessage();
@@ -433,6 +450,32 @@ public class QuestFileLoader {
             System.err.println("[Phoenix Chronicles] " + msg);
             return null;
         }
+    }
+
+    // ── Task/reward list parsing (shared by the base quest and each variant block) ──────────
+
+    private static List<QuestReward> parseRewards(CompoundTag tag) {
+        List<QuestReward> rewards = new ArrayList<>();
+        if (tag.contains("rewards")) {
+            ListTag rewardList = tag.getList("rewards", Tag.TAG_COMPOUND);
+            for (int ri = 0; ri < rewardList.size(); ri++) {
+                QuestReward r = QuestReward.deserializeNBT(rewardList.getCompound(ri));
+                if (r != null) rewards.add(r);
+            }
+        }
+        return rewards;
+    }
+
+    private static List<QuestTask> parseTasks(CompoundTag tag) {
+        List<QuestTask> tasks = new ArrayList<>();
+        if (tag.contains("tasks")) {
+            ListTag taskList = tag.getList("tasks", Tag.TAG_COMPOUND);
+            for (int ti = 0; ti < taskList.size(); ti++) {
+                QuestTask t = deserializeTask(taskList.getCompound(ti));
+                if (t != null) tasks.add(t);
+            }
+        }
+        return tasks;
     }
 
     // ── Task deserializer ─────────────────────────────────────────────────────

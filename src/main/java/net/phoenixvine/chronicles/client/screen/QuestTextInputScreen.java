@@ -90,18 +90,10 @@ public class QuestTextInputScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float partial) {
-        // Render just the quest graph backdrop — no widgets, no scissors.
-        // Walk up the parent chain to find ChronicleOverviewScreen; using full
-        // parent.render() causes widget bleed because those screens' EditBoxes
-        // and buttons draw at their absolute positions into our panel area.
-        ChronicleOverviewScreen overview = findOverview();
-        if (overview != null) {
-            overview.renderBackdrop(g);
-        } else {
-            g.fill(0, 0, width, height, 0xFF0B0B0F);
-        }
-        // Dark overlay so the panel reads clearly over the canvas
-        g.fill(0, 0, width, height, 0xBB000000);
+        // Fully opaque background of its own - a dim over the still-rendered quest canvas kept
+        // reading as "bleeding from parent" (same complaint independently made about the item/
+        // fluid pickers, fixed the same way there).
+        g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
 
         // Panel
         g.fill(px, py, px + pw, py + ph, ChroniclesThemePalette.PANEL);
@@ -137,7 +129,8 @@ public class QuestTextInputScreen extends Screen {
                 g.fill(insX + 44, rowY, insX + 58, rowY + 12, col);
             } catch (NumberFormatException ignored) {}
         }
-        g.drawString(font, "§8{#RRGGBB} syntax — no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM, false);
+        g.drawString(font, "§8{#RRGGBB} syntax — no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
+                false);
     }
 
     private void renderFormatButtons(GuiGraphics g, int mx, int my) {
@@ -248,15 +241,23 @@ public class QuestTextInputScreen extends Screen {
             }
         }
 
+        // Click outside the panel → cancel, same as Escape (discards unsaved edits)
+        if (mx < px || mx >= px + pw || my < py || my >= py + ph) {
+            Minecraft.getInstance().setScreen(parent);
+            return true;
+        }
+
         return false;
     }
 
     @Override
     public boolean keyPressed(int kc, int sc, int mod) {
-        if ((kc == GLFW.GLFW_KEY_ENTER || kc == GLFW.GLFW_KEY_KP_ENTER) && !hasShiftDown()) {
-            confirm();
-            return true;
-        }
+        // Enter used to confirm/close here (when Shift wasn't held), which intercepted the key
+        // before it ever reached the focused CustomTextArea - that's why plain Enter closed the
+        // screen instead of inserting a newline, and Shift+Enter was needed just to type one.
+        // Confirming is the Confirm button's job only; Enter is now left alone so it falls
+        // through to super.keyPressed() -> the focused widget (CustomTextArea inserts a newline,
+        // hexBox does whatever EditBox normally does with Enter).
         if (kc == GLFW.GLFW_KEY_ESCAPE) {
             Minecraft.getInstance().setScreen(parent);
             return true;
@@ -274,23 +275,6 @@ public class QuestTextInputScreen extends Screen {
         return false;
     }
 
-    /** Walks the parent chain to find ChronicleOverviewScreen for backdrop rendering. */
-    private ChronicleOverviewScreen findOverview() {
-        Screen s = parent;
-        while (s != null) {
-            if (s instanceof ChronicleOverviewScreen) return (ChronicleOverviewScreen) s;
-            try {
-                java.lang.reflect.Field f = s.getClass().getDeclaredField("parent");
-                f.setAccessible(true);
-                Object val = f.get(s);
-                s = (val instanceof Screen) ? (Screen) val : null;
-            } catch (Exception e) {
-                break;
-            }
-        }
-        return null;
-    }
-
     // ── Inner text area ───────────────────────────────────────────────────────
 
     private class CustomTextArea extends AbstractWidget {
@@ -305,6 +289,13 @@ public class QuestTextInputScreen extends Screen {
         private int hoverLineIdx = -1;
         private int hoverWordStart = -1;
         private int hoverWordEnd = -1;
+        /**
+         * First visible line index - there used to be no scrolling at all here (every line drew
+         * unconditionally, unclipped, straight past the box's bottom edge with no way to reach
+         * anything past the fixed height), which is what "only shows some of the text" on a long
+         * description meant in practice: everything past the box's height was simply unreachable.
+         */
+        private int scrollLines = 0;
 
         CustomTextArea(int x, int y, int w, int h, Component msg) {
             super(x, y, w, h, msg);
@@ -348,25 +339,52 @@ public class QuestTextInputScreen extends Screen {
             int textX = getX() + 6;
             int textY = getY() + 6;
             int cursor = textField.cursor();
+            // This box is a raw/source view, not the rendered quest text - format codes should
+            // show up as literal visible characters (e.g. "&c") in plain white, not get
+            // interpreted into actual colors/bold/etc. Only the real quest viewer
+            // (ChronicleRichTextRenderer) should ever turn these into formatting. Swapping the
+            // real section sign for '&' is a 1-for-1 character replace, so every index computed
+            // against this string below still lines up with the underlying EditBox's real cursor
+            // positions.
             String full = textField.value();
+            String disp = full.replace('§', '&');
 
             lines.clear();
-            if (full.isEmpty()) {
+            if (disp.isEmpty()) {
                 lines.add(new LinePos(0, 0, ""));
             } else {
-                QuestTextInputScreen.this.font.getSplitter().splitLines(full, width - 12, Style.EMPTY, false,
-                        (style, s, e) -> lines.add(new LinePos(s, e, full.substring(s, e))));
-                if (full.endsWith("\n")) lines.add(new LinePos(full.length(), full.length(), ""));
+                QuestTextInputScreen.this.font.getSplitter().splitLines(disp, width - 12, Style.EMPTY, false,
+                        (style, s, e) -> lines.add(new LinePos(s, e, disp.substring(s, e))));
+                if (disp.endsWith("\n")) lines.add(new LinePos(disp.length(), disp.length(), ""));
             }
 
+            // Auto-scroll to keep the cursor's line in view, then clamp so scrolling can't go
+            // past either end - this used to not exist at all: every line drew unconditionally
+            // with no clipping, so anything past the box's fixed height was simply unreachable,
+            // which read as "only shows some of the text" on anything longer than ~8 lines.
+            int visibleLines = Math.max(1, height / 9);
+            int cursorLine = 0;
+            for (int i = 0; i < lines.size(); i++) {
+                if (cursor >= lines.get(i).start && cursor <= lines.get(i).end) {
+                    cursorLine = i;
+                    break;
+                }
+            }
+            if (cursorLine < scrollLines) scrollLines = cursorLine;
+            if (cursorLine >= scrollLines + visibleLines) scrollLines = cursorLine - visibleLines + 1;
+            int maxScroll = Math.max(0, lines.size() - visibleLines);
+            scrollLines = Math.max(0, Math.min(scrollLines, maxScroll));
+
             // Recompute hovered word from mouse position
-            updateHoverWord(mx, my, textX, textY, full);
+            updateHoverWord(mx, my, textX, textY, disp);
+
+            g.enableScissor(getX(), getY(), getX() + width, getY() + height);
 
             // Hover-word highlight (blue tint, no selection active)
             if (!textField.hasSelection() && hoverWordStart >= 0 && hoverWordEnd > hoverWordStart) {
                 for (int i = 0; i < lines.size(); i++) {
                     LinePos line = lines.get(i);
-                    int lineY = textY + i * 9;
+                    int lineY = textY + (i - scrollLines) * 9;
                     if (hoverWordEnd > line.start && hoverWordStart < line.end) {
                         int a = Math.max(hoverWordStart, line.start) - line.start;
                         int b = Math.min(hoverWordEnd, line.end) - line.start;
@@ -384,12 +402,12 @@ public class QuestTextInputScreen extends Screen {
 
             // Selection highlight — blue fill + blue outline
             if (textField.hasSelection()) {
-                String sel = textField.getSelectedText();
-                int selStart = full.indexOf(sel);
+                String sel = textField.getSelectedText().replace('§', '&');
+                int selStart = disp.indexOf(sel);
                 int selEnd = selStart + sel.length();
                 for (int i = 0; i < lines.size(); i++) {
                     LinePos line = lines.get(i);
-                    int lineY = textY + i * 9;
+                    int lineY = textY + (i - scrollLines) * 9;
                     if (selEnd > line.start && selStart < line.end) {
                         int a = Math.max(selStart, line.start) - line.start;
                         int b = Math.min(selEnd, line.end) - line.start;
@@ -407,8 +425,13 @@ public class QuestTextInputScreen extends Screen {
             // Text + caret
             for (int i = 0; i < lines.size(); i++) {
                 LinePos line = lines.get(i);
-                int lineY = textY + i * 9;
-                g.drawString(QuestTextInputScreen.this.font, line.text, textX, lineY, ChroniclesThemePalette.TEXT, false);
+                int lineY = textY + (i - scrollLines) * 9;
+                if (lineY + 9 < getY() || lineY > getY() + height) continue; // scissor-culled anyway, skip the draw
+                // call
+                // Plain literal draw, no formatting interpretation - line.text already has its
+                // real § codes swapped for visible '&' above, so there's nothing left for
+                // Minecraft's font renderer to interpret; it just draws as one flat white color.
+                g.drawString(QuestTextInputScreen.this.font, line.text, textX, lineY, 0xFFFFFFFF, false);
                 if (isFocused() && cursor >= line.start && cursor <= line.end) {
                     if ((System.currentTimeMillis() / 530) % 2 == 0) {
                         int off = cursor - line.start;
@@ -418,35 +441,41 @@ public class QuestTextInputScreen extends Screen {
                     }
                 }
             }
+            g.disableScissor();
         }
 
-        private void updateHoverWord(int mx, int my, int textX, int textY, String full) {
+        @Override
+        public boolean mouseScrolled(double mx, double my, double delta) {
+            if (mx < getX() || mx >= getX() + width || my < getY() || my >= getY() + height) return false;
+            int visibleLines = Math.max(1, height / 9);
+            int maxScroll = Math.max(0, lines.size() - visibleLines);
+            scrollLines = Math.max(0, Math.min(maxScroll, scrollLines - (int) Math.signum(delta)));
+            return true;
+        }
+
+        private void updateHoverWord(int mx, int my, int textX, int textY, String disp) {
             hoverWordStart = -1;
             hoverWordEnd = -1;
             hoverLineIdx = -1;
             if (mx < getX() || mx >= getX() + width || my < getY() || my >= getY() + height) return;
-            int lineIdx = Math.max(0, Math.min((int) ((my - textY) / 9), lines.size() - 1));
+            int lineIdx = Math.max(0, Math.min((int) ((my - textY) / 9) + scrollLines, lines.size() - 1));
             if (lineIdx < 0 || lineIdx >= lines.size()) return;
             LinePos line = lines.get(lineIdx);
             int localX = mx - textX;
-            // find char offset under mouse
+            // find char offset under mouse - line.text is the display string (real § already
+            // swapped for a plain visible '&'), so every character is measured as a normal glyph.
             int offset = 0;
             while (offset < line.text.length()) {
-                char ch = line.text.charAt(offset);
-                if (ch == 167 && offset + 1 < line.text.length()) {
-                    offset += 2;
-                    continue;
-                }
                 if (QuestTextInputScreen.this.font.width(line.text.substring(0, offset + 1)) > localX) break;
                 offset++;
             }
             int absPos = line.start + offset;
-            if (absPos >= full.length()) return;
+            if (absPos >= disp.length()) return;
             // expand left to word boundary
             int ws = absPos;
-            while (ws > 0 && !Character.isWhitespace(full.charAt(ws - 1))) ws--;
+            while (ws > 0 && !Character.isWhitespace(disp.charAt(ws - 1))) ws--;
             int we = absPos;
-            while (we < full.length() && !Character.isWhitespace(full.charAt(we))) we++;
+            while (we < disp.length() && !Character.isWhitespace(disp.charAt(we))) we++;
             if (we > ws) {
                 hoverLineIdx = lineIdx;
                 hoverWordStart = ws;
@@ -459,17 +488,15 @@ public class QuestTextInputScreen extends Screen {
             if (mx >= getX() && mx < getX() + width && my >= getY() && my < getY() + height) {
                 setFocused(true);
                 if (!lines.isEmpty()) {
-                    int lineIdx = Math.max(0, Math.min((int) ((my - (getY() + 6)) / 9), lines.size() - 1));
+                    int lineIdx = Math.max(0,
+                            Math.min((int) ((my - (getY() + 6)) / 9) + scrollLines, lines.size() - 1));
                     LinePos line = lines.get(lineIdx);
                     int localX = (int) (mx - (getX() + 6));
+                    // line.text is the display string (real § already swapped for a plain visible
+                    // '&'), so every character is measured as a normal glyph - no more control
+                    // codes to skip over.
                     int rawOffset = 0;
                     while (rawOffset < line.text.length()) {
-                        // skip formatting codes without comparing the § char directly
-                        char ch = line.text.charAt(rawOffset);
-                        if (ch == 167 && rawOffset + 1 < line.text.length()) { // 167 == section sign §
-                            rawOffset += 2;
-                            continue;
-                        }
                         if (QuestTextInputScreen.this.font.width(line.text.substring(0, rawOffset + 1)) > localX) break;
                         rawOffset++;
                     }
@@ -484,7 +511,7 @@ public class QuestTextInputScreen extends Screen {
         @Override
         public boolean keyPressed(int kc, int sc, int mod) {
             if (!isFocused()) return false;
-            if ((kc == GLFW.GLFW_KEY_ENTER || kc == GLFW.GLFW_KEY_KP_ENTER) && hasShiftDown()) {
+            if (kc == GLFW.GLFW_KEY_ENTER || kc == GLFW.GLFW_KEY_KP_ENTER) {
                 textField.insertText("\n");
                 return true;
             }

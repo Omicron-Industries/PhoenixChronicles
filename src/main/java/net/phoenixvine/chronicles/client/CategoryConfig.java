@@ -48,6 +48,28 @@ public class CategoryConfig {
     private String texture = "";
     /** Raw (English) display name override, "" = derive from the category slug (e.g. THE_FACTORY -> "The Factory"). */
     private String displayName = "";
+    /**
+     * Item resource-location string for the sidebar tab icon, e.g. "minecraft:diamond". "" = no
+     * icon configured yet, sidebar falls back to a generic default.
+     */
+    private String icon = "";
+    /**
+     * Last canvas view for this chapter (pan/zoom) - 0 zoom means "never saved, use the default
+     * 100%/centered view". Canvas pan/zoom used to be purely in-memory screen fields, reset to
+     * defaults every time a fresh ChronicleOverviewScreen instance was created (i.e. every world
+     * rejoin), which is what "we don't save zoom/scroll settings on world restart" meant.
+     */
+    private float viewZoom = 0f;
+    private int viewOffX = 0, viewOffY = 0;
+    /**
+     * Parent chapter this one is nested under as a true sub-chapter, "" = top-level (no parent).
+     * Distinct from ChapterFolderRegistry's folders, which just visually group sibling chapters
+     * under a shared label with no parent/child relationship - this makes one specific chapter
+     * genuinely subordinate to another: it inherits the parent's theme (see getEffective()) when
+     * it hasn't set its own, shows breadcrumb navigation, and only unlocks once the parent
+     * chapter has at least one completed quest.
+     */
+    private String parentCategory = "";
 
     // ── Accessors ─────────────────────────────────────────────────────────────
 
@@ -68,6 +90,47 @@ public class CategoryConfig {
         return displayName;
     }
 
+    public String getIcon() {
+        return icon;
+    }
+
+    public float getViewZoom() {
+        return viewZoom;
+    }
+
+    public int getViewOffX() {
+        return viewOffX;
+    }
+
+    public int getViewOffY() {
+        return viewOffY;
+    }
+
+    /** "" = top-level, no parent. */
+    public String getParentCategory() {
+        return parentCategory;
+    }
+
+    public void setParentCategory(String parent) {
+        this.parentCategory = parent == null ? "" : parent.trim().toUpperCase();
+    }
+
+    /**
+     * Resolves the configured icon to an Item, falling back to a generic default (a book, same
+     * spirit as FTBQ's chapter default) when nothing's been set or the resource location no
+     * longer resolves to a real item.
+     */
+    public net.minecraft.world.item.Item getIconItem() {
+        if (!icon.isEmpty()) {
+            try {
+                net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
+                        .getValue(new net.minecraft.resources.ResourceLocation(icon));
+                if (item != null && item != net.minecraft.world.item.Items.AIR) return item;
+            } catch (Exception ignored) {}
+        }
+        return net.minecraft.world.item.Items.BOOK;
+    }
+
     public void setStyle(BgStyle s) {
         this.style = s != null ? s : BgStyle.DOT_GRID;
     }
@@ -84,6 +147,16 @@ public class CategoryConfig {
         this.displayName = n != null ? n : "";
     }
 
+    public void setIcon(String i) {
+        this.icon = i != null ? i : "";
+    }
+
+    public void setView(float zoom, int offX, int offY) {
+        this.viewZoom = zoom;
+        this.viewOffX = offX;
+        this.viewOffY = offY;
+    }
+
     // ── Serialization ─────────────────────────────────────────────────────────
 
     public JsonObject toJson() {
@@ -92,6 +165,13 @@ public class CategoryConfig {
         if (color != 0) o.addProperty("color", String.format("#%06X", color & 0x00FFFFFF));
         if (!texture.isEmpty()) o.addProperty("texture", texture);
         if (!displayName.isEmpty()) o.addProperty("display_name", displayName);
+        if (!icon.isEmpty()) o.addProperty("icon", icon);
+        if (!parentCategory.isEmpty()) o.addProperty("parent", parentCategory);
+        if (viewZoom != 0f) {
+            o.addProperty("view_zoom", viewZoom);
+            o.addProperty("view_off_x", viewOffX);
+            o.addProperty("view_off_y", viewOffY);
+        }
         return o;
     }
 
@@ -109,6 +189,11 @@ public class CategoryConfig {
         }
         if (o.has("texture")) cfg.texture = o.get("texture").getAsString();
         if (o.has("display_name")) cfg.displayName = o.get("display_name").getAsString();
+        if (o.has("icon")) cfg.icon = o.get("icon").getAsString();
+        if (o.has("parent")) cfg.parentCategory = o.get("parent").getAsString().toUpperCase();
+        if (o.has("view_zoom")) cfg.viewZoom = o.get("view_zoom").getAsFloat();
+        if (o.has("view_off_x")) cfg.viewOffX = o.get("view_off_x").getAsInt();
+        if (o.has("view_off_y")) cfg.viewOffY = o.get("view_off_y").getAsInt();
         return cfg;
     }
 
@@ -121,6 +206,25 @@ public class CategoryConfig {
     public static CategoryConfig get(String category) {
         if (!loaded) load();
         return CACHE.getOrDefault(category, new CategoryConfig());
+    }
+
+    /**
+     * Same as get(), but if this category is a sub-chapter (has a parentCategory) AND hasn't set
+     * its own style/color/texture, walks up to the parent's config instead - so a sub-chapter
+     * inherits its parent's look by default rather than falling back to the DOT_GRID/no-tint
+     * global default the way an ordinary unconfigured top-level chapter would. A sub-chapter
+     * that HAS set its own style/color/texture keeps them regardless of its parent.
+     * Cycle-guarded (a chapter accidentally set as its own ancestor just stops climbing).
+     */
+    public static CategoryConfig getEffective(String category) {
+        return getEffective(category, new java.util.HashSet<>());
+    }
+
+    private static CategoryConfig getEffective(String category, java.util.Set<String> visited) {
+        CategoryConfig own = get(category);
+        boolean hasOwnTheme = own.style != BgStyle.DOT_GRID || own.color != 0 || !own.texture.isEmpty();
+        if (hasOwnTheme || own.parentCategory.isEmpty() || !visited.add(category)) return own;
+        return getEffective(own.parentCategory, visited);
     }
 
     /**

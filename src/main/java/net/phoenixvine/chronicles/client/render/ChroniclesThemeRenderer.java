@@ -28,7 +28,8 @@ public class ChroniclesThemeRenderer {
     /**
      * Draws a standardized persistent screen footer tray.
      */
-    public static void drawFooter(GuiGraphics g, int width, int screenHeight, int footerHeight, int borderColor, int headerColor) {
+    public static void drawFooter(GuiGraphics g, int width, int screenHeight, int footerHeight, int borderColor,
+                                  int headerColor) {
         int topY = screenHeight - footerHeight;
         g.fill(0, topY, width, screenHeight, headerColor);
         g.fill(0, topY, width, topY + 1, borderColor);
@@ -52,11 +53,13 @@ public class ChroniclesThemeRenderer {
 
         // Button background fill state changes on active hovering
         g.fill(btnX, btnY, btnX + btnW, btnY + btnH, isHovered ? 0x44FFFFFF : 0x22FFFFFF);
-        g.drawCenteredString(font, isHovered ? "§f⎘" : "§7⎘", btnX + btnW / 2, btnY + (height / 2) - (font.lineHeight / 2), 0xFFFFFFFF);
+        g.drawCenteredString(font, isHovered ? "§f⎘" : "§7⎘", btnX + btnW / 2,
+                btnY + (height / 2) - (font.lineHeight / 2), 0xFFFFFFFF);
 
         // Clip overflowing code strings gracefully
         int maxTextWidth = btnX - x - 6;
-        String renderedText = font.width(text) <= maxTextWidth ? text : font.plainSubstrByWidth(text, maxTextWidth - 4) + "…";
+        String renderedText = font.width(text) <= maxTextWidth ? text :
+                font.plainSubstrByWidth(text, maxTextWidth - 4) + "…";
         g.drawString(font, renderedText, x + 4, y + (height / 2) - (font.lineHeight / 2), 0xFFFFFFFF, false);
     }
 
@@ -81,7 +84,8 @@ public class ChroniclesThemeRenderer {
         g.fill(scrollTrackLeft, thumbY, rightMarginX, thumbY + thumbHeight, 0x88FFFFFF);
     }
 
-    public static void drawHeading(GuiGraphics g, Font font, String text, int x, int y, int w, int accentColor, int textColor) {
+    public static void drawHeading(GuiGraphics g, Font font, String text, int x, int y, int w, int accentColor,
+                                   int textColor) {
         g.fill(x, y + 13, x + w, y + 14, accentColor); // LINE_H + 1
         g.drawString(font, "§f" + text, x, y + 2, textColor, false);
     }
@@ -90,7 +94,8 @@ public class ChroniclesThemeRenderer {
         g.drawString(font, text, x, y + 2, textColorDim, false);
     }
 
-    public static void drawKeyValue(GuiGraphics g, Font font, String key, String value, int x, int y, int w, int accentColor, int textColorDim) {
+    public static void drawKeyValue(GuiGraphics g, Font font, String key, String value, int x, int y, int w,
+                                    int accentColor, int textColorDim) {
         int kw = font.width(key + "  ");
         g.drawString(font, key, x, y, accentColor, false);
 

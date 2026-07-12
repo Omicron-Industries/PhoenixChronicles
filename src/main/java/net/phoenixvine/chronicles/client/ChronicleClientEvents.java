@@ -28,6 +28,9 @@ public class ChronicleClientEvents {
     public static void onPlayerLogout(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) {
         if (Minecraft.getInstance().player != null && event.getEntity() == Minecraft.getInstance().player) {
             QuestFileSaver.saveAllQuestsToDisk();
+            // So the next login's initial full-progress sync is correctly treated as "establishing
+            // baseline" again instead of replaying a toast for every already-completed quest.
+            net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket.resetForNewSession();
         }
     }
 

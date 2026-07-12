@@ -60,6 +60,17 @@ public class QuestChroniclesSettings {
         TOP_LEFT
     }
 
+    /**
+     * Base toast presentation used by any quest that doesn't have its own custom toast design
+     * (see QuestToastConfig - "design your own" from the node context menu overrides this
+     * per-quest, this is only the fallback).
+     */
+    public enum ToastStyle {
+        COMPACT,       // small corner banner (current default), anchored via toastPosition
+        ABOVE_HOTBAR,  // wider banner centered just above the hotbar
+        BIG_CENTER     // large, interruptive center-screen text
+    }
+
     public enum LineAnimSpeed {
 
         SLOWEST(120L),
@@ -90,6 +101,32 @@ public class QuestChroniclesSettings {
     private boolean showInventoryButton = true;
     private InvButtonPos invButtonPos = InvButtonPos.LEFT;
     private boolean showLineArrows = true;
+    /**
+     * Gates dev mode off by default even for creative/op players who'd otherwise auto-qualify
+     * for it - dev tools (edit affordances, validation badges, right-click authoring menus)
+     * should be an explicit opt-in via the Settings screen toggle, not always-on the moment
+     * you're creative/op, with no way to preview the plain player-facing view without leaving
+     * creative or dropping permissions first.
+     */
+    private boolean devModeDisabled = true;
+    /**
+     * The category the overview screen was last showing, so reopening the questbook (including
+     * after a full world/game restart) returns to where the player left off instead of always
+     * landing back on the first chapter. Empty = no preference yet (falls back to the first
+     * chapter, same as before this existed).
+     */
+    private String lastCategory = "";
+    /**
+     * Where quest-unlocked/completed toast notifications slide in and stack, independent of
+     * the pinned-quest HUD widget's own position.
+     */
+    private HUDPosition toastPosition = HUDPosition.TOP_RIGHT;
+    /** Pack-configurable questbook title shown atop the sidebar, "" = falls back to "Quest Book". */
+    private String questbookName = "";
+    /** Item resource-location string for the questbook title icon, "" = falls back to a written book. */
+    private String questbookIcon = "";
+    /** Fallback toast presentation for quests without their own custom design (see QuestToastConfig). */
+    private ToastStyle toastStyle = ToastStyle.COMPACT;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path SETTINGS_FILE = Paths.get("config", "phoenix_chronicles_settings.json");
@@ -252,8 +289,68 @@ public class QuestChroniclesSettings {
         return showLineArrows;
     }
 
+    public boolean isDevModeDisabled() {
+        return devModeDisabled;
+    }
+
+    public void setDevModeDisabled(boolean disabled) {
+        this.devModeDisabled = disabled;
+    }
+
+    public String getLastCategory() {
+        return lastCategory == null ? "" : lastCategory;
+    }
+
+    public void setLastCategory(String category) {
+        this.lastCategory = category == null ? "" : category;
+    }
+
     public void setShowLineArrows(boolean show) {
         this.showLineArrows = show;
+    }
+
+    public HUDPosition getToastPosition() {
+        return toastPosition != null ? toastPosition : HUDPosition.TOP_RIGHT;
+    }
+
+    public void setToastPosition(HUDPosition pos) {
+        this.toastPosition = pos != null ? pos : HUDPosition.TOP_RIGHT;
+    }
+
+    public ToastStyle getToastStyle() {
+        return toastStyle != null ? toastStyle : ToastStyle.COMPACT;
+    }
+
+    public void setToastStyle(ToastStyle style) {
+        this.toastStyle = style != null ? style : ToastStyle.COMPACT;
+    }
+
+    public String getQuestbookName() {
+        return (questbookName == null || questbookName.isEmpty()) ? "Quest Book" : questbookName;
+    }
+
+    public void setQuestbookName(String name) {
+        this.questbookName = name != null ? name.trim() : "";
+    }
+
+    public String getQuestbookIcon() {
+        return questbookIcon != null ? questbookIcon : "";
+    }
+
+    public void setQuestbookIcon(String icon) {
+        this.questbookIcon = icon != null ? icon : "";
+    }
+
+    /** Resolves the configured icon to an Item, falling back to a written book when unset/invalid. */
+    public net.minecraft.world.item.Item getQuestbookIconItem() {
+        if (questbookIcon != null && !questbookIcon.isEmpty()) {
+            try {
+                net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
+                        .getValue(new net.minecraft.resources.ResourceLocation(questbookIcon));
+                if (item != null && item != net.minecraft.world.item.Items.AIR) return item;
+            } catch (Exception ignored) {}
+        }
+        return net.minecraft.world.item.Items.WRITTEN_BOOK;
     }
 
     public float getTextScaleMultiplier() {

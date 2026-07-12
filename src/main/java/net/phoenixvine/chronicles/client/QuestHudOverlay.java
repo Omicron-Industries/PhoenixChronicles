@@ -46,7 +46,7 @@ import java.util.List;
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class QuestHudOverlay {
 
-    private static final int WIDGET_W = 164;
+    private static final int WIDGET_W = 148;
     private static final int MARGIN_R = 6;   // from right edge of screen
     private static final int MARGIN_T = 6;   // from top edge
     private static final int PAD = 5;
@@ -183,10 +183,13 @@ public class QuestHudOverlay {
             boolean showTitle = cfg.isShowHUDTitle();
             boolean showProgress = cfg.isShowHUDProgress();
 
-            int taskRows = Math.min(tasks.size(), 6);
+            // Per-task breakdown used to render here too, making each pinned quest a ~90px+
+            // tall card - stacking even 3-4 pins ate most of the screen edge. That detail
+            // already lives in the full quest screen; the HUD tracker just needs title +
+            // an at-a-glance progress bar, so this is now a compact single-purpose widget.
             int titleH = showTitle ? PAD + ROW_H + 3 : PAD;
             int barSection = (showProgress && !tasks.isEmpty()) ? BAR_H + 4 : 0;
-            int widgetH = titleH + taskRows * ROW_H + (tasks.size() > 6 ? ROW_H : 0) + barSection + PAD;
+            int widgetH = titleH + barSection + PAD;
 
             int wy = stacksUp ? cursorY - widgetH : cursorY;
             int wx = switch (cfg.getHudPosition()) {
@@ -200,7 +203,11 @@ public class QuestHudOverlay {
             lastWidgetBounds.add(new int[] { wx, wy, widgetH });
         }
 
-        for (ResourceLocation id : toUnpin) data.unpin(id);
+        for (ResourceLocation id : toUnpin) {
+            data.unpin(id);
+            net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.sendToServer(
+                    new net.phoenixvine.chronicles.network.packet.C2STogglePinPacket(id));
+        }
     }
 
     private static void drawWidget(Minecraft mc, GuiGraphics g, Font font, QuestChroniclesSettings cfg,
@@ -208,7 +215,6 @@ public class QuestHudOverlay {
                                    int wx, int wy, int widgetH, ResourceLocation pinnedId) {
         boolean showTitle = cfg.isShowHUDTitle();
         boolean showProgress = cfg.isShowHUDProgress();
-        int taskRows = Math.min(tasks.size(), 6);
 
         int bgAlpha = (int) (cfg.getHudOpacity() * 0xCC);
         int dynBg = (bgAlpha << 24) | 0x0B0B0F;
@@ -256,32 +262,6 @@ public class QuestHudOverlay {
             int divY = wy + PAD + ROW_H + 1;
             g.fill(wx + PAD, divY, wx + WIDGET_W - PAD, divY + 1, C_BORDER);
             ty = divY + 3;
-        }
-
-        // Task rows
-        for (int i = 0; i < taskRows; i++) {
-            QuestTask task = tasks.get(i);
-            boolean isDone = task.isCompletedFor(mc.player);
-            if (isDone) g.fill(wx + 1, ty, wx + WIDGET_W - 1, ty + ROW_H, C_DONE_ROW);
-            String check = isDone ? "§a✔" : "§8✗";
-            String progress = !isDone ? task.getProgressString(mc.player) : null;
-            String rawLabel = task.getDescription().getString();
-            String label;
-            if (progress != null) {
-                // Show "Label (X/Y)" — shrink label to fit the count
-                String suffix = " §8(" + progress + ")";
-                int suffixW = font.width(suffix.replaceAll("§.", ""));
-                int maxLabelW = WIDGET_W - PAD * 2 - 14 - suffixW;
-                label = truncate(font, rawLabel, maxLabelW) + suffix;
-            } else {
-                label = truncate(font, rawLabel, WIDGET_W - PAD * 2 - 14);
-            }
-            g.drawString(font, check + " §7" + label, wx + PAD, ty + 1, isDone ? C_TEXT_DONE : C_TEXT_DIM, false);
-            ty += ROW_H;
-        }
-        if (tasks.size() > 6) {
-            g.drawString(font, "§8+" + (tasks.size() - 6) + " more…", wx + PAD, ty + 1, C_TEXT_DIM, false);
-            ty += ROW_H;
         }
 
         // Segmented pip bar — one square pip per task, colored by completion

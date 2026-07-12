@@ -150,6 +150,8 @@ dependencies {
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
+    modCompileOnly("curse.maven:phantasia-1589286:8326565")
+    modRuntimeOnly("curse.maven:phantasia-1589286:8326565")
 
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
@@ -202,4 +204,15 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
     options.release.set(17)
     options.compilerArgs << "-Aquiet=true" // Suppress mixin notes
+}
+
+tasks.register('publishToDomains', Copy) {
+    group = 'phoenix'
+    description = 'Builds this mod and copies the jar into ../Phoenix-Domains/libs, so Domains picks up local changes.'
+    dependsOn 'reobfJar'
+    from(layout.buildDirectory.dir('libs')) {
+        include '*.jar'
+        exclude '*-sources.jar'
+    }
+    into '../Phoenix-Domains/libs'
 }

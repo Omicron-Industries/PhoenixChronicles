@@ -54,6 +54,12 @@ public class DepLineSettingsScreen extends Screen {
     private static final int ROW_H = 22;
     private static final int ROW_GAP = 3;
     private static final int ARROW_W = 16;
+    /**
+     * Fixed "what does this value mean" reference panel pinned to the top-right, so Shape/
+     * Style/Speed columns reading "Inherit, Inherit, Inherit" don't require cycling through
+     * every option just to find out what the possible values even are.
+     */
+    private static final int LEGEND_W = 118;
 
     private LineStyle lineShape;
     private LineVisualStyle lineVisual;
@@ -112,17 +118,19 @@ public class DepLineSettingsScreen extends Screen {
         catRequireAllDefault = CategoryPrereqDefaults.getRequireAll(category);
         catOptionalMinDefault = CategoryPrereqDefaults.getOptionalMinCount(category);
 
-        if (focusNodeId == null) {
-            searchBox = new EditBox(font, MARGIN, HEADER_H + 3, width - MARGIN * 2, SEARCH_H - 6, Component.empty());
-            searchBox.setHint(Component.literal("§8Filter quests…"));
-            searchBox.setMaxLength(64);
-            searchBox.setValue(searchQuery);
-            searchBox.setResponder(v -> {
-                searchQuery = v.toLowerCase().trim();
-                scrollY = 0;
-            });
-            addRenderableWidget(searchBox);
-        }
+        // Used to only exist for the unscoped (whole-category) view - the focused "quest +
+        // dependents" view reserved the exact same header strip for it but left it empty, so a
+        // hub quest with a lot of dependents had no way to search through them at all.
+        searchBox = new EditBox(font, MARGIN, HEADER_H + 3, width - MARGIN * 2, SEARCH_H - 6, Component.empty());
+        searchBox.setHint(Component.literal(
+                focusNodeId != null ? "§8Filter dependents…" : "§8Filter quests…"));
+        searchBox.setMaxLength(64);
+        searchBox.setValue(searchQuery);
+        searchBox.setResponder(v -> {
+            searchQuery = v.toLowerCase().trim();
+            scrollY = 0;
+        });
+        addRenderableWidget(searchBox);
     }
 
     // ── Layout helpers ─────────────────────────────────────────────────────────
@@ -170,7 +178,9 @@ public class DepLineSettingsScreen extends Screen {
 
         int contentTop = HEADER_H + SEARCH_H + MARGIN;
         int contentH = height - HEADER_H - SEARCH_H - MARGIN - FOOTER_H - MARGIN;
-        int x = MARGIN, w = width - MARGIN * 2;
+        int x = MARGIN, w = width - MARGIN * 3 - LEGEND_W;
+
+        renderLegend(g, width - MARGIN - LEGEND_W, contentTop);
 
         g.enableScissor(0, contentTop, width, contentTop + contentH);
         int y = contentTop - scrollY;
@@ -219,7 +229,10 @@ public class DepLineSettingsScreen extends Screen {
         String countHint;
         if (focusNodeId != null) {
             QuestNode fn = focusNode();
-            countHint = "(" + (fn != null ? fn.getTitle().getString() : focusNodeId.getPath()) + " + dependents)";
+            String anchor = fn != null ? fn.getTitle().getString() : focusNodeId.getPath();
+            int depCount = Math.max(0, quests.size() - 1); // exclude the anchor row itself
+            countHint = searchQuery.isEmpty() ? "(" + anchor + " + dependents)" :
+                    "(" + anchor + " + " + depCount + " matching dependent" + (depCount == 1 ? "" : "s") + ")";
         } else {
             countHint = searchQuery.isEmpty() ? "(" + category + ")" :
                     "(" + quests.size() + " match" + (quests.size() == 1 ? "" : "es") + " in " + category + ")";
@@ -293,6 +306,55 @@ public class DepLineSettingsScreen extends Screen {
         g.fill(closeX, fbtnY, closeX + fbtnW, fbtnY + 18, closeHov ? 0xFF3A3A3A : 0xFF2A2A2A);
         if (closeHov) g.fill(closeX, fbtnY, closeX + fbtnW, fbtnY + 1, 0xFF888898);
         g.drawCenteredString(font, "§7✕ Close", closeX + fbtnW / 2, fbtnY + 6, closeHov ? 0xFFCCCCCC : C_TEXT);
+
+        // Never called before - searchBox (and any future widget added here) existed and was
+        // clickable/focusable but was never actually drawn to screen.
+        super.render(g, mx, my, partial);
+    }
+
+    // ── Legend sidebar ──────────────────────────────────────────────────────────
+
+    /**
+     * Fixed reference panel (not part of the scrollable list, drawn once per frame at a constant
+     * position) spelling out what Shape/Style/Speed actually mean - every per-quest row's
+     * override starts at "Inherit", and without this you'd have to click through the full cycle
+     * on a row just to discover what the possible values even are.
+     */
+    private void renderLegend(GuiGraphics g, int lx, int ly) {
+        String[] lines = {
+                "§8LEGEND",
+                "§fShape",
+                "§7Spline: curved S",
+                "§7Straight: direct",
+                "",
+                "§fStyle",
+                "§7Thin/Normal/Bold",
+                "§7Thick/Wide: heavier",
+                "§7Glow: soft halo",
+                "",
+                "§fSpeed",
+                "§7Hover-arrow flow",
+                "§7Slowest…Very Fast",
+                "",
+                "§7\"Inherit\" = use the",
+                "§7Global Appearance",
+                "§7above (or this row's",
+                "§7own override)",
+        };
+        int lineH = 9;
+        int panelH = lines.length * lineH + 8;
+
+        g.fill(lx, ly, lx + LEGEND_W, ly + panelH, C_PANEL);
+        g.fill(lx, ly, lx + LEGEND_W, ly + 1, C_BORDER);
+        g.fill(lx, ly, lx + 1, ly + panelH, C_BORDER);
+        g.fill(lx + LEGEND_W - 1, ly, lx + LEGEND_W, ly + panelH, C_BORDER);
+        g.fill(lx, ly + panelH - 1, lx + LEGEND_W, ly + panelH, C_BORDER);
+
+        int ty = ly + 4;
+        for (String line : lines) {
+            if (!line.isEmpty()) g.drawString(font, line, lx + 4, ty, C_TEXT_DIM, false);
+            ty += lineH;
+        }
     }
 
     // ── Preview drawing ────────────────────────────────────────────────────────
@@ -408,9 +470,14 @@ public class DepLineSettingsScreen extends Screen {
         if (focusNodeId != null) {
             List<QuestNode> result = new java.util.ArrayList<>();
             QuestNode fn = focusNode();
+            // The focus quest's own row always shows regardless of the filter - it's not one of
+            // the "dependents" being searched, it's the anchor everything else is relative to.
             if (fn != null) result.add(fn);
             QuestTreeRegistry.getAllQuests().values().stream()
                     .filter(n -> n.getPrerequisites().stream().anyMatch(p -> p.getId().equals(focusNodeId)))
+                    .filter(n -> searchQuery.isEmpty() ||
+                            n.getTitle().getString().toLowerCase().contains(searchQuery) ||
+                            n.getId().getPath().toLowerCase().contains(searchQuery))
                     .sorted(Comparator.comparing(n -> n.getTitle().getString()))
                     .forEach(result::add);
             return result;
@@ -491,8 +558,6 @@ public class DepLineSettingsScreen extends Screen {
         int col = !enabled ? C_TEXT_FAINT : hov ? C_ACCENT : C_TEXT_DIM;
         g.drawCenteredString(font, "§8" + value, bx + bw / 2, by + 2, col);
     }
-
-
 
     private void cycleRowShape(QuestNode row) {
         List<net.minecraft.resources.ResourceLocation> parents = edgeParentsFor(row);
@@ -581,7 +646,7 @@ public class DepLineSettingsScreen extends Screen {
         int contentH = height - HEADER_H - SEARCH_H - MARGIN - FOOTER_H - MARGIN;
         if (my < contentTop || my >= contentTop + contentH) return super.mouseClicked(mx, my, btn);
 
-        int x = MARGIN, w = width - MARGIN * 2;
+        int x = MARGIN, w = width - MARGIN * 3 - LEGEND_W;
         int y = contentTop - scrollY;
 
         if (focusNodeId == null) {

@@ -132,6 +132,7 @@ public class QuestFileSaver {
         tag.putInt("positionY", node.getCustomY());
         if (!iconItem.isEmpty()) tag.putString("icon_item", iconItem);
         if (!node.getIconTexture().isEmpty()) tag.putString("icon_texture", node.getIconTexture());
+        if (!node.getShapeTexture().isEmpty()) tag.putString("shape_texture", node.getShapeTexture());
 
         // Extended metadata
         if (!node.getSubtitleRaw().isEmpty()) tag.putString("subtitle", node.getSubtitleRaw());
@@ -149,6 +150,8 @@ public class QuestFileSaver {
             if (node.getRewardChoiceCount() != 1) tag.putInt("reward_choice_count", node.getRewardChoiceCount());
         }
         if (!node.getDevNotes().isEmpty()) tag.putString("dev_notes", node.getDevNotes());
+        if (!node.getPreviewMachineId().isEmpty())
+            tag.putString("preview_machine_id", node.getPreviewMachineId());
 
         // Repeat behaviour
         tag.putString("repeat_mode", node.getRepeatMode().name());
@@ -204,6 +207,38 @@ public class QuestFileSaver {
             net.minecraft.nbt.ListTag rewardList = new net.minecraft.nbt.ListTag();
             for (QuestReward r : node.getRewards()) rewardList.add(r.serializeNBT());
             tag.put("rewards", rewardList);
+        }
+
+        // Pack-mode variants — each block reuses the exact same task/reward serialization as the
+        // base quest above (see the loader's mirrored parseTasks/parseRewards helpers).
+        if (!node.getVariants().isEmpty()) {
+            net.minecraft.nbt.ListTag variantList = new net.minecraft.nbt.ListTag();
+            for (QuestNode.QuestVariant v : node.getVariants()) {
+                CompoundTag vTag = new CompoundTag();
+                vTag.putString("condition", v.condition);
+                if (v.title != null) vTag.putString("title", v.title);
+                if (v.description != null) vTag.putString("description", v.description);
+                if (v.visibility != null) vTag.putString("visibility", v.visibility.name());
+                if (v.tasks != null) {
+                    net.minecraft.nbt.ListTag taskList = new net.minecraft.nbt.ListTag();
+                    for (QuestTask t : v.tasks) {
+                        CompoundTag tTag = t.serializeNBT();
+                        tTag.putString("task_id", t.getTaskId().toString());
+                        tTag.putString("description",
+                                net.minecraft.network.chat.Component.Serializer.toJson(t.getDescriptionRaw()));
+                        tTag.putBoolean("optional", t.isOptional());
+                        taskList.add(tTag);
+                    }
+                    vTag.put("tasks", taskList);
+                }
+                if (v.rewards != null) {
+                    net.minecraft.nbt.ListTag rewardList = new net.minecraft.nbt.ListTag();
+                    for (QuestReward r : v.rewards) rewardList.add(r.serializeNBT());
+                    vTag.put("rewards", rewardList);
+                }
+                variantList.add(vTag);
+            }
+            tag.put("variants", variantList);
         }
 
         // Emergency items
@@ -401,6 +436,14 @@ public class QuestFileSaver {
         patchNodeTag(node, tag -> tag.putString("shape", shape));
     }
 
+    public static void updateNodeShapeTexture(QuestNode node) {
+        patchNodeTag(node, tag -> {
+            String texture = node.getShapeTexture();
+            if (texture == null || texture.isEmpty()) tag.remove("shape_texture");
+            else tag.putString("shape_texture", texture);
+        });
+    }
+
     public static void updateNodeCategory(QuestNode node, String cat) {
         patchNodeTag(node, tag -> tag.putString("category", cat));
     }
@@ -435,7 +478,8 @@ public class QuestFileSaver {
             Files.deleteIfExists(snbt);
             Files.deleteIfExists(snbt.resolveSibling(node.getId().getPath() + ".md"));
         } catch (IOException e) {
-            System.err.println("[Phoenix Chronicles] Failed to delete files for '" + node.getId() + "': " + e.getMessage());
+            System.err.println(
+                    "[Phoenix Chronicles] Failed to delete files for '" + node.getId() + "': " + e.getMessage());
         }
     }
 
@@ -512,6 +556,7 @@ public class QuestFileSaver {
      * Parses a raw quest SNBT string, assigns it a unique ID, offsets its canvas coordinates
      * slightly to prevent stacking, and writes it directly to disk.
      * * @param src The source SNBT string content.
+     * 
      * @return The new unique ID path string if successful.
      * @throws IOException If disk writes or directory operations fail.
      */
@@ -573,6 +618,7 @@ public class QuestFileSaver {
             }
         });
     }
+
     /**
      * المركزي: updates the logical position vectors (X/Y coordinates) on disk for a quest node.
      */
@@ -582,6 +628,7 @@ public class QuestFileSaver {
             tag.putInt("positionY", node.getCustomY());
         });
     }
+
     /**
      * Reads a source quest node's SNBT file, copies it with a unique ID inside the
      * same category directory, applies a canvas position offset, and writes it back to disk.
@@ -638,5 +685,4 @@ public class QuestFileSaver {
             return false;
         }
     }
-
 }

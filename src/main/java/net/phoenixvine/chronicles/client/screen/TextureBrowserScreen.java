@@ -74,8 +74,8 @@ public class TextureBrowserScreen extends Screen {
         allTextures = gatherTextures();
         applyFilter();
 
-        searchBox = new EditBox(font, width / 2 - 100, HEADER_H / 2 - 7, 200, 14, Component.empty());
-        searchBox.setHint(Component.literal("§8Search textures…"));
+        searchBox = new EditBox(font, width / 2 - 100, HEADER_H / 2 - 5, 200, 14, Component.empty());
+        searchBox.setHint(Component.literal("§8Search…"));
         searchBox.setResponder(q -> {
             query = q.toLowerCase();
             applyFilter();
@@ -92,12 +92,13 @@ public class TextureBrowserScreen extends Screen {
         g.fill(0, 0, width, HEADER_H, C_PANEL);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         g.drawCenteredString(font, "§fTexture Browser", width / 2, 6, C_TEXT);
+        g.drawString(font, "§8Search:", width / 2 - 100 - font.width("Search: "), HEADER_H / 2 - 3, C_FAINT, false);
 
         // Footer
         int fy = height - FOOTER_H;
         g.fill(0, fy, width, height, C_PANEL);
         g.fill(0, fy, width, fy + 1, C_BORDER);
-        g.drawString(font, "§8" + filtered.size() + " texture(s)  ·  LMB copy RL  ·  RMB select  ·  search to filter",
+        g.drawString(font, "§8" + filtered.size() + " Textures  ·  LMB to select  ·  RMB to copy path",
                 8, fy + 10, C_FAINT, false);
 
         // Grid
@@ -129,7 +130,8 @@ public class TextureBrowserScreen extends Screen {
 
             // Texture preview
             try {
-                g.blit(rl, tx, ty, 0, 0, THUMB, THUMB, THUMB, THUMB);
+                g.blit(net.phoenixvine.chronicles.client.CustomTextureCache.resolve(rl),
+                        tx, ty, 0, 0, THUMB, THUMB, THUMB, THUMB);
             } catch (Exception ignored) {
                 g.fill(tx, ty, tx + THUMB, ty + THUMB, 0xFF441144);
                 g.drawCenteredString(font, "§c?", tx + THUMB / 2, ty + THUMB / 2 - 4, 0xFFFF4444);
@@ -163,12 +165,16 @@ public class TextureBrowserScreen extends Screen {
         if (hoveredIdx >= 0 && hoveredIdx < filtered.size()) {
             String rl = filtered.get(hoveredIdx).toString();
             if (btn == 0) {
-                // Left-click: copy to clipboard
-                Minecraft.getInstance().keyboardHandler.setClipboard(rl);
-            } else if (btn == 1) {
-                // Right-click: select and close
+                // Left-click: select and close - every other picker in this mod (ItemPickerScreen,
+                // FluidPickerScreen) uses LMB-to-select, so this used to be backwards: LMB silently
+                // copied to clipboard with zero visible feedback, which is exactly what "I select
+                // one and nothing happens" looks like from the outside.
                 onSelect.accept(rl);
                 Minecraft.getInstance().setScreen(parent);
+            } else if (btn == 1) {
+                // Right-click: copy the resource location to clipboard instead, for pasting into
+                // an [img:] tag or another field by hand without leaving the browser open.
+                Minecraft.getInstance().keyboardHandler.setClipboard(rl);
             }
             return true;
         }

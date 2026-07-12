@@ -89,6 +89,22 @@ public class PlayerQuestData {
         taskProgress.remove(taskId);
     }
 
+    /**
+     * Fully resets a quest back to never-attempted: state, every one of its tasks' progress
+     * blobs, claimed-rewards flag, chosen-reward-choice index, and completion timestamp. The
+     * quest's own state key is removed entirely (not set to LOCKED) so getQuestState() falls
+     * through to its normal unlock-gate computation instead of being force-pinned locked.
+     * {@code taskIds} should be every task belonging to this quest, since taskProgress is keyed
+     * by task id, not quest id.
+     */
+    public void resetQuestProgress(ResourceLocation questId, java.util.Collection<ResourceLocation> taskIds) {
+        questStates.remove(questId);
+        for (ResourceLocation taskId : taskIds) taskProgress.remove(taskId);
+        lastCompleted.remove(questId);
+        claimedRewards.remove(questId);
+        chosenRewardIndex.remove(questId);
+    }
+
     // ── Pinned quests ─────────────────────────────────────────────────────────
 
     /** All currently pinned quest ids, in the order they were pinned. */

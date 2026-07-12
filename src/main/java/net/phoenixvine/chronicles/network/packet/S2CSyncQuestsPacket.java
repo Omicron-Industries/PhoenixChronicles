@@ -43,6 +43,7 @@ import java.util.function.Supplier;
  * "task_id" : String (ResourceLocation.toString())
  * "description" : String (Component JSON)
  * + all type-specific fields written by QuestTask.serializeNBT()
+ * String iconTexture, then String shapeTexture (trailing fields, see encode())
  *
  * Root detection in Phase 2:
  * A node is a root iff its id does not appear in any snapshot's childIds list.
@@ -55,10 +56,11 @@ public class S2CSyncQuestsPacket {
 
     // ── Server-side constructor ───────────────────────────────────────────────
 
-    public S2CSyncQuestsPacket(Map<ResourceLocation, QuestNode> serverRegistry) {
+    public S2CSyncQuestsPacket(Map<ResourceLocation, QuestNode> serverRegistry,
+                               net.minecraft.server.MinecraftServer server) {
         this.snapshotMap = new HashMap<>();
         for (Map.Entry<ResourceLocation, QuestNode> entry : serverRegistry.entrySet()) {
-            snapshotMap.put(entry.getKey(), new QuestSnapshot(entry.getValue()));
+            snapshotMap.put(entry.getKey(), new QuestSnapshot(entry.getValue(), server));
         }
     }
 
@@ -116,13 +118,14 @@ public class S2CSyncQuestsPacket {
 
             ResourceLocation linkTarget = buf.readBoolean() ? buf.readResourceLocation() : null;
             String iconTexture = buf.readUtf();
+            String shapeTexture = buf.readUtf();
 
             snapshotMap.put(id, new QuestSnapshot(
                     id, title, description, category, shapeType, iconItemId,
                     customX, customY, subtitle, visibility, enableIf, taskMinCount, requireAllPrerequisites,
                     childIds, prereqIds, prereqRequired, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow,
-                    optionalPrereqMinCount, tasksNbt, linkTarget, iconTexture));
+                    optionalPrereqMinCount, tasksNbt, linkTarget, iconTexture, shapeTexture));
         }
     }
 
@@ -170,6 +173,7 @@ public class S2CSyncQuestsPacket {
             buf.writeBoolean(snap.linkTarget != null);
             if (snap.linkTarget != null) buf.writeResourceLocation(snap.linkTarget);
             buf.writeUtf(snap.iconTexture);
+            buf.writeUtf(snap.shapeTexture);
         }
     }
 
@@ -222,25 +226,28 @@ public class S2CSyncQuestsPacket {
         final ResourceLocation linkTarget;
         /** Picked texture icon (takes priority over iconItemId when set), "" = none. */
         final String iconTexture;
+        /** Picked shape texture, used only when shapeType is "CUSTOM", "" = none. */
+        final String shapeTexture;
 
         /** Server-side: capture everything from a live QuestNode. */
-        QuestSnapshot(QuestNode node) {
+        QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
             this.id = node.getId();
-            this.title = node.getTitle();
-            this.description = node.getDescription();
+            this.title = node.getEffectiveTitleRaw(server);
+            this.description = node.getEffectiveDescriptionRaw(server);
             this.category = node.getCategory() != null ? node.getCategory() : "MAIN";
             this.shapeType = node.getShapeType() != null ? node.getShapeType() : "SQUARE";
             this.iconItemId = node.getIconItemId();
             this.customX = node.getCustomX();
             this.customY = node.getCustomY();
             this.subtitle = node.getSubtitle() != null ? node.getSubtitle() : "";
-            this.visibility = node.getVisibility().name();
+            this.visibility = node.getEffectiveVisibility(server).name();
             this.enableIf = node.getEnableIf() != null ? node.getEnableIf() : "";
             this.taskMinCount = node.getTaskMinCount();
             this.requireAllPrerequisites = node.getRequireAllPrerequisites();
             this.optionalPrereqMinCount = node.getOptionalPrereqMinCount();
             this.linkTarget = node.getLinkTarget();
             this.iconTexture = node.getIconTexture() != null ? node.getIconTexture() : "";
+            this.shapeTexture = node.getShapeTexture() != null ? node.getShapeTexture() : "";
 
             this.childIds = new ArrayList<>();
             for (QuestNode child : node.getChildren()) childIds.add(child.getId());
@@ -271,7 +278,7 @@ public class S2CSyncQuestsPacket {
             }
 
             this.tasksNbt = new ArrayList<>();
-            for (QuestTask task : node.getTasks()) {
+            for (QuestTask task : node.getEffectiveTasks(server)) {
                 CompoundTag tag = task.serializeNBT();
                 if (!tag.contains("task_id"))
                     tag.putString("task_id", task.getTaskId().toString());
@@ -295,7 +302,7 @@ public class S2CSyncQuestsPacket {
                       List<String> prereqLineArrow,
                       Integer optionalPrereqMinCount,
                       List<CompoundTag> tasksNbt,
-                      ResourceLocation linkTarget, String iconTexture) {
+                      ResourceLocation linkTarget, String iconTexture, String shapeTexture) {
             this.id = id;
             this.title = title;
             this.description = description;
@@ -323,6 +330,7 @@ public class S2CSyncQuestsPacket {
             this.tasksNbt = tasksNbt;
             this.linkTarget = linkTarget;
             this.iconTexture = iconTexture;
+            this.shapeTexture = shapeTexture;
         }
     }
 
@@ -354,6 +362,7 @@ public class S2CSyncQuestsPacket {
                 node.setEnableIf(snap.enableIf.isEmpty() ? null : snap.enableIf);
                 node.setLinkTarget(snap.linkTarget);
                 node.setIconTexture(snap.iconTexture);
+                node.setShapeTexture(snap.shapeTexture);
 
                 if (!snap.iconItemId.isEmpty()) {
                     node.setIconItemById(snap.iconItemId);

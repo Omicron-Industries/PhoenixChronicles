@@ -50,6 +50,10 @@ public class PhoenixChronicles {
             // TRANSFERRED: The quest engine now handles its own theme loading!
             ChroniclesTheme.loadThemes();
 
+            if (net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.isAvailable()) {
+                net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.init();
+            }
+
             LOGGER.info("Look, I found a {}!", Items.DIAMOND);
         });
     }

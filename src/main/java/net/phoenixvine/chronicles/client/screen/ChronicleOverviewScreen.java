@@ -2,7 +2,6 @@ package net.phoenixvine.chronicles.client.screen;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -15,7 +14,10 @@ import net.phoenixvine.chronicles.capability.PlayerQuestData;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
 import net.phoenixvine.chronicles.capability.importer.FtbQuestsImporter;
 import net.phoenixvine.chronicles.client.*;
+import net.phoenixvine.chronicles.client.render.BackgroundPictureRenderer;
 import net.phoenixvine.chronicles.client.render.CanvasBackgroundRenderer;
+import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
+import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.render.DependencyLineRenderer;
 import net.phoenixvine.chronicles.client.render.NodeShapeRenderer;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
@@ -29,6 +31,7 @@ import net.phoenixvine.chronicles.tasks.ItemRequirementTask;
 import net.phoenixvine.chronicles.tracker.TutorialProgressTracker;
 import net.phoenixvine.chronicles.tracker.TutorialStep;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,7 +48,23 @@ import java.util.Objects;
 public class ChronicleOverviewScreen extends Screen {
 
     // ── Layout ────────────────────────────────────────────────────────────────
-    private static final int SIDEBAR_W = 110;
+    // FTBQ-style compact list: small icon + accent-colored name per row, back to a wider panel
+    // (was briefly a 48px icon-tile grid; that made a dozen+ categories require heavy scrolling
+    // and buried the name behind a hover tooltip). The selected category's full name still shows
+    // in the canvas title bar too (renderHeaderAndBaseLayout).
+    private static final int SIDEBAR_W_EXPANDED = 150;
+    private static final int SIDEBAR_W_COLLAPSED = 12;
+    private boolean sidebarCollapsed = false;
+    private int sidebarScrollY = 0;
+
+    /**
+     * All 45-odd call sites read this instead of a raw constant so the collapse toggle can
+     * actually reclaim canvas width, not just hide tile detail within the same footprint.
+     */
+    private int sidebarW() {
+        return sidebarCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
+    }
+
     private static final int HEADER_H = 38;  // title bar (22) + search/filter row (16)
     private static final int TOOLBAR_Y = 22;  // search row starts here
     private static final int TOOLBAR_H = 16;
@@ -60,9 +79,6 @@ public class ChronicleOverviewScreen extends Screen {
     private int C_BORDER_LIT = 0xFF353548;
     private int C_SEL_TAB = 0xFF1A1A26;
     private int C_SEL_ACCENT = 0xFF00AA55;
-    private static final int C_LINE_LOCKED = 0x38FFFFFF;
-    private static final int C_LINE_DONE = 0x9900CC66;
-    private static final int C_LINE_ACTIVE = 0x88FFAA00;
     // Node fill/border — instance fields so they update when the theme changes
     private int C_NODE_LOCKED = 0xFF1A1A24;
     private int C_NODE_UNLOCKED = 0xFF1E1E2C;
@@ -74,6 +90,13 @@ public class ChronicleOverviewScreen extends Screen {
     private int C_NBORD_DONE = 0xFF00BB66;
     private static final int C_NBORD_SEL = 0xFF6688FF;
     private int C_NBORD_DEV = 0xFF8844AA;
+    // Dependency-line base colors - theme-derived (same t.locked/done/activeColor as the node
+    // border colors above), just at the line renderer's own alpha levels instead of the node
+    // borders' opaque one, since these used to be DependencyLineRenderer's own hardcoded
+    // constants entirely disconnected from the theme editor.
+    private int C_LINE_LOCKED = 0x38FFFFFF;
+    private int C_LINE_DONE = 0x9900CC66;
+    private int C_LINE_ACTIVE = 0x88FFAA00;
     private int C_TEXT = 0xFFD8D8E4;
     private int C_TEXT_DIM = 0xFF7A7A8A;
     private int C_TEXT_FAINT = 0xFF404050;
@@ -89,17 +112,29 @@ public class ChronicleOverviewScreen extends Screen {
     private int C_PROG_FILL = 0xFF00AA55;
     private static final int C_PROG_ACT = 0xFFBB8800;
 
-
-
     // ── State ─────────────────────────────────────────────────────────────────
     private String selectedCategory = "";
+    /**
+     * Which category the current zoom/viewOffX/viewOffY belong to - null until the very first
+     * rebuild(). Used to detect a genuine category switch (save the outgoing category's view,
+     * restore the incoming one's) versus every OTHER rebuild() call (quest edits, etc.), which
+     * must leave the live pan/zoom completely alone.
+     */
+    private String viewCategoryTracker = null;
     private QuestNode selectedNode = null;
     /** Last node the mouse hovered during render(), reused by the pin keybind in keyPressed(). */
     private ResourceLocation lastHoveredNodeId = null;
-    /** Per-frame counts of which icon path each node took - reset and reported once per frame
-     *  in renderNodesAndDetails() so the profiler log can show whether the 3D-vs-flat gate is
-     *  actually routing nodes to the cheap path at low zoom. */
+    /**
+     * Per-frame counts of which icon path each node took - reset and reported once per frame
+     * in renderNodesAndDetails() so the profiler log can show whether the 3D-vs-flat gate is
+     * actually routing nodes to the cheap path at low zoom.
+     */
     private int dbgFull3DIconCount = 0;
+    private int dbgCustomIconCount = 0;
+    private int dbgPickedTextureIconCount = 0;
+    private int dbgGlyphIconCount = 0;
+    /** Per-shape-type node counts this frame, so node:shape cost can be attributed to specific shapes. */
+    private final Map<String, Integer> dbgShapeCounts = new HashMap<>();
     private boolean isDevMode = false;
     private String feedbackMsg = "";
     private int feedbackTimer = 0;
@@ -146,6 +181,41 @@ public class ChronicleOverviewScreen extends Screen {
     private QuestGroup draggedGroup = null;
     private int groupDragGrabX = 0, groupDragGrabY = 0;
 
+    // ── Background picture drag (see BackgroundPictureConfig) ─────────────────
+    @Nullable
+    private BackgroundPictureConfig.Picture draggedPicture = null;
+    private int pictureDragGrabX = 0, pictureDragGrabY = 0;
+
+    // ── Background picture context menu (self-contained, mirrors DependencyLineRenderer's own
+    // ctx menu rather than the shared ctxNode/ctxGroup system - pictures aren't quest nodes or
+    // groups, and that system's title-row/move-category logic is written specifically around
+    // QuestNode) ────────────────────────────────────────────────────────────────
+    private boolean picCtxOpen = false;
+    private long picCtxOpenTimeMs = 0;
+    private int picCtxX, picCtxY;
+    @Nullable
+    private BackgroundPictureConfig.Picture picCtxTarget = null;
+    private boolean picCtxResizeOpen = false;
+    private boolean picCtxMoveCatOpen = false;
+    private static final int[] PIC_RESIZE_PRESETS = { 32, 64, 128, 256, 512, 1024 };
+
+    // ── Sidebar drag-and-drop (folder reorder / category move-into-folder) ────
+    @Nullable
+    private SidebarRow sidebarDragRow = null;
+    private int sidebarDragStartX, sidebarDragStartY;
+    private boolean sidebarDragMoved = false;
+    private static final int SIDEBAR_DRAG_THRESHOLD = 4;
+
+    /**
+     * Interactive picture resize/reposition mode ("Resize (scroll + drag)…" in the picture's
+     * context menu) - while active, mouse wheel and plain left-drag are hijacked away from their
+     * normal canvas zoom/pan behavior and instead scale/move this one picture, since a picture
+     * needs to be resized independently of whatever zoom level the canvas itself is at.
+     */
+    @Nullable
+    private BackgroundPictureConfig.Picture pictureEditMode = null;
+    private static final float PIC_EDIT_MIN_SIZE = 4f, PIC_EDIT_MAX_SIZE = 4096f;
+
     // ── Context menu (pure-render, no hidden buttons) ─────────────────────────
     private static final int CTX_ROW = 16;
     private static final int CTX_SEP = 5;
@@ -155,6 +225,11 @@ public class ChronicleOverviewScreen extends Screen {
     private int ctxX, ctxY;
     private QuestNode ctxNode = null;
     private boolean ctxMoveCatOpen = false;
+    // "Move to Category" submenu: capped height + scroll instead of growing to fit every
+    // chapter, which ran off-screen (and became entirely unreachable past that point) on packs
+    // with a lot of categories. Reset whenever the submenu closes so it doesn't reopen scrolled.
+    private int ctxMoveCatScroll = 0;
+    private static final int CTX_MOVE_CAT_MAX_ROWS = 10;
     @Nullable
     private QuestGroup ctxGroup = null;
 
@@ -192,14 +267,72 @@ public class ChronicleOverviewScreen extends Screen {
     private int[] tutNextBtn = null;
     private int[] tutSkipBtn = null;
 
+    /**
+     * Lightweight stand-in for a vanilla Button, used purely for node hover/click hit-testing.
+     * Previously every node was a real (alpha=0, invisible) Button registered via
+     * addRenderableWidget - vanilla widgets carry their own per-frame render/hover/narration
+     * bookkeeping, and with 100+ nodes on screen that added up to "widgets (super.render)"
+     * becoming the single largest chunk of this screen's render time in profiling on larger
+     * packs, bigger than all of our own node drawing put together. A plain bounds check has none
+     * of that overhead. Field/method names deliberately mirror Button's own API (getX/setX/
+     * visible/isMouseOver) so every existing call site below needed only a type change, not a
+     * rewrite.
+     */
+    private static final class NodeHitbox {
+
+        int x, y, w, h;
+        boolean visible = true;
+        boolean active = true;
+
+        int getX() {
+            return x;
+        }
+
+        int getY() {
+            return y;
+        }
+
+        void setX(int nx) {
+            x = nx;
+        }
+
+        void setY(int ny) {
+            y = ny;
+        }
+
+        boolean isMouseOver(double mx, double my) {
+            return visible && mx >= x && mx < x + w && my >= y && my < y + h;
+        }
+    }
+
     // ── Canvas caches ─────────────────────────────────────────────────────────
     private final Map<ResourceLocation, int[]> nodeScreenPos = new LinkedHashMap<>();
-    private final Map<ResourceLocation, Button> nodeButtons = new LinkedHashMap<>();
+    private final Map<ResourceLocation, NodeHitbox> nodeButtons = new LinkedHashMap<>();
     private final DependencyLineRenderer depLineRenderer = new DependencyLineRenderer();
     /** Per-category progress cache; invalidated by rebuild(). */
     private final Map<String, int[]> progressCache = new HashMap<>();
+    /** Per-category "has an ACTIVE quest" cache for the sidebar attention badge; same lifetime as progressCache. */
+    private final Map<String, Boolean> attentionCache = new HashMap<>();
+    /**
+     * Per-quest validation-issue cache; invalidated by rebuild(). getValidationIssues() used to
+     * recompute from scratch on every call, including a real Files.exists() disk stat inside it -
+     * called once per node PER FRAME from the dev-mode "warning badge" overlay loop (~126 nodes
+     * at 60fps = thousands of filesystem calls/sec), which was the actual dominant cost behind
+     * "dev overlays" in the profiler. Quest data only changes on rebuild(), same invalidation
+     * point as progressCache/attentionCache above.
+     */
+    private final Map<ResourceLocation, List<String>> validationCache = new HashMap<>();
     /** Stub category names read from categories.txt; refreshed only on rebuild(). */
     private List<String> stubCategoryCache = null;
+    /**
+     * Full category name list (quests + stubs), refreshed only on rebuild(). buildCategoryList()
+     * used to rescan every quest in the registry on every call - and it's called multiple times
+     * per render frame (sidebar row layout, content-height measurement, etc.) - so with a large
+     * pack this was a full quest-registry walk happening well over 100x/sec. Cached here instead;
+     * callers still get their own ArrayList copy since several of them mutate it in place
+     * (e.g. `cats.remove("ALL")`).
+     */
+    private List<String> categoryListCache = null;
 
     // ── Bulk-ops extra state ──────────────────────────────────────────────────
     private boolean bulkMoveCatOpen = false;
@@ -227,6 +360,19 @@ public class ChronicleOverviewScreen extends Screen {
     private ResourceLocation tooltipHoverNodeId = null;
     private long tooltipHoverStartMs = 0;
     private static final long TOOLTIP_DELAY_MS = 450;
+
+    /**
+     * Deferred "utility" tooltips (grid pill, sidebar row, anything drawn from an early render()
+     * step that can visually overhang later-drawn regions) queue themselves here instead of
+     * drawing immediately. Elevated z + flush only wins the depth test against the specific
+     * depth-tested draws (item icons at z=100 via g.renderItem()) — it does nothing against
+     * ordinary fills/strings drawn in a LATER render() step, which just overpaint the earlier
+     * pixels regardless of z-pose. Queuing here and flushing once, at the true end of render(),
+     * guarantees these always paint after canvas/nodes/overlays no matter which step decided to
+     * show one. Only one can be pending per frame; that's fine today since the header pill and
+     * sidebar rows don't overlap, but if that ever changes this needs to become a list.
+     */
+    private Runnable pendingTooltip = null;
 
     // ── Category accent colors (cycling palette keyed by hash) ────────────────
     private static final int[] CAT_ACCENTS = {
@@ -257,7 +403,11 @@ public class ChronicleOverviewScreen extends Screen {
     private PlayerQuestData playerData = null;
 
     public ChronicleOverviewScreen() {
-        super(Component.literal("Chronicle"));
+        super(Component.literal("Chronicles"));
+        // Reopen on whatever chapter was last viewed (including across a full world/game
+        // restart) instead of always landing back on the first one - rebuild()'s validity check
+        // just below still falls back to the first chapter if this category no longer exists.
+        selectedCategory = QuestChroniclesSettings.get().getLastCategory();
     }
 
     // ── Capability helpers ────────────────────────────────────────────────────
@@ -317,6 +467,8 @@ public class ChronicleOverviewScreen extends Screen {
      * are already present in the registry (from quests).
      */
     List<String> buildCategoryList() {
+        if (categoryListCache != null) return new ArrayList<>(categoryListCache);
+
         // Use LinkedHashSet for O(1) contains while preserving insertion order
         java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
         for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
@@ -339,15 +491,23 @@ public class ChronicleOverviewScreen extends Screen {
         }
         for (String cat : stubCategoryCache) seen.add(cat);
 
-        return new ArrayList<>(seen);
+        categoryListCache = new ArrayList<>(seen);
+        return new ArrayList<>(categoryListCache);
     }
 
-    private static final int SIDEBAR_FOLDER_ROW_H = 18;
-    private static final int SIDEBAR_CAT_ROW_H = 20;
+    private static final int SIDEBAR_FOLDER_ROW_H = 14;
+    // Compact single-line row: icon + name side by side, vertically centered.
+    private static final int SIDEBAR_CAT_ROW_H = 18;
 
-    /** One row in the sidebar's folder/category list — either a folder header or a category. */
+    /**
+     * One row in the sidebar's folder/category list — either a folder header or a category.
+     * subChapter/locked are only meaningful for a category row: subChapter means this category
+     * has a parentCategory (CategoryConfig) and is nested directly under it rather than listed
+     * independently; locked means its parent chapter has no completed quest yet, so it's shown
+     * but not selectable (same "visible but not yet accessible" idea as a locked quest node).
+     */
     private record SidebarRow(boolean isFolder, String id, String label, int y, int height, boolean inFolder,
-                              boolean collapsed) {}
+                              boolean collapsed, boolean subChapter, boolean locked) {}
 
     /**
      * Single source of truth for sidebar row layout, consumed by both render() and
@@ -356,35 +516,110 @@ public class ChronicleOverviewScreen extends Screen {
     private List<SidebarRow> buildSidebarRows() {
         List<SidebarRow> rows = new ArrayList<>();
         List<String> cats = buildCategoryList();
-        int y = HEADER_H + 16;
+        int y = HEADER_H + 16 - sidebarScrollY;
         Set<String> drawnInFolder = new HashSet<>();
 
+        // Sub-chapters (CategoryConfig.parentCategory) are nested directly under their parent
+        // wherever it ends up (folder or standalone) instead of being placed independently -
+        // only counts as a sub-chapter if the parent actually exists in this pack's category
+        // list, so a dangling/typo'd parent reference doesn't just make the category vanish.
+        Map<String, List<String>> childrenOf = new HashMap<>();
+        Set<String> hasParent = new HashSet<>();
+        for (String c : cats) {
+            String parent = net.phoenixvine.chronicles.client.CategoryConfig.get(c).getParentCategory();
+            if (!parent.isEmpty() && !parent.equals(c) && cats.contains(parent)) {
+                childrenOf.computeIfAbsent(parent, k -> new ArrayList<>()).add(c);
+                hasParent.add(c);
+            }
+        }
+
         for (var folder : net.phoenixvine.chronicles.registry.ChapterFolderRegistry.getFolders()) {
-            List<String> fcats = folder.categories().stream().filter(cats::contains).toList();
+            List<String> fcats = folder.categories().stream().filter(cats::contains)
+                    .filter(c -> !hasParent.contains(c)).toList();
             if (fcats.isEmpty()) continue;
 
             boolean collapsed = net.phoenixvine.chronicles.registry.ChapterFolderRegistry.isCollapsed(folder.id());
-            rows.add(new SidebarRow(true, folder.id(), folder.label(), y, SIDEBAR_FOLDER_ROW_H, false, collapsed));
+            rows.add(new SidebarRow(true, folder.id(), folder.label(), y, SIDEBAR_FOLDER_ROW_H, false, collapsed,
+                    false, false));
             y += SIDEBAR_FOLDER_ROW_H;
 
             if (!collapsed) {
                 for (String cat : fcats) {
-                    rows.add(new SidebarRow(false, cat, friendly(cat), y, SIDEBAR_CAT_ROW_H, true, false));
+                    rows.add(new SidebarRow(false, cat, friendly(cat), y, SIDEBAR_CAT_ROW_H, true, false, false,
+                            false));
                     y += SIDEBAR_CAT_ROW_H;
                     drawnInFolder.add(cat);
+                    y = emitSubChapters(rows, cat, childrenOf, y, true);
                 }
             } else {
                 drawnInFolder.addAll(fcats);
             }
         }
 
-        for (String cat : cats) {
-            if (drawnInFolder.contains(cat)) continue;
-            rows.add(new SidebarRow(false, cat, friendly(cat), y, SIDEBAR_CAT_ROW_H, false, false));
+        List<String> standalone = new ArrayList<>();
+        for (String cat : cats) if (!drawnInFolder.contains(cat) && !hasParent.contains(cat)) standalone.add(cat);
+        for (String cat : applyStandaloneOrder(standalone)) {
+            rows.add(new SidebarRow(false, cat, friendly(cat), y, SIDEBAR_CAT_ROW_H, false, false, false, false));
             y += SIDEBAR_CAT_ROW_H;
+            y = emitSubChapters(rows, cat, childrenOf, y, false);
         }
 
         return rows;
+    }
+
+    /** Recursively emits `parent`'s sub-chapters (indented), locked until parent has a completed quest. */
+    private int emitSubChapters(List<SidebarRow> rows, String parent, Map<String, List<String>> childrenOf,
+                                int y, boolean inFolder) {
+        List<String> children = childrenOf.get(parent);
+        if (children == null) return y;
+        int[] parentProgress = progressCache.computeIfAbsent(parent, this::computeCategoryProgress);
+        boolean locked = parentProgress[0] == 0;
+        for (String child : children) {
+            rows.add(new SidebarRow(false, child, friendly(child), y, SIDEBAR_CAT_ROW_H, inFolder, false, true,
+                    locked));
+            y += SIDEBAR_CAT_ROW_H;
+            y = emitSubChapters(rows, child, childrenOf, y, inFolder);
+        }
+        return y;
+    }
+
+    /**
+     * Applies any custom drag-reordered order for standalone (non-foldered) categories -
+     * ChapterFolderRegistry.getStandaloneOrder() only lists categories someone has actually
+     * dragged before, so anything not in it (including every category before the first ever
+     * reorder) keeps its natural relative order, just appended after the explicitly-ordered ones.
+     */
+    private List<String> applyStandaloneOrder(List<String> standalone) {
+        List<String> order = net.phoenixvine.chronicles.registry.ChapterFolderRegistry.getStandaloneOrder();
+        if (order.isEmpty()) return standalone;
+        List<String> result = new ArrayList<>();
+        for (String c : order) if (standalone.contains(c)) result.add(c);
+        for (String c : standalone) if (!result.contains(c)) result.add(c);
+        return result;
+    }
+
+    /**
+     * Vertical space actually available for the scrolling row list - between the header border
+     * and the fixed "+"/gear buttons pinned to the bottom of the sidebar.
+     */
+    private int sidebarScrollAreaHeight() {
+        return Math.max(0, (newCatBtnY() - 6) - (HEADER_H + 1));
+    }
+
+    /**
+     * Total height the row list would need if fully unscrolled - reuses buildSidebarRows()
+     * rather than duplicating its folder/category iteration, since that's the one place this
+     * layout is computed. Temporarily zeroes the scroll offset for the call; single-threaded
+     * UI code, so there's no reentrancy concern with the brief mutation.
+     */
+    private int sidebarContentHeight() {
+        int saved = sidebarScrollY;
+        sidebarScrollY = 0;
+        List<SidebarRow> rows = buildSidebarRows();
+        sidebarScrollY = saved;
+        if (rows.isEmpty()) return 0;
+        SidebarRow last = rows.get(rows.size() - 1);
+        return (last.y() + last.height()) - (HEADER_H + 16);
     }
 
     /** Persists the current set of stub categories (those with no quests) to disk. */
@@ -412,6 +647,16 @@ public class ChronicleOverviewScreen extends Screen {
     @Override
     protected void init() {
         ChroniclesTheme t = ChroniclesTheme.current();
+        // ChroniclesThemePalette.refresh() was never actually called anywhere in the codebase -
+        // its static fields (BG, PANEL, TEXT, etc.) all sat at Java's default 0 the whole time.
+        // Every popup opened from this screen (QuestTextInputScreen, the item/fluid pickers,
+        // CategoryThemeScreen, QuestGroupEditorScreen, ParentSelectorScreen, ...) reads its colors
+        // straight from that shared palette instead of a local copy like this screen's own C_*
+        // fields - with TEXT=0, Font.drawString() forces the alpha bits on and renders solid
+        // black regardless of the configured theme, and with BG=0 (alpha 0) g.fill() painted
+        // nothing, which is what read as those screens "bleeding" the parent through. Keep the
+        // shared palette in sync whenever this screen (re)initializes.
+        ChroniclesThemePalette.refresh(t);
         C_BG = t.bg.getColor();
         C_PANEL = t.panel.getColor();
         C_PANEL_DARK = t.header.getColor();
@@ -439,6 +684,11 @@ public class ChronicleOverviewScreen extends Screen {
         C_NBORD_ACTIVE = t.activeColor.getColor();
         C_NBORD_DONE = t.done.getColor();
         C_NBORD_DEV = blendColor(t.accent.getColor(), 0xFFCC44FF, 0.5f);
+        // Dependency-line colors — same theme colors as the node borders, kept at the line
+        // renderer's own (much lower) alpha levels rather than the borders' opaque one.
+        C_LINE_LOCKED = 0x38000000 | (t.locked.getColor() & 0x00FFFFFF);
+        C_LINE_DONE = 0x99000000 | (t.done.getColor() & 0x00FFFFFF);
+        C_LINE_ACTIVE = 0x88000000 | (t.activeColor.getColor() & 0x00FFFFFF);
 
         QuestGroupManager.invalidate(); // force reload from disk each time the screen opens
         openTimeMs = System.currentTimeMillis();
@@ -450,14 +700,16 @@ public class ChronicleOverviewScreen extends Screen {
                 .resolve("config").resolve("phoenix_chronicles");
     }
 
-    private void rebuild() {
+    void rebuild() {
         clearWidgets();
         nodeScreenPos.clear();
         nodeButtons.clear();
-    //    lineCache.clear();
         searchCache.clear();
         progressCache.clear();
+        attentionCache.clear();
+        validationCache.clear();
         stubCategoryCache = null;
+        categoryListCache = null;
         ctxOpen = false;
         ctxMoveCatOpen = false;
         ctxGroup = null;
@@ -467,11 +719,12 @@ public class ChronicleOverviewScreen extends Screen {
         QuestGroupManager.load(groupsConfigPath());
 
         if (minecraft != null && minecraft.player != null) {
-            isDevMode = minecraft.player.isCreative() || minecraft.player.hasPermissions(2);
+            isDevMode = !QuestChroniclesSettings.get().isDevModeDisabled() &&
+                    (minecraft.player.isCreative() || minecraft.player.hasPermissions(2));
             playerData = minecraft.player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).orElse(null);
         }
 
-        int cl = SIDEBAR_W, cr = width;
+        int cl = sidebarW(), cr = width;
 
         // ── Sidebar category tabs ──────────────────────────────────────────────
         // Fully custom-drawn (see buildSidebarRows/renderSidebar/sidebar click handling in
@@ -480,6 +733,20 @@ public class ChronicleOverviewScreen extends Screen {
         // the sidebar look like plain stock buttons next to the rest of this redesigned UI.
         List<String> cats = buildCategoryList();
         if (!cats.isEmpty() && !cats.contains(selectedCategory)) selectedCategory = cats.get(0);
+
+        // Genuine category switch (including the very first rebuild() on screen open) - save
+        // the outgoing category's pan/zoom and load the incoming one's. Every OTHER rebuild()
+        // call (quest edits, etc.) hits the equals() check below and leaves zoom/viewOffX/Y alone.
+        if (!selectedCategory.equals(viewCategoryTracker)) {
+            if (viewCategoryTracker != null) saveViewForCategory(viewCategoryTracker);
+            restoreViewForCategory(selectedCategory);
+            viewCategoryTracker = selectedCategory;
+            QuestChroniclesSettings settings = QuestChroniclesSettings.get();
+            if (!selectedCategory.equals(settings.getLastCategory())) {
+                settings.setLastCategory(selectedCategory);
+                settings.save();
+            }
+        }
 
         // ── Sidebar bottom utilities ──────────────────────────────────────────
         // Gear button (all users see it; dev-only actions are inside the screen)
@@ -490,10 +757,17 @@ public class ChronicleOverviewScreen extends Screen {
         // pill (see renderSidebarNewCategoryButton + its click handling), only the text input
         // stays a real EditBox.
         if (isDevMode && newCatFormOpen) {
-            newCatBox = new EditBox(font, 4, height - 22, SIDEBAR_W - 8, 14, Component.empty());
+            // Wider than sidebarW() and deliberately floats out over the canvas edge - the
+            // icon-strip sidebar isn't wide enough to type a category name into comfortably.
+            // Sits directly above the "+" toggle button.
+            newCatBox = new EditBox(font, 4, newCatBtnY() - 4 - 14, 130, 14, Component.empty());
             newCatBox.setHint(Component.literal("§8Name, press Enter"));
             newCatBox.setMaxLength(32);
-            addRenderableWidget(newCatBox);
+            // addWidget (not addRenderableWidget) - it still needs input/focus handling, but we
+            // render it ourselves in renderSidebarNewCategoryButton at an elevated z so its own
+            // backing panel and text don't lose the depth test against node icons drawn later in
+            // the frame (step 7, z=100) the way the default super.render() timing (step 6, z=0) did.
+            addWidget(newCatBox);
         }
 
         // Search is now handled by the Ctrl+F overlay — no persistent toolbar search box.
@@ -509,6 +783,29 @@ public class ChronicleOverviewScreen extends Screen {
             if (catMatches(n)) placeNodeRecursive(n, cl, cr);
         }
         buildLineCache();
+    }
+
+    /** Persists the current pan/zoom into the given category's CategoryConfig entry. */
+    private void saveViewForCategory(String cat) {
+        if (cat == null || cat.isEmpty()) return;
+        CategoryConfig cfg = CategoryConfig.get(cat);
+        cfg.setView(zoom, viewOffX, viewOffY);
+        CategoryConfig.put(cat, cfg);
+        CategoryConfig.save();
+    }
+
+    /** Applies a category's saved pan/zoom, or the default centered 100% view if none was ever saved. */
+    private void restoreViewForCategory(String cat) {
+        CategoryConfig cfg = CategoryConfig.get(cat);
+        if (cfg.getViewZoom() != 0f) {
+            zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cfg.getViewZoom()));
+            viewOffX = cfg.getViewOffX();
+            viewOffY = cfg.getViewOffY();
+        } else {
+            zoom = 1.0f;
+            viewOffX = 0;
+            viewOffY = 0;
+        }
     }
 
     // ── Node placement (zoom-aware) ───────────────────────────────────────────
@@ -532,13 +829,14 @@ public class ChronicleOverviewScreen extends Screen {
         boolean offCanvas = sx < cl - sz - 2 || sx > cr + 2 || sy < HEADER_H - sz - 2 || sy > height + 2;
 
         QuestState state = getDisplayState(node);
-        Button btn = Button.builder(Component.empty(), b -> onNodeClicked(node))
-                .bounds(sx, sy, sz, sz).build();
-        btn.setAlpha(0f);
-        btn.visible = !offCanvas;
-        if (state == QuestState.LOCKED && !isDevMode) btn.active = false;
-        addRenderableWidget(btn);
-        nodeButtons.put(node.getId(), btn);
+        NodeHitbox hb = new NodeHitbox();
+        hb.x = sx;
+        hb.y = sy;
+        hb.w = sz;
+        hb.h = sz;
+        hb.visible = !offCanvas;
+        if (state == QuestState.LOCKED && !isDevMode) hb.active = false;
+        nodeButtons.put(node.getId(), hb);
         nodeScreenPos.put(node.getId(), new int[] { sx, sy });
 
         for (QuestNode child : node.getChildren()) {
@@ -551,19 +849,6 @@ public class ChronicleOverviewScreen extends Screen {
     // the extreme zoom-out range large imported packs need - 12px keeps a node a distinct,
     // clickable dot instead of a near-invisible speck.
     private static final int MIN_NODE_PX = 12;
-
-    /** How far a trimmed line end runs UNDER the node icon's edge (rather than stopping exactly
-     *  at it), so the icon's own paint guarantees the connector reads as touching the quest with
-     *  no stray subpixel gap. */
-    private static final float TRIM_OVERLAP_PX = 2f;
-
-    /** Time for one flowing dependency-line arrow to travel the full visible span of a curve,
-     *  looping continuously parent -> child (FTBQ-style), independent of the dash/marching
-     *  animation speed setting so arrows always read as "flow", even on locked/done edges. */
-    /** Target apparent speed for flowing dependency-line arrows, in screen px/ms - each edge's
-     *  actual traversal period is derived from this against its own trimmed length instead of
-     *  sharing one fixed period, so short and long edges read as moving at the same rate. */
-    private static final float ARROW_SPEED_PX_PER_MS = 0.15f;
 
     private int scaledNodeSize(QuestNode node) {
         return Math.max(MIN_NODE_PX, (int) (node.getNodePixelSize() * zoom));
@@ -584,6 +869,13 @@ public class ChronicleOverviewScreen extends Screen {
         QuestNode effective = linkTarget != null ? linkTarget : node;
 
         QuestState st = getState(effective);
+
+        // A plain click is the only way most players/devs "pick" a node - selectedNode used to
+        // only get set as a side effect of starting a canvas drag, so Subgraph mode (and the
+        // node-selection border highlight at renderNodeShape/renderNodeDetails) never reflected
+        // whatever you'd actually clicked on, only whatever you'd last dragged (if anything).
+        selectedNode = effective;
+        if (subgraphMode) rebuildSubgraph();
 
         // In test mode: clicking toggles COMPLETED/LOCKED and propagates unlocks
         if (testMode) {
@@ -757,7 +1049,7 @@ public class ChronicleOverviewScreen extends Screen {
             selectedCategory = node.getCategory();
             rebuild();
         }
-        int canvasW = width - SIDEBAR_W;
+        int canvasW = width - sidebarW();
         int canvasH = height - HEADER_H;
         viewOffX = (int) (canvasW / 2f - node.getCustomX() * posZoom());
         viewOffY = (int) (canvasH / 2f - node.getCustomY() * posZoom());
@@ -771,9 +1063,9 @@ public class ChronicleOverviewScreen extends Screen {
 
         // VIEW-FRUSTUM CULLING BOUNDARIES
         // Ensures lines completely outside the visible canvas are never processed or cached
-        int leftBound   = 220; // Matches SIDEBAR_W
-        int rightBound  = this.width;
-        int topBound    = 40;  // Matches HEADER_H
+        int leftBound = 220; // Matches sidebarW()
+        int rightBound = this.width;
+        int topBound = 40;  // Matches HEADER_H
         int bottomBound = this.height;
         int linePadding = 64;  // Accommodates Bezier curve arcs curving outwards
 
@@ -830,8 +1122,9 @@ public class ChronicleOverviewScreen extends Screen {
                     col = ps == QuestState.COMPLETED ? 0xFF336644 : 0xFF2A2A3A;
                     style = ps == QuestState.COMPLETED ? 4 : 3;
                 } else {
-                    col = ps == QuestState.COMPLETED ? DependencyLineRenderer.C_LINE_DONE :
-                            ps == QuestState.ACTIVE ? DependencyLineRenderer.C_LINE_ACTIVE : DependencyLineRenderer.C_LINE_LOCKED;
+                    col = ps == QuestState.COMPLETED ? C_LINE_DONE :
+                            ps == QuestState.ACTIVE ? C_LINE_ACTIVE :
+                                    C_LINE_LOCKED;
                     style = ps == QuestState.ACTIVE ? 2 : (ps == QuestState.COMPLETED ? 1 : 0);
                 }
                 int shapeOrd = child.getPrereqLineShape(parent.getId()) != null ?
@@ -888,8 +1181,9 @@ public class ChronicleOverviewScreen extends Screen {
                     col = prereqState == QuestState.COMPLETED ? 0xFF336644 : 0xFF2A2A3A;
                     style = prereqState == QuestState.COMPLETED ? 4 : 3;
                 } else {
-                    col = prereqState == QuestState.COMPLETED ? DependencyLineRenderer.C_LINE_DONE :
-                            prereqState == QuestState.ACTIVE ? DependencyLineRenderer.C_LINE_ACTIVE : DependencyLineRenderer.C_LINE_LOCKED;
+                    col = prereqState == QuestState.COMPLETED ? C_LINE_DONE :
+                            prereqState == QuestState.ACTIVE ? C_LINE_ACTIVE :
+                                    C_LINE_LOCKED;
                     style = prereqState == QuestState.ACTIVE ? 2 : (prereqState == QuestState.COMPLETED ? 1 : 0);
                 }
                 int shapeOrd = parent.getPrereqLineShape(prereq.getId()) != null ?
@@ -912,7 +1206,6 @@ public class ChronicleOverviewScreen extends Screen {
         depLineRenderer.rebuild(edges, edgeNodes, zoom, sz, QuestChroniclesSettings.get());
     }
 
-
     /**
      * Lightweight rebuild that preserves the progress and stub-category caches.
      * Use when quest data and category list haven't changed — only zoom, filters,
@@ -921,10 +1214,16 @@ public class ChronicleOverviewScreen extends Screen {
     private void softRebuild() {
         // Preserve caches across the widget teardown
         Map<String, int[]> savedProgress = new HashMap<>(progressCache);
+        Map<String, Boolean> savedAttention = new HashMap<>(attentionCache);
+        Map<ResourceLocation, List<String>> savedValidation = new HashMap<>(validationCache);
         List<String> savedStubs = stubCategoryCache;
+        List<String> savedCats = categoryListCache;
         rebuild();
         progressCache.putAll(savedProgress);
+        attentionCache.putAll(savedAttention);
+        validationCache.putAll(savedValidation);
         stubCategoryCache = savedStubs;
+        categoryListCache = savedCats;
     }
 
     /**
@@ -932,10 +1231,10 @@ public class ChronicleOverviewScreen extends Screen {
      * tearing down and recreating every widget. Much cheaper than rebuild().
      */
     private void panCanvas(int dx, int dy) {
-        int cl = SIDEBAR_W, cr = width;
+        int cl = sidebarW(), cr = width;
         int sz = scaledNodeSize();
-        for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
-            Button btn = e.getValue();
+        for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
+            NodeHitbox btn = e.getValue();
             int nx = btn.getX() + dx;
             int ny = btn.getY() + dy;
             btn.setX(nx);
@@ -967,9 +1266,17 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         // ── Ctrl+P — toggle the render-time profiler panel (dev tool) ─────────
+        // Ctrl+Shift+P — force an immediate detailed log snapshot right now, instead of waiting
+        // out the normal 10s interval - for "that just felt laggy, capture it before the EMA
+        // smooths it away" investigation.
         if (key == 80 && ctrl) {
-            FrameProfiler.setEnabled(!FrameProfiler.isEnabled());
-            setFeedback(FrameProfiler.isEnabled() ? "§aProfiler ON" : "§7Profiler OFF");
+            if ((mods & 1) != 0) {
+                FrameProfiler.logNow();
+                setFeedback("§aProfiler snapshot logged");
+            } else {
+                FrameProfiler.setEnabled(!FrameProfiler.isEnabled());
+                setFeedback(FrameProfiler.isEnabled() ? "§aProfiler ON" : "§7Profiler OFF");
+            }
             return true;
         }
 
@@ -1025,6 +1332,16 @@ public class ChronicleOverviewScreen extends Screen {
             if (ctxOpen) {
                 ctxOpen = false;
                 ctxMoveCatOpen = false;
+                return true;
+            }
+            if (picCtxOpen) {
+                closePictureCtx();
+                return true;
+            }
+            if (pictureEditMode != null) {
+                BackgroundPictureConfig.save();
+                setFeedback("Picture edit finished  (Ctrl+Z to undo the whole edit)");
+                pictureEditMode = null;
                 return true;
             }
             if (newCatFormOpen) {
@@ -1255,8 +1572,19 @@ public class ChronicleOverviewScreen extends Screen {
         }
         try {
             String newPath = QuestFileSaver.duplicateQuestOnDisk(source);
+            ResourceLocation newId = new ResourceLocation(source.getId().getNamespace(), newPath);
+            QuestNode duplicated = QuestTreeRegistry.getQuest(newId);
+            if (duplicated != null) {
+                pushUndo(() -> {
+                    QuestTreeRegistry.removeQuest(newId);
+                    deleteQuestFiles(duplicated);
+                    if (selectedNode == duplicated) selectedNode = null;
+                    rebuild();
+                    setFeedback("Undo: duplicate removed");
+                });
+            }
             rebuild();
-            setFeedback("Duplicated → " + newPath);
+            setFeedback("Duplicated → " + newPath + "  (Ctrl+Z to undo)");
         } catch (IOException e) {
             e.printStackTrace();
             setFeedback("Duplicate failed: " + e.getMessage());
@@ -1282,7 +1610,41 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        int cl = SIDEBAR_W, cr = width;
+        if (ctxMoveCatOpen && ctxNode != null) {
+            List<String> cats = buildCategoryList();
+            cats.remove("ALL");
+            int subX = ctxX + CTX_W + 2;
+            int subY = ctxMoveCatY(buildCtxItems());
+            int visibleRows = Math.min(cats.size(), CTX_MOVE_CAT_MAX_ROWS);
+            int subH = visibleRows * CTX_ROW + 4;
+            if (mx >= subX && mx <= subX + CTX_W && my >= subY && my <= subY + subH) {
+                int maxScroll = Math.max(0, cats.size() - CTX_MOVE_CAT_MAX_ROWS);
+                ctxMoveCatScroll = Math.max(0, Math.min(maxScroll, ctxMoveCatScroll - (int) Math.signum(delta)));
+                return true;
+            }
+        }
+        // Interactive picture resize mode hijacks the scroll wheel away from canvas zoom entirely
+        // while active - see pictureEditMode's field comment.
+        if (pictureEditMode != null) {
+            // Shift+scroll for fine 5% steps (detail work), plain scroll for a faster 20% step -
+            // the old flat 10% step made reaching the top of the (much wider, now up to 4096px)
+            // range feel like it was capped much lower than it actually was.
+            float step = hasShiftDown() ? 1.05f : 1.2f;
+            float factor = delta > 0 ? step : (1f / step);
+            pictureEditMode.w = Math.max(PIC_EDIT_MIN_SIZE, Math.min(PIC_EDIT_MAX_SIZE, pictureEditMode.w * factor));
+            pictureEditMode.h = Math.max(PIC_EDIT_MIN_SIZE, Math.min(PIC_EDIT_MAX_SIZE, pictureEditMode.h * factor));
+            return true;
+        }
+        int cl = sidebarW(), cr = width;
+        if (mx <= cl && my > HEADER_H) {
+            // Icon tiles are taller than the old text rows, so with more than a handful of
+            // categories the list can overflow the sidebar height entirely, pushing the "+"
+            // and gear buttons off-screen and unreachable. Scroll the row list instead of
+            // falling through to vanilla's (no-op here) scroll handling.
+            int maxScroll = Math.max(0, sidebarContentHeight() - sidebarScrollAreaHeight());
+            sidebarScrollY = Math.max(0, Math.min(maxScroll, sidebarScrollY - (int) (delta * SIDEBAR_CAT_ROW_H)));
+            return true;
+        }
         if (mx <= cl || mx >= cr || my <= HEADER_H) return super.mouseScrolled(mx, my, delta);
 
         float oldZoom = zoom;
@@ -1302,20 +1664,37 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
+        // Interactive picture resize mode: left-click/drag pans the picture instead of the
+        // canvas (handled in mouseDragged), right-click confirms and exits the mode.
+        if (pictureEditMode != null) {
+            if (btn == 1) {
+                BackgroundPictureConfig.save();
+                setFeedback("Picture edit finished  (Ctrl+Z to undo the whole edit)");
+                pictureEditMode = null;
+            }
+            return true;
+        }
+
         if (btn == 0 && handleTutorialClick(mx, my)) return true;
 
         // Minimap click — pan canvas to clicked point
         if (btn == 0 && isInMinimap(mx, my)) {
             mmDragging = true;
-            minimapPanTo(mx, my, SIDEBAR_W);
+            minimapPanTo(mx, my, sidebarW());
             softRebuild();
             return true;
         }
 
-        int cl = SIDEBAR_W, cr = width;
+        int cl = sidebarW(), cr = width;
 
         if (btn == 0) {
             // Inspector removed from overview — all quest detail interactions now in QuestTasksScreen
+
+            // ── Questbook title (icon + name above the category list) ─────────────
+            if (questbookTitleHovered((int) mx, (int) my)) {
+                if (minecraft != null) minecraft.setScreen(new QuestbookTitleScreen(this));
+                return true;
+            }
 
             // ── Title bar: grid-size pill click ──────────────────────────────────
             if (my >= 0 && my < TOOLBAR_Y) {
@@ -1335,6 +1714,18 @@ public class ChronicleOverviewScreen extends Screen {
                         }
                     }
                     return true;
+                }
+
+                // ── Title bar: subgraph mode pill click (dev only) ────────────────
+                if (isDevMode) {
+                    String sgLabel2 = subgraphMode ? "Subgraph: " + subgraphNodes.size() : "Subgraph";
+                    int sgw2 = font.width(sgLabel2);
+                    int sgx2 = gpx2 - sgw2 - 18;
+                    if (mx >= sgx2 - 3 && mx < sgx2 + sgw2 + 5 && my >= 3 && my < 16) {
+                        subgraphMode = !subgraphMode;
+                        if (subgraphMode) rebuildSubgraph();
+                        return true;
+                    }
                 }
             }
 
@@ -1401,38 +1792,72 @@ public class ChronicleOverviewScreen extends Screen {
                 }
             }
 
-            // ── Gear (utilities) click — left=open editor, right=export lang ──
-            if (gearHovered((int) mx, (int) my) && minecraft != null) {
-                minecraft.setScreen(new LangEditorScreen(this));
+            // ── Sidebar collapse/expand toggle - works regardless of collapsed state ──
+            if (sidebarCollapseToggleHovered((int) mx, (int) my)) {
+                sidebarCollapsed = !sidebarCollapsed;
+                sidebarScrollY = 0;
+                rebuild(); // node placement/canvas bounds depend on sidebarW()
                 return true;
             }
 
-            // ── Sidebar "+ Category" / "Cancel" pill ──────────────────────────
-            if (newCatButtonHovered((int) mx, (int) my)) {
-                newCatFormOpen = !newCatFormOpen;
-                rebuild();
-                return true;
-            }
+            if (!sidebarCollapsed) {
+                // ── Gear (utilities) click — left=open editor, right=export lang ──
+                if (gearHovered((int) mx, (int) my) && minecraft != null) {
+                    minecraft.setScreen(new LangEditorScreen(this));
+                    return true;
+                }
 
-            // ── Sidebar folder headers / category rows ────────────────────────
-            if (mx < SIDEBAR_W - 1 && my >= HEADER_H + 14) {
-                for (SidebarRow row : buildSidebarRows()) {
-                    if (my < row.y() || my >= row.y() + row.height()) continue;
-                    if (row.isFolder()) {
-                        net.phoenixvine.chronicles.registry.ChapterFolderRegistry.toggleCollapsed(row.id());
+                // ── Sidebar "+ Category" / "Cancel" pill ──────────────────────────
+                if (newCatButtonHovered((int) mx, (int) my)) {
+                    if (newCatFormOpen) {
+                        newCatFormOpen = false;
                         rebuild();
-                    } else {
-                        selectedCategory = row.id();
-                        selectedNode = null;
-                        PhantasiaCompat.closePreview(phantasiaPreview);
-                        phantasiaPreview = null;
-                        viewOffX = 0;
-                        viewOffY = 0;
-                        ctxOpen = false;
-                        ctxMoveCatOpen = false;
-                        rebuild();
+                    } else if (minecraft != null) {
+                        minecraft.setScreen(new NewChapterChoiceScreen(this));
                     }
                     return true;
+                }
+
+                // ── Sidebar folder headers / category rows ────────────────────────
+                int scrollTop = HEADER_H + 1 + SIDEBAR_COLLAPSE_TOGGLE_H;
+                int scrollBottom = scrollTop + sidebarScrollAreaHeight();
+                if (mx < sidebarW() - 1 && my >= scrollTop && my < scrollBottom) {
+                    for (SidebarRow row : buildSidebarRows()) {
+                        if (my < row.y() || my >= row.y() + row.height()) continue;
+                        // Dev mode: defer the actual action to mouseReleased so a drag can be
+                        // told apart from a click - previously the only way to reorder chapter
+                        // folders or move a category into/out of one was right-click menus
+                        // (Folder dropdown, "top"/"bottom" style), which several testers asked
+                        // to be drag-and-drop instead, FTBQ-style.
+                        if (isDevMode) {
+                            sidebarDragRow = row;
+                            sidebarDragStartX = (int) mx;
+                            sidebarDragStartY = (int) my;
+                            sidebarDragMoved = false;
+                            return true;
+                        }
+                        if (row.isFolder()) {
+                            net.phoenixvine.chronicles.registry.ChapterFolderRegistry.toggleCollapsed(row.id());
+                            rebuild();
+                        } else if (row.locked()) {
+                            // Not gated for devs (isDevMode already routed to the drag-setup
+                            // branch above and returned) - a real player can see the sub-chapter
+                            // exists but can't open it until its parent has a completed quest.
+                            setFeedback("§7Locked — complete a quest in the parent chapter first");
+                        } else {
+                            selectedCategory = row.id();
+                            selectedNode = null;
+                            PhantasiaCompat.closePreview(phantasiaPreview);
+                            phantasiaPreview = null;
+                            // zoom/viewOffX/Y no longer hard-reset here - rebuild() below detects
+                            // the category change and restores that chapter's own saved pan/zoom
+                            // (or the default centered view if it's never had one saved).
+                            ctxOpen = false;
+                            ctxMoveCatOpen = false;
+                            rebuild();
+                        }
+                        return true;
+                    }
                 }
             }
         }
@@ -1445,6 +1870,15 @@ public class ChronicleOverviewScreen extends Screen {
             return true;
         }
 
+        // ── Right-click a sidebar chapter tab: open its icon/color/name editor ──
+        if (btn == 1 && isDevMode && !sidebarCollapsed) {
+            SidebarRow hitRow = sidebarRowAt(buildSidebarRows(), (int) mx, (int) my);
+            if (hitRow != null && !hitRow.isFolder() && minecraft != null) {
+                minecraft.setScreen(new CategoryThemeScreen(this, hitRow.id()));
+                return true;
+            }
+        }
+
         // ── Bulk-ops panel clicks ─────────────────────────────────────────────
         if (btn == 0 && isDevMode && multiSelection.size() >= 2) {
             int bx = cl + 4, by = HEADER_H + 4;
@@ -1452,12 +1886,29 @@ public class ChronicleOverviewScreen extends Screen {
             if ((int) mx >= bx && (int) mx <= bx + 360 && (int) my >= by && (int) my <= by + bh) {
                 // Shape picker row hit-test
                 String[] shapeIds = { "SQUARE", "CIRCLE", "DIAMOND", "HEXAGON", "TRIANGLE", "STAR", "PENTAGON",
-                        "SHIELD", "CROSS" };
+                        "SHIELD", "CROSS", "CUSTOM" };
                 int slotW = 14, startX = bx + 6, slotY = by + 24;
                 for (int i = 0; i < shapeIds.length; i++) {
                     int sx = startX + i * (slotW + 2);
                     if ((int) mx >= sx && (int) mx < sx + slotW && (int) my >= slotY && (int) my < slotY + 12) {
                         String newShape = shapeIds[i];
+                        if ("CUSTOM".equals(newShape)) {
+                            List<ResourceLocation> targets = new ArrayList<>(multiSelection);
+                            if (minecraft != null) minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
+                                for (ResourceLocation id : targets) {
+                                    QuestNode n = QuestTreeRegistry.getQuest(id);
+                                    if (n != null) {
+                                        n.setShapeType("CUSTOM");
+                                        n.setShapeTexture(rl);
+                                        saveNodeShapeToDisk(n, "CUSTOM");
+                                        saveNodeShapeTextureToDisk(n);
+                                    }
+                                }
+                                setFeedback("Shape → CUSTOM for " + targets.size() + " quests");
+                                rebuild();
+                            }));
+                            return true;
+                        }
                         for (ResourceLocation id : multiSelection) {
                             QuestNode n = QuestTreeRegistry.getQuest(id);
                             if (n != null) {
@@ -1535,6 +1986,16 @@ public class ChronicleOverviewScreen extends Screen {
             return true;
         }
 
+        // ── Background picture context menu ────────────────────────────────────
+        if (picCtxOpen && btn == 0) {
+            handlePictureCtxClick((int) mx, (int) my);
+            return true;
+        }
+        if (picCtxOpen) {
+            closePictureCtx();
+            return true;
+        }
+
         // ── Context menu ──────────────────────────────────────────────────────
         if (ctxOpen && btn == 0) {
             if (handleCtxClick((int) mx, (int) my)) return true;
@@ -1545,7 +2006,7 @@ public class ChronicleOverviewScreen extends Screen {
 
         // ── Ctrl + left-click = toggle multi-select (dev mode) ───────────────
         if (btn == 0 && isDevMode && hasControlDown() && !hasShiftDown()) {
-            for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     if (multiSelection.contains(e.getKey())) multiSelection.remove(e.getKey());
                     else multiSelection.add(e.getKey());
@@ -1559,7 +2020,7 @@ public class ChronicleOverviewScreen extends Screen {
 
         // ── Alt + left-click = start prerequisite link drag (dev mode) ──────
         if (btn == 0 && isDevMode && hasAltDown() && !hasShiftDown()) {
-            for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     linkDragSource = QuestTreeRegistry.getQuest(e.getKey());
                     linkDragX = (int) mx;
@@ -1572,7 +2033,7 @@ public class ChronicleOverviewScreen extends Screen {
         // ── Shift + left-click = dev node drag (or group drag) ───────────────
         if (btn == 0 && isDevMode && hasShiftDown()) {
             // Try node first
-            for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     draggedNode = QuestTreeRegistry.getQuest(e.getKey());
                     if (draggedNode != null) {
@@ -1603,11 +2064,28 @@ public class ChronicleOverviewScreen extends Screen {
                 groupDragGrabY = (int) my - sy;
                 return true;
             }
+            // Try a placed background picture
+            BackgroundPictureConfig.Picture hitPic = pictureAt(mx, my, cl);
+            if (hitPic != null) {
+                final BackgroundPictureConfig.Picture capturedPic = hitPic;
+                final float preX = hitPic.x, preY = hitPic.y;
+                pushUndo(() -> {
+                    capturedPic.x = preX;
+                    capturedPic.y = preY;
+                    BackgroundPictureConfig.save();
+                    setFeedback("Undo: picture moved back");
+                });
+                draggedPicture = hitPic;
+                int[] rect = BackgroundPictureRenderer.screenRect(hitPic, cl, HEADER_H, posZoom(), viewOffX, viewOffY);
+                pictureDragGrabX = (int) mx - rect[0];
+                pictureDragGrabY = (int) my - rect[1];
+                return true;
+            }
         }
 
         // ── Shift + right-click = open quest directly ─────────────────────────
         if (btn == 1 && hasShiftDown() && mx > cl && mx < cr) {
-            for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     QuestNode node = QuestTreeRegistry.getQuest(e.getKey());
                     if (node != null && (getState(node) != QuestState.LOCKED || isDevMode)) {
@@ -1621,14 +2099,32 @@ public class ChronicleOverviewScreen extends Screen {
 
         // ── Right-click on canvas = dev context menu ──────────────────────────
         if (btn == 1 && isDevMode && mx > cl && mx < cr) {
+            // A second right-click while a menu is already open used to silently re-target it
+            // to the new click location/node and restart its open-fade animation, instead of
+            // requiring the first one to be dismissed - close it instead, matching how a
+            // right-click menu is expected to behave (toggle, not stack/retarget).
+            if (ctxOpen) {
+                ctxOpen = false;
+                return true;
+            }
             QuestNode hit = null;
-            for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     hit = QuestTreeRegistry.getQuest(e.getKey());
                     break;
                 }
             }
             QuestGroup hitGrp = (hit == null) ? groupAtLabelBar(mx, my, cl) : null;
+            // Right-click on a picture opens its own small menu instead of the shared node/group
+            // one - see the field comment above picCtxOpen for why this is a separate system.
+            if (hit == null && hitGrp == null) {
+                BackgroundPictureConfig.Picture hitPic = pictureAt(mx, my, cl);
+                if (hitPic != null) {
+                    ctxOpen = false;
+                    openPictureCtx((int) mx, (int) my, hitPic);
+                    return true;
+                }
+            }
             // Check if near a line (higher priority than empty-canvas menu)
             if (hit == null && hitGrp == null && depLineRenderer.tryOpenContextMenuAt((int) mx, (int) my, 6)) {
                 ctxOpen = false;
@@ -1640,7 +2136,7 @@ public class ChronicleOverviewScreen extends Screen {
         // ── Right-click non-dev: show unlock path for locked quests, dep lines on empty canvas ──
         if (btn == 1 && !isDevMode && mx > cl && mx < cr) {
             boolean hitNode = false;
-            for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     QuestNode node = QuestTreeRegistry.getQuest(e.getKey());
                     if (node != null && getState(node) == QuestState.LOCKED) {
@@ -1659,14 +2155,28 @@ public class ChronicleOverviewScreen extends Screen {
 
         // ── Left-click on canvas = pan start / double-click to create ──────────
         if (btn == 0 && mx > cl && mx < cr && my > HEADER_H) {
-            boolean handled = super.mouseClicked(mx, my, btn);
+            // Node buttons are plain hit-test data (NodeHitbox), not real widgets, so a plain
+            // click on one no longer gets dispatched via super.mouseClicked() - check manually,
+            // same active/visible gating a vanilla Button.mouseClicked() would have applied.
+            boolean handled = false;
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
+                NodeHitbox hb = e.getValue();
+                if (hb.active && hb.isMouseOver(mx, my)) {
+                    QuestNode node = QuestTreeRegistry.getQuest(e.getKey());
+                    if (node != null) onNodeClicked(node);
+                    handled = true;
+                    break;
+                }
+            }
             if (!handled) {
                 if (isDevMode && minecraft != null) {
                     long now = System.currentTimeMillis();
                     int imx = (int) mx, imy = (int) my;
-                    if (now - lastCanvasClickTime < 350 && Math.abs(imx - lastCanvasClickX) < 10 &&
+                    if (hasShiftDown() && now - lastCanvasClickTime < 350 && Math.abs(imx - lastCanvasClickX) < 10 &&
                             Math.abs(imy - lastCanvasClickY) < 10) {
-                        // Double-click on empty canvas → open creator pre-positioned
+                        // Shift + double-click on empty canvas → open creator pre-positioned.
+                        // Plain double-click was firing accidentally during normal fast navigation
+                        // clicks, so it's now gated behind Shift to require deliberate intent.
                         int canvasX = (int) ((imx - cl - viewOffX) / posZoom());
                         int canvasY = (int) ((imy - HEADER_H - viewOffY) / posZoom());
                         lastCanvasClickTime = 0;
@@ -1707,8 +2217,9 @@ public class ChronicleOverviewScreen extends Screen {
             cats.remove("ALL");
             int subX = x + CTX_W + 2;
             int subY = ctxMoveCatY(items);
-            for (int i = 0; i < cats.size(); i++) {
-                int ry = subY + i * CTX_ROW;
+            int visibleRows = Math.min(cats.size(), CTX_MOVE_CAT_MAX_ROWS);
+            for (int i = ctxMoveCatScroll; i < Math.min(cats.size(), ctxMoveCatScroll + visibleRows); i++) {
+                int ry = subY + (i - ctxMoveCatScroll) * CTX_ROW;
                 if (mx >= subX && mx <= subX + CTX_W && my >= ry && my <= ry + CTX_ROW) {
                     String newCat = cats.get(i);
                     if (ctxNode != null) {
@@ -1728,9 +2239,23 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
+        if (btn == 0 && sidebarDragRow != null) {
+            if (!sidebarDragMoved && (Math.abs(mx - sidebarDragStartX) > SIDEBAR_DRAG_THRESHOLD ||
+                    Math.abs(my - sidebarDragStartY) > SIDEBAR_DRAG_THRESHOLD)) {
+                sidebarDragMoved = true;
+            }
+            return true;
+        }
+        if (pictureEditMode != null) {
+            if (btn == 0) {
+                pictureEditMode.x += (float) (dx / posZoom());
+                pictureEditMode.y += (float) (dy / posZoom());
+            }
+            return true;
+        }
         // Minimap drag — pan canvas as user drags over the minimap
         if (btn == 0 && mmDragging) {
-            minimapPanTo(mx, my, SIDEBAR_W);
+            minimapPanTo(mx, my, sidebarW());
             return true;
         }
         if (btn == 0 && linkDragSource != null) {
@@ -1740,15 +2265,28 @@ public class ChronicleOverviewScreen extends Screen {
         }
         if (btn == 0) {
             if (draggedGroup != null) {
-                int cl = SIDEBAR_W;
+                int cl = sidebarW();
                 int screenX = (int) mx - groupDragGrabX;
                 int screenY = (int) my - groupDragGrabY;
                 draggedGroup.setX((int) ((screenX - cl - viewOffX) / posZoom()));
                 draggedGroup.setY((int) ((screenY - HEADER_H - viewOffY) / posZoom()));
                 return true;
             }
+            if (draggedPicture != null) {
+                int cl = sidebarW();
+                // Grab offset was measured against the picture's top-left corner; convert back
+                // through that corner rather than directly through the mouse point, then re-add
+                // half the picture's size since Picture.x/y is center-anchored.
+                int screenX = (int) mx - pictureDragGrabX;
+                int screenY = (int) my - pictureDragGrabY;
+                float canvasX = (screenX - cl - viewOffX) / posZoom() + draggedPicture.w / 2f;
+                float canvasY = (screenY - HEADER_H - viewOffY) / posZoom() + draggedPicture.h / 2f;
+                draggedPicture.x = canvasX;
+                draggedPicture.y = canvasY;
+                return true;
+            }
             if (draggedNode != null) {
-                int cl = SIDEBAR_W;
+                int cl = sidebarW();
                 int rawX = (int) mx - dragGrabX;
                 int rawY = (int) my - dragGrabY;
                 // Snap logical position to grid (Shift = free/pixel-perfect)
@@ -1760,7 +2298,7 @@ public class ChronicleOverviewScreen extends Screen {
                 // Recompute screen position from snapped logical position
                 int nx = (int) (logX * posZoom()) + cl + viewOffX;
                 int ny = (int) (logY * posZoom()) + HEADER_H + viewOffY;
-                Button b = nodeButtons.get(draggedNode.getId());
+                NodeHitbox b = nodeButtons.get(draggedNode.getId());
                 if (b != null) {
                     b.setX(nx);
                     b.setY(ny);
@@ -1783,6 +2321,30 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mx, double my, int btn) {
+        if (btn == 0 && sidebarDragRow != null) {
+            SidebarRow source = sidebarDragRow;
+            boolean moved = sidebarDragMoved;
+            sidebarDragRow = null;
+            sidebarDragMoved = false;
+            if (!moved) {
+                // Not actually a drag - fall through to the original click behavior.
+                if (source.isFolder()) {
+                    net.phoenixvine.chronicles.registry.ChapterFolderRegistry.toggleCollapsed(source.id());
+                    rebuild();
+                } else {
+                    selectedCategory = source.id();
+                    selectedNode = null;
+                    PhantasiaCompat.closePreview(phantasiaPreview);
+                    phantasiaPreview = null;
+                    ctxOpen = false;
+                    ctxMoveCatOpen = false;
+                    rebuild();
+                }
+                return true;
+            }
+            handleSidebarDrop(source, (int) mx, (int) my);
+            return true;
+        }
         if (btn == 0 && mmDragging) {
             mmDragging = false;
             return true;
@@ -1790,7 +2352,7 @@ public class ChronicleOverviewScreen extends Screen {
         if (btn == 0 && linkDragSource != null) {
             QuestNode src = linkDragSource;
             linkDragSource = null;
-            for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     QuestNode target = QuestTreeRegistry.getQuest(e.getKey());
                     if (target != null && target != src && !target.getPrerequisites().contains(src)) {
@@ -1810,6 +2372,11 @@ public class ChronicleOverviewScreen extends Screen {
             if (draggedGroup != null) {
                 QuestGroupManager.save(groupsConfigPath());
                 draggedGroup = null;
+                return true;
+            }
+            if (draggedPicture != null) {
+                BackgroundPictureConfig.save();
+                draggedPicture = null;
                 return true;
             }
             if (draggedNode != null) {
@@ -1836,9 +2403,14 @@ public class ChronicleOverviewScreen extends Screen {
         List<CtxItem> items = new ArrayList<>();
         boolean hasNode = (ctxNode != null);
         boolean hasGroup = (ctxGroup != null);
+        // Opening this menu at all still requires isDevMode (see mouseClicked's right-click
+        // gate) so a privileged user can always reach it to exit test mode - but every actual
+        // EDITING action below is additionally gated on !testMode, so "test mode" genuinely
+        // behaves like a player preview instead of just being dev mode with an extra toggle.
+        boolean canEdit = !testMode;
 
         // New quest (only on empty canvas, not on existing quest/group)
-        if (!hasNode && !hasGroup) {
+        if (!hasNode && !hasGroup && canEdit) {
             items.add(new CtxItem("+ New quest", "§a", false, false,
                     () -> {
                         ctxOpen = false;
@@ -1849,7 +2421,7 @@ public class ChronicleOverviewScreen extends Screen {
         // Dependency lines (empty canvas — always shown for all right-click contexts)
         if (!hasNode && !hasGroup) {
             final String cat = selectedCategory;
-            items.add(new CtxItem("Dependency lines…", "§b", false, false,
+            items.add(new CtxItem("Dependency Lines", "§b", false, false,
                     () -> {
                         ctxOpen = false;
                         minecraft.setScreen(new DepLineSettingsScreen(this, cat));
@@ -1857,7 +2429,7 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         // Chain-wire ops (multi-select, empty canvas right-click)
-        if (!hasNode && !hasGroup && multiSelection.size() >= 2) {
+        if (!hasNode && !hasGroup && canEdit && multiSelection.size() >= 2) {
             items.add(CtxItem.sep());
             items.add(new CtxItem("→ Chain selected (left→right)", "§b", false, false,
                     () -> {
@@ -1872,7 +2444,7 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         // Paste from clipboard
-        if (!hasNode && !hasGroup && isDevMode) {
+        if (!hasNode && !hasGroup && canEdit) {
             String label = questClipboard != null ? "⎘ Paste quest" : "⎘ Paste quest §8(clipboard)";
             items.add(new CtxItem(label, "§7", false, false,
                     () -> {
@@ -1884,7 +2456,7 @@ public class ChronicleOverviewScreen extends Screen {
         // Dev-mode quick-toggles on empty canvas
         if (!hasNode && !hasGroup && isDevMode) {
             items.add(CtxItem.sep());
-            items.add(new CtxItem((testMode ? "§c⏵ Exit test mode" : "⏵ Enter test mode"), "§7", false, false,
+            items.add(new CtxItem((testMode ? "§c⏵ Exit Player Mode" : "⏵ Enter Player Mode"), "§7", false, false,
                     () -> {
                         ctxOpen = false;
                         testMode = !testMode;
@@ -1892,7 +2464,7 @@ public class ChronicleOverviewScreen extends Screen {
                         rebuild();
                     }));
             if (testMode) {
-                items.add(new CtxItem("↺ Reset test data", "§7", false, false,
+                items.add(new CtxItem("↺ Reset Player Mode Data", "§7", false, false,
                         () -> {
                             ctxOpen = false;
                             testModeData = new PlayerQuestData();
@@ -1903,7 +2475,13 @@ public class ChronicleOverviewScreen extends Screen {
                     () -> {
                         ctxOpen = false;
                         subgraphMode = !subgraphMode;
-                        if (subgraphMode) rebuildSubgraph();
+                        // This entry only appears on the empty-canvas context menu (!hasNode), so
+                        // ctxNode is always null here - checking it made rebuildSubgraph() never
+                        // run and subgraphNodes stayed empty, so the dim overlay never showed.
+                        // Use whatever node is already selected instead.
+                        if (subgraphMode && selectedNode != null) {
+                            rebuildSubgraph();
+                        }
                     }));
             items.add(new CtxItem((statsOpen ? "§b∑ Hide stats" : "∑ Show stats"), "§7", false, false,
                     () -> {
@@ -1914,8 +2492,8 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         // Group creation & theme (only when right-clicking empty canvas, not on a node/group)
-        if (!hasNode && !hasGroup) {
-            int cl = SIDEBAR_W;
+        if (!hasNode && !hasGroup && canEdit) {
+            int cl = sidebarW();
             items.add(new CtxItem("+ New group here", "§b", false, false,
                     () -> {
                         ctxOpen = false;
@@ -1928,6 +2506,21 @@ public class ChronicleOverviewScreen extends Screen {
                         ctxOpen = false;
                         minecraft.setScreen(new CategoryThemeScreen(this, selectedCategory));
                     }));
+            items.add(new CtxItem("🖼 Add picture…", "§d", false, false,
+                    () -> {
+                        ctxOpen = false;
+                        final float px = (ctxX - cl - viewOffX) / posZoom();
+                        final float py = (ctxY - HEADER_H - viewOffY) / posZoom();
+                        final String cat = selectedCategory;
+                        minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
+                            BackgroundPictureConfig.Picture pic = new BackgroundPictureConfig.Picture();
+                            pic.texture = rl;
+                            pic.x = px;
+                            pic.y = py;
+                            BackgroundPictureConfig.add(cat, pic);
+                            setFeedback("Picture placed — shift+drag to move, right-click to remove");
+                        }));
+                    }));
             items.add(CtxItem.sep());
             items.add(new CtxItem("⊞ Auto-arrange chapter", "§e", false, false,
                     () -> {
@@ -1937,7 +2530,7 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         // Group editing (when right-clicking a group label bar)
-        if (hasGroup) {
+        if (hasGroup && canEdit) {
             items.add(CtxItem.sep());
             QuestGroup grp = ctxGroup;
             items.add(new CtxItem("Edit group…", "§b", false, false,
@@ -1968,112 +2561,154 @@ public class ChronicleOverviewScreen extends Screen {
                         }));
                 items.add(CtxItem.sep());
             }
-            items.add(new CtxItem("Edit quest", "§7", false, false,
-                    () -> {
-                        ctxOpen = false;
-                        minecraft.setScreen(new QuestCreatorScreen(this, ctxNode));
-                    }));
-            items.add(new CtxItem("Edit tasks / rewards", "§7", false, false,
-                    () -> {
-                        ctxOpen = false;
-                        minecraft.setScreen(new TaskRewardEditorScreen(this, ctxNode));
-                    }));
-            items.add(new CtxItem("Edit texts…", "§d", false, false,
-                    () -> {
-                        final QuestNode target = ctxNode;
-                        ctxOpen = false;
-                        minecraft.setScreen(new LangEditorScreen(this, target));
-                    }));
-            items.add(new CtxItem("Set icon item…", "§7", false, false,
-                    () -> {
-                        ctxOpen = false;
-                        minecraft.setScreen(new ItemPickerScreen(this, stack -> {
-                            ctxNode.setIconItem(stack.getItem());
+            if (canEdit) {
+                items.add(new CtxItem("Edit Quest", "§7", false, false,
+                        () -> {
+                            ctxOpen = false;
+                            minecraft.setScreen(new QuestCreatorScreen(this, ctxNode));
+                        }));
+                items.add(new CtxItem("Edit Tasks & Rewards", "§7", false, false,
+                        () -> {
+                            ctxOpen = false;
+                            minecraft.setScreen(new TaskRewardEditorScreen(this, ctxNode));
+                        }));
+                items.add(new CtxItem("Edit Texts...", "§d", false, false,
+                        () -> {
+                            final QuestNode target = ctxNode;
+                            ctxOpen = false;
+                            minecraft.setScreen(new LangEditorScreen(this, target));
+                        }));
+                items.add(new CtxItem("Design Pop-Up", "§6", false, false,
+                        () -> {
+                            final QuestNode target = ctxNode;
+                            ctxOpen = false;
+                            minecraft.setScreen(new ToastDesignerScreen(this, target));
+                        }));
+                items.add(new CtxItem("Set Icon by Item", "§7", false, false,
+                        () -> {
+                            ctxOpen = false;
+                            minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                                ctxNode.setIconItem(stack.getItem());
+                                ctxNode.setIconTexture("");
+                                saveNodeIconToDisk(ctxNode);
+                                saveNodeIconTextureToDisk(ctxNode);
+                                setFeedback("Icon → " + stack.getHoverName().getString());
+                                rebuild();
+                            }));
+                        }));
+                items.add(new CtxItem("Set Icon by Texture", "§7", false, false,
+                        () -> {
+                            ctxOpen = false;
+                            minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
+                                ctxNode.setIconTexture(rl);
+                                saveNodeIconTextureToDisk(ctxNode);
+                                setFeedback("Icon texture → " + rl);
+                                rebuild();
+                            }));
+                        }));
+                items.add(new CtxItem("Clear Icon", "§8", false, false,
+                        () -> {
+                            ctxNode.setIconItem(null);
                             ctxNode.setIconTexture("");
                             saveNodeIconToDisk(ctxNode);
                             saveNodeIconTextureToDisk(ctxNode);
-                            setFeedback("Icon → " + stack.getHoverName().getString());
+                            setFeedback("Icon cleared");
+                            ctxOpen = false;
                             rebuild();
                         }));
-                    }));
-            items.add(new CtxItem("Set icon texture…", "§7", false, false,
-                    () -> {
-                        ctxOpen = false;
-                        minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
-                            ctxNode.setIconTexture(rl);
-                            saveNodeIconTextureToDisk(ctxNode);
-                            setFeedback("Icon texture → " + rl);
-                            rebuild();
+                items.add(CtxItem.sep());
+                // Hovering this row (see renderCtxMenu) opens the submenu automatically - no click
+                // action needed, but the row still needs to exist to occupy its place in the list
+                // and report its own bounds for that hover check.
+                items.add(new CtxItem("Move to Category  ▸", "§7", false, false, () -> {}));
+                items.add(CtxItem.sep());
+                items.add(new CtxItem("Shift + drag to move", "§8", false, false,
+                        () -> {
+                            ctxOpen = false;
+                            setFeedback("Shift-click and drag the node");
                         }));
-                    }));
-            items.add(new CtxItem("Clear icon", "§8", false, false,
-                    () -> {
-                        ctxNode.setIconItem(null);
-                        ctxNode.setIconTexture("");
-                        saveNodeIconToDisk(ctxNode);
-                        saveNodeIconTextureToDisk(ctxNode);
-                        setFeedback("Icon cleared");
-                        ctxOpen = false;
-                        rebuild();
-                    }));
+            } // canEdit
             items.add(CtxItem.sep());
-            items.add(new CtxItem("Move to category  ▸", "§7", false, false,
-                    () -> ctxMoveCatOpen = !ctxMoveCatOpen));
-            items.add(CtxItem.sep());
-            items.add(new CtxItem("Shift+drag to move", "§8", false, false,
-                    () -> {
-                        ctxOpen = false;
-                        setFeedback("Shift-click and drag the node");
-                    }));
-            items.add(CtxItem.sep());
-            items.add(new CtxItem("Dependency lines…", "§b", false, false,
+            items.add(new CtxItem("Dependency Lines", "§b", false, false,
                     () -> {
                         ctxOpen = false;
                         final String cat = selectedCategory;
                         minecraft.setScreen(new DepLineSettingsScreen(this, cat, ctxNode));
                     }));
-            items.add(CtxItem.sep());
-            items.add(new CtxItem("Copy quest §8(Ctrl+C)", "§7", false, false,
-                    () -> {
-                        ctxOpen = false;
-                        questCopy(ctxNode);
-                    }));
-            items.add(new CtxItem("Duplicate quest §8(Ctrl+D)", "§b", false, false,
-                    () -> {
-                        ctxOpen = false;
-                        duplicateQuest(ctxNode);
-                    }));
-            items.add(new CtxItem("Force complete (dev)", "§e", false, false,
-                    () -> {
-                        final QuestNode target = ctxNode;
-                        ctxOpen = false;
-                        Minecraft mc = Minecraft.getInstance();
-                        if (mc.player != null) {
-                            // Send to server so state persists and cascade unlocks fire
-                            mc.player.connection.sendCommand("chronicles complete " + target.getId().getPath());
-                            setFeedback("Force-completed: " + target.getTitle().getString());
-                        }
-                    }));
-            items.add(new CtxItem("Delete quest", "§c", false, true,
-                    () -> {
-                        final QuestNode deleted = ctxNode;
-                        // Read file content BEFORE deleting so we can restore it on undo
-                        final String savedContent = QuestFileSaver.readRawSnbt(deleted);
-                        final Path categoryFolder = QuestFileSaver.getQuestCategoryFolder(deleted);
-                        pushUndo(() -> {
-                            // Restore file + re-inject into registry
-                            QuestFileSaver.restoreRawSnbt(deleted, savedContent);
-                            QuestFileLoader.loadAdditiveFromDisk(categoryFolder);
+            if (canEdit) {
+                items.add(CtxItem.sep());
+                items.add(new CtxItem("Copy Quest §8(Ctrl+C)", "§7", false, false,
+                        () -> {
+                            ctxOpen = false;
+                            questCopy(ctxNode);
+                        }));
+                items.add(new CtxItem("Duplicate Quest §8(Ctrl+D)", "§b", false, false,
+                        () -> {
+                            ctxOpen = false;
+                            duplicateQuest(ctxNode);
+                        }));
+                items.add(new CtxItem("Force Complete Quest", "§e", false, false,
+                        () -> {
+                            final QuestNode target = ctxNode;
+                            ctxOpen = false;
+                            Minecraft mc = Minecraft.getInstance();
+                            if (mc.player != null) {
+                                // Snapshot the pre-completion state so undo can restore it - devSetState
+                                // only flips the state key (task progress is untouched by "complete"),
+                                // so replaying the matching unlock/active command is an exact revert.
+                                // A prior LOCKED state has no direct "re-lock" command, so undo falls
+                                // back to a full reset there (closest available approximation).
+                                QuestState preState = playerData != null ?
+                                        playerData.getQuestState(target.getId(), QuestState.LOCKED) : QuestState.LOCKED;
+                                pushUndo(() -> {
+                                    Minecraft mc2 = Minecraft.getInstance();
+                                    if (mc2.player == null) return;
+                                    String cmd = switch (preState) {
+                                        case UNLOCKED -> "chronicles unlock " + target.getId().getPath();
+                                        case ACTIVE -> "chronicles active " + target.getId().getPath();
+                                        default -> "chronicles reset " + target.getId().getPath();
+                                    };
+                                    mc2.player.connection.sendCommand(cmd);
+                                    setFeedback("Undo: force-complete reverted");
+                                });
+                                // Send to server so state persists and cascade unlocks fire
+                                mc.player.connection.sendCommand("chronicles complete " + target.getId().getPath());
+                                setFeedback("Force-completed: " + target.getTitle().getString() + "  (Ctrl+Z to undo)");
+                            }
+                        }));
+                items.add(new CtxItem("Reset Progress", "§7", false, false,
+                        () -> {
+                            final QuestNode target = ctxNode;
+                            ctxOpen = false;
+                            Minecraft mc = Minecraft.getInstance();
+                            if (mc.player != null) {
+                                // Full reset (state + task progress + claimed rewards), not just a
+                                // state flip - see ChronicleEvents.devResetQuest() server-side.
+                                mc.player.connection.sendCommand("chronicles reset " + target.getId().getPath());
+                                setFeedback("Progress reset: " + target.getTitle().getString());
+                            }
+                        }));
+                items.add(new CtxItem("Delete Quest", "§c", false, true,
+                        () -> {
+                            final QuestNode deleted = ctxNode;
+                            // Read file content BEFORE deleting so we can restore it on undo
+                            final String savedContent = QuestFileSaver.readRawSnbt(deleted);
+                            final Path categoryFolder = QuestFileSaver.getQuestCategoryFolder(deleted);
+                            pushUndo(() -> {
+                                // Restore file + re-inject into registry
+                                QuestFileSaver.restoreRawSnbt(deleted, savedContent);
+                                QuestFileLoader.loadAdditiveFromDisk(categoryFolder);
+                                rebuild();
+                                setFeedback("Undo: quest restored");
+                            });
+                            QuestTreeRegistry.removeQuest(deleted.getId());
+                            deleteQuestFiles(deleted);
+                            if (selectedNode == deleted) selectedNode = null;
+                            ctxOpen = false;
                             rebuild();
-                            setFeedback("Undo: quest restored");
-                        });
-                        QuestTreeRegistry.removeQuest(deleted.getId());
-                        deleteQuestFiles(deleted);
-                        if (selectedNode == deleted) selectedNode = null;
-                        ctxOpen = false;
-                        rebuild();
-                        setFeedback("Quest deleted  (Ctrl+Z to undo)");
-                    }));
+                            setFeedback("Quest deleted  (Ctrl+Z to undo)");
+                        }));
+            } // canEdit
         }
         return items;
     }
@@ -2103,11 +2738,237 @@ public class ChronicleOverviewScreen extends Screen {
         return h;
     }
 
+    // ── Background picture context menu ─────────────────────────────────────
+
+    private static final int PIC_CTX_H = 4 + CTX_ROW * 5 + CTX_SEP;
+
+    private void openPictureCtx(int x, int y, BackgroundPictureConfig.Picture pic) {
+        picCtxOpen = true;
+        picCtxOpenTimeMs = System.currentTimeMillis();
+        picCtxResizeOpen = false;
+        picCtxMoveCatOpen = false;
+        picCtxTarget = pic;
+        picCtxX = x;
+        picCtxY = y;
+        if (picCtxY + PIC_CTX_H > height - 4) picCtxY = height - PIC_CTX_H - 4;
+        if (picCtxX + CTX_W > width - 4) picCtxX = width - CTX_W - 4;
+    }
+
+    private void closePictureCtx() {
+        picCtxOpen = false;
+        picCtxResizeOpen = false;
+        picCtxMoveCatOpen = false;
+        picCtxTarget = null;
+    }
+
+    private int drawPicCtxRow(GuiGraphics g, int x, int iy, String label, String color, boolean danger,
+                              int mx, int my) {
+        boolean hov = mx >= x + 1 && mx <= x + CTX_W - 1 && my >= iy && my <= iy + CTX_ROW;
+        if (hov) g.fill(x + 1, iy, x + CTX_W - 1, iy + CTX_ROW, C_CTX_HOVER);
+        g.drawString(font, color + label, x + 8, iy + 4, danger ? C_CTX_DANGER : C_CTX_TEXT);
+        return iy + CTX_ROW;
+    }
+
+    private void renderPictureCtxMenu(GuiGraphics g, int mx, int my) {
+        if (picCtxTarget == null) {
+            picCtxOpen = false;
+            return;
+        }
+        int x = picCtxX, y = picCtxY;
+        int menuH = PIC_CTX_H;
+
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 400);
+        g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
+
+        int ctxAlpha = (int) Math.min(255, (System.currentTimeMillis() - picCtxOpenTimeMs) * 255 / OPEN_FADE_MS);
+        int fadedBg = (ctxAlpha << 24) | (C_CTX_BG & 0x00FFFFFF);
+        g.fill(x + 3, y + 3, x + CTX_W + 3, y + menuH + 3, (Math.min(0x55, ctxAlpha / 3)) << 24);
+        g.fill(x, y, x + CTX_W, y + menuH, fadedBg);
+        g.fill(x, y, x + CTX_W, y + 1, C_CTX_BORDER);
+        g.fill(x, y + menuH - 1, x + CTX_W, y + menuH, C_CTX_BORDER);
+        g.fill(x, y, x + 1, y + menuH, C_CTX_BORDER);
+        g.fill(x + CTX_W - 1, y, x + CTX_W, y + menuH, C_CTX_BORDER);
+
+        int iy = y + 2;
+        iy = drawPicCtxRow(g, x, iy, "Move  §8(shift+drag)", "§7", false, mx, my);
+        iy = drawPicCtxRow(g, x, iy, "Resize  ▸", "§7", false, mx, my);
+        iy = drawPicCtxRow(g, x, iy, "Resize (scroll + drag)…", "§7", false, mx, my);
+        iy = drawPicCtxRow(g, x, iy, "Move to category  ▸", "§7", false, mx, my);
+        g.fill(x + 6, iy + 2, x + CTX_W - 6, iy + 3, C_CTX_SEP);
+        iy += CTX_SEP;
+        drawPicCtxRow(g, x, iy, "Delete picture", "§c", true, mx, my);
+
+        if (picCtxResizeOpen) renderPicResizeSubmenu(g, x, y + 2 + CTX_ROW, mx, my);
+        if (picCtxMoveCatOpen) renderPicMoveCatSubmenu(g, x, y + 2 + CTX_ROW * 3, mx, my);
+
+        g.pose().popPose();
+    }
+
+    private void renderPicResizeSubmenu(GuiGraphics g, int x, int subY, int mx, int my) {
+        int subX = x + CTX_W + 2;
+        int subH = PIC_RESIZE_PRESETS.length * CTX_ROW + 4;
+        g.fill(subX + 2, subY + 2, subX + CTX_W + 2, subY + subH + 2, 0x55000000);
+        g.fill(subX, subY, subX + CTX_W, subY + subH, C_CTX_BG);
+        ChroniclesUIKit.drawBorder(g, subX, subY, CTX_W, subH, C_CTX_BORDER);
+        int sy = subY + 2;
+        for (int size : PIC_RESIZE_PRESETS) {
+            boolean isCurrent = picCtxTarget != null && Math.round(picCtxTarget.w) == size;
+            String mark = isCurrent ? "§a● §7" : "§8  §7";
+            drawPicCtxRow(g, subX, sy, mark + size + "px", "", false, mx, my);
+            sy += CTX_ROW;
+        }
+    }
+
+    private void renderPicMoveCatSubmenu(GuiGraphics g, int x, int subY, int mx, int my) {
+        List<String> cats = buildCategoryList();
+        cats.remove("ALL");
+        cats.remove(selectedCategory);
+        int subX = x + CTX_W + 2;
+        int subH = Math.max(CTX_ROW, cats.size() * CTX_ROW) + 4;
+        g.fill(subX + 2, subY + 2, subX + CTX_W + 2, subY + subH + 2, 0x55000000);
+        g.fill(subX, subY, subX + CTX_W, subY + subH, C_CTX_BG);
+        ChroniclesUIKit.drawBorder(g, subX, subY, CTX_W, subH, C_CTX_BORDER);
+        int sy = subY + 2;
+        if (cats.isEmpty()) {
+            g.drawString(font, "§8(no other chapters)", subX + 6, sy + 4, C_CTX_TEXT);
+        }
+        for (String cat : cats) {
+            drawPicCtxRow(g, subX, sy, "§7" + friendly(cat), "", false, mx, my);
+            sy += CTX_ROW;
+        }
+    }
+
+    /** @return true if the click landed somewhere in the picture menu/submenus (handled either way). */
+    private boolean handlePictureCtxClick(int mx, int my) {
+        if (picCtxTarget == null) return false;
+        BackgroundPictureConfig.Picture pic = picCtxTarget;
+        int x = picCtxX, y = picCtxY;
+
+        // Submenus take priority while open
+        if (picCtxResizeOpen) {
+            int subX = x + CTX_W + 2, subY = y + 2 + CTX_ROW;
+            for (int i = 0; i < PIC_RESIZE_PRESETS.length; i++) {
+                int ry = subY + i * CTX_ROW;
+                if (mx >= subX && mx <= subX + CTX_W && my >= ry && my <= ry + CTX_ROW) {
+                    final float oldW = pic.w, oldH = pic.h;
+                    final int size = PIC_RESIZE_PRESETS[i];
+                    pushUndo(() -> {
+                        pic.w = oldW;
+                        pic.h = oldH;
+                        BackgroundPictureConfig.save();
+                        setFeedback("Undo: picture resized");
+                    });
+                    pic.w = size;
+                    pic.h = size;
+                    BackgroundPictureConfig.save();
+                    setFeedback("Picture resized  (Ctrl+Z to undo)");
+                    closePictureCtx();
+                    return true;
+                }
+            }
+            if (mx < x || mx > x + CTX_W + 2 + CTX_W || my < y || my > y + PIC_CTX_H) {
+                closePictureCtx();
+                return true;
+            }
+        }
+        if (picCtxMoveCatOpen) {
+            List<String> cats = buildCategoryList();
+            cats.remove("ALL");
+            cats.remove(selectedCategory);
+            int subX = x + CTX_W + 2, subY = y + 2 + CTX_ROW * 3;
+            int sy = subY + 2;
+            for (String cat : cats) {
+                if (mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW) {
+                    final String oldCat = selectedCategory;
+                    final String newCat = cat;
+                    pushUndo(() -> {
+                        BackgroundPictureConfig.remove(newCat, pic);
+                        BackgroundPictureConfig.add(oldCat, pic);
+                        setFeedback("Undo: picture moved back to " + friendly(oldCat));
+                    });
+                    BackgroundPictureConfig.remove(oldCat, pic);
+                    BackgroundPictureConfig.add(newCat, pic);
+                    setFeedback("Picture moved to " + friendly(newCat) + "  (Ctrl+Z to undo)");
+                    closePictureCtx();
+                    return true;
+                }
+                sy += CTX_ROW;
+            }
+            if (mx < x || mx > x + CTX_W + 2 + CTX_W || my < y || my > y + PIC_CTX_H) {
+                closePictureCtx();
+                return true;
+            }
+        }
+
+        int rowY0 = y + 2;
+        int rowY1 = rowY0 + CTX_ROW;
+        int rowY2 = rowY1 + CTX_ROW;
+        int rowY3 = rowY2 + CTX_ROW;
+        int rowY4 = rowY3 + CTX_ROW + CTX_SEP;
+
+        if (mx < x || mx > x + CTX_W) {
+            closePictureCtx();
+            return true;
+        }
+        if (my >= rowY0 && my < rowY0 + CTX_ROW) {
+            // "Move" is a reminder, same convention as the quest node menu's own
+            // "Shift+drag to move" row - the actual move gesture (and its own undo entry) lives
+            // in the shift+drag handler in mouseClicked/mouseDragged/mouseReleased.
+            setFeedback("Shift-click and drag the picture");
+            closePictureCtx();
+            return true;
+        }
+        if (my >= rowY1 && my < rowY1 + CTX_ROW) {
+            picCtxResizeOpen = !picCtxResizeOpen;
+            picCtxMoveCatOpen = false;
+            return true;
+        }
+        if (my >= rowY2 && my < rowY2 + CTX_ROW) {
+            // Enters interactive edit mode - pushes ONE undo entry covering the whole session
+            // (position + size), restorable no matter how many scroll/drag adjustments happen
+            // before the mode is exited.
+            final BackgroundPictureConfig.Picture editedPic = pic;
+            final float ux = pic.x, uy = pic.y, uw = pic.w, uh = pic.h;
+            pushUndo(() -> {
+                editedPic.x = ux;
+                editedPic.y = uy;
+                editedPic.w = uw;
+                editedPic.h = uh;
+                BackgroundPictureConfig.save();
+                setFeedback("Undo: picture edit reverted");
+            });
+            pictureEditMode = pic;
+            setFeedback("§eScroll to resize, drag to move - right-click or Esc to finish");
+            closePictureCtx();
+            return true;
+        }
+        if (my >= rowY3 && my < rowY3 + CTX_ROW) {
+            picCtxMoveCatOpen = !picCtxMoveCatOpen;
+            picCtxResizeOpen = false;
+            return true;
+        }
+        if (my >= rowY4 && my < rowY4 + CTX_ROW) {
+            final BackgroundPictureConfig.Picture deleted = pic;
+            final String cat = selectedCategory;
+            pushUndo(() -> {
+                BackgroundPictureConfig.add(cat, deleted);
+                setFeedback("Undo: picture restored");
+            });
+            BackgroundPictureConfig.remove(cat, deleted);
+            setFeedback("Picture deleted  (Ctrl+Z to undo)");
+            closePictureCtx();
+            return true;
+        }
+        closePictureCtx();
+        return true;
+    }
+
     private int ctxMoveCatY(List<CtxItem> items) {
         int y = ctxY + 2;
         if (ctxNode != null) y += CTX_ROW; // skip title row
         for (CtxItem item : items) {
-            if (!item.isSep && item.label.contains("Move to category")) return y;
+            if (!item.isSep && item.label.contains("Move to Category")) return y;
             y += item.isSep ? CTX_SEP : CTX_ROW;
         }
         return y;
@@ -2119,6 +2980,7 @@ public class ChronicleOverviewScreen extends Screen {
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         FrameProfiler.begin("TOTAL render()");
         if (feedbackTimer > 0) feedbackTimer--;
+        pendingTooltip = null;
 
         // 1. Flush accumulated viewport panning inputs
         if (pendingPanDX != 0 || pendingPanDY != 0) {
@@ -2130,7 +2992,7 @@ public class ChronicleOverviewScreen extends Screen {
         // 2. Handle interactive transformations (Optimized: No line-cache rebuilding here!)
         handleLiveDragging(mx, my);
 
-        int cl = SIDEBAR_W;
+        int cl = sidebarW();
         int cr = width;
         int sz = scaledNodeSize();
         long animTick = System.currentTimeMillis();
@@ -2149,6 +3011,7 @@ public class ChronicleOverviewScreen extends Screen {
         renderCanvasLayers(g, mx, my, cl, cr, animTick);
 
         // 6. Native Screen vanilla widgets layer (Buttons, Edit Boxes)
+        FrameProfiler.setCounter("screenWidgets", this.renderables.size());
         FrameProfiler.begin("widgets (super.render)");
         if (!renderingAsBackdrop) super.render(g, mx, my, partial);
         FrameProfiler.end("widgets (super.render)");
@@ -2167,6 +3030,13 @@ public class ChronicleOverviewScreen extends Screen {
         renderScreenOverlays(g, mx, my, cl, cr, sz);
         FrameProfiler.end("overlays");
 
+        // 9. Deferred utility tooltips (grid pill, sidebar rows, ...) — drawn dead last so
+        // nothing painted in steps 3-8 above can overhang/overpaint them. See pendingTooltip.
+        if (pendingTooltip != null) {
+            pendingTooltip.run();
+            pendingTooltip = null;
+        }
+
         FrameProfiler.end("TOTAL render()");
         FrameProfiler.endFrame();
         if (FrameProfiler.isEnabled()) renderProfilerPanel(g);
@@ -2175,7 +3045,7 @@ public class ChronicleOverviewScreen extends Screen {
     private void handleLiveDragging(int mx, int my) {
         if (draggedNode == null) return;
 
-        int cl2 = SIDEBAR_W;
+        int cl2 = sidebarW();
         int logX = (int) ((mx - dragGrabX - cl2 - viewOffX) / posZoom());
         int logY = (int) ((my - dragGrabY - HEADER_H - viewOffY) / posZoom());
         int snap2 = hasShiftDown() ? 1 : gridSnap;
@@ -2186,7 +3056,7 @@ public class ChronicleOverviewScreen extends Screen {
         int nx = (int) (logX * posZoom()) + cl2 + viewOffX;
         int ny = (int) (logY * posZoom()) + HEADER_H + viewOffY;
 
-        Button b = nodeButtons.get(draggedNode.getId());
+        NodeHitbox b = nodeButtons.get(draggedNode.getId());
         if (b != null) {
             b.setX(nx);
             b.setY(ny);
@@ -2201,7 +3071,7 @@ public class ChronicleOverviewScreen extends Screen {
 
     private void renderHeaderAndBaseLayout(GuiGraphics g, int mx, int my, int cl, int cr) {
         renderBackground(g);
-        g.fill(0, 0, SIDEBAR_W, height, C_PANEL_DARK);
+        g.fill(0, 0, sidebarW(), height, C_PANEL_DARK);
         g.fill(cl, 0, cr, height, C_BG);
         g.fill(cr, 0, width, height, C_PANEL_DARK);
         g.fill(cr, 0, cr + 1, height, C_BORDER);
@@ -2209,9 +3079,19 @@ public class ChronicleOverviewScreen extends Screen {
         // Title bar text and decoration
         g.fill(0, 0, width, TOOLBAR_Y, C_HEADER);
         g.fill(0, TOOLBAR_Y - 1, width, TOOLBAR_Y, C_BORDER);
-        String titlePrefix = testMode ? "§c⏵ TEST  §8⟫  §7" : "§8Chronicle  §8⟫  §7";
-        g.drawString(font, titlePrefix + friendly(selectedCategory), cl + 8, 7, C_TEXT);
+        String titlePrefix = testMode ? "§c⏵ PLAYER  §8⟫  §7" : "§8Chronicles  §8⟫  §7";
+        // Breadcrumb through the parent chain for a true sub-chapter (CategoryConfig.
+        // parentCategory), so "AE2" nested under "Tips & Tricks" reads as "Tips & Tricks › AE2"
+        // instead of just "AE2" with no indication it's nested at all.
+        g.drawString(font, titlePrefix + categoryBreadcrumb(selectedCategory), cl + 8, 7, C_TEXT);
         if (testMode) g.fill(cl, TOOLBAR_Y - 1, cr, TOOLBAR_Y, 0xFFCC2222);
+        if (pictureEditMode != null) {
+            g.fill(cl, TOOLBAR_Y - 1, cr, TOOLBAR_Y, 0xFFFFCC33);
+            String hint = "§e🖼 Editing picture — scroll to resize (shift = fine), drag to move, right-click/Esc to finish";
+            g.drawCenteredString(font, hint, (cl + cr) / 2, 7, 0xFFFFEEAA);
+        }
+
+        renderQuestbookTitle(g, mx, my);
 
         // Zoom information pill
         String zoomStr = Math.round(zoom * 100) + "%";
@@ -2227,6 +3107,36 @@ public class ChronicleOverviewScreen extends Screen {
         boolean gridHov = mx >= gpx - 3 && mx < gpx + gw + 5 && my >= gpy && my < gpy + 13;
         g.fill(gpx - 3, gpy, gpx + gw + 5, gpy + 13, gridHov ? 0x44FFFFFF : 0x22FFFFFF);
         g.drawString(font, gridLabel, gpx, gpy + 3, C_TEXT_DIM, false);
+        if (gridHov) {
+            // Queued, not drawn immediately: this runs from step 3 (renderHeaderAndBaseLayout),
+            // and steps 5-8 (canvas/dep-lines/nodes/overlays) draw AFTER this and would just
+            // overpaint it — elevated z + flush only beats depth-tested draws (item icons at
+            // z=100), not later ordinary fills/strings. See pendingTooltip.
+            pendingTooltip = () -> g.renderTooltip(font,
+                    Component.literal("§7Click to cycle canvas snap grid size"), mx, my);
+        }
+
+        // Subgraph mode pill (dev only) - always visible (not just while active) so the feature
+        // is actually discoverable by hovering, instead of only being explained by a status
+        // badge that only appears once you've already found the G keybind or context menu entry.
+        if (isDevMode) {
+            String sgLabel = subgraphMode ? "§b⊛ Subgraph: " + subgraphNodes.size() : "§8⊛ Subgraph";
+            int sgw = font.width(net.minecraft.util.StringUtil.stripColor(sgLabel));
+            int sgx = gpx - sgw - 18, sgy = 3;
+            boolean sgHov = mx >= sgx - 3 && mx < sgx + sgw + 5 && my >= sgy && my < sgy + 13;
+            g.fill(sgx - 3, sgy, sgx + sgw + 5, sgy + 13,
+                    subgraphMode ? 0x4444CCFF : (sgHov ? 0x44FFFFFF : 0x22FFFFFF));
+            g.drawString(font, sgLabel, sgx, sgy + 3, C_TEXT_DIM, false);
+            if (sgHov) {
+                pendingTooltip = () -> g.renderComponentTooltip(font, List.of(
+                        Component.literal("§b⊛ Subgraph mode"),
+                        Component.literal("§7Dims every quest that isn't an ancestor or"),
+                        Component.literal("§7descendant of the currently selected one,"),
+                        Component.literal("§7isolating just its dependency chain."),
+                        Component.literal("§8Click a quest to select it, then click this"),
+                        Component.literal("§8pill (or press G) to toggle it on/off.")), mx, my);
+            }
+        }
 
         // Toolbar field region
         g.enableScissor(0, TOOLBAR_Y, width, HEADER_H);
@@ -2234,36 +3144,262 @@ public class ChronicleOverviewScreen extends Screen {
         g.disableScissor();
     }
 
+    private static final int SIDEBAR_COLLAPSE_TOGGLE_H = 12;
+
+    private boolean sidebarCollapseToggleHovered(int mx, int my) {
+        return mx >= 0 && mx < sidebarW() - 1 && my >= HEADER_H + 1 && my < HEADER_H + 1 + SIDEBAR_COLLAPSE_TOGGLE_H;
+    }
+
+    /** Book icon + pack-configured name pinned above the category list - click to rename/re-icon it. */
+    private boolean questbookTitleHovered(int mx, int my) {
+        return !sidebarCollapsed && mx >= 0 && mx < sidebarW() - 1 && my >= 0 && my < TOOLBAR_Y;
+    }
+
+    private void renderQuestbookTitle(GuiGraphics g, int mx, int my) {
+        if (sidebarCollapsed) return;
+        boolean hov = questbookTitleHovered(mx, my);
+        QuestChroniclesSettings s = QuestChroniclesSettings.get();
+        if (hov) g.fill(0, 0, sidebarW() - 1, TOOLBAR_Y - 1, 0x14FFFFFF);
+
+        net.minecraft.world.item.Item iconItem = s.getQuestbookIconItem();
+        int iconY = (TOOLBAR_Y - 1 - 16) / 2;
+        g.renderItem(new net.minecraft.world.item.ItemStack(iconItem), 3, iconY);
+
+        String name = s.getQuestbookName();
+        int maxW = sidebarW() - 22;
+        if (font.width(name) > maxW) name = font.plainSubstrByWidth(name, maxW - 4) + "…";
+        g.drawString(font, (hov ? "§f" : "§7") + name, 21, 7, hov ? C_TEXT : C_TEXT_DIM, false);
+    }
+
     private void renderSidebarPanel(GuiGraphics g, int mx, int my) {
-        g.enableScissor(0, HEADER_H, SIDEBAR_W - 1, height);
-        g.fill(0, HEADER_H, SIDEBAR_W - 1, HEADER_H + 14, C_PANEL_DARK);
-        g.drawCenteredString(font, "§8CHAPTERS", SIDEBAR_W / 2, HEADER_H + 3, C_TEXT_FAINT);
-        g.fill(0, HEADER_H + 13, SIDEBAR_W - 1, HEADER_H + 14, C_BORDER);
+        g.fill(0, HEADER_H, sidebarW() - 1, HEADER_H + 1, C_BORDER);
+
+        // Collapse/expand toggle - always visible, whether collapsed or not, since it's the only
+        // way back out of the collapsed state.
+        boolean toggleHov = sidebarCollapseToggleHovered(mx, my);
+        int toggleY = HEADER_H + 1;
+        g.fill(0, toggleY, sidebarW() - 1, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H, toggleHov ? 0xFF1C1C24 : C_PANEL_DARK);
+        g.fill(0, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H - 1, sidebarW() - 1, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H,
+                C_BORDER);
+        g.drawCenteredString(font, sidebarCollapsed ? "§7▶" : "§7◀", sidebarW() / 2, toggleY + 2,
+                toggleHov ? C_TEXT : C_TEXT_DIM);
+
+        if (sidebarCollapsed) {
+            if (toggleHov) {
+                g.pose().pushPose();
+                g.pose().translate(0f, 0f, 250f);
+                g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
+                String tip = "§7Show chapters";
+                int ttW = font.width(tip) + 10;
+                int ttX = sidebarW() + 3, ttY = toggleY;
+                g.fill(ttX, ttY, ttX + ttW, ttY + 14, 0xFF1A1A24);
+                ChroniclesUIKit.drawBorder(g, ttX, ttY, ttW, 14, C_BORDER_LIT);
+                g.drawString(font, tip, ttX + 5, ttY + 3, C_TEXT_DIM, false);
+                g.pose().popPose();
+            }
+            g.fill(sidebarW() - 1, 0, sidebarW(), height, C_BORDER);
+            return;
+        }
+
+        int scrollTop = toggleY + SIDEBAR_COLLAPSE_TOGGLE_H;
+        int scrollBottom = scrollTop + sidebarScrollAreaHeight();
+        g.enableScissor(0, scrollTop, sidebarW() - 1, scrollBottom);
 
         FrameProfiler.begin("sidebar");
         List<SidebarRow> sidebarRows = buildSidebarRows();
-        int barW = SIDEBAR_W - 10;
         for (SidebarRow row : sidebarRows) {
+            if (row.y() + row.height() < scrollTop || row.y() > scrollBottom) continue; // culled
             if (row.isFolder()) renderSidebarFolderRow(g, row, mx, my);
-            else renderSidebarCatRow(g, row, barW, mx, my);
+            else renderSidebarCatRow(g, row, mx, my);
+        }
+        // Drop-target highlight while dragging a folder/category in the sidebar (see
+        // handleSidebarDrop) - the actual reorder/move only happens on release, this is just
+        // showing where it would land.
+        if (sidebarDragMoved && sidebarDragRow != null) {
+            SidebarRow dropTarget = sidebarRowAt(sidebarRows, mx, my);
+            if (dropTarget != null) {
+                g.fill(1, dropTarget.y(), sidebarW() - 2, dropTarget.y() + dropTarget.height(), 0x4400DDFF);
+                ChroniclesUIKit.drawBorder(g, 1, dropTarget.y(), sidebarW() - 3, dropTarget.height(), 0xFF00DDFF);
+            }
         }
         FrameProfiler.end("sidebar");
 
         if (sidebarRows.isEmpty()) {
-            g.drawCenteredString(font, "§8No categories", SIDEBAR_W / 2, HEADER_H + 28, C_TEXT_FAINT);
-            g.drawCenteredString(font, "§8Right-click canvas", SIDEBAR_W / 2, HEADER_H + 40, C_TEXT_FAINT);
-            g.drawCenteredString(font, "§8to add one", SIDEBAR_W / 2, HEADER_H + 52, C_TEXT_FAINT);
+            g.drawCenteredString(font, "§8No", sidebarW() / 2, scrollTop + 10, C_TEXT_FAINT);
+            g.drawCenteredString(font, "§8chapters", sidebarW() / 2, scrollTop + 20, C_TEXT_FAINT);
         }
 
         g.disableScissor();
-        g.fill(SIDEBAR_W - 1, 0, SIDEBAR_W, height, C_BORDER);
+        g.fill(sidebarW() - 1, 0, sidebarW(), height, C_BORDER);
+
+        // Scrollbar hint - a thin indicator on the right edge of the sidebar, only when the list
+        // actually overflows, so it's obvious there's more to scroll to instead of the list just
+        // silently cutting off (which is what made the "+ category" button unreachable before).
+        int contentH = sidebarContentHeight();
+        int areaH = sidebarScrollAreaHeight();
+        if (contentH > areaH && areaH > 0) {
+            int trackH = areaH;
+            int thumbH = Math.max(10, trackH * areaH / contentH);
+            int maxScroll = contentH - areaH;
+            int thumbY = scrollTop + (maxScroll > 0 ? (trackH - thumbH) * sidebarScrollY / maxScroll : 0);
+            g.fill(sidebarW() - 3, scrollTop, sidebarW() - 1, scrollBottom, 0x22FFFFFF);
+            g.fill(sidebarW() - 3, thumbY, sidebarW() - 1, thumbY + thumbH, 0xFF666677);
+        }
+
+        // Queued, not drawn immediately: "last, on top of everything" used to be true because
+        // this was the last draw call *within this method* - but render() draws canvas/dep-lines/
+        // nodes/overlays AFTER renderSidebarPanel(), so those steps were repainting straight over
+        // this tooltip whenever it overhung onto the canvas (sidebarW()+3 puts its left edge
+        // right at the canvas boundary). Queuing it defers the draw to the true end of render().
+        // See pendingTooltip.
+        SidebarRow hovRow = my >= scrollTop && my < scrollBottom ? sidebarRowAt(sidebarRows, mx, my) : null;
+        if (hovRow != null) pendingTooltip = () -> renderSidebarTooltip(g, hovRow, mx, my);
+    }
+
+    /**
+     * Category accent color: the pack-configured CategoryConfig color if set, else the old
+     * hash-derived fallback so existing categories that haven't been given a color yet still
+     * read as visually distinct from one another instead of all defaulting to one color.
+     */
+    private int categoryAccent(String cat) {
+        int configured = CategoryConfig.get(cat).getColor();
+        if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
+        return CAT_ACCENTS[Math.abs(cat.hashCode()) % CAT_ACCENTS.length];
+    }
+
+    private SidebarRow sidebarRowAt(List<SidebarRow> rows, int mx, int my) {
+        if (mx < 0 || mx >= sidebarW() - 1 || my < HEADER_H) return null;
+        for (SidebarRow row : rows) {
+            if (my >= row.y() && my < row.y() + row.height()) return row;
+        }
+        return null;
+    }
+
+    /**
+     * Resolves a sidebar drag-and-drop: dropping a folder header onto another row reorders
+     * chapter folders (previously only possible by hand-editing chapter_folders.snbt or via a
+     * right-click "top"/"bottom" style menu, which testers asked to be drag-and-drop instead).
+     * Dropping a category tile onto a folder (or a category already inside one) moves that
+     * category into the folder; dropping it on empty space or an ungrouped category removes it
+     * from whichever folder it was in.
+     */
+    private void handleSidebarDrop(SidebarRow source, int mx, int my) {
+        List<SidebarRow> rows = buildSidebarRows();
+        SidebarRow target = sidebarRowAt(rows, mx, my);
+
+        if (source.isFolder()) {
+            List<net.phoenixvine.chronicles.registry.ChapterFolderRegistry.ChapterFolder> allFolders = net.phoenixvine.chronicles.registry.ChapterFolderRegistry
+                    .getFolders();
+            int targetIndex = allFolders.size(); // default: drop at the end
+            if (target != null) {
+                String targetFolderId = target.isFolder() ? target.id() :
+                        (net.phoenixvine.chronicles.registry.ChapterFolderRegistry.folderFor(target.id()) != null ?
+                                net.phoenixvine.chronicles.registry.ChapterFolderRegistry.folderFor(target.id()).id() :
+                                null);
+                if (targetFolderId != null) {
+                    for (int i = 0; i < allFolders.size(); i++) {
+                        if (allFolders.get(i).id().equals(targetFolderId)) {
+                            targetIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            net.phoenixvine.chronicles.registry.ChapterFolderRegistry.reorderFolder(source.id(), targetIndex);
+            net.phoenixvine.chronicles.registry.ChapterFolderRegistry.save();
+            setFeedback("Folder reordered");
+        } else {
+            String cat = source.id();
+            net.phoenixvine.chronicles.registry.ChapterFolderRegistry.ChapterFolder currentFolder = net.phoenixvine.chronicles.registry.ChapterFolderRegistry
+                    .folderFor(cat);
+
+            String destFolderId = null;
+            if (target != null) {
+                if (target.isFolder()) {
+                    destFolderId = target.id();
+                } else {
+                    net.phoenixvine.chronicles.registry.ChapterFolderRegistry.ChapterFolder tf = net.phoenixvine.chronicles.registry.ChapterFolderRegistry
+                            .folderFor(target.id());
+                    if (tf != null) destFolderId = tf.id();
+                }
+            }
+
+            if (currentFolder != null) {
+                net.phoenixvine.chronicles.registry.ChapterFolderRegistry.removeCategoryFromFolder(
+                        currentFolder.id(), cat);
+            }
+            if (destFolderId != null) {
+                net.phoenixvine.chronicles.registry.ChapterFolderRegistry.addCategoryToFolder(destFolderId, cat);
+                setFeedback("Moved " + friendly(cat) + " into " + destFolderId);
+            } else if (currentFolder != null) {
+                setFeedback("Removed " + friendly(cat) + " from " + currentFolder.label());
+            } else {
+                // Both source and target (if any) are standalone chapters - previously this drop
+                // did nothing at all, since there was no persisted order for ungrouped chapters
+                // to reorder within. See ChapterFolderRegistry.reorderStandaloneCategory().
+                List<String> standalone = new ArrayList<>();
+                for (String c : buildCategoryList()) {
+                    if (net.phoenixvine.chronicles.registry.ChapterFolderRegistry.folderFor(c) == null) {
+                        standalone.add(c);
+                    }
+                }
+                List<String> ordered = applyStandaloneOrder(standalone);
+                String targetCat = (target != null && !target.isFolder() &&
+                        net.phoenixvine.chronicles.registry.ChapterFolderRegistry.folderFor(target.id()) == null) ?
+                                target.id() : null;
+                if (!cat.equals(targetCat)) {
+                    net.phoenixvine.chronicles.registry.ChapterFolderRegistry.reorderStandaloneCategory(cat, targetCat,
+                            ordered);
+                    setFeedback(targetCat != null ? "Reordered " + friendly(cat) : "Moved " + friendly(cat) +
+                            " to end");
+                }
+            }
+            net.phoenixvine.chronicles.registry.ChapterFolderRegistry.save();
+        }
+        rebuild();
+    }
+
+    private void renderSidebarTooltip(GuiGraphics g, SidebarRow row, int mx, int my) {
+        String line1 = row.isFolder() ? row.label() : row.label();
+        String line2 = null;
+        if (!row.isFolder()) {
+            int[] p = progressCache.computeIfAbsent(row.id(), this::computeCategoryProgress);
+            if (p[1] > 0) line2 = "§8" + p[0] + "/" + p[1] + " complete";
+        }
+        int ttW = Math.max(font.width(line1), line2 != null ? font.width(line2) : 0) + 10;
+        int ttH = line2 != null ? 24 : 14;
+        int ttX = sidebarW() + 3;
+        int ttY = Math.min(height - ttH - 2, my - ttH / 2);
+
+        g.pose().pushPose();
+        g.pose().translate(0f, 0f, 250f);
+        g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
+        g.fill(ttX, ttY, ttX + ttW, ttY + ttH, 0xFF1A1A24);
+        g.fill(ttX, ttY, ttX + ttW, ttY + 1, C_BORDER_LIT);
+        g.fill(ttX, ttY + ttH - 1, ttX + ttW, ttY + ttH, C_BORDER);
+        g.fill(ttX, ttY, ttX + 1, ttY + ttH, C_BORDER);
+        g.fill(ttX + ttW - 1, ttY, ttX + ttW, ttY + ttH, C_BORDER);
+        g.drawString(font, "§f" + line1, ttX + 5, ttY + 4, C_TEXT, false);
+        if (line2 != null) g.drawString(font, line2, ttX + 5, ttY + 14, C_TEXT_DIM, false);
+        g.pose().popPose();
     }
 
     private void renderCanvasLayers(GuiGraphics g, int mx, int my, int cl, int cr, long animTick) {
         g.enableScissor(cl, HEADER_H, cr, height);
 
         FrameProfiler.begin("background");
-        CanvasBackgroundRenderer.drawBackground(g, cl, HEADER_H, cr, height, selectedCategory, zoom, viewOffX, viewOffY);
+        CanvasBackgroundRenderer.drawBackground(g, cl, HEADER_H, cr, height, selectedCategory, zoom, viewOffX,
+                viewOffY);
+        // Freely-placed decorative pictures (canvas right-click → "Add picture…") - separate from
+        // the chapter theme's own single CUSTOM background texture, drawn between the background
+        // pattern and the quest nodes so they read as backdrop, not foreground clutter.
+        BackgroundPictureRenderer.render(g, cl, HEADER_H, cr, height, selectedCategory, zoom, viewOffX, viewOffY);
+        if (pictureEditMode != null) {
+            int[] rect = BackgroundPictureRenderer.screenRect(pictureEditMode, cl, HEADER_H, posZoom(), viewOffX,
+                    viewOffY);
+            ChroniclesUIKit.drawBorder(g, rect[0] - 1, rect[1] - 1, rect[2] - rect[0] + 2, rect[3] - rect[1] + 2,
+                    0xFFFFCC33);
+        }
         FrameProfiler.end("background");
 
         FrameProfiler.begin("groups");
@@ -2290,7 +3426,7 @@ public class ChronicleOverviewScreen extends Screen {
         // Hover detection stays here - it's a mouse/button concern, and lastHoveredNodeId is
         // also read elsewhere (e.g. the pin keybind), not just by line rendering.
         ResourceLocation hoveredNodeId = null;
-        for (Map.Entry<ResourceLocation, Button> e : nodeButtons.entrySet()) {
+        for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
             if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                 hoveredNodeId = e.getKey();
                 break;
@@ -2321,16 +3457,56 @@ public class ChronicleOverviewScreen extends Screen {
 
         FrameProfiler.begin("node visuals");
         dbgFull3DIconCount = 0;
+        dbgCustomIconCount = 0;
+        dbgPickedTextureIconCount = 0;
+        dbgGlyphIconCount = 0;
+        dbgShapeCounts.clear();
+        int visibleNodeCount = 0;
+        // Two passes: queue every node's shape first, flush ONCE as a single batched draw call,
+        // THEN render overlays/icons/badges - which must paint on top of the now-flushed shapes.
+        // (See NodeShapeRenderer.queueFillRect/flushFillQueue and renderNodeShape's doc comment.)
         for (Map.Entry<ResourceLocation, int[]> entry : nodeScreenPos.entrySet()) {
             QuestNode node = QuestTreeRegistry.getQuest(entry.getKey());
             if (node == null) continue;
-            Button btn = nodeButtons.get(node.getId());
+            NodeHitbox btn = nodeButtons.get(node.getId());
+            if (btn == null || !btn.visible) continue;
+            visibleNodeCount++;
+            int[] pos = entry.getValue();
+            renderNodeShape(g, node, pos[0], pos[1], sz, btn.isMouseOver(mx, my), node == selectedNode);
+        }
+        int shapeQuadCount = NodeShapeRenderer.flushFillQueue(g);
+        for (Map.Entry<ResourceLocation, int[]> entry : nodeScreenPos.entrySet()) {
+            QuestNode node = QuestTreeRegistry.getQuest(entry.getKey());
+            if (node == null) continue;
+            NodeHitbox btn = nodeButtons.get(node.getId());
             if (btn == null || !btn.visible) continue;
             int[] pos = entry.getValue();
-            renderNode(g, node, pos[0], pos[1], sz, btn.isMouseOver(mx, my), node == selectedNode);
+            renderNodeDetails(g, node, pos[0], pos[1], sz, btn.isMouseOver(mx, my), node == selectedNode);
         }
+        // renderNodeDetails() queues each node's state badge (renderStateBadge) instead of
+        // drawing it immediately - flush that second batch now that every node's icon (drawn
+        // immediately, in between) is already on screen underneath it.
+        int badgeQuadCount = NodeShapeRenderer.flushFillQueue(g);
+        FrameProfiler.setCounter("shapeFillQuadsQueued", shapeQuadCount + badgeQuadCount);
+        FrameProfiler.setCounter("visibleNodes", visibleNodeCount);
         FrameProfiler.setCounter("full3DIcons", dbgFull3DIconCount);
+        FrameProfiler.setCounter("customIcons", dbgCustomIconCount);
+        FrameProfiler.setCounter("pickedTexIcons", dbgPickedTextureIconCount);
+        FrameProfiler.setCounter("glyphIcons", dbgGlyphIconCount);
+        for (Map.Entry<String, Integer> e : dbgShapeCounts.entrySet()) {
+            FrameProfiler.setCounter("shape:" + e.getKey(), e.getValue());
+        }
         FrameProfiler.end("node visuals");
+
+        // Same missing-flush bleed-through bug fixed elsewhere this session: node icons render
+        // via g.renderItem() at z=100, queued into their own RenderType buffer. Everything below
+        // this point (selection outlines, validation-warning borders, badges/labels) is plain
+        // g.fill()/g.drawString() content that's meant to draw ON TOP of those icons, but without
+        // forcing the icon batch to submit first, it doesn't reliably win the draw order against
+        // it - this was the "quest icons always render above everything else in the canvas"
+        // bleed, and it's why the one thing that DID already flush before drawing (the right-click
+        // context menu, see renderCtxMenu) was the one exception that layered correctly.
+        g.flush();
 
         FrameProfiler.begin("dev overlays");
         // Developer multi-selection bounding rules
@@ -2375,15 +3551,44 @@ public class ChronicleOverviewScreen extends Screen {
             }
         }
 
-        // Subgraph isolated display rule opacity layer
+        // Subgraph isolated display rule opacity layer - node icons render via g.renderItem() at
+        // z=100 (the same depth-buffer bleed-through pattern found everywhere else this session),
+        // so this dim quad needs its own elevated z + flush or it loses the depth test against
+        // icons already drawn above and never visibly appears despite being issued later.
         if (subgraphMode && selectedNode != null && !subgraphNodes.isEmpty()) {
+            g.pose().pushPose();
+            g.pose().translate(0f, 0f, 150f);
+            g.flush();
             for (Map.Entry<ResourceLocation, int[]> entry : nodeScreenPos.entrySet()) {
-                if (subgraphNodes.contains(entry.getKey())) continue;
                 int[] pos = entry.getValue();
                 QuestNode node = QuestTreeRegistry.getQuest(entry.getKey());
                 int nsz = node != null ? scaledNodeSize(node) : sz;
-                g.fill(pos[0] - 1, pos[1] - 1, pos[0] + nsz + 1, pos[1] + nsz + 1, 0xCC000000);
+                if (subgraphNodes.contains(entry.getKey())) {
+                    // Included nodes get a positive highlight ring too, not just an absence of
+                    // dimming - in a densely-connected chapter the subgraph can cover most/all of
+                    // what's on screen, where a pure "dim everything else" effect can have nothing
+                    // left to dim and read as if the mode did nothing at all.
+                    int x1 = pos[0] - 2, y1 = pos[1] - 2, x2 = pos[0] + nsz + 2, y2 = pos[1] + nsz + 2;
+                    g.fill(x1, y1, x2, y1 + 1, 0xFF44CCFF);
+                    g.fill(x1, y2 - 1, x2, y2, 0xFF44CCFF);
+                    g.fill(x1, y1, x1 + 1, y2, 0xFF44CCFF);
+                    g.fill(x2 - 1, y1, x2, y2, 0xFF44CCFF);
+                } else {
+                    g.fill(pos[0] - 1, pos[1] - 1, pos[0] + nsz + 1, pos[1] + nsz + 1, 0xCC000000);
+                }
             }
+            g.flush();
+            g.pose().popPose();
+
+            // Status badge - always visible while the mode is on, regardless of whether the
+            // dim/highlight above had any visible effect for this particular graph shape.
+            String badge = "§b⊛ Subgraph  §7" + subgraphNodes.size() + " node" +
+                    (subgraphNodes.size() == 1 ? "" : "s") + " isolated  §8(G to exit)";
+            int bw = font.width(net.minecraft.util.StringUtil.stripColor(badge)) + 10;
+            int bx = cl + 6, by = HEADER_H + 4;
+            g.fill(bx, by, bx + bw, by + 12, 0xCC101018);
+            ChroniclesUIKit.drawBorder(g, bx, by, bw, 12, 0xFF44CCFF);
+            g.drawString(font, badge, bx + 5, by + 2, C_TEXT, false);
         }
 
         FrameProfiler.end("dev overlays");
@@ -2393,7 +3598,7 @@ public class ChronicleOverviewScreen extends Screen {
         for (Map.Entry<ResourceLocation, int[]> entry : nodeScreenPos.entrySet()) {
             QuestNode node = QuestTreeRegistry.getQuest(entry.getKey());
             if (node == null) continue;
-            Button btn = nodeButtons.get(node.getId());
+            NodeHitbox btn = nodeButtons.get(node.getId());
             if (btn == null || !btn.visible) continue;
             int[] pos = entry.getValue();
             QuestState st = getState(node);
@@ -2437,8 +3642,10 @@ public class ChronicleOverviewScreen extends Screen {
             g.drawString(font, "§7" + feedbackMsg, cl + 6, height - 10, C_TEXT_DIM);
         }
 
-        renderSidebarNewCategoryButton(g, mx, my);
-        renderSidebarGear(g, mx, my);
+        if (!sidebarCollapsed) {
+            renderSidebarNewCategoryButton(g, mx, my);
+            renderSidebarGear(g, mx, my);
+        }
 
         if (!renderingAsBackdrop) renderTutorialOverlay(g, mx, my);
 
@@ -2448,7 +3655,7 @@ public class ChronicleOverviewScreen extends Screen {
             for (Map.Entry<ResourceLocation, int[]> entry : nodeScreenPos.entrySet()) {
                 QuestNode node = QuestTreeRegistry.getQuest(entry.getKey());
                 if (node == null) continue;
-                Button btn = nodeButtons.get(node.getId());
+                NodeHitbox btn = nodeButtons.get(node.getId());
                 if (btn == null || !btn.visible || !btn.isMouseOver(mx, my)) continue;
                 nowHoverId = node.getId();
                 break;
@@ -2464,6 +3671,7 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         if (!renderingAsBackdrop && ctxOpen && isDevMode) renderCtxMenu(g, mx, my);
+        if (!renderingAsBackdrop && picCtxOpen && isDevMode) renderPictureCtxMenu(g, mx, my);
 
         // Lineage unlock requirement paths overlay indicators
         if (!unlockPathHighlight.isEmpty()) {
@@ -2502,17 +3710,15 @@ public class ChronicleOverviewScreen extends Screen {
         }
     }
 
-
-
     /**
      * Ctrl+P toggles this - a named-section timing breakdown of render(), so a bottleneck can
      * be found directly instead of needing an external profiler attached to the whole game.
      */
     private void renderProfilerPanel(GuiGraphics g) {
         var sections = FrameProfiler.sortedSections();
-        int panelW = 220;
+        int panelW = 260;
         int rowH = 11;
-        int panelH = 20 + sections.size() * rowH + 6;
+        int panelH = 20 + 10 + sections.size() * rowH + 6;
         int px = width - panelW - 4;
         int py = 4;
 
@@ -2520,20 +3726,28 @@ public class ChronicleOverviewScreen extends Screen {
         g.pose().translate(0, 0, 400f);
         g.fill(px, py, px + panelW, py + panelH, 0xEE0D0D12);
         g.fill(px, py, px + panelW, py + 1, 0xFF00AA55);
-        g.drawString(font, "§aProfiler §8(Ctrl+P to close)", px + 5, py + 4, 0xFFDDDDDD, false);
+        g.drawString(font, "§aProfiler §8(Ctrl+P close, Ctrl+Shift+P log now)", px + 5, py + 4, 0xFFDDDDDD, false);
 
-        double maxMs = sections.isEmpty() ? 1.0 : sections.get(0).getValue();
-        int y = py + 16;
+        Runtime rt = Runtime.getRuntime();
+        long usedMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+        long maxMb = rt.maxMemory() / (1024 * 1024);
+        g.drawString(font, "§8Heap: §7" + usedMb + "MB §8/ §7" + maxMb + "MB", px + 5, py + 15, 0xFFAAAAAA, false);
+
+        double localMax = sections.isEmpty() ? 1.0 : sections.get(0).getValue();
+        int y = py + 28;
         for (var entry : sections) {
             double ms = entry.getValue();
+            double worst = FrameProfiler.maxMsFor(entry.getKey());
             // Green → yellow → red as a section's cost approaches the most expensive one this frame
-            float frac = maxMs > 0 ? (float) (ms / maxMs) : 0;
+            float frac = localMax > 0 ? (float) (ms / localMax) : 0;
             int barColor = frac > 0.66f ? 0xFFFF5555 : frac > 0.33f ? 0xFFFFAA33 : 0xFF55CC77;
-            int barW = (int) (frac * (panelW - 90));
+            int barW = (int) (frac * (panelW - 110));
             g.fill(px + 5, y + 1, px + 5 + Math.max(1, barW), y + rowH - 2, barColor);
             g.drawString(font, entry.getKey(), px + 5, y + 1, 0xFF888898, false);
-            String msStr = String.format("%.2fms", ms);
-            g.drawString(font, msStr, px + panelW - font.width(msStr) - 5, y + 1, 0xFFCCCCCC, false);
+            // avg vs worst-case-this-window so a smoothed-away single-frame stutter still shows up
+            String msStr = String.format("%.2f §8/ §7%.2fms", ms, worst);
+            g.drawString(font, msStr, px + panelW - font.width(net.minecraft.util.StringUtil.stripColor(msStr)) - 5,
+                    y + 1, 0xFFCCCCCC, false);
             y += rowH;
         }
         g.pose().popPose();
@@ -2663,111 +3877,223 @@ public class ChronicleOverviewScreen extends Screen {
     }
 
     private boolean gearHovered(int mx, int my) {
+        if (sidebarCollapsed) return false;
         int gy = gearY();
-        return mx >= SIDEBAR_W - GEAR_SIZE - 4 && mx < SIDEBAR_W - 4 && my >= gy && my < gy + GEAR_SIZE;
+        return mx >= sidebarW() - GEAR_SIZE - 4 && mx < sidebarW() - 4 && my >= gy && my < gy + GEAR_SIZE;
     }
 
+    /**
+     * Sits one row above the gear button - at icon-strip width (48px) there's no longer room
+     * to place them side by side the way the old wide sidebar did.
+     */
     private int newCatBtnY() {
-        return height - (newCatFormOpen ? 38 : 22);
+        return gearY() - 4 - 14;
     }
 
-    /** Custom pill matching the toolbar's pill style, replacing the old vanilla Button. */
+    /**
+     * Compact "+" icon tile matching the icon-strip aesthetic - was a full-width text pill,
+     * which no longer fits at icon-strip width. Tooltip on hover explains it (same pattern as
+     * renderSidebarGear) since there's no room for a text label either.
+     */
     private void renderSidebarNewCategoryButton(GuiGraphics g, int mx, int my) {
         if (!isDevMode) return;
-        int x = 4, y = newCatBtnY(), w = SIDEBAR_W - 24, h = 14;
+        int x = 4, y = newCatBtnY(), w = sidebarW() - 9, h = 14;
         boolean hov = mx >= x && mx < x + w && my >= y && my < y + h;
         g.fill(x, y, x + w, y + h, hov ? 0x33FFFFFF : 0x1AFFFFFF);
         g.fill(x, y, x + w, y + 1, hov ? C_BORDER_LIT : C_BORDER);
-        g.drawCenteredString(font, newCatFormOpen ? "§8– Cancel" : "§a+ Category", x + w / 2, y + 3, C_TEXT);
+        g.drawCenteredString(font, newCatFormOpen ? "§8–" : "§a+", x + w / 2, y + 3, C_TEXT);
+        if (hov && !newCatFormOpen) {
+            int ttW = font.width("New chapter") + 10;
+            int ttX = sidebarW() + 3, ttY = y - 2;
+            g.fill(ttX, ttY, ttX + ttW, ttY + 14, 0xFF1A1A24);
+            ChroniclesUIKit.drawBorder(g, ttX, ttY, ttW, 14, C_BORDER_LIT);
+            g.drawString(font, "§7New chapter", ttX + 5, ttY + 3, C_TEXT_DIM, false);
+        }
+
+        // Inline "new chapter" name form - drawn here (not via super.render()'s default widget
+        // pass) and pushed above node-icon z (100) so its own opaque backing panel and the
+        // EditBox's text don't bleed/lose the depth test against canvas content behind it, since
+        // it deliberately floats out over the canvas edge (see newCatBox's own comment).
+        if (newCatFormOpen && newCatBox != null) {
+            g.pose().pushPose();
+            g.pose().translate(0f, 0f, 150f);
+            g.flush();
+            int bx = newCatBox.getX() - 2, by = newCatBox.getY() - 2;
+            int bw = newCatBox.getWidth() + 4, bh = newCatBox.getHeight() + 4;
+            g.fill(bx, by, bx + bw, by + bh, C_PANEL);
+            ChroniclesUIKit.drawBorder(g, bx, by, bw, bh, C_BORDER_LIT);
+            newCatBox.render(g, mx, my, 0f);
+            g.flush();
+            g.pose().popPose();
+        }
     }
 
     private boolean newCatButtonHovered(int mx, int my) {
-        if (!isDevMode) return false;
-        int x = 4, y = newCatBtnY(), w = SIDEBAR_W - 24, h = 14;
+        if (!isDevMode || sidebarCollapsed) return false;
+        int x = 4, y = newCatBtnY(), w = sidebarW() - 9, h = 14;
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
-    /** Folder header row: chevron + label, subtly differentiated background from category rows. */
-    private void renderSidebarFolderRow(GuiGraphics g, SidebarRow row, int mx, int my) {
-        int y = row.y(), h = row.height();
-        boolean hov = mx >= 0 && mx < SIDEBAR_W - 1 && my >= y && my < y + h;
-        g.fill(0, y, SIDEBAR_W - 1, y + h, hov ? 0xFF1C1C24 : 0xFF15151B);
-        g.fill(0, y + h - 1, SIDEBAR_W - 1, y + h, C_BORDER);
-        String arrow = row.collapsed() ? "▶" : "▼";
-        g.drawString(font, "§8" + arrow + " §7" + row.label(), 4, y + (h - 8) / 2, hov ? C_TEXT_DIM : C_TEXT_FAINT,
-                false);
+    /** Called by NewChapterChoiceScreen's "New Chapter" button to open the inline name form. */
+    public void openNewChapterForm() {
+        if (minecraft != null) minecraft.setScreen(this);
+        newCatFormOpen = true;
+        rebuild();
     }
 
-    /** Category row: selection accent, hover highlight, label, done/total count, progress bar. */
-    private void renderSidebarCatRow(GuiGraphics g, SidebarRow row, int barW, int mx, int my) {
+    /**
+     * Folder header row: just a centered chevron - full label only shows as a tooltip (see
+     * renderSidebarTooltip) since there's no room for text at icon-strip width.
+     */
+    private void renderSidebarFolderRow(GuiGraphics g, SidebarRow row, int mx, int my) {
+        int y = row.y(), h = row.height();
+        boolean hov = mx >= 0 && mx < sidebarW() - 1 && my >= y && my < y + h;
+        g.fill(0, y, sidebarW() - 1, y + h, hov ? 0xFF1C1C24 : 0xFF15151B);
+        g.fill(0, y + h - 1, sidebarW() - 1, y + h, C_BORDER);
+        String arrow = row.collapsed() ? "▶" : "▼";
+        g.drawString(font, "§8" + arrow, 4, y + (h - 8) / 2, hov ? C_TEXT_DIM : C_TEXT_FAINT, false);
+        String label = row.label();
+        int maxLabelW = sidebarW() - 16;
+        if (font.width(label) > maxLabelW) label = font.plainSubstrByWidth(label, maxLabelW - 4) + "…";
+        g.drawString(font, "§l" + label, 13, y + (h - 8) / 2, hov ? C_TEXT_DIM : C_TEXT_FAINT, false);
+    }
+
+    /**
+     * Category row: FTBQ-style compact list - small item icon, accent-colored name, selection
+     * outline, a thin progress underline, and a small red attention badge on the icon when the
+     * category has a quest currently ACTIVE. Full count still shows on hover (renderSidebarTooltip)
+     * or in the canvas title bar once selected.
+     */
+    private void renderSidebarCatRow(GuiGraphics g, SidebarRow row, int mx, int my) {
         String cat = row.id();
         int y = row.y(), h = row.height();
-        int indent = row.inFolder() ? 10 : 4;
-        int catAccent = CAT_ACCENTS[Math.abs(cat.hashCode()) % CAT_ACCENTS.length];
+        // Sub-chapters get extra indent on top of the normal in-folder indent, so nesting under
+        // a parent chapter reads as visually distinct from just being grouped in a folder -
+        // stacks with inFolder's indent when a sub-chapter's parent also happens to be foldered.
+        int indent = (row.inFolder() ? 6 : 0) + (row.subChapter() ? 10 : 0);
+        int iconX = 4 + indent;
+        int iconY = y + (h - 16) / 2;
+        boolean locked = row.locked();
+        int accent = categoryAccent(cat);
         boolean isSel = cat.equals(selectedCategory);
-        boolean hov = mx >= 0 && mx < SIDEBAR_W - 1 && my >= y && my < y + h;
+        boolean hov = !locked && mx >= 0 && mx < sidebarW() - 1 && my >= y && my < y + h;
 
         if (isSel) {
-            g.fill(0, y, SIDEBAR_W - 1, y + h, C_SEL_TAB);
-            g.fill(0, y, 3, y + h, catAccent);
-        } else {
-            if (hov) g.fill(0, y, SIDEBAR_W - 1, y + h, 0x14FFFFFF);
-            g.fill(0, y + h / 2 - 4, 2, y + h / 2 + 4, (catAccent & 0x00FFFFFF) | 0x66000000);
+            g.fill(1, y + 1, sidebarW() - 2, y + h - 1, C_SEL_TAB);
+            ChroniclesUIKit.drawBorder(g, 1, y + 1, sidebarW() - 3, h - 2, accent);
+        } else if (hov) {
+            g.fill(1, y + 1, sidebarW() - 2, y + h - 1, 0x14FFFFFF);
         }
 
+        net.minecraft.world.item.Item iconItem = CategoryConfig.get(cat).getIconItem();
+        if (locked) com.mojang.blaze3d.systems.RenderSystem.setShaderColor(0.55f, 0.55f, 0.55f, 1f);
+        g.renderItem(new net.minecraft.world.item.ItemStack(iconItem), iconX, iconY);
+        if (locked) com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+
+        // Name tinted with the category's accent color - dimmed a bit when not selected/hovered
+        // so the selected row still reads as the visually "loudest" one in the list. A locked
+        // sub-chapter (parent has no completed quest yet) is shown but greyed and unselectable,
+        // same "visible but not yet accessible" convention as a locked quest node.
+        int textCol = locked ? C_TEXT_FAINT : (isSel || hov) ? accent : blendColor(accent, C_TEXT_DIM, 0.4f);
+        String label = (locked ? "§8🔒 " : "") + row.label();
+        int maxLabelW = sidebarW() - (iconX + 18) - 4;
+        if (font.width(label) > maxLabelW) label = font.plainSubstrByWidth(label, maxLabelW - 4) + "…";
+        g.drawString(font, label, iconX + 18, y + (h - 8) / 2, textCol, false);
+
+        if (locked) return; // no progress bar / attention badge for an inaccessible sub-chapter
+
+        // Thin progress underline along the bottom edge of the row
         int[] p = progressCache.computeIfAbsent(cat, this::computeCategoryProgress);
-        String countStr = p[1] > 0 ? p[0] + "/" + p[1] : "";
-        int countW = countStr.isEmpty() ? 0 : font.width(countStr) + 4;
-
-        String label = row.label();
-        int labelMaxW = SIDEBAR_W - indent - 4 - countW;
-        if (font.width(label) > labelMaxW)
-            label = font.plainSubstrByWidth(label, Math.max(0, labelMaxW - 6)) + "…";
-        g.drawString(font, (isSel ? "§f" : "§8") + label, indent, y + 4, isSel ? C_TEXT : C_TEXT_DIM, false);
-
         if (p[1] > 0) {
-            int countColor = (p[0] == p[1]) ? C_PROG_FILL : (p[0] > 0 ? C_PROG_ACT : C_TEXT_FAINT);
-            g.drawString(font, "§8" + countStr, SIDEBAR_W - font.width(countStr) - 5, y + 4, countColor);
-            int fill = (int) ((float) p[0] / p[1] * barW);
-            g.fill(5, y + h - 6, 5 + barW, y + h - 5, 0x22FFFFFF);
-            int barColor = (p[0] == p[1]) ? C_PROG_FILL :
-                    (isSel ? catAccent : (p[0] > 0 ? C_PROG_ACT : 0x22FFFFFF));
-            if (fill > 0) g.fill(5, y + h - 6, 5 + fill, y + h - 5, barColor);
+            float fraction = (float) p[0] / p[1];
+            int barCol = (p[0] == p[1]) ? C_PROG_FILL : (p[0] > 0 ? C_PROG_ACT : 0x33FFFFFF);
+            int barX0 = iconX, barW = sidebarW() - 4 - barX0;
+            g.fill(barX0, y + h - 2, barX0 + barW, y + h - 1, 0x22FFFFFF);
+            g.fill(barX0, y + h - 2, barX0 + Math.round(barW * fraction), y + h - 1, barCol);
+        }
+
+        // Small red attention badge on the icon's top-right corner when a quest in this
+        // category is currently ACTIVE - mirrors FTBQ's "something needs a look" indicator.
+        boolean attention = attentionCache.computeIfAbsent(cat, this::computeCategoryHasAttention);
+        if (attention) {
+            int bx = iconX + 12, by = iconY - 2;
+            g.fill(bx, by, bx + 6, by + 6, 0xFFCC2233);
+            g.fill(bx, by, bx + 6, by + 1, 0xFFFF5566);
+            g.pose().pushPose();
+            g.pose().translate(bx + 2.2f, by - 0.5f, 200f);
+            g.pose().scale(0.6f, 0.6f, 1f);
+            g.drawString(font, "!", 0, 0, 0xFFFFFFFF, false);
+            g.pose().popPose();
         }
     }
 
     private void renderSidebarGear(GuiGraphics g, int mx, int my) {
-        int gx = SIDEBAR_W - GEAR_SIZE - 4;
+        int gx = sidebarW() - GEAR_SIZE - 4;
         int gy = gearY();
         boolean hov = gearHovered(mx, my);
 
         // Subtle separator above utilities area
-        g.fill(4, gy - 6, SIDEBAR_W - 4, gy - 5, C_BORDER);
+        g.fill(4, gy - 6, sidebarW() - 4, gy - 5, C_BORDER);
 
         // Gear glyph
         int col = hov ? 0xFFDDDDE8 : 0xFF555566;
         g.drawString(font, "⚙", gx + 1, gy + 1, col, false);
 
         if (hov) {
-            // Tooltip panel
+            // Tooltip panel — anchored just outside the (icon-strip width) sidebar rather than
+            // squeezed to its left edge, which is what was making it read as "cut off by the
+            // sidebar": at ~48px sidebar width, gx - ttW - 4 always clamped to the same x=2
+            // regardless of icon position, jamming a 200px-wide panel into a much narrower strip.
             int ttW = 200;
             int ttH = isDevMode ? 64 : 30;
-            int ttX = gx - ttW - 4;
-            int ttY = gy - ttH - 2;
-            if (ttX < 2) ttX = 2;
-            g.fill(ttX, ttY, ttX + ttW, ttY + ttH, 0xFF1A1A24);
-            g.fill(ttX, ttY, ttX + ttW, ttY + 1, C_BORDER);
-            g.fill(ttX, ttY + ttH - 1, ttX + ttW, ttY + ttH, C_BORDER);
-            g.fill(ttX, ttY, ttX + 1, ttY + ttH, C_BORDER);
-            g.fill(ttX + ttW - 1, ttY, ttX + ttW, ttY + ttH, C_BORDER);
-            g.drawString(font, "§dUtilities", ttX + 5, ttY + 4, C_TEXT, false);
-            g.drawString(font, "§8§oLeft-click§r§8: Edit all quest texts", ttX + 5, ttY + 14, C_TEXT_DIM, false);
-            if (isDevMode) {
-                g.drawString(font, "§8§oRight-click§r§8: Export lang/en_us.json", ttX + 5, ttY + 24, C_TEXT_DIM, false);
-                g.drawString(font, "§8§o[I]§r§8: Import FTB Quests chapter", ttX + 5, ttY + 34, C_TEXT_DIM, false);
-                g.drawString(font, "§8(place .snbt in ftb_import/ folder)", ttX + 5, ttY + 44, C_TEXT_FAINT, false);
-                g.drawString(font, "§8(pack's en_us.json also goes there)", ttX + 5, ttY + 54, C_TEXT_FAINT, false);
-            }
+            int ttXRaw = sidebarW() + 3;
+            int ttYRaw = gy - ttH - 2;
+            if (ttXRaw + ttW > width) ttXRaw = width - ttW - 2;
+            if (ttYRaw < 2) ttYRaw = 2;
+            final int ttX = ttXRaw;
+            final int ttY = ttYRaw;
+            boolean dev = isDevMode;
+            // This tooltip runs from step 8 (renderScreenOverlays), already after node icons draw
+            // in step 7 - but neither elevating its z above the icons' z=100 depth write, nor
+            // outright disabling the depth test around it, reliably beat them (icons still bled
+            // through the tooltip text). g.renderItem()'s icon geometry apparently isn't actually
+            // submitted to the GPU in step-7 call order - it seems to only get flushed out
+            // whenever a later step's g.flush() call forces a batched submission of everything
+            // still pending, at which point per-render-type ordering inside that single submission
+            // can still place it on top regardless of which quad was queued first. The one
+            // approach that's reliably worked for other tooltips in this screen (the grid-snap
+            // pill, sidebar category rows) is deferring the draw into pendingTooltip, which runs
+            // at the true tail of render() - after every other step, including this one - so
+            // there is nothing left afterward that could still be holding pending icon geometry.
+            pendingTooltip = () -> {
+                // Belt-and-suspenders: deferring to the true tail of render() (see the comment
+                // above) protects against submission-order surprises, but item icons still write
+                // real depth values wherever they landed - disabling the depth test here too
+                // means this quad paints regardless of whatever's already in the depth buffer,
+                // the same way vanilla's own Screen.renderTooltip() guarantees tooltips always
+                // sit on top of item icons.
+                g.flush();
+                RenderSystem.disableDepthTest();
+                g.fill(ttX, ttY, ttX + ttW, ttY + ttH, 0xFF1A1A24);
+                g.fill(ttX, ttY, ttX + ttW, ttY + 1, C_BORDER);
+                g.fill(ttX, ttY + ttH - 1, ttX + ttW, ttY + ttH, C_BORDER);
+                g.fill(ttX, ttY, ttX + 1, ttY + ttH, C_BORDER);
+                g.fill(ttX + ttW - 1, ttY, ttX + ttW, ttY + ttH, C_BORDER);
+                g.drawString(font, "§dUtilities", ttX + 5, ttY + 4, C_TEXT, false);
+                g.drawString(font, "§8§oLeft-click§r§8: Edit all quest texts", ttX + 5, ttY + 14, C_TEXT_DIM, false);
+                if (dev) {
+                    g.drawString(font, "§8§oRight-click§r§8: Export lang/en_us.json", ttX + 5, ttY + 24,
+                            C_TEXT_DIM, false);
+                    g.drawString(font, "§8§o[I]§r§8: Import FTB Quests chapter", ttX + 5, ttY + 34, C_TEXT_DIM,
+                            false);
+                    g.drawString(font, "§8(place .snbt in ftb_import/ folder)", ttX + 5, ttY + 44, C_TEXT_FAINT,
+                            false);
+                    g.drawString(font, "§8(pack's en_us.json also goes there)", ttX + 5, ttY + 54, C_TEXT_FAINT,
+                            false);
+                }
+                g.flush();
+                RenderSystem.enableDepthTest();
+            };
         }
     }
 
@@ -2779,6 +4105,7 @@ public class ChronicleOverviewScreen extends Screen {
         // canvas behind it can show through.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
+        g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
 
         int n = multiSelection.size();
         int bx = cl + 4, by = HEADER_H + 4;
@@ -2794,9 +4121,9 @@ public class ChronicleOverviewScreen extends Screen {
         g.drawString(font, "§8Ctrl+click to toggle  ·  Esc to clear", bx + 6, by + 14, C_TEXT_FAINT);
 
         // Shape picker row
-        String[] glyphs = { "■", "●", "◆", "⬡", "▲", "★", "⬠", "❖", "✚" };
+        String[] glyphs = { "■", "●", "◆", "⬡", "▲", "★", "⬠", "❖", "✚", "▩" };
         String[] shapeIds = { "SQUARE", "CIRCLE", "DIAMOND", "HEXAGON", "TRIANGLE", "STAR", "PENTAGON", "SHIELD",
-                "CROSS" };
+                "CROSS", "CUSTOM" };
         int slotW = 14, startX = bx + 6, slotY = by + 24;
         for (int i = 0; i < glyphs.length; i++) {
             int sx = startX + i * (slotW + 2);
@@ -2835,8 +4162,26 @@ public class ChronicleOverviewScreen extends Screen {
 
     // ── Node rendering (zoom + shape aware) ───────────────────────────────────
 
-    private void renderNode(GuiGraphics g, QuestNode node, int x, int y, int sz,
-                            boolean hovered, boolean selected) {
+    /** Resolves a "CUSTOM"-shape node's picked texture, or null if none set / malformed. */
+    private ResourceLocation resolveShapeTexture(QuestNode node) {
+        String tex = node.getShapeTexture();
+        if (tex == null || tex.isEmpty()) return null;
+        try {
+            return CustomTextureCache.resolve(new ResourceLocation(tex));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * First of two node-render passes: effects (halo/bloom/pulse, unbatched - already cheap)
+     * plus the shape fill/outline (batched - see NodeShapeRenderer.queueFillRect/flushFillQueue).
+     * Must run for every visible node, THEN NodeShapeRenderer.flushFillQueue(g) once, THEN
+     * renderNodeDetails() for every visible node - overlays/icons/badges need the now-flushed
+     * shape to already be on screen underneath them.
+     */
+    private void renderNodeShape(GuiGraphics g, QuestNode node, int x, int y, int sz,
+                                 boolean hovered, boolean selected) {
         // Link stubs (FTB's "quest link" equivalent) are a placeholder pointing at a real quest
         // defined elsewhere - show ITS state/icon so the shortcut reads as "is the real quest
         // done", not the stub's own meaningless (task-less, trivially-completable) state.
@@ -2858,6 +4203,7 @@ public class ChronicleOverviewScreen extends Screen {
         if (selected) border = C_NBORD_SEL;
         if (hovered) fill = blendColor(fill, 0xFFFFFFFF, 0.08f);
 
+        FrameProfiler.begin("node:effects");
         // Selection glow halo
         if (selected)
             g.fill(x - 2, y - 2, x + sz + 2, y + sz + 2, (border & 0x00FFFFFF) | 0x44000000);
@@ -2886,8 +4232,13 @@ public class ChronicleOverviewScreen extends Screen {
                 g.fill(x - d, y - d, x + sz + d, y + sz + d, (alpha << 24) | baseColor);
             }
         }
+        FrameProfiler.end("node:effects");
 
+        FrameProfiler.begin("node:shape");
         String shape = node.getShapeType() != null ? node.getShapeType().toUpperCase() : "SQUARE";
+        dbgShapeCounts.merge(shape, 1, Integer::sum);
+
+        ResourceLocation shapeTex = "CUSTOM".equals(shape) ? resolveShapeTexture(node) : null;
 
         // Drop shadow — shape-matched so it doesn't bleed outside non-square nodes
         if (roomForEffects) {
@@ -2900,7 +4251,12 @@ public class ChronicleOverviewScreen extends Screen {
                 case "PENTAGON" -> NodeShapeRenderer.fillPentagon(g, x + 2, y + 2, sz, 0x44000000);
                 case "SHIELD" -> NodeShapeRenderer.fillShield(g, x + 2, y + 2, sz, 0x44000000);
                 case "CROSS" -> NodeShapeRenderer.fillCross(g, x + 2, y + 2, sz, 0x44000000);
-                default -> g.fill(x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
+                case "CUSTOM" -> {
+                    if (shapeTex != null)
+                        NodeShapeRenderer.blitCustomShape(g, shapeTex, x + 2, y + 2, sz, sz, 0x44000000);
+                    else NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
+                }
+                default -> NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
             }
         }
 
@@ -2942,15 +4298,48 @@ public class ChronicleOverviewScreen extends Screen {
                 NodeShapeRenderer.fillCross(g, x, y, sz, fill);
                 NodeShapeRenderer.outlineCross(g, x, y, sz, border, thickness);
             }
+            case "CUSTOM" -> {
+                if (shapeTex != null) {
+                    // Border "ring" - the same texture blitted slightly larger and tinted with
+                    // the border color, drawn first so the smaller tinted-fill copy on top only
+                    // leaves that backing plate visible around its edges. Needs no extra art
+                    // from the pack dev beyond the one shape PNG.
+                    int pad = Math.max(1, thickness);
+                    NodeShapeRenderer.blitCustomShape(g, shapeTex, x - pad, y - pad, sz + pad * 2, sz + pad * 2,
+                            border);
+                    NodeShapeRenderer.blitCustomShape(g, shapeTex, x, y, sz, sz, fill);
+                } else {
+                    // No texture picked yet - fall back to a plain square so the node isn't
+                    // invisible while a pack dev is still setting it up.
+                    NodeShapeRenderer.queueFillRect(g, x, y, x + sz, y + sz, fill);
+                    NodeShapeRenderer.queueFillRect(g, x, y, x + sz, y + thickness, border);
+                    NodeShapeRenderer.queueFillRect(g, x, y + sz - thickness, x + sz, y + sz, border);
+                    NodeShapeRenderer.queueFillRect(g, x, y, x + thickness, y + sz, border);
+                    NodeShapeRenderer.queueFillRect(g, x + sz - thickness, y, x + sz, y + sz, border);
+                }
+            }
             default -> {  // SQUARE
-                g.fill(x, y, x + sz, y + sz, fill);
-                g.fill(x, y, x + sz, y + thickness, border);
-                g.fill(x, y + sz - thickness, x + sz, y + sz, border);
-                g.fill(x, y, x + thickness, y + sz, border);
-                g.fill(x + sz - thickness, y, x + sz, y + sz, border);
+                NodeShapeRenderer.queueFillRect(g, x, y, x + sz, y + sz, fill);
+                NodeShapeRenderer.queueFillRect(g, x, y, x + sz, y + thickness, border);
+                NodeShapeRenderer.queueFillRect(g, x, y + sz - thickness, x + sz, y + sz, border);
+                NodeShapeRenderer.queueFillRect(g, x, y, x + thickness, y + sz, border);
+                NodeShapeRenderer.queueFillRect(g, x + sz - thickness, y, x + sz, y + sz, border);
             }
         }
+        FrameProfiler.end("node:shape");
+    }
 
+    /**
+     * Second of two node-render passes - see renderNodeShape()'s doc comment. Must run only
+     * after NodeShapeRenderer.flushFillQueue(g) has painted every node's shape for this frame.
+     */
+    private void renderNodeDetails(GuiGraphics g, QuestNode node, int x, int y, int sz,
+                                   boolean hovered, boolean selected) {
+        QuestNode linkTargetNode = resolveLinkTarget(node);
+        QuestNode displaySource = linkTargetNode != null ? linkTargetNode : node;
+        QuestState st = getState(displaySource);
+
+        FrameProfiler.begin("node:overlays");
         // DISABLED visibility: grayed-out overlay — visible but can't be completed
         if (node.getVisibility() == QuestNode.Visibility.DISABLED) {
             g.fill(x + 1, y + 1, x + sz - 1, y + sz - 1, 0xBB0B0B0F);
@@ -2985,7 +4374,9 @@ public class ChronicleOverviewScreen extends Screen {
                 }
             }
         }
+        FrameProfiler.end("node:overlays");
 
+        FrameProfiler.begin("node:progress");
         // Progress arc ring around the node (clockwise from top, proportional to tasks done)
         List<QuestTask> tasks = node.getTasks();
         if (!tasks.isEmpty() && sz >= 14) {
@@ -3012,7 +4403,10 @@ public class ChronicleOverviewScreen extends Screen {
             int dotColor = (dotAlpha << 24) | 0x004488FF;
             g.fill(x + sz - 6, y + 1, x + sz - 1, y + 6, dotColor);
         }
+        FrameProfiler.end("node:progress");
 
+        FrameProfiler.begin("node:icon");
+        FrameProfiler.begin("node:icon:lookup");
         // Icon: try custom PNG first, then a picked texture, then scaled item, then state glyph
         String questPath = displaySource.getId().getPath();
         ResourceLocation customIcon = QuestIconCache.get(questPath);
@@ -3022,20 +4416,35 @@ public class ChronicleOverviewScreen extends Screen {
                 pickedTexture = new ResourceLocation(displaySource.getIconTexture());
             } catch (Exception ignored) {}
         }
+        FrameProfiler.end("node:icon:lookup");
         if (customIcon != null && sz >= 8) {
             int[] dims = QuestIconCache.getDimensions(questPath);
             int pad = Math.max(2, sz / 8);
             int iconSz = sz - pad * 2;
             g.blit(customIcon, x + pad, y + pad, 0, 0, iconSz, iconSz, dims[0], dims[1]);
-            if (sz >= 20) renderStateBadge(g, x, y, sz, st);
+            if (sz >= 20) {
+                FrameProfiler.begin("node:icon:badge");
+                renderStateBadge(g, x, y, sz, st);
+                FrameProfiler.end("node:icon:badge");
+            }
+            dbgCustomIconCount++;
         } else if (pickedTexture != null && sz >= 8) {
             int pad = Math.max(2, sz / 8);
             int iconSz = sz - pad * 2;
             g.blit(pickedTexture, x + pad, y + pad, 0, 0, iconSz, iconSz, iconSz, iconSz);
-            if (sz >= 20) renderStateBadge(g, x, y, sz, st);
+            if (sz >= 20) {
+                FrameProfiler.begin("node:icon:badge");
+                renderStateBadge(g, x, y, sz, st);
+                FrameProfiler.end("node:icon:badge");
+            }
+            dbgPickedTextureIconCount++;
         } else {
             Item icon = displaySource.getIconItem();
             if (icon == null) icon = fallbackTaskIcon(displaySource);
+            // Reverted the sz>=16 LOD gate: it turned out to make nodes go iconless far more
+            // broadly than intended without measurably helping the frame cost, so the actual
+            // bottleneck is something else - see the new per-section "node visuals" profiler
+            // breakdown below instead of guessing again.
             if (icon != null && icon != Items.AIR && sz >= 6) {
                 // Reverted off-screen render-to-texture caching (ItemIconRenderCache) after two
                 // rounds of visible corruption (noisy/garbled icons) that didn't resolve cleanly
@@ -3045,12 +4454,34 @@ public class ChronicleOverviewScreen extends Screen {
                 // the node-visuals cost this brings back is a separate follow-up.
                 float scale = sz / 16f * 0.75f;
                 float cx = x + sz / 2f, cy = y + sz / 2f;
+
+                // Reverted the texture-filter smoothing toggle (setFilter(true,false) before the
+                // draw, restored after). The math behind "only touches zoomed-in icons, vast
+                // majority of draws untouched" was wrong: scale > 1.1 triggers whenever sz > ~23px,
+                // which is true for EVERY node at 73%+ zoom (NODE_SIZE=32 means sz=32 at 100% zoom
+                // alone) - i.e. the common case at normal viewing zoom, not a rare edge case. Two
+                // extra texture-parameter changes (a GL sync point on some drivers) per node per
+                // frame at typical zoom is a very plausible match for "node visuals still slow on
+                // a normal-sized chapter" persisting after the two prior perf fixes, which were
+                // both specifically about behavior at extreme zoom-out. Flagged as unverified from
+                // the start; this is that revert.
+                FrameProfiler.begin("node:icon3d");
                 g.pose().pushPose();
                 g.pose().translate(cx, cy, 100f);
-                g.pose().scale(scale, scale, scale);
+                // Z left at 1 deliberately - scaling it along with X/Y multiplies g.renderItem()'s
+                // own internal z-offset by this (zoom-dependent) scale factor too. At normal zoom
+                // scale is ~1 so it went unnoticed, but scale grows directly with node size/zoom,
+                // and at high zoom it inflated the icon's effective depth enough to win the depth
+                // test against everything drawn after it regardless of flush ordering - the "only
+                // happens zoomed in a lot" bleed.
+                g.pose().scale(scale, scale, 1f);
                 g.renderItem(new ItemStack(icon), -8, -8);
                 g.pose().popPose();
+                FrameProfiler.end("node:icon3d");
+
+                FrameProfiler.begin("node:icon:badge");
                 renderStateBadge(g, x, y, sz, st);
+                FrameProfiler.end("node:icon:badge");
                 dbgFull3DIconCount++;
             } else if (sz >= 10) {
                 String glyph = switch (st) {
@@ -3066,9 +4497,12 @@ public class ChronicleOverviewScreen extends Screen {
                     default -> C_NBORD_UNLOCKED;
                 };
                 g.drawCenteredString(font, glyph, x + sz / 2, y + sz / 2 - 4, gc);
+                dbgGlyphIconCount++;
             }
         }
+        FrameProfiler.end("node:icon");
 
+        FrameProfiler.begin("node:badges");
         // Link stub badge - small chain-link glyph in the top-left corner so a shortcut node
         // never reads as an identical duplicate of the real quest. A dangling link (target
         // failed to load - check /chronicles validate) gets a distinct red "broken link" badge
@@ -3094,6 +4528,7 @@ public class ChronicleOverviewScreen extends Screen {
                 g.drawString(font, "§6!", bx + 2, by, 0xFFFFAA00, false);
             }
         }
+        FrameProfiler.end("node:badges");
     }
 
     // ── Quest group rendering ─────────────────────────────────────────────────
@@ -3132,6 +4567,58 @@ public class ChronicleOverviewScreen extends Screen {
             }
             g.drawString(font, "§f" + label, sx + 4, sy + 2, 0xFFFFFFFF);
         }
+
+        // Icon strip — small item/fluid/texture icons this group carries, drawn just under the
+        // label bar (the bar itself is only 11px tall, too thin for a 16x16 item render).
+        List<QuestGroup.GroupIcon> icons = grp.getIcons();
+        if (!icons.isEmpty() && sw >= 24 && sh > GROUP_LABEL_BAR_H + 14) {
+            int iconSz = 10, gap = 2;
+            int stripY = sy + GROUP_LABEL_BAR_H + 2;
+            int ix = sx + sw - 4;
+            for (int i = icons.size() - 1; i >= 0 && ix - iconSz >= sx + 4; i--) {
+                ix -= iconSz;
+                renderGroupIcon(g, icons.get(i), ix, stripY, iconSz);
+                ix -= gap;
+            }
+        }
+    }
+
+    /** Draws one group icon (item, fluid swatch, or arbitrary texture) at the given screen rect. */
+    private void renderGroupIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
+        try {
+            switch (icon.kind) {
+                case ITEM -> {
+                    Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
+                            .getValue(new ResourceLocation(icon.id));
+                    if (item == null || item == Items.AIR) return;
+                    float scale = size / 16f;
+                    g.pose().pushPose();
+                    g.pose().translate(x + size / 2f, y + size / 2f, 100f);
+                    // Z left at 1 - see the matching comment on the node icon render above;
+                    // scaling it too multiplies g.renderItem()'s own internal z-offset by this
+                    // (zoom-dependent) scale, which is what caused icons to bleed above everything
+                    // at high zoom.
+                    g.pose().scale(scale, scale, 1f);
+                    g.renderItem(new ItemStack(item), -8, -8);
+                    g.pose().popPose();
+                }
+                case FLUID -> {
+                    net.minecraft.world.level.material.Fluid fluid = net.minecraftforge.registries.ForgeRegistries.FLUIDS
+                            .getValue(new ResourceLocation(icon.id));
+                    if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY) return;
+                    int col = net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid)
+                            .getTintColor() | 0xFF000000;
+                    g.fill(x, y, x + size, y + size, col);
+                    g.fill(x, y, x + size, y + 1, 0xFF444455);
+                    g.fill(x, y + size - 1, x + size, y + size, 0xFF444455);
+                    g.fill(x, y, x + 1, y + size, 0xFF444455);
+                    g.fill(x + size - 1, y, x + size, y + size, 0xFF444455);
+                }
+                case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
+            }
+        } catch (Exception ignored) {
+            // Bad/renamed registry id or texture path — skip this icon rather than crash the frame.
+        }
     }
 
     /**
@@ -3151,370 +4638,15 @@ public class ChronicleOverviewScreen extends Screen {
         return null;
     }
 
-
-    private void drawBezierLine(GuiGraphics g, int x1, int y1, int x2, int y2,
-                                int color, int style, long animTick) {
-        drawBezierLine(g, x1, y1, x2, y2, color, style, animTick, null, null, null, null);
-    }
-
-
-    private void drawBezierLine(GuiGraphics g, int x1, int y1, int x2, int y2,
-                                int color, int style, long animTick,
-                                QuestChroniclesSettings.LineStyle shapeOverride,
-                                QuestChroniclesSettings.LineVisualStyle visualOverride,
-                                QuestChroniclesSettings.LineAnimSpeed speedOverride,
-                                Boolean arrowOverride) {
-        QuestChroniclesSettings settings = QuestChroniclesSettings.get();
-        boolean spline = (shapeOverride != null ? shapeOverride : settings.getLineStyle()) ==
-                QuestChroniclesSettings.LineStyle.SPLINE;
-        QuestChroniclesSettings.LineVisualStyle vis = visualOverride != null ? visualOverride :
-                settings.getLineVisualStyle();
-        long speedDiv = (speedOverride != null ? speedOverride : settings.getLineAnimSpeed()).divisor;
-        boolean showArrow = arrowOverride != null ? arrowOverride : settings.isShowLineArrows();
-        drawBezierLine(g, x1, y1, x2, y2, color, style, animTick, spline, vis, speedDiv, showArrow);
-    }
-
-    private void drawBezierLine(GuiGraphics g, int x1, int y1, int x2, int y2,
-                                int color, int style, long animTick, boolean spline,
-                                QuestChroniclesSettings.LineVisualStyle vis, long speedDiv, boolean showArrow) {
-        // Cleanly cast inputs to local GUI floats to prevent rounding gaps
-        float xa = (float) x1;
-        float ya = (float) y1;
-        float xb = (float) x2;
-        float yb = (float) y2;
-
-        // Calculate elegant control points for the S-curve directly in GUI space
-        float adx = Math.abs(xb - xa), ady = Math.abs(yb - ya);
-        float cp1x, cp1y, cp2x, cp2y;
-        if (!spline) {
-            cp1x = xa; cp1y = ya; cp2x = xb; cp2y = yb;
-        } else if (adx >= ady) {
-            float mx = (xa + xb) / 2f;
-            cp1x = mx; cp1y = ya; cp2x = mx; cp2y = yb;
-        } else {
-            float my = (ya + yb) / 2f;
-            cp1x = xa; cp1y = my; cp2x = xb; cp2y = yb;
+    /** Topmost placed background picture under the cursor, or null - last-drawn (last in list) wins ties. */
+    private BackgroundPictureConfig.Picture pictureAt(double mx, double my, int cl) {
+        List<BackgroundPictureConfig.Picture> pics = BackgroundPictureConfig.get(selectedCategory);
+        BackgroundPictureConfig.Picture hit = null;
+        for (BackgroundPictureConfig.Picture pic : pics) {
+            int[] rect = BackgroundPictureRenderer.screenRect(pic, cl, HEADER_H, posZoom(), viewOffX, viewOffY);
+            if (mx >= rect[0] && mx <= rect[2] && my >= rect[1] && my <= rect[3]) hit = pic;
         }
-
-        float dist = (float) Math.sqrt(adx * adx + ady * ady);
-        if (dist < 0.5f) return;
-
-        // Fixed step allocation: Ensures steps map to physical length so dashes never stretch
-        int steps = Math.min(Math.max(16, (int) (dist / 4.0f)), 64);
-
-        // Unpack colors efficiently
-        int alpha = (color >>> 24) & 0xFF;
-        int rgb = color & 0x00FFFFFF;
-
-        // Base thickness definitions in GUI space
-        float baseCoreW = switch (vis) {
-            case THIN -> 0.4f;
-            case BOLD -> 1.2f;
-            case THICK -> 1.8f;
-            case WIDE -> 2.6f;
-            case GLOW -> 0.9f;
-            default -> 0.75f; // NORMAL
-        };
-
-        // FTB QUESTS VISIBILITY MECHANIC:
-        // As you zoom out, lines naturally look thinner. We dynamically increase their width
-        // in GUI space here so they never drop below a readable, high-contrast physical thickness.
-        // Grows at low zoom so lines stay readable, but capped hard - uncapped 1/zoom growth is
-        // what turned these into ~14px-wide opaque wedges at 12% zoom, and several nodes'
-        // diverging straight lines sharing a source read as one solid filled shape instead of
-        // distinct lines once they got that wide.
-        float currentZoom = Math.max(0.05f, zoom);
-        float coreHalfW = Math.max(baseCoreW, Math.min(1.4f, 0.4f / currentZoom));
-        float outlineHalfW = coreHalfW + Math.min(0.9f, 0.45f / currentZoom);
-
-        // Setup standard dash pacing rules
-        boolean isSolid = (style == 1 || style == 6 || style == 8);
-        boolean isMarching = (style == 2 || style == 9);
-        int dashPeriod = 8, dashOn = 5;
-        if (style == 0) { dashPeriod = 10; dashOn = 3; }
-        else if (style == 3 || style == 4) { dashPeriod = 14; dashOn = 6; }
-        else if (style == 5) { dashPeriod = 8; dashOn = 3; }
-        else if (style == 7 || style == 9) { dashPeriod = 20; dashOn = 5; }
-        else if (style == 10) { dashPeriod = 16; dashOn = 2; }
-
-        long effectiveSpeedDiv = isMarching ? speedDiv : 1L;
-        int dashOffset = (int) ((animTick / effectiveSpeedDiv) % dashPeriod);
-
-        // Near-black at ~15-20% opacity (the old floor of 30/255) reads as basically invisible
-        // against this screen's near-black canvas background - bump the floor hard so the
-        // casing actually shows as a distinct dark border regardless of what's behind it.
-        int outlineAlpha = Math.min(255, Math.max(170, alpha));
-        int outlineRgb = QuestChroniclesSettings.get().getTheme() == QuestChroniclesSettings.Theme.LIGHT
-                ? 0x1A1A1A : 0xEDEDED;
-        int outlineColor = (outlineAlpha << 24) | outlineRgb;
-
-        // Fetch the running batch stream consumer and local screen matrix context
-        com.mojang.blaze3d.vertex.VertexConsumer vc = g.bufferSource().getBuffer(net.minecraft.client.renderer.RenderType.gui());
-        org.joml.Matrix4f mat = g.pose().last().pose();
-
-        // Pre-calculate path segments to ensure lightning fast execution loops
-        float[] pathX = new float[steps + 1];
-        float[] pathY = new float[steps + 1];
-        for (int i = 0; i <= steps; i++) {
-            float t = (float) i / steps;
-            float mt = 1f - t;
-            pathX[i] = mt * mt * mt * xa + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * xb;
-            pathY[i] = mt * mt * mt * ya + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * yb;
-        }
-
-        // PASS 1: High-Contrast Background Alignment Ribbon
-        if (outlineAlpha > 0) {
-            for (int i = 0; i < steps; i++) {
-                float sx = pathX[i], sy = pathY[i];
-                float ex = pathX[i + 1], ey = pathY[i + 1];
-
-                float dx = ex - sx, dy = ey - sy;
-                float len = (float) Math.sqrt(dx * dx + dy * dy);
-                if (len < 0.01f) continue;
-
-                float nx = -dy / len;
-                float ny = dx / len;
-
-                float ox = nx * outlineHalfW;
-                float oy = ny * outlineHalfW;
-
-                writeVert(vc, mat, sx + ox, sy + oy, outlineColor);
-                writeVert(vc, mat, sx - ox, sy - oy, outlineColor);
-                writeVert(vc, mat, ex - ox, ey - oy, outlineColor);
-                writeVert(vc, mat, ex + ox, ey + oy, outlineColor);
-            }
-        }
-
-        // PASS 2: Core Ribbon Pathing (With clean directional orientation vectors)
-        for (int i = 0; i < steps; i++) {
-            if (!isSolid && ((i + dashOffset) % dashPeriod) >= dashOn) continue;
-
-            float sx = pathX[i], sy = pathY[i];
-            float ex = pathX[i + 1], ey = pathY[i + 1];
-
-            float dx = ex - sx, dy = ey - sy;
-            float len = (float) Math.sqrt(dx * dx + dy * dy);
-            if (len < 0.01f) continue;
-
-            float nx = -dy / len;
-            float ny = dx / len;
-
-            float cx = nx * coreHalfW;
-            float cy = ny * coreHalfW;
-
-            int segmentColor = (alpha << 24) | rgb;
-
-            writeVert(vc, mat, sx + cx, sy + cy, segmentColor);
-            writeVert(vc, mat, sx - cx, sy - cy, segmentColor);
-            writeVert(vc, mat, ex - cx, ey - cy, segmentColor);
-            writeVert(vc, mat, ex + cx, ey + cy, segmentColor);
-        }
-
-        // Pass 3: Arrowhead sprite (batched — see drawArrowSprite)
-        if (showArrow) {
-            // Grows at low zoom so the arrow stays legible, but capped hard - otherwise at very
-            // low zoom (e.g. 12%) this blows up past 40px and swallows the nodes it points at.
-            float arrowSize = Math.min(9f, 5.0f / currentZoom);
-            float tipT = dist > 0.1f ? Math.max(0.5f, 1f - (arrowSize * 1.5f) / dist) : 0.5f;
-            float mt2 = 1f - tipT;
-            float tipX = mt2 * mt2 * mt2 * xa + 3 * mt2 * mt2 * tipT * cp1x + 3 * mt2 * tipT * tipT * cp2x + tipT * tipT * tipT * xb;
-            float tipY = mt2 * mt2 * mt2 * ya + 3 * mt2 * mt2 * tipT * cp1y + 3 * mt2 * tipT * tipT * cp2y + tipT * tipT * tipT * yb;
-
-            float dirX = xb - cp2x, dirY = yb - cp2y;
-            float dLen = (float) Math.sqrt(dirX * dirX + dirY * dirY);
-            if (dLen > 0.01f) {
-                dirX /= dLen; dirY /= dLen;
-                int arrowAlpha = Math.max(alpha, 200);
-                int arrowColor = (arrowAlpha << 24) | rgb;
-                drawArrowSprite(g, tipX, tipY, dirX, dirY, arrowSize, arrowColor);
-            }
-        }
-    }
-
-    private static void writeVert(com.mojang.blaze3d.vertex.VertexConsumer vc, org.joml.Matrix4f mat, float x, float y, int color) {
-        vc.vertex(mat, x, y, 0.0f)
-                .color((color >>> 16) & 0xFF, (color >>> 8) & 0xFF, color & 0xFF, (color >>> 24) & 0xFF)
-                .endVertex();
-    }
-
-    /**
-     * Dependency-line arrowhead sprite. Transparent-background variant, since this is drawn
-     * as a rotated overlay on top of the line ribbon rather than a standalone icon.
-     */
-    private static final net.minecraft.resources.ResourceLocation ARROW_SPRITE =
-            new net.minecraft.resources.ResourceLocation("phoenix_chronicles",
-                    "textures/gui/sprites/arrow_no_background.png");
-
-    /**
-     * One frame's queued arrowhead instances. RenderType.guiTextured(...) doesn't exist on
-     * 1.20.1 (it's part of the later GuiGraphics rework) and GuiGraphics.blit() on this
-     * version issues its own immediate Tesselator draw per call rather than batching through
-     * bufferSource() - so textured quads here can't just get "another getBuffer() call for the
-     * same RenderType" the way the untextured line ribbon does. Instead every arrow queues its
-     * corner data here, and flushArrowQueue() builds ONE BufferBuilder covering every arrow on
-     * screen and uploads it in a single draw call, which is what's actually being asked for.
-     */
-    private static final class ArrowInstance {
-        final float tipX, tipY, dirX, dirY, halfSize;
-        final int color;
-        ArrowInstance(float tipX, float tipY, float dirX, float dirY, float halfSize, int color) {
-            this.tipX = tipX; this.tipY = tipY; this.dirX = dirX; this.dirY = dirY;
-            this.halfSize = halfSize; this.color = color;
-        }
-    }
-
-    private final List<ArrowInstance> arrowQueue = new ArrayList<>();
-
-    /** Queues one arrowhead instance for the batched flush at the end of the canvas pass. */
-    private void drawArrowSprite(GuiGraphics g, float tipX, float tipY, float dirX, float dirY,
-                                 float halfSize, int color) {
-        arrowQueue.add(new ArrowInstance(tipX, tipY, dirX, dirY, halfSize, color));
-    }
-
-    /** One queued ribbon (outline or core) quad - four corners, already screen-space, one color. */
-    private static final class RibbonQuad {
-        final float x0, y0, x1, y1, x2, y2, x3, y3;
-        final int color;
-        RibbonQuad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, int color) {
-            this.x0 = x0; this.y0 = y0; this.x1 = x1; this.y1 = y1;
-            this.x2 = x2; this.y2 = y2; this.x3 = x3; this.y3 = y3;
-            this.color = color;
-        }
-    }
-
-    private final List<RibbonQuad> ribbonQueue = new ArrayList<>();
-
-    private void queueRibbonQuad(float x0, float y0, float x1, float y1,
-                                  float x2, float y2, float x3, float y3, int color) {
-        ribbonQueue.add(new RibbonQuad(x0, y0, x1, y1, x2, y2, x3, y3, color));
-    }
-
-    /** Approximates a filled circle as a fan of thin triangular wedges (degenerate quads - two
-     *  corners collapsed to the center point), queued through the same ribbon batch. Good enough
-     *  at the small radii these end caps use to read as genuinely rounded rather than square. */
-    private void queueRoundCap(float cx, float cy, float radius, int color) {
-        if (radius < 0.6f) return;
-        int segs = 8;
-        for (int i = 0; i < segs; i++) {
-            double a0 = i * 2 * Math.PI / segs;
-            double a1 = (i + 1) * 2 * Math.PI / segs;
-            float x1 = cx + (float) (radius * Math.cos(a0)), y1 = cy + (float) (radius * Math.sin(a0));
-            float x2 = cx + (float) (radius * Math.cos(a1)), y2 = cy + (float) (radius * Math.sin(a1));
-            queueRibbonQuad(cx, cy, x1, y1, x2, y2, cx, cy, color);
-        }
-    }
-
-    /**
-     * Uploads every queued ribbon quad (outline + core, every edge) as one raw Tesselator draw
-     * call, mirroring flushArrowQueue()'s mechanism exactly - untextured, so this uses
-     * POSITION_COLOR instead of POSITION_TEX_COLOR, but otherwise the identical approach.
-     */
-    private void flushRibbonQueue(GuiGraphics g) {
-        FrameProfiler.setCounter("ribbonQuadsQueued", ribbonQueue.size());
-        if (ribbonQueue.isEmpty()) return;
-        org.joml.Matrix4f mat = g.pose().last().pose();
-
-        g.flush();
-
-        // renderNodesAndDetails() (which now runs immediately before this, per the render-order
-        // fix) does full 3D item-model rendering for every node with an item icon - and cube
-        // models legitimately rely on backface culling to hide interior faces. If that gets left
-        // enabled afterward, these quads (whose winding, unlike the arrow sprite's, comes out
-        // consistently back-facing along a smooth path) would be silently culled in their
-        // entirety while the arrow sprite - built from a different, front-facing winding - still
-        // shows fine. 2D UI never needs culling, so just make sure it's off here regardless of
-        // what 3D item rendering left behind.
-        com.mojang.blaze3d.systems.RenderSystem.disableCull();
-
-        com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-
-        com.mojang.blaze3d.vertex.Tesselator tesselator = com.mojang.blaze3d.vertex.Tesselator.getInstance();
-        com.mojang.blaze3d.vertex.BufferBuilder bb = tesselator.getBuilder();
-        bb.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS,
-                com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR);
-
-        for (RibbonQuad q : ribbonQueue) {
-            int alpha = (q.color >>> 24) & 0xFF;
-            int r = (q.color >>> 16) & 0xFF;
-            int gg = (q.color >>> 8) & 0xFF;
-            int b = q.color & 0xFF;
-            bb.vertex(mat, q.x0, q.y0, 0f).color(r, gg, b, alpha).endVertex();
-            bb.vertex(mat, q.x1, q.y1, 0f).color(r, gg, b, alpha).endVertex();
-            bb.vertex(mat, q.x2, q.y2, 0f).color(r, gg, b, alpha).endVertex();
-            bb.vertex(mat, q.x3, q.y3, 0f).color(r, gg, b, alpha).endVertex();
-        }
-
-        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(bb.end());
-        ribbonQueue.clear();
-    }
-
-    /**
-     * Uploads every queued arrowhead as a single textured draw call: one shader bind, one
-     * texture bind, one BufferBuilder, one BufferUploader.drawWithShader(...). Must be called
-     * once per frame after every line has had a chance to queue its arrow (currently: once
-     * after the main dep-line pass + hover-boost pass in renderCanvasLayers()).
-     */
-    private void flushArrowQueue(GuiGraphics g) {
-        FrameProfiler.setCounter("arrowsQueued", arrowQueue.size());
-        if (arrowQueue.isEmpty()) return;
-        org.joml.Matrix4f mat = g.pose().last().pose();
-
-        // RenderType.gui() (used by the line ribbon above) isn't one of GuiGraphics's
-        // pre-allocated "fixed" buffers, so it falls back to sharing the exact same
-        // Tesselator.getInstance().getBuilder() instance we're about to grab directly below.
-        // If the "gui" batch is still pending (unflushed) when we call .begin() on that same
-        // builder ourselves, it either throws ("already building") or silently discards the
-        // pending line-ribbon vertices - which is exactly what was making the dep lines vanish.
-        // Flushing here drains that pending batch first so the shared builder is safe to reuse.
-        g.flush();
-        com.mojang.blaze3d.systems.RenderSystem.disableCull();
-
-        com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionTexColorShader);
-        com.mojang.blaze3d.systems.RenderSystem.setShaderTexture(0, ARROW_SPRITE);
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-
-        com.mojang.blaze3d.vertex.Tesselator tesselator = com.mojang.blaze3d.vertex.Tesselator.getInstance();
-        com.mojang.blaze3d.vertex.BufferBuilder bb = tesselator.getBuilder();
-        bb.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS,
-                com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX_COLOR);
-
-        for (ArrowInstance a : arrowQueue) {
-            int alpha = (a.color >>> 24) & 0xFF;
-            int r = (a.color >>> 16) & 0xFF;
-            int gg = (a.color >>> 8) & 0xFF;
-            int b = a.color & 0xFF;
-
-            // Forward = direction the arrow points; right = perpendicular, for the sprite's local axes
-            float fx = a.dirX, fy = a.dirY;
-            float rx = -a.dirY, ry = a.dirX;
-            float half = a.halfSize;
-            // arrow_no_background.png is a 45x75 portrait sprite - stretching it into a square
-            // quad (equal length/width) is what made it read as a shapeless blob instead of a
-            // crisp chevron. Keep the source aspect so it stays a recognizable arrow shape.
-            float halfLen = half;
-            float halfWid = half * (45f / 75f);
-
-            // Quad centre sits half a sprite-length behind the tip, so the sprite's forward edge
-            // (v=0 in the texture) lands exactly on the tip rather than the quad's centre.
-            float cx = a.tipX - fx * halfLen;
-            float cy = a.tipY - fy * halfLen;
-
-            float tlX = cx - rx * halfWid + fx * halfLen, tlY = cy - ry * halfWid + fy * halfLen;
-            float trX = cx + rx * halfWid + fx * halfLen, trY = cy + ry * halfWid + fy * halfLen;
-            float brX = cx + rx * halfWid - fx * halfLen, brY = cy + ry * halfWid - fy * halfLen;
-            float blX = cx - rx * halfWid - fx * halfLen, blY = cy - ry * halfWid - fy * halfLen;
-
-            bb.vertex(mat, tlX, tlY, 0f).uv(0f, 0f).color(r, gg, b, alpha).endVertex();
-            bb.vertex(mat, blX, blY, 0f).uv(0f, 1f).color(r, gg, b, alpha).endVertex();
-            bb.vertex(mat, brX, brY, 0f).uv(1f, 1f).color(r, gg, b, alpha).endVertex();
-            bb.vertex(mat, trX, trY, 0f).uv(1f, 0f).color(r, gg, b, alpha).endVertex();
-        }
-
-        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(bb.end());
-        arrowQueue.clear();
+        return hit;
     }
 
     private void drawArrowhead(GuiGraphics g, float tipX, float tipY, float dirX, float dirY, int color,
@@ -3537,33 +4669,6 @@ public class ChronicleOverviewScreen extends Screen {
                 g.fill(wx, wy, wx + 1, wy + 1, color);
             }
         }
-    }
-
-    /** Draws a single bright spark dot traveling from (x1,y1) to (x2,y2) along the S-bezier. */
-    private void drawBezierSpark(GuiGraphics g, int x1, int y1, int x2, int y2, long animMs, int lineIdx) {
-        float adx = Math.abs(x2 - x1), ady = Math.abs(y2 - y1);
-        float cp1x, cp1y, cp2x, cp2y;
-        if (adx >= ady) {
-            float mx = (x1 + x2) / 2f;
-            cp1x = mx;
-            cp1y = y1;
-            cp2x = mx;
-            cp2y = y2;
-        } else {
-            float my = (y1 + y2) / 2f;
-            cp1x = x1;
-            cp1y = my;
-            cp2x = x2;
-            cp2y = my;
-        }
-        // Each line gets its own offset so sparks don't all sync
-        float t = ((animMs / 1800f) + lineIdx * 0.37f) % 1f;
-        float mt = 1f - t;
-        int bx = Math.round(mt * mt * mt * x1 + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * x2);
-        int by = Math.round(mt * mt * mt * y1 + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * y2);
-        // Bright core + soft halo
-        g.fill(bx - 1, by - 1, bx + 2, by + 2, 0xFFFFEE88);
-        g.fill(bx - 2, by - 2, bx + 3, by + 3, 0x44FFCC44);
     }
 
     // ── Progress arc ─────────────────────────────────────────────────────────
@@ -3626,6 +4731,12 @@ public class ChronicleOverviewScreen extends Screen {
 
         g.pose().pushPose();
         g.pose().translate(0, 0, 400);
+        // Same missing-flush bug as ChroniclesUIKit.drawDropdown() had: without this, quest node
+        // icons underneath (written to the depth buffer at z=100 via g.renderItem()) could still
+        // win the depth test against this menu's own z=400 fills and show through it, reading as
+        // "the context menu is transparent" - for both the quest menu and the group/chapter one,
+        // since they share this exact render path.
+        g.flush();
 
         int ctxAlpha = (int) Math.min(255, (System.currentTimeMillis() - ctxOpenTimeMs) * 255 / OPEN_FADE_MS);
         int fadedBg = (ctxAlpha << 24) | (C_CTX_BG & 0x00FFFFFF);
@@ -3643,6 +4754,7 @@ public class ChronicleOverviewScreen extends Screen {
             iy += CTX_ROW;
         }
 
+        boolean moveCatRowHov = false;
         for (CtxItem item : items) {
             if (item.isSep) {
                 g.fill(x + 6, iy + 2, x + CTX_W - 6, iy + 3, C_CTX_SEP);
@@ -3653,32 +4765,60 @@ public class ChronicleOverviewScreen extends Screen {
             if (hov) g.fill(x + 1, iy, x + CTX_W - 1, iy + CTX_ROW, C_CTX_HOVER);
             g.drawString(font, (item.isDanger ? "§c" : item.color) + item.label, x + 8, iy + 4,
                     item.isDanger ? C_CTX_DANGER : C_CTX_TEXT);
+            if (hov && item.label.contains("Move to Category")) moveCatRowHov = true;
             iy += CTX_ROW;
         }
 
-        // Move-category submenu
-        if (ctxMoveCatOpen && ctxNode != null) {
-            List<String> cats = buildCategoryList();
-            cats.remove("ALL");
-            int subX = x + CTX_W + 2;
-            int subY = ctxMoveCatY(items);
-            int subH = cats.size() * CTX_ROW + 4;
+        // Move-category submenu - opens on hovering its row (see moveCatRowHov above) instead of
+        // requiring a click, and caps its height with a scrollbar instead of growing to fit every
+        // chapter, which used to run off-screen (and become entirely unreachable past that point)
+        // on packs with a lot of categories.
+        List<String> cats = buildCategoryList();
+        cats.remove("ALL");
+        int subX = x + CTX_W + 2;
+        int subY = ctxMoveCatY(items);
+        int visibleRows = Math.min(cats.size(), CTX_MOVE_CAT_MAX_ROWS);
+        int subH = visibleRows * CTX_ROW + 4;
+        boolean overSubmenu = ctxMoveCatOpen && mx >= subX && mx <= subX + CTX_W + (cats.size() >
+                CTX_MOVE_CAT_MAX_ROWS ? 6 : 0) && my >= subY && my <= subY + subH;
+        boolean wasOpen = ctxMoveCatOpen;
+        ctxMoveCatOpen = ctxNode != null && (moveCatRowHov || overSubmenu);
+        if (ctxMoveCatOpen && !wasOpen) ctxMoveCatScroll = 0;
+
+        if (ctxMoveCatOpen) {
+            int maxScroll = Math.max(0, cats.size() - CTX_MOVE_CAT_MAX_ROWS);
+            ctxMoveCatScroll = Math.max(0, Math.min(ctxMoveCatScroll, maxScroll));
+
             g.fill(subX + 2, subY + 2, subX + CTX_W + 2, subY + subH + 2, 0x55000000);
             g.fill(subX, subY, subX + CTX_W, subY + subH, C_CTX_BG);
             g.fill(subX, subY, subX + CTX_W, subY + 1, C_CTX_BORDER);
             g.fill(subX, subY + subH - 1, subX + CTX_W, subY + subH, C_CTX_BORDER);
             g.fill(subX, subY, subX + 1, subY + subH, C_CTX_BORDER);
             g.fill(subX + CTX_W - 1, subY, subX + CTX_W, subY + subH, C_CTX_BORDER);
+
+            g.enableScissor(subX, subY, subX + CTX_W, subY + subH);
             int sy = subY + 2;
-            for (String cat : cats) {
+            for (int i = ctxMoveCatScroll; i < Math.min(cats.size(), ctxMoveCatScroll + visibleRows + 1); i++) {
+                String cat = cats.get(i);
                 boolean hov = mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW;
                 if (hov) g.fill(subX + 1, sy, subX + CTX_W - 1, sy + CTX_ROW, C_CTX_HOVER);
                 String mark = cat.equals(ctxNode.getCategory()) ? "§a● " : "§8  ";
                 g.drawString(font, mark + "§7" + friendly(cat), subX + 8, sy + 4, C_CTX_TEXT);
                 sy += CTX_ROW;
             }
+            g.disableScissor();
+
+            // Scrollbar thumb, only when there's more than fits
+            if (cats.size() > CTX_MOVE_CAT_MAX_ROWS) {
+                int trackH = subH - 4;
+                int thumbH = Math.max(10, trackH * visibleRows / cats.size());
+                int thumbY = subY + 2 + (maxScroll == 0 ? 0 : (trackH - thumbH) * ctxMoveCatScroll / maxScroll);
+                g.fill(subX + CTX_W - 3, subY + 2, subX + CTX_W - 1, subY + subH - 2, 0x33FFFFFF);
+                g.fill(subX + CTX_W - 3, thumbY, subX + CTX_W - 1, thumbY + thumbH, 0x99FFFFFF);
+            }
         }
 
+        g.flush();
         g.pose().popPose();
     }
 
@@ -3702,12 +4842,13 @@ public class ChronicleOverviewScreen extends Screen {
 
     /** Renders only the static canvas backdrop — no widgets, no scissors, safe to call from child screens. */
     public void renderBackdrop(GuiGraphics g) {
-        g.fill(0, 0, SIDEBAR_W, height, C_PANEL_DARK);
-        g.fill(SIDEBAR_W, 0, width, height, C_BG);
+        g.fill(0, 0, sidebarW(), height, C_PANEL_DARK);
+        g.fill(sidebarW(), 0, width, height, C_BG);
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
-        g.fill(SIDEBAR_W - 1, 0, SIDEBAR_W, height, C_BORDER);
-        CanvasBackgroundRenderer.drawBackground(g, SIDEBAR_W, HEADER_H, width, height, selectedCategory, zoom, viewOffX, viewOffY);
+        g.fill(sidebarW() - 1, 0, sidebarW(), height, C_BORDER);
+        CanvasBackgroundRenderer.drawBackground(g, sidebarW(), HEADER_H, width, height, selectedCategory, zoom,
+                viewOffX, viewOffY);
     }
 
     // drawBackground + drawDotGrid/drawGridLines/drawHexGrid/drawHexOutline/drawDiagonalLines/
@@ -3724,8 +4865,8 @@ public class ChronicleOverviewScreen extends Screen {
             case LOCKED -> C_NBORD_LOCKED;
             default -> 0xFF4488FF;
         };
-        g.fill(bx - 1, by - 1, bx + badgeSz + 1, by + badgeSz + 1, 0xAA0B0B0F);
-        g.fill(bx, by, bx + badgeSz, by + badgeSz, bc);
+        NodeShapeRenderer.queueFillRect(g, bx - 1, by - 1, bx + badgeSz + 1, by + badgeSz + 1, 0xAA0B0B0F);
+        NodeShapeRenderer.queueFillRect(g, bx, by, bx + badgeSz, by + badgeSz, bc);
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────
@@ -3843,6 +4984,10 @@ public class ChronicleOverviewScreen extends Screen {
      * Only meaningful in dev mode — called at render time, kept cheap.
      */
     private List<String> getValidationIssues(QuestNode node) {
+        return validationCache.computeIfAbsent(node.getId(), id -> computeValidationIssues(node));
+    }
+
+    private List<String> computeValidationIssues(QuestNode node) {
         List<String> issues = new ArrayList<>();
         // Link stubs are pure visual pointers to a real quest elsewhere - by design they have
         // no tasks/rewards of their own, so none of the "this quest is incomplete" checks below
@@ -3882,6 +5027,23 @@ public class ChronicleOverviewScreen extends Screen {
         return sb.toString().trim();
     }
 
+    /** friendly(cat), prefixed with "Parent › Grandparent › " for a true sub-chapter. Cycle-safe. */
+    private String categoryBreadcrumb(String cat) {
+        List<String> chain = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        String cur = cat;
+        while (cur != null && !cur.isEmpty() && visited.add(cur)) {
+            String parent = CategoryConfig.get(cur).getParentCategory();
+            if (parent.isEmpty()) break;
+            chain.add(0, parent);
+            cur = parent;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String p : chain) sb.append(friendly(p)).append(" §8›  §7");
+        sb.append(friendly(cat));
+        return sb.toString();
+    }
+
     private String shortLabel(QuestNode node) {
         String t = node.getTitle().getString();
         int maxW = scaledNodeSize() + 28;
@@ -3897,7 +5059,7 @@ public class ChronicleOverviewScreen extends Screen {
 
     private void fitToCanvas() {
         if (nodeScreenPos.isEmpty()) return;
-        int cl = SIDEBAR_W, cr = width;
+        int cl = sidebarW(), cr = width;
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
         for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
@@ -4009,6 +5171,7 @@ public class ChronicleOverviewScreen extends Screen {
         // background (0xFF, not 0xF0) so the canvas behind can't show through either.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
+        g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
 
         g.fill(tx, ty, tx + tipW, ty + tipH, 0xFF0D0D14);
         g.fill(tx, ty, tx + tipW, ty + 1, C_BORDER_LIT);
@@ -4036,9 +5199,25 @@ public class ChronicleOverviewScreen extends Screen {
             if (n.isFlagDisabled()) continue; // flag-disabled = nonexistent, excluded from progress
             // DISABLED visibility still counts toward progress (visible but uncompletable)
             total++;
-            if (getState(n) == QuestState.COMPLETED) done++;
+            // A link stub has no tasks of its own and is trivially "completable" under its OWN
+            // id - getState(n) here would read that meaningless stub state instead of asking
+            // whether the REAL quest it points to is actually done, which is what "X/Y complete"
+            // should mean. getDisplayState() already resolves this correctly for rendering.
+            if (getDisplayState(n) == QuestState.COMPLETED) done++;
         }
         return new int[] { done, total };
+    }
+
+    /**
+     * True if a category has a quest currently ACTIVE (started, in progress) - drives the sidebar's attention badge.
+     */
+    private boolean computeCategoryHasAttention(String cat) {
+        for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
+            if (!cat.equals("ALL") && !cat.equals(n.getCategory())) continue;
+            if (n.isFlagDisabled()) continue;
+            if (getDisplayState(n) == QuestState.ACTIVE) return true; // resolve link stubs, same as progress
+        }
+        return false;
     }
 
     private List<String> wrapText(String text, int maxW) {
@@ -4054,14 +5233,6 @@ public class ChronicleOverviewScreen extends Screen {
         }
         if (!cur.isEmpty()) lines.add(cur.toString());
         return lines;
-    }
-
-    /** Brightens a line color for hover highlighting. */
-    private static int boostedLineColor(int col) {
-        int r = Math.min(255, ((col >> 16) & 0xFF) + 90);
-        int g2 = Math.min(255, ((col >> 8) & 0xFF) + 90);
-        int b = Math.min(255, (col & 0xFF) + 90);
-        return 0xFF000000 | (r << 16) | (g2 << 8) | b;
     }
 
     private static int blendColor(int base, int over, float a) {
@@ -4124,6 +5295,10 @@ public class ChronicleOverviewScreen extends Screen {
         QuestFileSaver.updateNodeIconTexture(node);
     }
 
+    private void saveNodeShapeTextureToDisk(QuestNode node) {
+        QuestFileSaver.updateNodeShapeTexture(node);
+    }
+
     private void deleteQuestFiles(QuestNode node) {
         QuestFileSaver.deleteQuestFiles(node);
     }
@@ -4131,229 +5306,29 @@ public class ChronicleOverviewScreen extends Screen {
     public static FullQuestData loadMarkdownContent(Path mdPath) {
         Component title = Component.empty();
         StringBuilder desc = new StringBuilder();
+        // A blank line is a deliberate paragraph break - collapsing every line (blank or not)
+        // into one space-joined run is what turned well-formatted multi-paragraph .md bodies
+        // (e.g. FTBQ imports, which write one line per source paragraph) into a single text
+        // blob. Consecutive non-blank lines still join with a space (soft-wrapped source
+        // formatting, not an intentional break); ChronicleRichTextRenderer already renders "\n"
+        // as a hard line break.
+        boolean pendingParagraphBreak = false;
         try (BufferedReader r = Files.newBufferedReader(mdPath, StandardCharsets.UTF_8)) {
             String line;
             while ((line = r.readLine()) != null) {
                 String t = line.trim();
-                if (t.startsWith("# ") && title.getString().isEmpty())
+                if (t.startsWith("# ") && title.getString().isEmpty()) {
                     title = Component.literal(t.substring(2).trim());
-                else if (!t.startsWith("#") && !t.isEmpty())
-                    desc.append(t).append(' ');
+                } else if (!t.startsWith("#") && !t.isEmpty()) {
+                    if (desc.length() > 0) desc.append(pendingParagraphBreak ? "\n\n" : ' ');
+                    desc.append(t);
+                    pendingParagraphBreak = false;
+                } else if (t.isEmpty()) {
+                    pendingParagraphBreak = true;
+                }
             }
         } catch (IOException ignored) {}
         return new FullQuestData(title, Component.literal(desc.toString().trim()), List.of());
-    }
-
-    // ── Bezier proximity ─────────────────────────────────────────────────────
-
-    /** True when (mx,my) is within tol pixels of the cubic S-bezier from (x1,y1) to (x2,y2). */
-    private boolean pointNearBezier(int mx, int my, int x1, int y1, int x2, int y2, int tol) {
-        int dx = x2 - x1, dy = y2 - y1;
-        int cx1 = x1 + dx / 3, cy1 = y1;
-        int cx2 = x2 - dx / 3, cy2 = y2;
-        int steps = Math.max(16, Math.abs(dx) / 4 + Math.abs(dy) / 4);
-        int tolSq = tol * tol;
-        for (int i = 0; i <= steps; i++) {
-            float t = (float) i / steps;
-            float u = 1 - t;
-            float bx = u * u * u * x1 + 3 * u * u * t * cx1 + 3 * u * t * t * cx2 + t * t * t * x2;
-            float by = u * u * u * y1 + 3 * u * u * t * cy1 + 3 * u * t * t * cy2 + t * t * t * y2;
-            int ddx = mx - (int) bx, ddy = my - (int) by;
-            if (ddx * ddx + ddy * ddy <= tolSq) return true;
-        }
-        return false;
-    }
-
-    // ── Line context menu ─────────────────────────────────────────────────────
-
-    private void renderLineCtxMenu(GuiGraphics g, double mx, double my) {
-        QuestNode parentNode = lineCtxParentId == null ? null : QuestTreeRegistry.getQuest(lineCtxParentId);
-        QuestNode childNode = lineCtxChildId == null ? null : QuestTreeRegistry.getQuest(lineCtxChildId);
-        if (parentNode == null || childNode == null) {
-            lineCtxOpen = false;
-            return;
-        }
-
-        boolean isForbidden = childNode.isPrereqForbidden(lineCtxParentId);
-        boolean isRequired = !isForbidden && childNode.isPrereqRequired(lineCtxParentId);
-        boolean isLink = childNode.isPrereqLink(lineCtxParentId);
-        boolean isCosmetic = childNode.isPrereqCosmetic(lineCtxParentId);
-
-        // 3-way cycle label: required → optional → forbidden → required
-        String cycleLabel;
-        if (isForbidden) cycleLabel = "§aType: Forbidden  →  Required";
-        else if (!isRequired) cycleLabel = "§cType: Optional  →  Forbidden";
-        else cycleLabel = "§eType: Required  →  Optional";
-
-        String linkLabel = isLink ? "§7Unmark as link" : "§dMark as link";
-        String cosmeticLabel = isCosmetic ? "§7Unmark as cosmetic-only" : "§6Mark as cosmetic-only (no gate)";
-        boolean childHidesLines = childNode.isHideDepLine();
-        String hideLabel = childHidesLines ? "§aShow dep lines: " + childNode.getTitle().getString() :
-                "§8Hide dep lines: " + childNode.getTitle().getString();
-
-        String shapeLabel = "§7Line shape: §f" + lineOverrideLabel(childNode.getPrereqLineShape(lineCtxParentId));
-        String visualLabel = "§7Line style: §f" + lineOverrideLabel(childNode.getPrereqLineVisual(lineCtxParentId));
-        String speedLabel = "§7Dot speed: §f" + lineOverrideLabel(childNode.getPrereqLineSpeed(lineCtxParentId));
-        String arrowLabel = "§7Arrow: §f" + arrowOverrideLabel(childNode.getPrereqLineArrow(lineCtxParentId));
-
-        String[] labels = {
-                "§cRemove connection",
-                cycleLabel,
-                linkLabel,
-                cosmeticLabel,
-                hideLabel,
-                shapeLabel,
-                visualLabel,
-                speedLabel,
-                arrowLabel,
-                "§bDependency line settings…"
-        };
-        int menuW = 210, itemH = 14, pad = 4;
-        int menuH = pad + labels.length * itemH + pad;
-        int lx = lineCtxX, ly = lineCtxY;
-        if (lx + menuW > width) lx = width - menuW - 2;
-        if (ly + menuH > height) ly = height - menuH - 2;
-
-        g.fill(lx, ly, lx + menuW, ly + menuH, 0xEE0D0D12);
-        g.fill(lx, ly, lx + menuW, ly + 1, 0xFF9900FF);
-        g.fill(lx, ly, lx + 1, ly + menuH, 0xFF9900FF);
-        g.fill(lx + menuW - 1, ly, lx + menuW, ly + menuH, 0xFF9900FF);
-        g.fill(lx, ly + menuH - 1, lx + menuW, ly + menuH, 0xFF9900FF);
-
-        for (int i = 0; i < labels.length; i++) {
-            int iy = ly + pad + i * itemH;
-            boolean hov = mx >= lx && mx < lx + menuW && my >= iy && my < iy + itemH;
-            if (hov) g.fill(lx + 1, iy, lx + menuW - 1, iy + itemH, 0x44FFFFFF);
-            g.drawString(font, labels[i], lx + 6, iy + 2, 0xFFDDDDDD, false);
-        }
-    }
-
-    private static String lineOverrideLabel(Enum<?> override) {
-        return override == null ? "§8Inherit" : override.name();
-    }
-
-    private static String arrowOverrideLabel(Boolean override) {
-        return override == null ? "§8Inherit" : (override ? "ON" : "OFF");
-    }
-
-    /** Cycles null → true → false → null. */
-    private static Boolean cycleArrowOverride(Boolean current) {
-        if (current == null) return Boolean.TRUE;
-        return current ? Boolean.FALSE : null;
-    }
-
-    /** Cycles null → values[0] → values[1] → ... → values[last] → null. */
-    private static <T extends Enum<T>> T cycleLineOverride(T current, T[] values) {
-        if (current == null) return values[0];
-        int next = current.ordinal() + 1;
-        return next < values.length ? values[next] : null;
-    }
-
-    private void handleLineCtxClick(int mx, int my) {
-        if (!lineCtxOpen) return;
-        QuestNode parentNode = lineCtxParentId == null ? null : QuestTreeRegistry.getQuest(lineCtxParentId);
-        QuestNode childNode = lineCtxChildId == null ? null : QuestTreeRegistry.getQuest(lineCtxChildId);
-        if (parentNode == null || childNode == null) {
-            lineCtxOpen = false;
-            return;
-        }
-
-        boolean isForbidden = childNode.isPrereqForbidden(lineCtxParentId);
-        boolean isRequired = !isForbidden && childNode.isPrereqRequired(lineCtxParentId);
-        boolean isLink = childNode.isPrereqLink(lineCtxParentId);
-        boolean isCosmetic = childNode.isPrereqCosmetic(lineCtxParentId);
-        int menuW = 210, itemH = 14, pad = 4;
-        int menuH = pad + 10 * itemH + pad;
-        int lx = lineCtxX, ly = lineCtxY;
-        if (lx + menuW > width) lx = width - menuW - 2;
-        if (ly + menuH > height) ly = height - menuH - 2;
-
-        if (mx < lx || mx >= lx + menuW || my < ly || my >= ly + menuH) {
-            lineCtxOpen = false;
-            return;
-        }
-
-        int idx = (my - ly - pad) / itemH;
-        lineCtxOpen = false;
-
-        if (idx == 0) {
-            // Remove connection: child removes parentNode as a prereq; also remove parent→child edge
-            childNode.removePrerequisite(parentNode);
-            parentNode.removeChild(childNode);
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-            setFeedback("Removed: " + parentNode.getTitle().getString() + " → " + childNode.getTitle().getString());
-        } else if (idx == 1) {
-            // 3-way cycle: required → optional → forbidden → required
-            if (isForbidden) {
-                childNode.setPrereqForbidden(lineCtxParentId, false);
-                childNode.setPrereqRequired(lineCtxParentId, true);
-                setFeedback("Prereq type: Required");
-            } else if (!isRequired) {
-                childNode.setPrereqForbidden(lineCtxParentId, true);
-                setFeedback("Prereq type: Forbidden (must NOT be completed)");
-            } else {
-                childNode.setPrereqRequired(lineCtxParentId, false);
-                setFeedback("Prereq type: Optional");
-            }
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-        } else if (idx == 2) {
-            // Toggle link marker
-            childNode.setPrereqLink(lineCtxParentId, !isLink);
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-            setFeedback(isLink ? "Unmarked as link" : "Marked as link");
-        } else if (idx == 3) {
-            // Toggle cosmetic-only marker — when set, this edge is drawn but never gates unlock
-            childNode.setPrereqCosmetic(lineCtxParentId, !isCosmetic);
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-            setFeedback(isCosmetic ? "Unmarked as cosmetic-only (now gates unlock)" :
-                    "Marked as cosmetic-only (no longer gates unlock)");
-        } else if (idx == 4) {
-            // Toggle dep line visibility for the child quest
-            childNode.setHideDepLine(!childNode.isHideDepLine());
-            saveNodeHideDepLineToDisk(childNode);
-            rebuild();
-            setFeedback(childNode.isHideDepLine() ? "Dep lines hidden: " + childNode.getTitle().getString() :
-                    "Dep lines shown: " + childNode.getTitle().getString());
-        } else if (idx == 5) {
-            // Cycle this edge's line-shape override: Inherit → Spline → Straight → Inherit
-            var next = cycleLineOverride(childNode.getPrereqLineShape(lineCtxParentId),
-                    QuestChroniclesSettings.LineStyle.values());
-            childNode.setPrereqLineShape(lineCtxParentId, next);
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-            setFeedback("Line shape: " + lineOverrideLabel(next));
-        } else if (idx == 6) {
-            // Cycle this edge's line-style override: Inherit → Thin → Normal → ... → Glow → Inherit
-            var next = cycleLineOverride(childNode.getPrereqLineVisual(lineCtxParentId),
-                    QuestChroniclesSettings.LineVisualStyle.values());
-            childNode.setPrereqLineVisual(lineCtxParentId, next);
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-            setFeedback("Line style: " + lineOverrideLabel(next));
-        } else if (idx == 7) {
-            // Cycle this edge's dot-speed override: Inherit → Slowest → ... → Very Fast → Inherit
-            var next = cycleLineOverride(childNode.getPrereqLineSpeed(lineCtxParentId),
-                    QuestChroniclesSettings.LineAnimSpeed.values());
-            childNode.setPrereqLineSpeed(lineCtxParentId, next);
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-            setFeedback("Dot speed: " + lineOverrideLabel(next));
-        } else if (idx == 8) {
-            // Cycle this edge's directional-arrow override: Inherit → On → Off → Inherit
-            Boolean next = cycleArrowOverride(childNode.getPrereqLineArrow(lineCtxParentId));
-            childNode.setPrereqLineArrow(lineCtxParentId, next);
-            saveNodePrereqsToDisk(childNode);
-            rebuild();
-            setFeedback("Arrow: " + arrowOverrideLabel(next));
-        } else if (idx == 9) {
-            // Open dep line settings screen, scoped to the parent quest of this edge + its dependents
-            final String cat = selectedCategory;
-            if (minecraft != null) minecraft.setScreen(new DepLineSettingsScreen(this, cat, parentNode));
-        }
     }
 
     // ── Unlock path BFS ───────────────────────────────────────────────────────
@@ -4367,7 +5342,7 @@ public class ChronicleOverviewScreen extends Screen {
         Minecraft mc = Minecraft.getInstance();
         PlayerQuestData data = mc.player == null ? null :
                 mc.player.getCapability(
-                                QuestCapabilityProvider.PLAYER_QUESTS)
+                        QuestCapabilityProvider.PLAYER_QUESTS)
                         .orElse(null);
         while (!queue.isEmpty()) {
             QuestNode n = queue.poll();
@@ -4390,6 +5365,7 @@ public class ChronicleOverviewScreen extends Screen {
         // depth test and show them through regardless of paint order. Push above that z.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
+        g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
 
         int panW = Math.min(400, cr - cl - 20);
         int panX = cl + (cr - cl - panW) / 2;
@@ -4566,6 +5542,7 @@ public class ChronicleOverviewScreen extends Screen {
         // above any node icon's z, so it's guaranteed to occlude them.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
+        g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
 
         int panW = Math.min(480, cr - cl - 20);
         int panX = cl + (cr - cl - panW) / 2;
@@ -4640,6 +5617,7 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public void onClose() {
+        saveViewForCategory(viewCategoryTracker);
         PhantasiaCompat.closePreview(phantasiaPreview);
         phantasiaPreview = null;
         super.onClose();
@@ -4649,12 +5627,21 @@ public class ChronicleOverviewScreen extends Screen {
         return false;
     }
 
+    private int lastSeenProgressVersion = -1;
+
     @Override
     public void tick() {
         super.tick();
-        // Progress bars are cached per-category; clear on each tick so they reflect
-        // quest completions that arrived via S2C sync packets since last rebuild.
-        progressCache.clear();
+        // Progress bars are cached per-category; used to clear unconditionally every tick,
+        // which meant a full O(quests) rescan per visible category up to 20x/sec even when
+        // nothing changed. Only clear when an actual S2C progress sync has landed since we
+        // last checked.
+        int v = net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket.getVersion();
+        if (v != lastSeenProgressVersion) {
+            lastSeenProgressVersion = v;
+            progressCache.clear();
+            attentionCache.clear();
+        }
     }
 
     // ── Tutorial overlay ──────────────────────────────────────────────────────
@@ -4690,7 +5677,7 @@ public class ChronicleOverviewScreen extends Screen {
         if (stepIdx < 0 || stepIdx >= steps.size()) return;
         TutorialStep step = steps.get(stepIdx);
 
-        int cl = SIDEBAR_W, cr = width;
+        int cl = sidebarW(), cr = width;
 
         // ── Spotlight dim ─────────────────────────────────────────────────────
         int hx = 0, hy = 0, hw = 0, hh = 0;
@@ -4698,7 +5685,7 @@ public class ChronicleOverviewScreen extends Screen {
             if (TutorialStep.HL_SIDEBAR.equals(step.highlight())) {
                 hx = 0;
                 hy = 0;
-                hw = SIDEBAR_W;
+                hw = sidebarW();
                 hh = height;
             } else if (TutorialStep.HL_CANVAS.equals(step.highlight())) {
                 hx = cl;

@@ -36,16 +36,25 @@ public class QuestStyleEditorScreen extends Screen {
     private final QuestNode node;
 
     private EditBox titleBox;
-    private EditBox descBox;
     private EditBox devNotesBox;
 
+    // Description is edited via the full rich-text editor (QuestTextInputScreen), opened by
+    // clicking this preview box, rather than being a plain EditBox with a separate preview.
+    private String descRaw;
+    private int descPreviewX, descPreviewY, descPreviewW, descPreviewH;
+    // Panel bounds, refreshed every render() — used by mouseClicked() to detect outside-click.
+    private int panelBoundsX, panelBoundsY, panelBoundsH;
+
     private String selectedShape;
+    /** Picked texture for the "CUSTOM" shape - ignored for every other shape id. */
+    private String selectedShapeTexture;
     private QuestNode.NodeSize selectedSize;
 
     // Description multiline simulation: list of rows that wrap
     private static final int DESC_ROWS = 5;
-    private static final String[] SHAPES = { "CIRCLE", "SQUARE", "DIAMOND", "HEXAGON", "PENTAGON" };
-    private static final String[] SHAPE_GLYPHS = { "●", "■", "◆", "⬡", "⬠" };
+    private static final int DESC_PREVIEW_H = 40;
+    private static final String[] SHAPES = { "CIRCLE", "SQUARE", "DIAMOND", "HEXAGON", "PENTAGON", "CUSTOM" };
+    private static final String[] SHAPE_GLYPHS = { "●", "■", "◆", "⬡", "⬠", "▩" };
 
     // Hover / click tracking
     private int hovShapeIdx = -1;
@@ -62,7 +71,9 @@ public class QuestStyleEditorScreen extends Screen {
         this.parent = parent;
         this.node = node;
         this.selectedShape = node.getShapeType() != null ? node.getShapeType() : "SQUARE";
+        this.selectedShapeTexture = node.getShapeTexture() != null ? node.getShapeTexture() : "";
         this.selectedSize = node.getNodeSize() != null ? node.getNodeSize() : QuestNode.NodeSize.NORMAL;
+        this.descRaw = node.getDescriptionRaw().getString();
     }
 
     @Override
@@ -100,14 +111,10 @@ public class QuestStyleEditorScreen extends Screen {
         addWidget(titleBox);
         cy += FIELD_H + ROW_H - FIELD_H - LABEL_GAP - 9 + 4;
 
-        // Description (single-line for now; rich text typed inline)
+        // Description — clickable preview box, opens the full rich-text editor (see render()/
+        // mouseClicked()) instead of an inline EditBox.
         cy += LABEL_GAP + 9 + 2;
-        descBox = new EditBox(font, fieldX, cy, fieldW, FIELD_H, Component.empty());
-        descBox.setMaxLength(2000);
-        descBox.setValue(node.getDescriptionRaw().getString());
-        descBox.setBordered(false);
-        addWidget(descBox);
-        cy += FIELD_H + 8;
+        cy += DESC_PREVIEW_H + 8;
 
         // Dev notes
         cy += LABEL_GAP + 9 + 6;
@@ -126,13 +133,22 @@ public class QuestStyleEditorScreen extends Screen {
         hovSaveBtn = 0;
         hovCancelBtn = 0;
 
-        // Dim background
+        // Background — render the actual parent screen (dimmed) instead of raw world, matching
+        // the pattern established elsewhere this session (CategoryThemeScreen, ToastDesignerScreen).
+        if (parent != null) parent.render(g, -1, -1, partial);
+        g.flush();
+        g.pose().pushPose();
+        g.pose().translate(0f, 0f, 300f);
+        g.flush();
         g.fill(0, 0, width, height, 0xAA000000);
 
         int px = (width - PANEL_W) / 2;
         int rowsNeeded = 5;
-        int panelH = HEADER_H + FOOTER_H + rowsNeeded * ROW_H + DESC_ROWS * 9 + MARGIN * 4 + 30;
+        int panelH = HEADER_H + FOOTER_H + rowsNeeded * ROW_H + DESC_PREVIEW_H + MARGIN * 4 + 30;
         int py = Math.max(4, (height - panelH) / 2);
+        this.panelBoundsX = px;
+        this.panelBoundsY = py;
+        this.panelBoundsH = panelH;
 
         // Panel background + border
         g.fill(px, py, px + PANEL_W, py + panelH, C_PANEL);
@@ -160,32 +176,31 @@ public class QuestStyleEditorScreen extends Screen {
         cy += FIELD_H + 10;
 
         // ── Description ───────────────────────────────────────────────────────
-        g.drawString(font, "§8DESCRIPTION  §7(rich text: {#RRGGBB}…{reset})", fieldX, cy, C_TEXT_FAINT, false);
+        // Clickable preview only — click opens the full rich-text editor (QuestTextInputScreen),
+        // which has the actual color-picker/format-code tools; this box just previews the result.
+        g.drawString(font, "§8DESCRIPTION  §7(click to edit — rich text)", fieldX, cy, C_TEXT_FAINT, false);
         cy += LABEL_GAP + 8;
-        drawField(g, fieldX, cy, fieldW, FIELD_H, descBox != null && descBox.isFocused());
-        if (descBox != null) {
-            descBox.setX(fieldX);
-            descBox.setY(cy);
-            descBox.setWidth(fieldW);
-            descBox.render(g, mx, my, partial);
-        }
-        cy += FIELD_H + 10;
-
-        // Live rich-text preview
-        String previewRaw = descBox != null ? descBox.getValue() : "";
-        if (!previewRaw.isBlank()) {
+        descPreviewX = fieldX;
+        descPreviewY = cy;
+        descPreviewW = fieldW;
+        descPreviewH = DESC_PREVIEW_H;
+        boolean descHov = mx >= descPreviewX && mx < descPreviewX + descPreviewW &&
+                my >= descPreviewY && my < descPreviewY + descPreviewH;
+        drawField(g, descPreviewX, descPreviewY, descPreviewW, descPreviewH, descHov);
+        g.enableScissor(descPreviewX + 2, descPreviewY + 2, descPreviewX + descPreviewW - 2,
+                descPreviewY + descPreviewH - 2);
+        if (descRaw != null && !descRaw.isBlank()) {
             List<net.phoenixvine.chronicles.client.rich.RichSpan> spans = net.phoenixvine.chronicles.client.rich.ChronicleTextParser
-                    .parse(previewRaw);
-            int previewH = 28;
-            g.fill(fieldX, cy, fieldX + fieldW, cy + previewH, 0xFF0A0A10);
-            g.fill(fieldX, cy, fieldX + fieldW, cy + 1, C_BORDER);
-            g.fill(fieldX, cy + previewH - 1, fieldX + fieldW, cy + previewH, C_BORDER);
-            g.enableScissor(fieldX, cy + 2, fieldX + fieldW, cy + previewH - 2);
+                    .parse(descRaw);
             net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.render(
-                    g, font, spans, fieldX + 4, cy + 4, fieldW - 8, 0, cy + 2, cy + previewH - 2);
-            g.disableScissor();
-            cy += previewH + 6;
+                    g, font, spans, descPreviewX + 4, descPreviewY + 4, descPreviewW - 8, 0,
+                    descPreviewY + 2, descPreviewY + descPreviewH - 2);
+        } else {
+            g.drawString(font, "§8Click to add a description…", descPreviewX + 4, descPreviewY + 4,
+                    C_TEXT_FAINT, false);
         }
+        g.disableScissor();
+        cy += descPreviewH + 10;
 
         // ── Dev notes ─────────────────────────────────────────────────────────
         g.drawString(font, "§8DEV NOTES  §7(internal, not shown to players)", fieldX, cy, C_TEXT_FAINT, false);
@@ -267,15 +282,40 @@ public class QuestStyleEditorScreen extends Screen {
                 hovCancelBtn == 1 ? 0xFFFF6666 : C_TEXT_DIM);
 
         super.render(g, mx, my, partial);
+        g.pose().popPose();
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
         if (btn != 0) return super.mouseClicked(mx, my, btn);
 
+        // Click outside the panel → close, same as Escape
+        if (mx < panelBoundsX || mx >= panelBoundsX + PANEL_W || my < panelBoundsY ||
+                my >= panelBoundsY + panelBoundsH) {
+            if (minecraft != null) minecraft.setScreen(parent);
+            return true;
+        }
+
+        // Description preview → open the full rich-text editor
+        if (mx >= descPreviewX && mx < descPreviewX + descPreviewW &&
+                my >= descPreviewY && my < descPreviewY + descPreviewH) {
+            if (minecraft != null) {
+                minecraft.setScreen(new QuestTextInputScreen(this, "Description", descRaw, 2000,
+                        v -> descRaw = v));
+            }
+            return true;
+        }
+
         // Shape buttons
         if (hovShapeIdx >= 0 && hovShapeIdx < SHAPES.length) {
-            selectedShape = SHAPES[hovShapeIdx];
+            if ("CUSTOM".equals(SHAPES[hovShapeIdx])) {
+                if (minecraft != null) minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
+                    selectedShape = "CUSTOM";
+                    selectedShapeTexture = rl;
+                }));
+            } else {
+                selectedShape = SHAPES[hovShapeIdx];
+            }
             return true;
         }
 
@@ -292,10 +332,8 @@ public class QuestStyleEditorScreen extends Screen {
         // For simplicity, re-derive from widget positions (titleBox.y known)
         if (titleBox != null) {
             int cy = titleBox.getY() + FIELD_H + 10;
-            // skip desc label + box
-            cy += LABEL_GAP + 8 + FIELD_H + 10;
-            // skip preview if desc is non-empty
-            if (descBox != null && !descBox.getValue().isBlank()) cy += 34;
+            // skip desc label + preview box (fixed height now, unlike the old EditBox+preview combo)
+            cy += LABEL_GAP + 8 + DESC_PREVIEW_H + 10;
             // skip dev notes label + box
             cy += LABEL_GAP + 8 + FIELD_H + 12;
             // skip shape label + buttons
@@ -350,13 +388,14 @@ public class QuestStyleEditorScreen extends Screen {
     private void applyAndSave() {
         // Apply in-memory
         String newTitle = titleBox != null ? titleBox.getValue().trim() : node.getTitleRaw().getString();
-        String newDesc = descBox != null ? descBox.getValue().trim() : node.getDescriptionRaw().getString();
+        String newDesc = descRaw != null ? descRaw.trim() : node.getDescriptionRaw().getString();
         String newNotes = devNotesBox != null ? devNotesBox.getValue().trim() : node.getDevNotes();
 
         if (!newTitle.isEmpty())
             node.setTitle(net.minecraft.network.chat.Component.literal(newTitle));
         node.setDescription(net.minecraft.network.chat.Component.literal(newDesc));
         node.setShapeType(selectedShape);
+        node.setShapeTexture(selectedShapeTexture);
         node.setNodeSize(selectedSize);
         node.setDevNotes(newNotes);
 

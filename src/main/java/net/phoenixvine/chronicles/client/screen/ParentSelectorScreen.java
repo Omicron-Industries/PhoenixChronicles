@@ -5,6 +5,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
+import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
@@ -88,20 +90,35 @@ public class ParentSelectorScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(@NotNull GuiGraphics g) { /* fully opaque fill below replaces the vanilla dirt/blur */ }
+
+    @Override
     public void render(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        this.renderBackground(graphics);
+        // Fully opaque background of its own, in the Chronicles palette instead of the vanilla
+        // renderBackground() call this used to make (a translucent overlay that let the overview
+        // screen's canvas bleed through underneath it).
+        graphics.pose().pushPose();
+        graphics.pose().translate(0f, 0f, 300f);
+        graphics.flush();
+        graphics.fill(0, 0, width, height, ChroniclesThemePalette.BG);
+
         int midX = this.width / 2;
 
-        // Screen Frame Box Boundary Backdrop
-        graphics.fill(midX - 130, 10, midX + 130, this.height - 6, 0xED050505);
-        graphics.renderOutline(midX - 130, 10, 260, this.height - 16, 0xFF00AA00);
+        // Panel frame, styled to match the rest of the Chronicles UI instead of the old
+        // green "hacker terminal" look.
+        graphics.fill(midX - 130, 10, midX + 130, this.height - 6, ChroniclesThemePalette.PANEL);
+        ChroniclesUIKit.drawBorder(graphics, midX - 130, 10, 260, this.height - 16, ChroniclesThemePalette.BORDER_LIT);
 
-        graphics.drawCenteredString(this.font, "§aSEARCH CORE QUEST MATRIX", midX, 18, 0xFFFFFF);
+        graphics.drawCenteredString(this.font, "§dSelect Parent Dependency", midX, 18, ChroniclesThemePalette.TEXT);
 
         if (this.filteredNodes.isEmpty()) {
-            graphics.drawCenteredString(this.font, "§8No matching nodes located.", midX, 90, 0xAAAAAA);
+            graphics.drawCenteredString(this.font, "§8No matching nodes located.", midX, 90,
+                    ChroniclesThemePalette.TEXT_FAINT);
         }
 
         super.render(graphics, mouseX, mouseY, partialTicks);
+
+        graphics.flush();
+        graphics.pose().popPose();
     }
 }

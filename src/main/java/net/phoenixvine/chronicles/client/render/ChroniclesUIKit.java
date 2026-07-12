@@ -26,9 +26,14 @@ public final class ChroniclesUIKit {
 
     // ---- Scrim ----------------------------------------------------------
 
-    /** Standard semi-transparent dimming behind a modal panel. */
+    /**
+     * Standard opaque backdrop behind a modal panel. Used to be a 0x70000000 translucent dim over
+     * the still-rendered parent screen, which repeatedly read as "bleeding from parent" against a
+     * busy quest canvas (same complaint independently made about the item/fluid pickers) - fully
+     * opaque instead, matching the pickers' own fix.
+     */
     public static void drawScrim(GuiGraphics g, int width, int height) {
-        g.fill(0, 0, width, height, 0x70000000);
+        g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
     }
 
     // ---- Borders ----------------------------------------------------------
@@ -57,6 +62,12 @@ public final class ChroniclesUIKit {
                                        int panelX, int panelY, int panelW, int panelH, int headerH,
                                        String title, int panelColor, int headerColor, int borderColor,
                                        int textColor) {
+        // Same missing-flush bug as drawDropdown()/renderCtxMenu() had: every caller pushes an
+        // elevated z-translate before calling this, but that translate isn't actually "in effect"
+        // for the depth test until something flushes - without it, quest node icons underneath
+        // (z=100 via g.renderItem()) could still win against this panel's own fills and bleed
+        // through what's supposed to be a fully opaque modal on top of them.
+        g.flush();
         drawScrim(g, screenW, screenH);
 
         g.fill(panelX, panelY, panelX + panelW, panelY + panelH, panelColor);
@@ -84,7 +95,7 @@ public final class ChroniclesUIKit {
      * Handles the "elevated z + panel + border + per-row hover highlight + selected marker"
      * pattern duplicated in CategoryThemeScreen, QuestStyleEditorScreen and others.
      *
-     * @param labelFn maps an item to its display label (selection marker is prepended automatically)
+     * @param labelFn       maps an item to its display label (selection marker is prepended automatically)
      * @param selectedIndex index currently selected, or -1 for none
      * @return the row index the mouse is currently hovering, or -1
      */
@@ -94,6 +105,15 @@ public final class ChroniclesUIKit {
         int dropH = items.size() * rowH;
         g.pose().pushPose();
         g.pose().translate(0, 0, 300);
+        // Callers already flush before invoking this, but that only guarantees whatever THEY
+        // queued is submitted - it says nothing about this method's own translate actually being
+        // in effect before ITS first draw call. Every other elevated-z overlay in this codebase
+        // pairs its translate with an explicit flush immediately after for exactly that reason
+        // (this pack's GuiGraphics batching has repeatedly been shown to need one at every layer
+        // boundary, not just upstream ones) - this shared dropdown was missing its own, which
+        // read as "the dropdown looks transparent" whenever a quest node icon (written to the
+        // depth buffer at z=100 via g.renderItem()) sat underneath it.
+        g.flush();
 
         g.fill(x, y, x + w, y + dropH, ChroniclesThemePalette.PANEL);
         drawBorder(g, x, y, w, dropH, ChroniclesThemePalette.BORDER);
@@ -111,6 +131,7 @@ public final class ChroniclesUIKit {
                     hovered ? ChroniclesThemePalette.TEXT : ChroniclesThemePalette.TEXT_DIM);
         }
 
+        g.flush();
         g.pose().popPose();
         return hoveredRow;
     }
