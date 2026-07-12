@@ -430,14 +430,19 @@ public class QuestTasksScreen extends Screen {
         cy += 1;
 
         // ── Embedded Phantasia build preview — part of the quest's own content, shown whether
-        // or not the quest also has a view_machine task requiring it to be viewed.
+        // or not the quest also has a view_machine task requiring it to be viewed. Rendered as a
+        // small square anchored to the card's top-left instead of a full-width bar, so it reads
+        // as an inset thumbnail rather than eating the whole row.
         if (phantasiaPreview != null) {
-            g.fill(cardX + 2, cy + 1, cardX + cardW() - 2, cy + PREVIEW_H_COMPACT - 1, 0xFF0A0A10);
-            drawBorder(g, cardX + 2, cy + 1, cardW() - 4, PREVIEW_H_COMPACT - 2);
-            previewX = cardX + 3;
-            previewY = cy + 2;
-            previewW = cardW() - 6;
-            previewH = PREVIEW_H_COMPACT - 4;
+            int pvSz = PREVIEW_H_COMPACT; // square: width == height
+            int pvX = cardX + CARD_PAD;
+            int pvY = cy + 1;
+            g.fill(pvX, pvY, pvX + pvSz, pvY + pvSz - 2, 0xFF0A0A10);
+            drawBorder(g, pvX, pvY, pvSz, pvSz - 2);
+            previewX = pvX + 1;
+            previewY = pvY + 1;
+            previewW = pvSz - 2;
+            previewH = pvSz - 4;
             net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.tickPreview(phantasiaPreview);
             net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.renderPreview(phantasiaPreview, g,
                     previewX, previewY, previewW, previewH, partial);
@@ -826,22 +831,24 @@ public class QuestTasksScreen extends Screen {
                 descScrollY;
 
         // Embedded Phantasia build preview — part of the quest's own content, appended after the
-        // description text in the same scrollable flow as the prerequisites list below it.
+        // description text in the same scrollable flow as the prerequisites list below it. Rendered
+        // as a small square anchored to the left edge instead of a full-width bar, so it reads as an
+        // inset thumbnail rather than a divider spanning the whole content column.
         if (phantasiaPreview != null) {
             if (ly > y) ly += 8;
-            int pvH = 100;
-            if (ly + pvH >= y - 10 && ly < y + h) {
-                g.fill(x, ly, x + w, ly + pvH, 0xFF0A0A10);
-                drawBorder(g, x, ly, w, pvH);
+            int pvSz = 64; // square: width == height
+            if (ly + pvSz >= y - 10 && ly < y + h) {
+                g.fill(x, ly, x + pvSz, ly + pvSz, 0xFF0A0A10);
+                drawBorder(g, x, ly, pvSz, pvSz);
                 previewX = x + 1;
                 previewY = ly + 1;
-                previewW = w - 2;
-                previewH = pvH - 2;
+                previewW = pvSz - 2;
+                previewH = pvSz - 2;
                 net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.tickPreview(phantasiaPreview);
                 net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.renderPreview(phantasiaPreview, g,
                         previewX, previewY, previewW, previewH, partial);
             }
-            ly += pvH + 8;
+            ly += pvSz + 8;
         }
 
         List<QuestNode> prereqs = node.getPrerequisites();

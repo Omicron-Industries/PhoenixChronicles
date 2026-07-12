@@ -4,11 +4,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.common.Mod;
-import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
@@ -18,6 +17,7 @@ import net.phoenixvine.chronicles.tasks.ViewSceneTask;
 import net.phoenixvine.phantasia.api.PhantasiaAPI;
 import net.phoenixvine.phantasia.api.PhantasiaEvents;
 import net.phoenixvine.phantasia.api.PhantasiaMachinePreview;
+import net.phoenixvine.phantasia.api.PhantasiaScenePreview;
 
 /**
  * Phantasia mod integration for Phoenix Chronicles.
@@ -47,19 +47,23 @@ public class PhantasiaCompat {
         return ModList.get().isLoaded(PHANTASIA_MOD_ID);
     }
 
-    /** Call from your mod constructor or FMLCommonSetupEvent, guarded by isAvailable(). */
+    /**
+     * Call from your mod constructor or FMLCommonSetupEvent, guarded by isAvailable(). Registers
+     * {@link ClientEvents} explicitly, on the client only, instead of via {@code
+     * @Mod.EventBusSubscriber} — that annotation makes Forge reflect over every declared method
+     * of the class at mod-construction time regardless of whether Phantasia is present, which
+     * throws {@code NoClassDefFoundError} on {@code PhantasiaEvents.SceneViewerClose} (a method
+     * parameter type) and crashes ALL mod loading whenever Phantasia isn't installed. Deferring
+     * registration to here — reached only after {@link #isAvailable()} has already confirmed
+     * Phantasia is present — avoids that entirely.
+     */
     public static void init() {
-        // Client-side event subscription happens automatically via ClientEvents' own
-        // @Mod.EventBusSubscriber annotation below — nothing to do here beyond the isAvailable()
-        // gate the caller already applies. Kept as an explicit entry point for symmetry with
-        // other compat modules and so future non-event wiring has an obvious home.
+        DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
+                () -> () -> MinecraftForge.EVENT_BUS.register(ClientEvents.class));
     }
 
     // ── Client-side Phantasia event subscribers ───────────────────────────────
 
-    @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID,
-                            bus = Mod.EventBusSubscriber.Bus.FORGE,
-                            value = Dist.CLIENT)
     public static class ClientEvents {
 
         @SubscribeEvent
@@ -182,42 +186,72 @@ public class PhantasiaCompat {
     public static Object createPreview(String machineId) {
         if (!isAvailable() || machineId == null || machineId.isBlank()) return null;
         if (!PhantasiaAPI.hasScript(machineId)) return null;
-        return PhantasiaAPI.createPreview(machineId);
+        PhantasiaMachinePreview preview = PhantasiaAPI.createPreview(machineId);
+        if (preview != null) applyAutoSpinSetting(preview);
+        return preview;
     }
 
-    /** Advances the preview camera animation. Call once per render frame (before rendering). */
+    /**
+     * Creates a preview for an entire multi-machine scene (a static composite of every
+     * placement, not the full stepped/interactive viewer - see {@link PhantasiaScenePreview}'s
+     * class doc). Returns null if Phantasia is absent or the scene id is unknown.
+     */
+    public static Object createScenePreview(String sceneId) {
+        if (!isAvailable() || sceneId == null || sceneId.isBlank()) return null;
+        if (!PhantasiaAPI.hasScene(sceneId)) return null;
+        PhantasiaScenePreview preview = PhantasiaAPI.createScenePreview(sceneId);
+        if (preview != null) applyAutoSpinSetting(preview);
+        return preview;
+    }
+
+    /** Applies the user's "Auto-Spin Previews" setting (Settings screen) to a freshly-created preview. */
+    private static void applyAutoSpinSetting(Object preview) {
+        float degPerSec = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isPhantasiaAutoSpin() ?
+                20f : 0f;
+        if (preview instanceof PhantasiaMachinePreview p) p.setAutoSpin(degPerSec);
+        else if (preview instanceof PhantasiaScenePreview p) p.setAutoSpin(degPerSec);
+    }
+
+    /**
+     * Advances the preview camera animation. Call once per render frame (before rendering).
+     * Works for both machine and scene previews (see {@link #createPreview(String)} /
+     * {@link #createScenePreview(String)}).
+     */
     public static void tickPreview(Object preview) {
-        if (preview == null) return;
-        ((PhantasiaMachinePreview) preview).tick();
+        if (preview instanceof PhantasiaMachinePreview p) p.tick();
+        else if (preview instanceof PhantasiaScenePreview p) p.tick();
     }
 
     /** True once Phantasia has given up on this preview's pattern load (distinct from "still loading"). */
     public static boolean isPreviewLoadFailed(Object preview) {
-        if (preview == null) return false;
-        return ((PhantasiaMachinePreview) preview).isLoadFailed();
+        if (preview instanceof PhantasiaMachinePreview p) return p.isLoadFailed();
+        if (preview instanceof PhantasiaScenePreview p) return p.isLoadFailed();
+        return false;
     }
 
     /** Renders the preview into the given screen rectangle. */
     public static void renderPreview(Object preview, GuiGraphics g, int x, int y, int w, int h,
                                      float partialTick) {
-        if (preview == null) return;
-        ((PhantasiaMachinePreview) preview).render(g, x, y, w, h, partialTick);
+        if (preview instanceof PhantasiaMachinePreview p) p.render(g, x, y, w, h, partialTick);
+        else if (preview instanceof PhantasiaScenePreview p) p.render(g, x, y, w, h, partialTick);
     }
 
-    /** Returns true once the async pattern load is complete and the 3D view is live. */
+    /** Returns true once the pattern load is complete and the 3D view is live. */
     public static boolean isPreviewReady(Object preview) {
-        if (preview == null) return false;
-        return ((PhantasiaMachinePreview) preview).isReady();
+        if (preview instanceof PhantasiaMachinePreview p) return p.isReady();
+        if (preview instanceof PhantasiaScenePreview p) return p.isReady();
+        return false;
     }
 
     /**
-     * Forwards a mouse click to the preview (lets the player drag-to-rotate).
-     * Returns true if the preview consumed the click.
+     * Forwards a mouse click to the preview (lets the player drag-to-rotate, or opens the full
+     * Phantasia viewer for the click-to-view hint). Returns true if the preview consumed the click.
      */
     public static boolean previewMouseClicked(Object preview, double mx, double my, int x, int y, int w, int h,
                                               Screen parent) {
-        if (preview == null) return false;
-        return ((PhantasiaMachinePreview) preview).mouseClicked(mx, my, x, y, w, h, parent);
+        if (preview instanceof PhantasiaMachinePreview p) return p.mouseClicked(mx, my, x, y, w, h, parent);
+        if (preview instanceof PhantasiaScenePreview p) return p.mouseClicked(mx, my, x, y, w, h, parent);
+        return false;
     }
 
     /**
@@ -225,7 +259,7 @@ public class PhantasiaCompat {
      * node changes so the old preview doesn't leak a dummy world.
      */
     public static void closePreview(Object preview) {
-        if (preview == null) return;
-        ((PhantasiaMachinePreview) preview).close();
+        if (preview instanceof PhantasiaMachinePreview p) p.close();
+        else if (preview instanceof PhantasiaScenePreview p) p.close();
     }
 }

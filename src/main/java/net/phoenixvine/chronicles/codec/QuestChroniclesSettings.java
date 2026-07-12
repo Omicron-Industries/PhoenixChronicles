@@ -127,6 +127,22 @@ public class QuestChroniclesSettings {
     private String questbookIcon = "";
     /** Fallback toast presentation for quests without their own custom design (see QuestToastConfig). */
     private ToastStyle toastStyle = ToastStyle.COMPACT;
+    /** Whether unlock/complete toasts also play a sound (see S2CSyncPlayerProgressPacket). */
+    private boolean playToastSounds = true;
+    /** Whether embedded Phantasia 3D previews auto-rotate (see PhantasiaCompat). */
+    private boolean phantasiaAutoSpin = true;
+    /** Starting state of the canvas's "Hide Completed" toggle each time the questbook opens. */
+    private boolean hideCompletedByDefault = false;
+    /** Starting canvas grid-snap size each time the questbook opens. */
+    private int defaultGridSnap = 8;
+    /** Master toggle - when off, unlock/complete toasts never queue at all (see QuestToastManager.push). */
+    private boolean showToasts = true;
+    /**
+     * Freezes/steadies every blinking or pulsing canvas effect (validation warning borders,
+     * unclaimed-reward badges, unlock-path highlight, ACTIVE glow, UNLOCKED ready-dot, dependency
+     * line "marching ants") for players sensitive to constant motion/flicker.
+     */
+    private boolean reduceMotion = false;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path SETTINGS_FILE = Paths.get("config", "phoenix_chronicles_settings.json");
@@ -351,6 +367,54 @@ public class QuestChroniclesSettings {
             } catch (Exception ignored) {}
         }
         return net.minecraft.world.item.Items.WRITTEN_BOOK;
+    }
+
+    public boolean isPlayToastSounds() {
+        return playToastSounds;
+    }
+
+    public void setPlayToastSounds(boolean play) {
+        this.playToastSounds = play;
+    }
+
+    public boolean isPhantasiaAutoSpin() {
+        return phantasiaAutoSpin;
+    }
+
+    public void setPhantasiaAutoSpin(boolean spin) {
+        this.phantasiaAutoSpin = spin;
+    }
+
+    public boolean isHideCompletedByDefault() {
+        return hideCompletedByDefault;
+    }
+
+    public void setHideCompletedByDefault(boolean hide) {
+        this.hideCompletedByDefault = hide;
+    }
+
+    public int getDefaultGridSnap() {
+        return defaultGridSnap <= 0 ? 8 : defaultGridSnap;
+    }
+
+    public void setDefaultGridSnap(int snap) {
+        this.defaultGridSnap = Math.max(1, snap);
+    }
+
+    public boolean isShowToasts() {
+        return showToasts;
+    }
+
+    public void setShowToasts(boolean show) {
+        this.showToasts = show;
+    }
+
+    public boolean isReduceMotion() {
+        return reduceMotion;
+    }
+
+    public void setReduceMotion(boolean reduce) {
+        this.reduceMotion = reduce;
     }
 
     public float getTextScaleMultiplier() {

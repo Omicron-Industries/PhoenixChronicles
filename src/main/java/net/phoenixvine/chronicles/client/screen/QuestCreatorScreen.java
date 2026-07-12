@@ -736,8 +736,9 @@ public class QuestCreatorScreen extends Screen {
             g.disableScissor();
         }
 
-        // Header
+        // Header - accent stripe matching the rest of the Chronicles UI's signature touch
         g.fill(0, 0, width, HEADER_H, C_HEADER);
+        g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         String heading = editingNode != null ? "§fEdit Quest  §8— §7" + editingNode.getId().getPath() : "§fNew Quest";
         g.drawCenteredString(font, heading, width / 2, (HEADER_H - 8) / 2, C_TEXT);

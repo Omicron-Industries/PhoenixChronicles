@@ -51,7 +51,12 @@ public class PhoenixChronicles {
             ChroniclesTheme.loadThemes();
 
             if (net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.isAvailable()) {
-                net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.init();
+                try {
+                    net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.init();
+                } catch (Throwable t) {
+                    LOGGER.error("Phantasia integration failed to initialize — Phantasia-linked quest tasks" +
+                            " will be unavailable this session.", t);
+                }
             }
 
             LOGGER.info("Look, I found a {}!", Items.DIAMOND);

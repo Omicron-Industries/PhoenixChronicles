@@ -305,17 +305,22 @@ public class ToastDesignerScreen extends Screen {
         int fx = px + MARGIN;
         int fw = PANEL_W - MARGIN * 2;
 
-        g.drawString(font, "§8Scale", fx, scaleY - 11, ChroniclesThemePalette.TEXT_FAINT);
-        g.drawString(font, "§8Text Color (#AARRGGBB)", fx, colorY - 11, ChroniclesThemePalette.TEXT_FAINT);
+        // Each row's stored Y (scaleY, colorY, ...) is the row's own start position - the box
+        // itself sits 11px below that (see init()'s "new EditBox(font, fx, y + 11, ...)"), so the
+        // label belongs AT that stored Y, not 11px above it. Subtracting 11 here put every label
+        // a full row-height too high, landing inside the PREVIOUS row's box instead of just above
+        // its own (e.g. "Text Color" rendering on top of the Scale box).
+        g.drawString(font, "§8Scale", fx, scaleY, ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Text Color (#AARRGGBB)", fx, colorY, ChroniclesThemePalette.TEXT_FAINT);
         g.drawString(font, "§8Icon Set  §7(overrides quest's own icon)", fx, iconSetY - 9,
                 ChroniclesThemePalette.TEXT_FAINT);
         renderIconStrip(g, mx, my, fx, iconStripY);
-        g.drawString(font, "§8Size (background W × H)", fx, sizeY - 11, ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Size (background W × H)", fx, sizeY, ChroniclesThemePalette.TEXT_FAINT);
         if (PHANTASIA) {
-            g.drawString(font, "§8Phantasia Backdrop §7(optional)", fx, phantasiaY - 11,
+            g.drawString(font, "§8Phantasia Backdrop §7(optional)", fx, phantasiaY,
                     ChroniclesThemePalette.TEXT_FAINT);
         }
-        g.drawString(font, "§8Background / Accent Color", fx, bgColorY - 11, ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Background / Accent Color", fx, bgColorY, ChroniclesThemePalette.TEXT_FAINT);
 
         // Wrapped instead of a single drawString - the full sentence is wider than PANEL_W, so it
         // used to run past the actual window edge and read as truncated/unreadable.

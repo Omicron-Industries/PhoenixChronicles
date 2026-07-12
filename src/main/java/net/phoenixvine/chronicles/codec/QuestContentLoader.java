@@ -51,15 +51,14 @@ public class QuestContentLoader {
         activeLocale = locale != null ? locale.toLowerCase() : "en_us";
     }
 
-    // -------------------------------------------------------------------------
-
     public static void reloadAllQuestsFromDisk() {
-        QuestTreeRegistry.clear();
-
+        // Do NOT call QuestTreeRegistry.clear() here. QuestFileLoader owns the
+        // full-registry-clear lifecycle (position, shape, dependencies, previewMachineId,
+        // etc). If this pass ever runs after that one - world join ordering, a locale
+        // switch, anything - clearing here would wipe all of that back out, since this
+        // pass only ever knows about title/description.
         Path questsFolder = Minecraft.getInstance().gameDirectory.toPath()
-                .resolve("config")
-                .resolve("phoenix_chronicles")
-                .resolve("quests");
+                .resolve("config").resolve("phoenix_chronicles").resolve("quests");
 
         if (!Files.exists(questsFolder)) {
             LOGGER.info("[Chronicles] No quests folder found at {}", questsFolder);
@@ -69,7 +68,6 @@ public class QuestContentLoader {
         try (Stream<Path> walk = Files.walk(questsFolder)) {
             walk.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".md"))
-                    // Skip locale sub-files here; they're resolved on demand in loadQuestContent()
                     .filter(p -> !p.toString().contains("/lang/") && !p.toString().contains("\\lang\\"))
                     .sorted()
                     .forEach(QuestContentLoader::loadQuestFile);
@@ -84,20 +82,24 @@ public class QuestContentLoader {
             String id = fileName.substring(0, fileName.lastIndexOf('.'));
             ResourceLocation questId = new ResourceLocation("phoenixcore", id.toLowerCase());
 
-            // Resolve locale override if one exists
             Path resolvedFile = resolveLocaleFile(file, id);
-
             QuestContent content = parseQuestFile(resolvedFile);
             if (content == null) {
                 LOGGER.warn("[Chronicles] Skipping quest file with no parseable content: {}", file);
                 return;
             }
 
-            // Register a lightweight QuestNode with just id + title + description.
-            // Position, shape, dependencies are NOT set here — the chapter loader handles those.
+            QuestNode existing = QuestTreeRegistry.getQuest(questId);
+            if (existing != null) {
+                // Structural loader already registered this node - refresh content in place,
+                // don't replace it (that would drop previewMachineId/position/shape/etc).
+                existing.setTitle(content.title());
+                existing.setDescription(content.description());
+                return;
+            }
+
             QuestNode node = new QuestNode(questId, content.title(), content.description());
             QuestTreeRegistry.registerBareQuestNode(node);
-
         } catch (Exception e) {
             LOGGER.error("[Chronicles] Failed to load quest file: {}", file.getFileName(), e);
         }

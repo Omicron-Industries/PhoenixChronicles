@@ -75,6 +75,12 @@ repositories {
     flatDir {
         dir 'libs'
     }
+    // TEMPORARY: local Phantasia dev build (see the phantasia dependency below) - flatDir gives
+    // Gradle a real resolvable coordinate for it instead of a raw files() collection, which
+    // writeClientLegacyClasspath's dependency-constraint code can't handle.
+    flatDir {
+        dirs "${rootDir}/../Phantasia/build/libs"
+    }
 }
 
 version = mod_version
@@ -150,8 +156,20 @@ dependencies {
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
-    modCompileOnly("curse.maven:phantasia-1589286:8326565")
-    modRuntimeOnly("curse.maven:phantasia-1589286:8326565")
+    // TEMPORARY local override while PhantasiaMachinePreview's always-async load bug (hung
+    // indefinitely for at least one GTCEu machine) is fixed in the sibling Phantasia project and
+    // not yet published as a new CurseForge version - swap back to the curse.maven coordinate
+    // below once a new Phantasia build is uploaded.
+    // modCompileOnly("curse.maven:phantasia-1589286:8326565")
+    // modRuntimeOnly("curse.maven:phantasia-1589286:8326565")
+    // Needs the "mod" prefix (not plain compileOnly/runtimeOnly) so ForgeGradle actually runs its
+    // SRG-to-mapped remap transform on this jar - without it, the jar's compiled field/method
+    // references stay in SRG form (e.g. "f_50075_") and crash with NoSuchFieldError at runtime
+    // against the mapped names Minecraft actually uses in a dev environment. And it needs a real
+    // flatDir coordinate (see the repositories block above), not a raw files() collection, since
+    // writeClientLegacyClasspath's dependency-constraint code can't handle a FileCollection.
+    modCompileOnly("phantasia:Phantasia:1.0.0")
+    modRuntimeOnly("phantasia:Phantasia:1.0.0")
 
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")

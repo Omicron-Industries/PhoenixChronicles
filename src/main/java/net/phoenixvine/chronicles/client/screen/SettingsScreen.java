@@ -5,10 +5,25 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
+import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.registry.ChroniclesTheme;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Settings screen for Quest Chronicles.
+ *
+ * Categorized (left sidebar) instead of one long flat scroll - as more systems became
+ * configurable this session, a single list was heading toward the same unmanageable sprawl this
+ * pack's other screens have needed rework for. Each category's rows are built once, into a
+ * {@link Row} list with its Y position computed right there - render() and mouseClicked() both
+ * read from that same list, instead of (as before) independently re-deriving matching "y += ROW_H"
+ * arithmetic in two places, which is exactly the class of bug that bit the Toast Designer and
+ * Variant editor screens earlier (a label/row landing behind or overlapping its neighbor because
+ * the two copies of the arithmetic drifted out of sync).
  */
 public class SettingsScreen extends Screen {
 
@@ -28,18 +43,101 @@ public class SettingsScreen extends Screen {
     private static final int MARGIN = 8;
     private static final int ROW_H = 24;
     private static final int ROW_GAP = 4;
-    // Section header labels ("HUD Settings", "Dev Mode", ...) are a single text line, not a
-    // full interactive row - spacing them with the same ROW_H used for actual settings rows
-    // left a visibly bigger gap under every section header than between ordinary rows.
     private static final int LABEL_LINE_H = 10;
-    // Rows previously stretched across the full window width (MARGIN on each edge), which put
-    // the label hard against the left screen edge and the value/arrows hard against the right
-    // edge on any reasonably wide window - looked disjointed rather than like one settings
-    // panel. Capped to a fixed width and centered instead.
-    private static final int PANEL_W = 460;
+    private static final int SIDEBAR_W = 128;
+    private static final int PANEL_W = 380;
+    private static final int ARROW_W = 18;
+    private static final int ARROW_GAP = 2;
+
+    private enum Category {
+
+        GENERAL("General"),
+        HUD("HUD"),
+        POPUPS("Pop-Ups"),
+        CANVAS("Canvas"),
+        PHANTASIA("Phantasia"),
+        INVENTORY("Inventory"),
+        DEV("Dev Mode");
+
+        final String label;
+
+        Category(String label) {
+            this.label = label;
+        }
+    }
+
+    private enum RowType {
+        TOGGLE,
+        CYCLE,
+        LINK,
+        INFO
+    }
+
+    /**
+     * One settings row. Built fresh (with its Y already assigned) whenever the category changes
+     * or a value in it is edited, so render() and click-handling always agree on where every row
+     * actually is - there is no second copy of this layout math anywhere else in this class.
+     */
+    private static final class Row {
+
+        final RowType type;
+        final String label;
+        final Supplier<String> valueFn;
+        final Runnable onLeft, onRight; // CYCLE/TOGGLE: onLeft/onRight both toggle for TOGGLE rows
+        final Runnable onClick; // LINK rows
+        int y;
+        int height = ROW_H;
+
+        Row(RowType type, String label, Supplier<String> valueFn, Runnable onLeft, Runnable onRight,
+            Runnable onClick) {
+            this.type = type;
+            this.label = label;
+            this.valueFn = valueFn;
+            this.onLeft = onLeft;
+            this.onRight = onRight;
+            this.onClick = onClick;
+        }
+
+        static Row toggle(String label, Supplier<Boolean> getter, Consumer<Boolean> setter) {
+            Runnable flip = () -> setter.accept(!getter.get());
+            return new Row(RowType.TOGGLE, label, () -> getter.get() ? "§aYes" : "§cNo", flip, flip, null);
+        }
+
+        static <E extends Enum<E>> Row cycle(String label, Class<E> cls, Supplier<E> getter, Consumer<E> setter) {
+            E[] vals = cls.getEnumConstants();
+            Runnable left = () -> setter.accept(vals[(getter.get().ordinal() - 1 + vals.length) % vals.length]);
+            Runnable right = () -> setter.accept(vals[(getter.get().ordinal() + 1) % vals.length]);
+            return new Row(RowType.CYCLE, label, () -> getter.get().name(), left, right, null);
+        }
+
+        static Row intCycle(String label, int[] options, Supplier<Integer> getter, Consumer<Integer> setter) {
+            Runnable left = () -> setter.accept(options[(indexOf(options, getter.get()) - 1 + options.length) %
+                    options.length]);
+            Runnable right = () -> setter.accept(options[(indexOf(options, getter.get()) + 1) % options.length]);
+            return new Row(RowType.CYCLE, label, () -> String.valueOf(getter.get()), left, right, null);
+        }
+
+        private static int indexOf(int[] arr, int v) {
+            for (int i = 0; i < arr.length; i++) if (arr[i] == v) return i;
+            return 0;
+        }
+
+        static Row link(String label, Runnable onClick) {
+            return new Row(RowType.LINK, label, () -> "→", null, null, onClick);
+        }
+
+        /** A plain non-interactive info line - may wrap onto more than one visual line. */
+        static Row info(String text, int lineCount) {
+            Row r = new Row(RowType.INFO, text, null, null, null, null);
+            r.height = lineCount * LABEL_LINE_H;
+            return r;
+        }
+    }
 
     private final Screen parent;
-    private QuestChroniclesSettings settings;
+    private final QuestChroniclesSettings settings;
+    private Category selectedCategory = Category.GENERAL;
+    private List<Row> rows = new ArrayList<>();
     private int scrollY = 0;
 
     public SettingsScreen(Screen parent) {
@@ -61,86 +159,159 @@ public class SettingsScreen extends Screen {
         C_TEXT_DIM = t.textDim.getColor();
         C_TEXT_FAINT = t.textFaint.getColor();
         C_OK = t.done.getColor();
+        rebuildRows();
+    }
+
+    private void selectCategory(Category cat) {
+        selectedCategory = cat;
+        scrollY = 0;
+        rebuildRows();
+    }
+
+    /** Builds the row list (with Y positions assigned) for whichever category is selected. */
+    private void rebuildRows() {
+        rows = new ArrayList<>();
+        int y = HEADER_H + MARGIN;
+
+        switch (selectedCategory) {
+            case GENERAL -> {
+                rows.add(Row.cycle("§fText Scale", TextScale.class, settings::getTextScale, settings::setTextScale));
+                rows.add(Row.cycle("§fTheme", Theme.class, settings::getTheme, settings::setTheme));
+                rows.add(Row.cycle("§fLayout Density", Density.class, settings::getDensity, settings::setDensity));
+                rows.add(Row.toggle("§fReduce Motion", settings::isReduceMotion, settings::setReduceMotion));
+                rows.add(Row.info(
+                        "§8Freezes blinking/pulsing effects and animated dependency lines\n" +
+                                "§8(validation warnings, unclaimed rewards, ACTIVE glow, etc.)",
+                        2));
+                rows.add(Row.link("§fTheme Editor",
+                        () -> {
+                            if (minecraft != null) minecraft.setScreen(new ChroniclesThemeEditorScreen(this));
+                        }));
+                rows.add(Row.info("§8Keybinds: Minecraft's own Options → Controls → Phoenix Chronicles", 1));
+            }
+            case HUD -> {
+                rows.add(Row.cycle("§fHUD Position", HUDPosition.class, settings::getHudPosition,
+                        settings::setHudPosition));
+                rows.add(new Row(RowType.CYCLE, "§fHUD Opacity",
+                        () -> String.format("%.0f%%", settings.getHudOpacity() * 100),
+                        () -> settings.setHudOpacity(settings.getHudOpacity() - 0.1f),
+                        () -> settings.setHudOpacity(settings.getHudOpacity() + 0.1f), null));
+                rows.add(Row.toggle("§fShow HUD Title", settings::isShowHUDTitle, settings::setShowHUDTitle));
+                rows.add(Row.toggle("§fShow HUD Progress", settings::isShowHUDProgress, settings::setShowHUDProgress));
+                rows.add(Row.toggle("§fShow HUD Rewards", settings::isShowHUDRewards, settings::setShowHUDRewards));
+            }
+            case POPUPS -> {
+                rows.add(Row.toggle("§fShow Pop-Ups", settings::isShowToasts, settings::setShowToasts));
+                rows.add(Row.cycle("§fPop-Up Style", ToastStyle.class, settings::getToastStyle,
+                        settings::setToastStyle));
+                rows.add(Row.cycle("§fPop-Up Position", HUDPosition.class, settings::getToastPosition,
+                        settings::setToastPosition));
+                rows.add(Row.toggle("§fPlay Pop-Up Sounds", settings::isPlayToastSounds, settings::setPlayToastSounds));
+                rows.add(Row.info("§8Individual pop-ups: right-click a quest → Design Pop-Up", 1));
+            }
+            case CANVAS -> {
+                rows.add(Row.toggle("§fHide Completed by Default", settings::isHideCompletedByDefault,
+                        settings::setHideCompletedByDefault));
+                rows.add(Row.intCycle("§fDefault Grid Snap", new int[] { 1, 2, 4, 8, 16, 32 },
+                        settings::getDefaultGridSnap, settings::setDefaultGridSnap));
+                rows.add(Row.cycle("§fDependency Line Style", LineStyle.class, settings::getLineStyle,
+                        settings::setLineStyle));
+                rows.add(Row.cycle("§fLine Visual Style", LineVisualStyle.class, settings::getLineVisualStyle,
+                        settings::setLineVisualStyle));
+                rows.add(Row.cycle("§fLine Animation Speed", LineAnimSpeed.class, settings::getLineAnimSpeed,
+                        settings::setLineAnimSpeed));
+                rows.add(Row.toggle("§fShow Line Arrows", settings::isShowLineArrows, settings::setShowLineArrows));
+                rows.add(Row.info("§8These can also be changed via right-click on the quest canvas.", 1));
+            }
+            case PHANTASIA -> rows.add(Row.toggle("§fAuto-Spin Previews", settings::isPhantasiaAutoSpin,
+                    settings::setPhantasiaAutoSpin));
+            case INVENTORY -> {
+                rows.add(Row.toggle("§fShow in Inventory", settings::isShowInventoryButton,
+                        settings::setShowInventoryButton));
+                rows.add(Row.cycle("§fButton Position", InvButtonPos.class, settings::getInvButtonPos,
+                        settings::setInvButtonPos));
+            }
+            case DEV -> {
+                // Saved immediately (not just on the footer Save button) since closing this
+                // screen any other way (Escape, clicking away) previously discarded the toggle
+                // silently, making it look like the choice didn't persist across restarts.
+                rows.add(Row.toggle("§fDev Mode Enabled", () -> !settings.isDevModeDisabled(), on -> {
+                    settings.setDevModeDisabled(!on);
+                    settings.save();
+                }));
+                rows.add(Row.toggle("§fShow Dev Info by Default", settings::isShowDevInfoByDefault,
+                        settings::setShowDevInfoByDefault));
+                rows.add(Row.info(
+                        "§8Off by default - click to opt in. Still only takes effect if you're\n" +
+                                "§8creative or op level 2+; this can't grant dev tools by itself.",
+                        2));
+            }
+        }
+
+        for (Row r : rows) {
+            r.y = y;
+            y += r.height + ROW_GAP;
+        }
     }
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float partial) {
-        // Background
         g.fill(0, 0, width, height, C_BG);
 
         // Header
         g.fill(0, 0, width, HEADER_H, C_HEADER);
+        g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         g.drawCenteredString(font, "§fChronicles Settings", width / 2, 9, C_TEXT);
 
+        int contentTop = HEADER_H;
+        int contentBottom = height - FOOTER_H;
+
+        // Sidebar
+        g.fill(0, contentTop, SIDEBAR_W, contentBottom, C_PANEL);
+        g.fill(SIDEBAR_W - 1, contentTop, SIDEBAR_W, contentBottom, C_BORDER);
+        int sy = contentTop + MARGIN;
+        for (Category cat : Category.values()) {
+            if (cat == Category.PHANTASIA && !PhantasiaCompat.isAvailable()) continue;
+            boolean sel = cat == selectedCategory;
+            boolean hov = mx >= 0 && mx < SIDEBAR_W && my >= sy && my < sy + ROW_H;
+            if (sel) {
+                g.fill(0, sy, SIDEBAR_W - 1, sy + ROW_H, 0x22FFFFFF);
+                g.fill(0, sy, 2, sy + ROW_H, C_ACCENT);
+            } else if (hov) {
+                g.fill(0, sy, SIDEBAR_W - 1, sy + ROW_H, 0x10FFFFFF);
+            }
+            g.drawString(font, (sel ? "§f" : "§7") + cat.label, MARGIN, sy + (ROW_H - 8) / 2,
+                    sel ? C_TEXT : C_TEXT_DIM, false);
+            sy += ROW_H;
+        }
+
         // Content area
-        int contentTop = HEADER_H + MARGIN;
-        int contentH = height - HEADER_H - MARGIN - FOOTER_H - MARGIN;
+        int x = SIDEBAR_W + MARGIN;
+        int w = Math.min(PANEL_W, width - x - MARGIN);
+        g.enableScissor(x, contentTop, x + w, contentBottom);
 
-        g.enableScissor(0, contentTop, width, contentTop + contentH);
-
-        int y = contentTop - scrollY;
-        int x = (width - PANEL_W) / 2;
-        int w = PANEL_W;
-
-        // Settings rows
-        y = renderSetting(g, x, y, w, "§fText Scale", settings.getTextScale().name(), mx, my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fTheme", settings.getTheme().name(), mx, my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fLayout Density", settings.getDensity().name(), mx, my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fShow Dev Info by Default",
-                settings.isShowDevInfoByDefault() ? "§aYes" : "§cNo", mx, my) + ROW_GAP;
-
-        // Theme Editor link row
-        boolean themeHov = mx >= x && mx < x + w && my >= y && my < y + ROW_H;
-        if (themeHov) g.fill(x, y, x + w, y + ROW_H, 0x10FFFFFF);
-        int textY = y + (ROW_H - 8) / 2;
-        g.drawString(font, "§fTheme Editor", x + 4, textY, C_TEXT, false);
-        g.drawCenteredString(font, "§7→", x + w - ARROW_W / 2, textY, themeHov ? C_ACCENT : C_TEXT_DIM);
-        y += ROW_H + ROW_GAP * 2;
-
-        g.drawString(font, "§8HUD Settings", x, y, C_TEXT_FAINT, false);
-        y += LABEL_LINE_H + ROW_GAP;
-
-        y = renderSetting(g, x, y, w, "§fHUD Position", settings.getHudPosition().name(), mx, my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fHUD Opacity", String.format("%.0f%%", settings.getHudOpacity() * 100), mx,
-                my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fShow HUD Title", settings.isShowHUDTitle() ? "§aYes" : "§cNo", mx, my) +
-                ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fShow HUD Progress", settings.isShowHUDProgress() ? "§aYes" : "§cNo", mx, my) +
-                ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fShow HUD Rewards", settings.isShowHUDRewards() ? "§aYes" : "§cNo", mx, my) +
-                ROW_GAP * 2;
-
-        g.drawString(font, "§8Quest Pop-Ups", x, y, C_TEXT_FAINT, false);
-        y += LABEL_LINE_H + ROW_GAP;
-
-        y = renderSetting(g, x, y, w, "§fPop-Up Style", settings.getToastStyle().name(), mx, my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fPop-Up Position", settings.getToastPosition().name(), mx, my) + ROW_GAP;
-        g.drawString(font, "§8Individual Pop-Ups: right-click quest → Design Pop-Up",
-                x, y, C_TEXT_FAINT, false);
-        y += LABEL_LINE_H + ROW_GAP * 2;
-
-        g.drawString(font, "§8Inventory Button", x, y, C_TEXT_FAINT, false);
-        y += LABEL_LINE_H + ROW_GAP;
-
-        y = renderSetting(g, x, y, w, "§fShow in Inventory", settings.isShowInventoryButton() ? "§aYes" : "§cNo",
-                mx, my) + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fButton Position", settings.getInvButtonPos().name(), mx, my) + ROW_GAP * 2;
-
-        g.drawString(font, "§8Dev Mode", x, y, C_TEXT_FAINT, false);
-        y += LABEL_LINE_H + ROW_GAP;
-        y = renderSetting(g, x, y, w, "§fDev Mode Enabled",
-                settings.isDevModeDisabled() ? "§cOff" : "§aOn", mx, my) + ROW_GAP;
-        g.drawString(font, "§8Off by default - click to opt in. Still only takes effect if",
-                x, y, C_TEXT_FAINT, false);
-        y += ROW_H;
-        g.drawString(font, "§8you're creative or op level 2+; this can't grant dev tools by itself.",
-                x, y, C_TEXT_FAINT, false);
-        y += ROW_H + ROW_GAP;
-
-        g.drawString(font, "§8Dep line appearance is controlled via right-click on the quest canvas.",
-                x, y, C_TEXT_FAINT, false);
-
+        for (Row r : rows) {
+            int ry = r.y - scrollY;
+            if (ry + r.height < contentTop || ry > contentBottom) continue;
+            switch (r.type) {
+                case INFO -> {
+                    int ly = ry;
+                    for (String line : r.label.split("\n")) {
+                        g.drawString(font, line, x, ly, C_TEXT_FAINT, false);
+                        ly += LABEL_LINE_H;
+                    }
+                }
+                case LINK -> {
+                    boolean hov = mx >= x && mx < x + w && my >= ry && my < ry + ROW_H;
+                    if (hov) g.fill(x, ry, x + w, ry + ROW_H, 0x10FFFFFF);
+                    int textY = ry + (ROW_H - 8) / 2;
+                    g.drawString(font, r.label, x + 4, textY, C_TEXT, false);
+                    g.drawCenteredString(font, "§7→", x + w - ARROW_W / 2, textY, hov ? C_ACCENT : C_TEXT_DIM);
+                }
+                default -> renderValueRow(g, x, ry, w, r, mx, my);
+            }
+        }
         g.disableScissor();
 
         // Footer
@@ -152,7 +323,6 @@ public class SettingsScreen extends Screen {
         int btnGap = 8;
         int btnY = footerY + 5;
 
-        // Save button
         boolean saveHov = mx >= width / 2 - btnW - btnGap / 2 && mx < width / 2 - btnGap / 2 && my >= btnY &&
                 my < btnY + 18;
         g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 18,
@@ -160,7 +330,6 @@ public class SettingsScreen extends Screen {
         if (saveHov) g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 1, C_OK);
         g.drawCenteredString(font, "§a✓ Save", width / 2 - btnW / 2 - btnGap / 2, btnY + 6, saveHov ? C_OK : C_TEXT);
 
-        // Cancel button
         boolean cancelHov = mx >= width / 2 + btnGap / 2 && mx < width / 2 + btnW + btnGap / 2 && my >= btnY &&
                 my < btnY + 18;
         g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 18,
@@ -170,15 +339,11 @@ public class SettingsScreen extends Screen {
                 cancelHov ? C_CANCEL : C_TEXT);
     }
 
-    private static final int ARROW_W = 18;
-    private static final int ARROW_GAP = 2;
-
-    private int renderSetting(GuiGraphics g, int x, int y, int w, String label, String value, int mx, int my) {
+    private void renderValueRow(GuiGraphics g, int x, int y, int w, Row r, int mx, int my) {
         int textY = y + (ROW_H - 8) / 2;
         boolean rowHov = mx >= x && mx < x + w && my >= y && my < y + ROW_H;
         if (rowHov) g.fill(x, y, x + w, y + ROW_H, 0x10FFFFFF);
 
-        // Two arrow buttons flush to the right
         int rArrowX = x + w - ARROW_W;
         int lArrowX = rArrowX - ARROW_GAP - ARROW_W;
         boolean leftHov = mx >= lArrowX && mx < lArrowX + ARROW_W && my >= y && my < y + ROW_H;
@@ -188,12 +353,10 @@ public class SettingsScreen extends Screen {
         g.drawCenteredString(font, "§7<", lArrowX + ARROW_W / 2, textY, leftHov ? C_ACCENT : C_TEXT_DIM);
         g.drawCenteredString(font, "§7>", rArrowX + ARROW_W / 2, textY, rightHov ? C_ACCENT : C_TEXT_DIM);
 
-        // Label left, value right-aligned just before arrows
-        g.drawString(font, label, x + 4, textY, C_TEXT, false);
+        g.drawString(font, r.label, x + 4, textY, C_TEXT, false);
+        String value = r.valueFn.get();
         int valueX = lArrowX - 6 - font.width(value);
         g.drawString(font, value, valueX, textY, C_TEXT_DIM, false);
-
-        return y + ROW_H;
     }
 
     @Override
@@ -203,182 +366,62 @@ public class SettingsScreen extends Screen {
         int btnGap = 8;
         int btnY = footerY + 5;
 
-        // Save button
         if (mx >= width / 2 - btnW - btnGap / 2 && mx < width / 2 - btnGap / 2 && my >= btnY && my < btnY + 18) {
             settings.save();
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
-
-        // Cancel button
         if (mx >= width / 2 + btnGap / 2 && mx < width / 2 + btnW + btnGap / 2 && my >= btnY && my < btnY + 18) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
 
-        // Settings navigation
-        int contentTop = HEADER_H + MARGIN;
-        int contentH = height - HEADER_H - MARGIN - FOOTER_H - MARGIN;
+        int contentTop = HEADER_H;
+        int contentBottom = height - FOOTER_H;
 
-        if (my >= contentTop && my < contentTop + contentH) {
-            int y = contentTop - scrollY;
-            int x = (width - PANEL_W) / 2;
-            int w = PANEL_W;
-
-            // Text Scale
-            if (handleSettingClick(x, y, w, mx, my)) {
-                TextScale[] scales = TextScale.values();
-                int idx = settings.getTextScale().ordinal();
-                settings.setTextScale(
-                        scales[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + scales.length) % scales.length]);
-                return true;
+        // Sidebar category clicks
+        if (mx >= 0 && mx < SIDEBAR_W && my >= contentTop && my < contentBottom) {
+            int sy = contentTop + MARGIN;
+            for (Category cat : Category.values()) {
+                if (cat == Category.PHANTASIA && !PhantasiaCompat.isAvailable()) continue;
+                if (my >= sy && my < sy + ROW_H) {
+                    selectCategory(cat);
+                    return true;
+                }
+                sy += ROW_H;
             }
-            y += ROW_H + ROW_GAP;
+            return true;
+        }
 
-            // Theme
-            if (handleSettingClick(x, y, w, mx, my)) {
-                Theme[] themes = Theme.values();
-                int idx = settings.getTheme().ordinal();
-                settings.setTheme(themes[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + themes.length) % themes.length]);
-                return true;
+        // Row clicks
+        int x = SIDEBAR_W + MARGIN;
+        int w = Math.min(PANEL_W, width - x - MARGIN);
+        for (Row r : rows) {
+            int ry = r.y - scrollY;
+            if (my < ry || my >= ry + ROW_H || mx < x || mx >= x + w) continue;
+            switch (r.type) {
+                case LINK -> {
+                    if (r.onClick != null) r.onClick.run();
+                    return true;
+                }
+                case TOGGLE -> {
+                    r.onLeft.run();
+                    rebuildRows();
+                    return true;
+                }
+                case CYCLE -> {
+                    int rArrowX = x + w - ARROW_W;
+                    int lArrowX = rArrowX - ARROW_GAP - ARROW_W;
+                    if (mx < lArrowX) break; // clicked the label/value area, not an arrow - no-op
+                    (mx >= rArrowX ? r.onRight : r.onLeft).run();
+                    rebuildRows();
+                    return true;
+                }
+                default -> {}
             }
-            y += ROW_H + ROW_GAP;
-
-            // Density
-            if (handleSettingClick(x, y, w, mx, my)) {
-                Density[] densities = Density.values();
-                int idx = settings.getDensity().ordinal();
-                settings.setDensity(
-                        densities[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + densities.length) % densities.length]);
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Show Dev Info
-            if (handleSettingClick(x, y, w, mx, my)) {
-                settings.setShowDevInfoByDefault(!settings.isShowDevInfoByDefault());
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Theme Editor
-            if (my >= y && my < y + ROW_H && mx >= x && mx < x + w) {
-                if (minecraft != null) minecraft.setScreen(new ChroniclesThemeEditorScreen(this));
-                return true;
-            }
-            y += ROW_H + ROW_GAP * 2;
-
-            y += LABEL_LINE_H + ROW_GAP; // Skip "HUD Settings" label
-
-            // HUD Position
-            if (handleSettingClick(x, y, w, mx, my)) {
-                HUDPosition[] positions = HUDPosition.values();
-                int idx = settings.getHudPosition().ordinal();
-                settings.setHudPosition(
-                        positions[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + positions.length) % positions.length]);
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // HUD Opacity
-            if (handleSettingClick(x, y, w, mx, my)) {
-                float opacity = settings.getHudOpacity();
-                opacity += isRightArrow(x, w, mx) ? 0.1f : -0.1f;
-                settings.setHudOpacity(opacity);
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Show HUD Title
-            if (handleSettingClick(x, y, w, mx, my)) {
-                settings.setShowHUDTitle(!settings.isShowHUDTitle());
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Show HUD Progress
-            if (handleSettingClick(x, y, w, mx, my)) {
-                settings.setShowHUDProgress(!settings.isShowHUDProgress());
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Show HUD Rewards
-            if (handleSettingClick(x, y, w, mx, my)) {
-                settings.setShowHUDRewards(!settings.isShowHUDRewards());
-                return true;
-            }
-            y += ROW_H + ROW_GAP * 2;
-
-            y += LABEL_LINE_H + ROW_GAP; // Skip "Quest Pop-Ups" label
-
-            // Pop-Up Style
-            if (handleSettingClick(x, y, w, mx, my)) {
-                QuestChroniclesSettings.ToastStyle[] styles = QuestChroniclesSettings.ToastStyle.values();
-                int idx = settings.getToastStyle().ordinal();
-                settings.setToastStyle(
-                        styles[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + styles.length) % styles.length]);
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Pop-Up Position
-            if (handleSettingClick(x, y, w, mx, my)) {
-                HUDPosition[] positions = HUDPosition.values();
-                int idx = settings.getToastPosition().ordinal();
-                settings.setToastPosition(
-                        positions[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + positions.length) % positions.length]);
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-            y += LABEL_LINE_H + ROW_GAP * 2; // Skip the "Individual Pop-Ups" info line
-
-            y += LABEL_LINE_H + ROW_GAP; // Skip "Inventory Button" label
-
-            // Show in Inventory
-            if (handleSettingClick(x, y, w, mx, my)) {
-                settings.setShowInventoryButton(!settings.isShowInventoryButton());
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Button Position
-            if (handleSettingClick(x, y, w, mx, my)) {
-                QuestChroniclesSettings.InvButtonPos[] positions = QuestChroniclesSettings.InvButtonPos.values();
-                int idx = settings.getInvButtonPos().ordinal();
-                settings.setInvButtonPos(
-                        positions[(idx + (isRightArrow(x, w, mx) ? 1 : -1) + positions.length) % positions.length]);
-                return true;
-            }
-            y += ROW_H + ROW_GAP * 2;
-
-            y += LABEL_LINE_H + ROW_GAP; // Skip "Dev Mode" label
-
-            // Dev Mode Enabled - saved immediately (not just on the footer Save button) since
-            // closing this screen any other way (Escape, clicking away) previously discarded
-            // the toggle silently, making it look like the choice didn't persist across restarts.
-            if (handleSettingClick(x, y, w, mx, my)) {
-                settings.setDevModeDisabled(!settings.isDevModeDisabled());
-                settings.save();
-                return true;
-            }
-            y += ROW_H + ROW_GAP;
-
-            // Line settings moved to right-click context menu on the quest canvas.
         }
 
         return super.mouseClicked(mx, my, btn);
-    }
-
-    private boolean handleSettingClick(int x, int y, int w, double mx, double my) {
-        int rArrowX = x + w - ARROW_W;
-        int lArrowX = rArrowX - ARROW_GAP - ARROW_W;
-        return my >= y && my < y + ROW_H && mx >= lArrowX;
-    }
-
-    private boolean isRightArrow(int x, int w, double mx) {
-        int rArrowX = x + w - ARROW_W;
-        return mx >= rArrowX;
     }
 
     @Override

@@ -49,8 +49,13 @@ public class TaskRewardEditorScreen extends Screen {
     private static final int COL_GAP = 6;    // gap between the two columns
     private static final int ROW_H = 26;   // task/reward list row height (2 lines)
     private static final int FIELD_H = 15;   // form field height
-    private static final int FIELD_GAP = 3;    // gap between fields
-    private static final int FORM_ROWS = 4;    // max form field rows to reserve
+    private static final int FIELD_GAP = 5;    // gap between fields
+    // Max stacked form field rows (Type/Description/Target/NBT-or-Secondary) PLUS one extra row's
+    // worth of space for the count/consume/optional/Add row below them, which is positioned
+    // independently from formBottom rather than continuing the same stacking cursor - without
+    // that extra row of budget, task types needing all 4 stacked rows (e.g. item_check: Type +
+    // Description + Target + NBT filter) had their last row overlap that fixed-position bottom row.
+    private static final int FORM_ROWS = 5;
 
     // Derived — set in init()
     private int splitX;        // x where right column begins
@@ -874,8 +879,11 @@ public class TaskRewardEditorScreen extends Screen {
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
         g.fill(0, 0, width, height, C_BG);
 
-        // Header
+        // Header - accent stripe across the top ties this into the same visual language as the
+        // rest of the Chronicles UI (e.g. QuestTextInputScreen's accent stripe, the group/toast
+        // editors' accent borders), instead of a flat header with no signature touch at all.
         g.fill(0, 0, width, HEADER_H, C_HEADER);
+        g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         String repeatBadge = switch (questNode.getRepeatMode()) {
             case DAILY -> "  §b[Daily]";
@@ -989,6 +997,9 @@ public class TaskRewardEditorScreen extends Screen {
                 g.fill(splitX, ry, width - MARGIN, ry + ROW_H, C_ROW_HOVER);
                 hoveredRewardRow = i;
             }
+            // Accent stripe - matches the task list's left-edge accent bar (was only on the task
+            // side, which made the reward list read as a plainer, less finished sibling of it).
+            g.fill(splitX, ry + 2, splitX + 2, ry + ROW_H - 2, C_ACCENT);
             int rewardTextX = splitX + 5;
             if (reward instanceof QuestReward.ItemReward ir) {
                 ItemStack stack = new ItemStack(ir.getItem(), ir.getCount());

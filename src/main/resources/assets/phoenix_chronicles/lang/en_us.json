@@ -2,5 +2,14 @@
   "key.categories.phoenix_chronicles": "Phoenix Chronicles",
   "key.phoenix_chronicles.item_lookup": "Find Quest for Held Item",
   "key.phoenix_chronicles.open_questbook": "Open Quest Book",
-  "key.phoenix_chronicles.pin_quest": "Pin/Unpin Hovered Quest"
+  "key.phoenix_chronicles.pin_quest": "Pin/Unpin Hovered Quest",
+  "key.phoenix_chronicles.search": "Open Quest Search",
+  "key.phoenix_chronicles.fit_to_canvas": "Fit Canvas to View",
+  "key.phoenix_chronicles.toggle_line_style": "Toggle Dependency Line Style",
+  "key.phoenix_chronicles.toggle_minimap": "Toggle Minimap",
+  "key.phoenix_chronicles.toggle_validation": "Toggle Validation Panel (Dev)",
+  "key.phoenix_chronicles.toggle_stats": "Toggle Quest Stats Panel (Dev)",
+  "key.phoenix_chronicles.toggle_subgraph": "Toggle Subgraph Mode (Dev)",
+  "key.phoenix_chronicles.import_ftb": "Import FTB Quests Chapter (Dev)",
+  "key.phoenix_chronicles.open_dev_wiki": "Open Dev Wiki (Dev)"
 }

@@ -93,11 +93,17 @@ public class S2CSyncPlayerProgressPacket {
                 QuestState oldState = oldStates.getOrDefault(node.getId(), QuestState.LOCKED);
                 QuestState newState = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (oldState == newState) continue;
+                boolean playSounds = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isPlayToastSounds();
                 if (newState == QuestState.UNLOCKED) {
                     QuestToastManager.get().push(node, QuestToastManager.ToastType.UNLOCKED);
+                    // Completion already had a sound (PLAYER_LEVELUP below); unlock had none at
+                    // all, so the toast for a newly-available quest was silent. Lighter/quieter
+                    // than the completion fanfare so the two stay distinguishable by ear.
+                    if (mc.player != null && playSounds)
+                        mc.player.playSound(net.minecraft.sounds.SoundEvents.EXPERIENCE_ORB_PICKUP, 0.5f, 1.4f);
                 } else if (newState == QuestState.COMPLETED) {
                     QuestToastManager.get().push(node, QuestToastManager.ToastType.COMPLETED);
-                    if (mc.player != null)
+                    if (mc.player != null && playSounds)
                         mc.player.playSound(net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP, 0.6f, 1.1f);
                 }
             }

@@ -72,6 +72,7 @@ public class QuestToastManager {
     private final List<ActiveToast> active = new ArrayList<>();
 
     public void push(QuestNode node, ToastType type) {
+        if (!net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isShowToasts()) return;
         queue.addLast(new ToastEntry(node, type));
     }
 

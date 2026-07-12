@@ -362,17 +362,18 @@ public class ChronicleOverviewScreen extends Screen {
     private static final long TOOLTIP_DELAY_MS = 450;
 
     /**
-     * Deferred "utility" tooltips (grid pill, sidebar row, anything drawn from an early render()
-     * step that can visually overhang later-drawn regions) queue themselves here instead of
-     * drawing immediately. Elevated z + flush only wins the depth test against the specific
-     * depth-tested draws (item icons at z=100 via g.renderItem()) — it does nothing against
-     * ordinary fills/strings drawn in a LATER render() step, which just overpaint the earlier
-     * pixels regardless of z-pose. Queuing here and flushing once, at the true end of render(),
-     * guarantees these always paint after canvas/nodes/overlays no matter which step decided to
-     * show one. Only one can be pending per frame; that's fine today since the header pill and
-     * sidebar rows don't overlap, but if that ever changes this needs to become a list.
+     * Deferred "utility" draws (grid pill/sidebar row/gear tooltips, the Quest Stats panel,
+     * anything drawn from an early render() step that can visually overhang later-drawn regions)
+     * queue themselves here instead of drawing immediately. Elevated z + flush only wins the
+     * depth test against the specific depth-tested draws (item icons at z=100 via
+     * g.renderItem()) — it does nothing against ordinary fills/strings drawn in a LATER render()
+     * step, which just overpaint the earlier pixels regardless of z-pose. Queuing here and
+     * running once, at the true end of render(), guarantees these always paint after
+     * canvas/nodes/overlays no matter which step decided to show one. A list, not a single slot -
+     * a hover tooltip and a persistent panel (e.g. Quest Stats) can both want this in the same
+     * frame, and a single Runnable would let one silently clobber the other.
      */
-    private Runnable pendingTooltip = null;
+    private final java.util.List<Runnable> pendingDeferredDraws = new java.util.ArrayList<>();
 
     // ── Category accent colors (cycling palette keyed by hash) ────────────────
     private static final int[] CAT_ACCENTS = {
@@ -408,6 +409,12 @@ public class ChronicleOverviewScreen extends Screen {
         // restart) instead of always landing back on the first one - rebuild()'s validity check
         // just below still falls back to the first chapter if this category no longer exists.
         selectedCategory = QuestChroniclesSettings.get().getLastCategory();
+        // Applied here (constructor, runs once per screen instance) rather than in init() - init()
+        // also runs on every window resize, which would otherwise silently reset these back to
+        // the configured default mid-session any time the player resized their window.
+        QuestChroniclesSettings s = QuestChroniclesSettings.get();
+        hideCompleted = s.isHideCompletedByDefault();
+        gridSnap = s.getDefaultGridSnap();
     }
 
     // ── Capability helpers ────────────────────────────────────────────────────
@@ -1259,8 +1266,14 @@ public class ChronicleOverviewScreen extends Screen {
     public boolean keyPressed(int key, int scan, int mods) {
         boolean ctrl = (mods & 2) != 0;
 
-        // ── Ctrl+F — open search overlay ─────────────────────────────────────
-        if (key == 70 && ctrl) {
+        // ── Open search overlay ───────────────────────────────────────────────
+        // Was a hardcoded Ctrl+F check - now a real, rebindable KeyMapping (see
+        // ChronicleKeyBindings) shown in Minecraft's own Controls menu, same as the rest of the
+        // shortcuts below that got converted this pass. A KeyMapping is a single key with no
+        // modifier baked in, so this and "Fit to Canvas" (which used to share the plain F key,
+        // disambiguated from this one only by the Ctrl modifier) needed distinct default keys -
+        // Fit to Canvas now defaults to Home instead.
+        if (ChronicleKeyBindings.SEARCH.matches(key, scan)) {
             openSearchOverlay();
             return true;
         }
@@ -1297,8 +1310,8 @@ public class ChronicleOverviewScreen extends Screen {
             return true;
         }
 
-        // ── L — toggle line style (spline ↔ straight) ────────────────────────
-        if (key == 76 && !ctrl) {
+        // ── Toggle line style (spline ↔ straight) - rebindable, see ChronicleKeyBindings ─────
+        if (ChronicleKeyBindings.TOGGLE_LINE_STYLE.matches(key, scan)) {
             QuestChroniclesSettings s = QuestChroniclesSettings.get();
             boolean nowSpline = s.isSplineLines();
             s.setLineStyle(
@@ -1366,29 +1379,35 @@ public class ChronicleOverviewScreen extends Screen {
                 return true;
             }
         }
-        if (key == 70 && !ctrl && !shift) {
+        if (ChronicleKeyBindings.FIT_TO_CANVAS.matches(key, scan)) {
             fitToCanvas();
             return true;
         }
-        if (key == 47 && isDevMode) { // '?' (slash key with shift = ?)
+        if (ChronicleKeyBindings.OPEN_DEV_WIKI.matches(key, scan) && isDevMode) {
             if (minecraft != null) minecraft.setScreen(new DevWikiScreen(this));
             return true;
         }
-        if (key == 86 && !ctrl && !shift && isDevMode) {
+        // Kept the !ctrl guard - this still defaults to the same physical V key as Ctrl+V paste
+        // below, and unlike Stats (which moved to its own dedicated key), there was no spare
+        // unused key left to give this one instead. Without the guard, pressing Ctrl+V would
+        // toggle validation instead of pasting, since KeyMapping.matches() only checks the
+        // physical key, not modifiers.
+        if (ChronicleKeyBindings.TOGGLE_VALIDATION.matches(key, scan) && !ctrl && isDevMode) {
             validationOpen = !validationOpen;
             return true;
         }
-        if (key == 73 && !ctrl && !shift && isDevMode) {
+        if (ChronicleKeyBindings.IMPORT_FTB.matches(key, scan) && isDevMode) {
             runFtbImport();
             return true;
         }
-        // G — toggle subgraph view (ancestors + descendants of selected node)
-        if (key == 71 && !ctrl && !shift && isDevMode) {
+        // Toggle subgraph view (ancestors + descendants of selected node)
+        if (ChronicleKeyBindings.TOGGLE_SUBGRAPH.matches(key, scan) && isDevMode) {
             subgraphMode = !subgraphMode;
             if (subgraphMode) rebuildSubgraph();
             return true;
         }
-        // Ctrl+C — copy selected quest SNBT to clipboard
+        // Ctrl+C — copy selected quest SNBT to clipboard (left as a raw Ctrl+ combo, matching the
+        // universal OS clipboard convention rather than becoming an independently rebindable key)
         if (key == 67 && ctrl && !shift && isDevMode && selectedNode != null) {
             questCopy(selectedNode);
             return true;
@@ -1403,13 +1422,14 @@ public class ChronicleOverviewScreen extends Screen {
             duplicateQuest(selectedNode);
             return true;
         }
-        // M — toggle minimap
-        if (key == 77 && !ctrl && !shift) {
+        if (ChronicleKeyBindings.TOGGLE_MINIMAP.matches(key, scan)) {
             minimapOpen = !minimapOpen;
             return true;
         }
-        // Shift+V — stats dashboard
-        if (key == 86 && !ctrl && shift && isDevMode) {
+        // Stats dashboard - moved off the shared "Shift+V" combo onto its own dedicated key now
+        // that it's a real rebindable KeyMapping, so it no longer needs the shift modifier to
+        // disambiguate itself from Toggle Validation's default V.
+        if (ChronicleKeyBindings.TOGGLE_STATS.matches(key, scan) && isDevMode) {
             statsOpen = !statsOpen;
             if (statsOpen) validationOpen = false;
             return true;
@@ -2980,7 +3000,7 @@ public class ChronicleOverviewScreen extends Screen {
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         FrameProfiler.begin("TOTAL render()");
         if (feedbackTimer > 0) feedbackTimer--;
-        pendingTooltip = null;
+        pendingDeferredDraws.clear();
 
         // 1. Flush accumulated viewport panning inputs
         if (pendingPanDX != 0 || pendingPanDY != 0) {
@@ -2995,7 +3015,10 @@ public class ChronicleOverviewScreen extends Screen {
         int cl = sidebarW();
         int cr = width;
         int sz = scaledNodeSize();
-        long animTick = System.currentTimeMillis();
+        // Freezing this single source feeds through to every consumer (dependency line "marching
+        // ants"/sparks, drag preview) without needing its own Reduce Motion check - same reasoning
+        // as animPulse() above for the blinking/pulsing effects.
+        long animTick = QuestChroniclesSettings.get().isReduceMotion() ? 0L : System.currentTimeMillis();
 
         // 3. Draw core frame panels (Title bar, pills, backgrounds, toolbar)
         FrameProfiler.begin("header");
@@ -3030,12 +3053,11 @@ public class ChronicleOverviewScreen extends Screen {
         renderScreenOverlays(g, mx, my, cl, cr, sz);
         FrameProfiler.end("overlays");
 
-        // 9. Deferred utility tooltips (grid pill, sidebar rows, ...) — drawn dead last so
-        // nothing painted in steps 3-8 above can overhang/overpaint them. See pendingTooltip.
-        if (pendingTooltip != null) {
-            pendingTooltip.run();
-            pendingTooltip = null;
-        }
+        // 9. Deferred utility draws (grid pill, sidebar rows, Quest Stats panel, ...) — drawn
+        // dead last so nothing painted in steps 3-8 above can overhang/overpaint them. See
+        // pendingDeferredDraws.
+        for (Runnable r : pendingDeferredDraws) r.run();
+        pendingDeferredDraws.clear();
 
         FrameProfiler.end("TOTAL render()");
         FrameProfiler.endFrame();
@@ -3111,9 +3133,9 @@ public class ChronicleOverviewScreen extends Screen {
             // Queued, not drawn immediately: this runs from step 3 (renderHeaderAndBaseLayout),
             // and steps 5-8 (canvas/dep-lines/nodes/overlays) draw AFTER this and would just
             // overpaint it — elevated z + flush only beats depth-tested draws (item icons at
-            // z=100), not later ordinary fills/strings. See pendingTooltip.
-            pendingTooltip = () -> g.renderTooltip(font,
-                    Component.literal("§7Click to cycle canvas snap grid size"), mx, my);
+            // z=100), not later ordinary fills/strings. See pendingDeferredDraws.
+            pendingDeferredDraws.add(() -> g.renderTooltip(font,
+                    Component.literal("§7Click to cycle canvas snap grid size"), mx, my));
         }
 
         // Subgraph mode pill (dev only) - always visible (not just while active) so the feature
@@ -3128,13 +3150,13 @@ public class ChronicleOverviewScreen extends Screen {
                     subgraphMode ? 0x4444CCFF : (sgHov ? 0x44FFFFFF : 0x22FFFFFF));
             g.drawString(font, sgLabel, sgx, sgy + 3, C_TEXT_DIM, false);
             if (sgHov) {
-                pendingTooltip = () -> g.renderComponentTooltip(font, List.of(
+                pendingDeferredDraws.add(() -> g.renderComponentTooltip(font, List.of(
                         Component.literal("§b⊛ Subgraph mode"),
                         Component.literal("§7Dims every quest that isn't an ancestor or"),
                         Component.literal("§7descendant of the currently selected one,"),
                         Component.literal("§7isolating just its dependency chain."),
                         Component.literal("§8Click a quest to select it, then click this"),
-                        Component.literal("§8pill (or press G) to toggle it on/off.")), mx, my);
+                        Component.literal("§8pill (or press G) to toggle it on/off.")), mx, my));
             }
         }
 
@@ -3251,9 +3273,9 @@ public class ChronicleOverviewScreen extends Screen {
         // nodes/overlays AFTER renderSidebarPanel(), so those steps were repainting straight over
         // this tooltip whenever it overhung onto the canvas (sidebarW()+3 puts its left edge
         // right at the canvas boundary). Queuing it defers the draw to the true end of render().
-        // See pendingTooltip.
+        // See pendingDeferredDraws.
         SidebarRow hovRow = my >= scrollTop && my < scrollBottom ? sidebarRowAt(sidebarRows, mx, my) : null;
-        if (hovRow != null) pendingTooltip = () -> renderSidebarTooltip(g, hovRow, mx, my);
+        if (hovRow != null) pendingDeferredDraws.add(() -> renderSidebarTooltip(g, hovRow, mx, my));
     }
 
     /**
@@ -3475,12 +3497,29 @@ public class ChronicleOverviewScreen extends Screen {
             renderNodeShape(g, node, pos[0], pos[1], sz, btn.isMouseOver(mx, my), node == selectedNode);
         }
         int shapeQuadCount = NodeShapeRenderer.flushFillQueue(g);
+        // Quest Stats / Validation panels render fully opaque with the depth test disabled, but
+        // g.renderItem()'s icon geometry still won every timing/z-order/depth trick tried against
+        // it (see renderStatsPanel's own comments) - it apparently renders through a real 3D
+        // perspective/depth pipeline that just doesn't compare against our orthographic pose-stack
+        // Z the way flat fills do. Rather than keep fighting that, skip queuing icon geometry at
+        // all for any node whose icon would land under one of those panels while it's open -
+        // nothing to fight over if it's never drawn there in the first place. The plain node
+        // shape from the first pass above still shows at the very edges if a node only partially
+        // overlaps, but that's an ordinary flat fill and the opaque panel covers it fine.
+        boolean blockPanelOpen = (validationOpen || statsOpen) && isDevMode;
+        int bpW = Math.min(480, cr - cl - 20);
+        int bpX = cl + (cr - cl - bpW) / 2;
+        int bpY = HEADER_H + 10;
+        int bpH = height - bpY - 10;
         for (Map.Entry<ResourceLocation, int[]> entry : nodeScreenPos.entrySet()) {
             QuestNode node = QuestTreeRegistry.getQuest(entry.getKey());
             if (node == null) continue;
             NodeHitbox btn = nodeButtons.get(node.getId());
             if (btn == null || !btn.visible) continue;
             int[] pos = entry.getValue();
+            if (blockPanelOpen && pos[0] + sz > bpX && pos[0] < bpX + bpW && pos[1] + sz > bpY &&
+                    pos[1] < bpY + bpH)
+                continue;
             renderNodeDetails(g, node, pos[0], pos[1], sz, btn.isMouseOver(mx, my), node == selectedNode);
         }
         // renderNodeDetails() queues each node's state badge (renderStateBadge) instead of
@@ -3534,7 +3573,7 @@ public class ChronicleOverviewScreen extends Screen {
 
         // Developer content configuration warning metrics
         if (isDevMode) {
-            float pulse = 0.65f + 0.35f * (float) Math.sin(System.currentTimeMillis() / 400.0);
+            float pulse = animPulse(0.65f, 0.35f, 400.0);
             int alpha = (int) (pulse * 255) << 24;
             int errCol = alpha | 0x00FF2222;
             for (Map.Entry<ResourceLocation, int[]> entry : nodeScreenPos.entrySet()) {
@@ -3612,7 +3651,7 @@ public class ChronicleOverviewScreen extends Screen {
             if (st == QuestState.COMPLETED && sz >= 12 && !node.getRewards().isEmpty()) {
                 PlayerQuestData pd = testMode ? testModeData : playerData;
                 if (pd != null && !pd.hasClaimedRewards(node.getId())) {
-                    float pulse = 0.7f + 0.3f * (float) Math.sin(System.currentTimeMillis() / 600.0);
+                    float pulse = animPulse(0.7f, 0.3f, 600.0);
                     int bAlpha = (int) (pulse * 255) << 24;
                     int badgeX = pos[0] - 4;
                     int badgeY = pos[1] - 4;
@@ -3675,8 +3714,7 @@ public class ChronicleOverviewScreen extends Screen {
 
         // Lineage unlock requirement paths overlay indicators
         if (!unlockPathHighlight.isEmpty()) {
-            long pulse = System.currentTimeMillis();
-            float blink = (float) (Math.sin(pulse / 400.0) * 0.3 + 0.7);
+            float blink = animPulse(0.7f, 0.3f, 400.0);
             int ringAlpha = (int) (blink * 0xAA) & 0xFF;
             for (ResourceLocation uid : unlockPathHighlight) {
                 int[] upos = nodeScreenPos.get(uid);
@@ -3691,8 +3729,11 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         if (depLineRenderer.isContextMenuOpen()) depLineRenderer.renderContextMenu(g, font, mx, my, width, height);
-        if (validationOpen && isDevMode) renderValidationPanel(g, cl, cr);
-        if (statsOpen && isDevMode) renderStatsPanel(g, cl, cr);
+        // Deferred to the true tail of render() (see pendingDeferredDraws) - elevated z + flush
+        // (and even disableDepthTest at the call site) still wasn't reliable against node icons
+        // when called from this step, same as the Utilities tooltip needed.
+        if (validationOpen && isDevMode) pendingDeferredDraws.add(() -> renderValidationPanel(g, cl, cr));
+        if (statsOpen && isDevMode) pendingDeferredDraws.add(() -> renderStatsPanel(g, cl, cr));
         if (minimapOpen) renderMinimap(g, mx, my, cl, cr);
 
         if (isDevMode && multiSelection.size() >= 2) {
@@ -4062,10 +4103,10 @@ public class ChronicleOverviewScreen extends Screen {
             // still pending, at which point per-render-type ordering inside that single submission
             // can still place it on top regardless of which quad was queued first. The one
             // approach that's reliably worked for other tooltips in this screen (the grid-snap
-            // pill, sidebar category rows) is deferring the draw into pendingTooltip, which runs
-            // at the true tail of render() - after every other step, including this one - so
+            // pill, sidebar category rows) is deferring the draw into pendingDeferredDraws, which
+            // runs at the true tail of render() - after every other step, including this one - so
             // there is nothing left afterward that could still be holding pending icon geometry.
-            pendingTooltip = () -> {
+            pendingDeferredDraws.add(() -> {
                 // Belt-and-suspenders: deferring to the true tail of render() (see the comment
                 // above) protects against submission-order surprises, but item icons still write
                 // real depth values wherever they landed - disabling the depth test here too
@@ -4093,7 +4134,7 @@ public class ChronicleOverviewScreen extends Screen {
                 }
                 g.flush();
                 RenderSystem.enableDepthTest();
-            };
+            });
         }
     }
 
@@ -4225,7 +4266,7 @@ public class ChronicleOverviewScreen extends Screen {
 
         // ACTIVE: pulsing outer glow
         if (st == QuestState.ACTIVE && roomForEffects) {
-            float pulse = (float) (Math.sin(System.currentTimeMillis() / 500.0) * 0.4 + 0.6);
+            float pulse = animPulse(0.6f, 0.4f, 500.0);
             int baseColor = C_NBORD_ACTIVE & 0x00FFFFFF;
             for (int d = 3; d >= 1; d--) {
                 int alpha = (int) (pulse * 0x50 * (1f - d * 0.28f)) & 0xFF;
@@ -4398,7 +4439,7 @@ public class ChronicleOverviewScreen extends Screen {
 
         // UNLOCKED: small pulsing "ready" dot in top-right corner
         if (st == QuestState.UNLOCKED && sz >= 20) {
-            float readyPulse = (float) (Math.sin(System.currentTimeMillis() / 700.0) * 0.35 + 0.65);
+            float readyPulse = animPulse(0.65f, 0.35f, 700.0);
             int dotAlpha = (int) (readyPulse * 0xFF) & 0xFF;
             int dotColor = (dotAlpha << 24) | 0x004488FF;
             g.fill(x + sz - 6, y + 1, x + sz - 1, y + 6, dotColor);
@@ -5242,6 +5283,18 @@ public class ChronicleOverviewScreen extends Screen {
                 (int) (bb + (ob - bb) * a);
     }
 
+    /**
+     * Shared "base + amplitude * sin(time / periodDivisor)" pulse used by every blinking/pulsing
+     * effect on the canvas (validation warning borders, unclaimed-reward badges, unlock-path
+     * highlight, ACTIVE node glow, UNLOCKED ready-dot). Returns the steady base value with no
+     * oscillation when the player has Reduce Motion enabled, instead of each call site needing
+     * its own if-check.
+     */
+    private static float animPulse(float base, float amplitude, double periodDivisor) {
+        if (QuestChroniclesSettings.get().isReduceMotion()) return base;
+        return base + amplitude * (float) Math.sin(System.currentTimeMillis() / periodDivisor);
+    }
+
     private void setFeedback(String msg) {
         feedbackMsg = msg;
         feedbackTimer = 100;
@@ -5543,6 +5596,11 @@ public class ChronicleOverviewScreen extends Screen {
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
         g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
+        // Elevated z + flush alone turned out not to be reliable against node icons either (see
+        // the Utilities sidebar tooltip's identical fix) - g.renderItem()'s icon geometry doesn't
+        // seem to actually submit to the GPU in simple call order, so disabling the depth test
+        // for this whole panel's draws is the one thing that's reliably won against it elsewhere.
+        RenderSystem.disableDepthTest();
 
         int panW = Math.min(480, cr - cl - 20);
         int panX = cl + (cr - cl - panW) / 2;
@@ -5565,6 +5623,8 @@ public class ChronicleOverviewScreen extends Screen {
         int total = all.size();
         int noTask = 0, noReward = 0, orphaned = 0;
         int totalTasks = 0, totalRewards = 0;
+        int repeatable = 0, hiddenOrMystery = 0, disabled = 0, withCustomIcon = 0, linkStubs = 0;
+        int validationIssueCount = 0;
         // Per-category map
         java.util.TreeMap<String, int[]> catCounts = new java.util.TreeMap<>(); // [count]
         for (QuestNode n : all) {
@@ -5573,9 +5633,17 @@ public class ChronicleOverviewScreen extends Screen {
             if (n.getPrerequisites().isEmpty() && n.getChildren().isEmpty()) orphaned++;
             totalTasks += n.getTasks().size();
             totalRewards += n.getRewards().size();
+            if (n.getRepeatMode() != QuestNode.RepeatMode.NONE) repeatable++;
+            if (n.getVisibility() == QuestNode.Visibility.HIDDEN || n.getVisibility() == QuestNode.Visibility.MYSTERY)
+                hiddenOrMystery++;
+            if (n.getVisibility() == QuestNode.Visibility.DISABLED) disabled++;
+            if (n.isLinkStub()) linkStubs++;
+            if (n.getIconItem() != null && n.getIconItem() != net.minecraft.world.item.Items.AIR) withCustomIcon++;
+            if (!getValidationIssues(n).isEmpty()) validationIssueCount++;
             String cat = n.getCategory() != null ? n.getCategory() : "UNKNOWN";
             catCounts.computeIfAbsent(cat, k -> new int[1])[0]++;
         }
+        int totalGroups = QuestGroupManager.getAll().size();
 
         int sy = panY + 18, lh = 10;
         int col1 = panX + 6, col2 = panX + panW / 2 + 10;
@@ -5584,10 +5652,23 @@ public class ChronicleOverviewScreen extends Screen {
         g.drawString(font, "§fTotal tasks:   §7" + totalTasks, col2, sy, 0xFFDDDDFF, false);
         sy += lh;
         g.drawString(font, "§fNo tasks:      §c" + noTask, col1, sy, 0xFFDDDDFF, false);
-        g.drawString(font, "§fNo rewards:    §8" + noReward, col2, sy, 0xFFDDDDFF, false);
+        g.drawString(font, "§fTotal rewards: §7" + totalRewards, col2, sy, 0xFFDDDDFF, false);
+        sy += lh;
+        g.drawString(font, "§fNo rewards:    §8" + noReward, col1, sy, 0xFFDDDDFF, false);
+        g.drawString(font, "§fCategories:    §7" + catCounts.size(), col2, sy, 0xFFDDDDFF, false);
         sy += lh;
         g.drawString(font, "§fOrphaned:      §e" + orphaned, col1, sy, 0xFFDDDDFF, false);
-        g.drawString(font, "§fCategories:    §7" + catCounts.size(), col2, sy, 0xFFDDDDFF, false);
+        g.drawString(font, "§fGroups:        §7" + totalGroups, col2, sy, 0xFFDDDDFF, false);
+        sy += lh;
+        g.drawString(font, "§fRepeatable:    §b" + repeatable, col1, sy, 0xFFDDDDFF, false);
+        g.drawString(font, "§fHidden/Mystery:§7" + hiddenOrMystery, col2, sy, 0xFFDDDDFF, false);
+        sy += lh;
+        g.drawString(font, "§fDisabled:      §7" + disabled, col1, sy, 0xFFDDDDFF, false);
+        g.drawString(font, "§fLink stubs:    §7" + linkStubs, col2, sy, 0xFFDDDDFF, false);
+        sy += lh;
+        g.drawString(font, "§fCustom icons:  §7" + withCustomIcon + "§8/" + total, col1, sy, 0xFFDDDDFF, false);
+        g.drawString(font, validationIssueCount > 0 ? "§fValidation:    §c" + validationIssueCount + " issue(s)" :
+                "§fValidation:    §a✔ clean", col2, sy, 0xFFDDDDFF, false);
         sy += lh;
         g.fill(panX + 4, sy, panX + panW - 4, sy + 1, 0xFF222233);
         sy += 5;
@@ -5612,6 +5693,8 @@ public class ChronicleOverviewScreen extends Screen {
         }
         g.disableScissor(); // pop inner (category list) scissor
         g.disableScissor(); // pop outer (whole panel) scissor
+        g.flush();
+        RenderSystem.enableDepthTest();
         g.pose().popPose();
     }
 

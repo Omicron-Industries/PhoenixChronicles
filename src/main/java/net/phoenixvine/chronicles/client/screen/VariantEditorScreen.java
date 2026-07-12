@@ -75,7 +75,10 @@ public class VariantEditorScreen extends Screen {
         C_TEXT_FAINT = th.textFaint.getColor();
 
         listTop = HEADER_H + 20;
-        formTop = height - FOOTER_H - 4 * (FIELD_H + FIELD_GAP) - 30;
+        // The extra "36" (was 30) buffer leaves room for both the "EDITING VARIANT N" label at
+        // the top of the form panel and the conditional 5th "Clear task/reward override" row at
+        // the bottom - see rebuildWidgets()'s "fy = formTop + 14" for the matching label clearance.
+        formTop = height - FOOTER_H - 4 * (FIELD_H + FIELD_GAP) - 36;
         listBottom = formTop - 10;
 
         rebuildWidgets();
@@ -103,7 +106,10 @@ public class VariantEditorScreen extends Screen {
 
         QuestNode.QuestVariant v = variants.get(selected);
         int fx = MARGIN;
-        int fy = formTop + 4;
+        // Was "+ 4" - only 4px below the "EDITING VARIANT N" label drawn at formPanelTop + 6
+        // (== formTop), nowhere near enough clearance for that label's own text height, so the
+        // condition box visibly overlapped it.
+        int fy = formTop + 14;
         int fw = width - MARGIN * 2;
 
         conditionBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
@@ -180,8 +186,9 @@ public class VariantEditorScreen extends Screen {
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
         g.fill(0, 0, width, height, C_BG);
 
-        // Header
+        // Header - accent stripe matching the rest of the Chronicles UI's signature touch
         g.fill(0, 0, width, HEADER_H, C_HEADER);
+        g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         g.drawCenteredString(font, "§fQuest Variants  §8— §7" + questNode.getId().getPath(),
                 width / 2, (HEADER_H - 8) / 2, C_TEXT);
