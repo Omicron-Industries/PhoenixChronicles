@@ -4,6 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -81,6 +82,50 @@ public abstract class QuestTask {
      * Every custom task must evaluate this against a specific player's metrics or capability data.
      */
     public abstract boolean isCompletedFor(Player player);
+
+    /**
+     * Called once, when the player claims this quest's rewards (see
+     * QuestProgressTracker#grantRewards / #grantChosenReward) - the single point every
+     * "consume"-flagged task's own tryConsume(Player) implementation was documented to be called
+     * from ("Call this when claiming rewards"), but which nothing in the codebase actually
+     * invoked: item/fluid tasks never withdrew the goods, kill/stat/terminal tasks never reset
+     * their repeatable-tracking baseline. Every task with real consume behavior (item/fluid
+     * withdrawal, AE2 network extraction, kill-count/stat-baseline resets for repeatable quests)
+     * overrides this; the default here is a no-op so tasks with no such concept (biome, checkmark,
+     * info, advancement, etc.) don't need to implement anything.
+     */
+    public void tryConsume(Player player) {}
+
+    /**
+     * True for tasks whose {@link #isCompletedFor} result can ONLY change when the player's
+     * inventory contents change (item/tag/fluid/energy-in-item tasks) - overriding this lets
+     * QuestProgressTracker's per-tick poll skip re-scanning these when it already knows the
+     * inventory hasn't changed since the last tick, instead of re-walking every slot and
+     * capability lookup 20 times a second per active task regardless of whether anything could
+     * possibly have changed. Tasks gated on something else entirely (biome, structure, stats,
+     * advancements, equipped enchantments, block-break/interact events, etc.) must NOT override
+     * this to true - their result can change independent of inventory contents, so skipping them
+     * on an unchanged inventory would silently delay/miss real completions.
+     */
+    public boolean dependsOnInventory() {
+        return false;
+    }
+
+    /**
+     * Cheap "already latched complete" read for the shared sticky/"completed" TaskProgressAccess
+     * flag every dependsOnInventory() task uses - lets the tracker's per-tick skip check whether
+     * a task it's about to bypass (because inventory didn't change) was ALREADY sticky-complete
+     * from an earlier real scan, without needing to call the potentially-expensive
+     * isCompletedFor to find out. Without this, a task that latched complete on some earlier
+     * tick would read as "not done" on every subsequent tick where inventory happens to be
+     * unchanged, which is wrong whenever some OTHER task in the same quest is what's actually
+     * still blocking completion - the multi-task math needs this one's real (already-cached)
+     * answer, not an assumed false. Tasks that don't use this NBT convention simply never
+     * override dependsOnInventory() to true, so this method is never consulted for them.
+     */
+    public boolean isStickyCompleteCached(Player player) {
+        return TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed");
+    }
 
     /**
      * Optional numeric progress label shown in the HUD and detail screen (e.g. "7/10").

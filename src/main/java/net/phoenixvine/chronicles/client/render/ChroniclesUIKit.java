@@ -136,6 +136,77 @@ public final class ChroniclesUIKit {
         return hoveredRow;
     }
 
+    // ---- Fluid icons ----------------------------------------------------------
+
+    /**
+     * Draws a fluid's actual still-texture icon, tinted per its own IClientFluidTypeExtensions -
+     * every call site in this pack used to just fill a flat square with the tint color instead,
+     * which happened to look right for water (whose tint IS a meaningful blue) but wrong for lava
+     * and plenty of modded fluids: their tint is white/no-op (0xFFFFFFFF) because their actual
+     * color comes from the texture itself, not a tint - a flat white square instead of orange/red
+     * lava. Falls back to a flat tint-colored square only if the texture can't be resolved at all.
+     */
+    public static void drawFluidIcon(GuiGraphics g, net.minecraft.world.level.material.Fluid fluid, int x, int y,
+                                     int size) {
+        if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY) return;
+        net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions ext = net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions
+                .of(fluid);
+        int tint = ext.getTintColor();
+        net.minecraft.resources.ResourceLocation stillTexture = ext.getStillTexture();
+        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = stillTexture == null ? null :
+                net.minecraft.client.Minecraft.getInstance()
+                        .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
+                        .apply(stillTexture);
+        if (sprite == null) {
+            g.fill(x, y, x + size, y + size, tint | 0xFF000000);
+            return;
+        }
+        float a = ((tint >>> 24) & 0xFF) / 255f;
+        float r = ((tint >> 16) & 0xFF) / 255f;
+        float gr = ((tint >> 8) & 0xFF) / 255f;
+        float b = (tint & 0xFF) / 255f;
+        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(r, gr, b, a == 0f ? 1f : a);
+        g.blit(x, y, 0, size, size, sprite);
+        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+    }
+
+    // ---- Scaled text --------------------------------------------------------
+
+    /**
+     * Draws text at an arbitrary scale around its top-left corner - backs the "Text Scale"
+     * setting (QuestChroniclesSettings#getTextScaleMultiplier). scale == 1.0f is a plain
+     * g.drawString() call (no pose-stack cost for the common case). x/y are floats since a
+     * scaled draw's origin isn't necessarily an integer pixel once other scaled text has been
+     * laid out before it.
+     */
+    public static void drawScaledString(GuiGraphics g, Font font, String text, float x, float y, int color,
+                                        float scale) {
+        if (scale == 1.0f) {
+            g.drawString(font, text, (int) x, (int) y, color, false);
+            return;
+        }
+        g.pose().pushPose();
+        g.pose().translate(x, y, 0);
+        g.pose().scale(scale, scale, 1f);
+        g.drawString(font, text, 0, 0, color, false);
+        g.pose().popPose();
+    }
+
+    /** Same as {@link #drawScaledString} but centered horizontally on centerX, like g.drawCenteredString(). */
+    public static void drawScaledCenteredString(GuiGraphics g, Font font, String text, float centerX, float y,
+                                                int color, float scale) {
+        if (scale == 1.0f) {
+            g.drawCenteredString(font, text, (int) centerX, (int) y, color);
+            return;
+        }
+        float w = font.width(text) * scale;
+        g.pose().pushPose();
+        g.pose().translate(centerX - w / 2f, y, 0);
+        g.pose().scale(scale, scale, 1f);
+        g.drawString(font, text, 0, 0, color, false);
+        g.pose().popPose();
+    }
+
     // ---- Color parsing ------------------------------------------------------
 
     /**

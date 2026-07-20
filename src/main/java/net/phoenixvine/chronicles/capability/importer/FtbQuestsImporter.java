@@ -359,8 +359,16 @@ public class FtbQuestsImporter {
         String rawSubtitle = q.contains("subtitle") ? q.get("subtitle").getAsString() : "";
         String subtitle = resolveText(rawSubtitle, langMap, warnings, false);
 
-        // Never leave a quest unnamed: title -> subtitle -> first item task's item name -> id.
-        String resolvedTitle = firstUsable(title, subtitle, itemBasedFallbackTitle(q, langMap, warnings),
+        // Never leave a quest unnamed: title -> first item task's item name -> id. Subtitle is
+        // deliberately NOT in this fallback chain - it used to be tried right after title, which
+        // meant every title-less quest (a real, common FTBQ pattern: no "title" key at all, just
+        // an icon + a subtitle, which FTBQ itself renders by deriving a display name from the
+        // icon) had its subtitle text silently consumed as the quest's TITLE instead, and the
+        // "write it as a separate subtitle" check below then always failed since resolvedTitle
+        // WAS that same subtitle text - the subtitle just vanished. A subtitle should never be
+        // asked to stand in for a missing title; it's a fine standalone thing to lose title-less
+        // quests to the item-name fallback for, same as any other title-less quest.
+        String resolvedTitle = firstUsable(title, itemBasedFallbackTitle(q, langMap, warnings),
                 "Quest " + shortId(ftbId));
         append(sb, "title", escape(resolvedTitle));
 
@@ -677,8 +685,13 @@ public class FtbQuestsImporter {
                     warnings.add("Quest " + questPath + ": command reward had an empty command - dropped.");
                     return;
                 }
-                out.add("{type: \"command\", command: \"\\\"" + escape(cmd.startsWith("/") ? cmd.substring(1) : cmd) +
-                        "\\\"\"}");
+                // Was wrapping the command text in an extra pair of literal escaped quotes
+                // (\" ... \"), which SNBT decodes into ACTUAL quote characters baked into the
+                // stored command string itself (e.g. `"give @s diamond"` instead of
+                // `give @s diamond`) - Minecraft's command dispatcher then fails on the leading
+                // `"`, silently breaking every imported command reward.
+                out.add("{type: \"command\", command: \"" + escape(cmd.startsWith("/") ? cmd.substring(1) : cmd) +
+                        "\"}");
             }
             case "loot" -> {
                 String table = r.getString("table");
@@ -784,19 +797,21 @@ public class FtbQuestsImporter {
         return null;
     }
 
-    /**
-     * FTB Quests stores a description as a LIST of lines - each entry is one line/paragraph as
-     * authored in the FTBQ editor, and a blank entry is a deliberate paragraph break. This used
-     * to join every entry with a single space, which flattened multi-paragraph descriptions (e.g.
-     * Monifactory's cleanroom quest) into one run-on blob. Now each entry becomes its own line via
-     * "\n", which ChronicleRichTextRenderer already splits on when laying out text.
-     */
     private static String buildDescription(ListTag lines, Map<String, String> langMap, List<String> warnings) {
         if (lines == null || lines.isEmpty()) return "";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.getString(i);
-            if (line.startsWith("{@pagebreak}")) continue;
+            if (line.startsWith("{@pagebreak}")) {
+                // FTBQ's own "insert a bigger break here" marker. Maps onto Chronicles' own page
+                // break syntax (a lone "---" line - see ChronicleMarkdownParser/QuestTasksScreen's
+                // splitDescPages) instead of just a bigger visual gap within one continuous
+                // scroll: FTBQ authors placed these deliberately to split content into distinct
+                // pages, so an import should actually turn into real pagination, not merely read
+                // as "a bit more spacing than usual" while still being one long scroll.
+                if (sb.length() > 0) sb.append("\n\n---\n\n");
+                continue;
+            }
             if (line.startsWith("{image:")) {
                 String inner = line.substring(1, line.length() - 1);
                 String imgBody = normalizeImageBody(inner.substring("image:".length()));

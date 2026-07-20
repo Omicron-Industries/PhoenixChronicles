@@ -1,6 +1,5 @@
 package net.phoenixvine.chronicles.tracker;
 
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.MinecraftForge;
@@ -32,11 +31,69 @@ import java.util.concurrent.TimeUnit;
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class QuestProgressTracker {
 
+    // ── Inventory-change dirty check ──────────────────────────────────────────
+    //
+    // Forge has no built-in "player inventory changed" event (only narrower ones like
+    // ItemPickupEvent/LivingEquipmentChangeEvent that don't cover every way a stack can change -
+    // crafting, container transfers, commands, capability-driven NBT mutation, etc.), so there's
+    // nothing to subscribe to that would reliably fire on every relevant change. This is the
+    // homegrown substitute: a cheap per-player fingerprint of every tracked slot, recomputed once
+    // per tick and compared to last tick's - inventory/tag/fluid/energy-in-item tasks
+    // (QuestTask#dependsOnInventory) skip their (expensive, full-slot-scan +
+    // capability-lookup) isCompletedFor entirely on ticks where it didn't change, since their
+    // result provably can't have changed either. This is what was causing FTBQ-style per-tick
+    // lag: every active item/fluid/energy task was re-scanning every player's whole inventory
+    // 20 times a second regardless of whether the player had touched anything.
+    private static final java.util.Map<java.util.UUID, Integer> lastInventoryFingerprint = new java.util.HashMap<>();
+
+    /** Call on player disconnect to avoid an unbounded per-UUID leak across server uptime. */
+    public static void clearInventoryFingerprint(java.util.UUID playerId) {
+        lastInventoryFingerprint.remove(playerId);
+    }
+
+    /**
+     * Hashes item identity + count + NBT (CompoundTag has real content-based equals/hashCode,
+     * not identity) for every main/offhand/armor slot - cheap relative to the capability lookups
+     * and full-inventory walks it's replacing, and sensitive to the same things
+     * isCompletedFor's own scans care about, including in-place NBT mutation (e.g. a fluid/energy
+     * item's stored amount changing) with no slot/count change at all.
+     */
+    private static int computeInventoryFingerprint(Player player) {
+        var inv = player.getInventory();
+        int hash = 1;
+        for (net.minecraft.world.item.ItemStack s : inv.items) hash = 31 * hash + fingerprintStack(s);
+        for (net.minecraft.world.item.ItemStack s : inv.offhand) hash = 31 * hash + fingerprintStack(s);
+        for (net.minecraft.world.item.ItemStack s : inv.armor) hash = 31 * hash + fingerprintStack(s);
+        return hash;
+    }
+
+    private static int fingerprintStack(net.minecraft.world.item.ItemStack s) {
+        if (s.isEmpty()) return 0;
+        int h = s.getItem().hashCode() * 31 + s.getCount();
+        return s.getTag() != null ? h * 31 + s.getTag().hashCode() : h;
+    }
+
+    /**
+     * True if it's safe to skip calling task.isCompletedFor() entirely this check: the task only
+     * depends on inventory contents, those haven't changed since the last check, AND it hasn't
+     * already latched sticky-complete (in which case isCompletedFor is cheap anyway and calling
+     * it gets the real, already-cached answer instead of an assumed false - see
+     * QuestTask#isStickyCompleteCached's doc for why that distinction matters for multi-task
+     * quests).
+     */
+    private static boolean skipInventoryScan(QuestTask task, Player player, boolean invChanged) {
+        return task.dependsOnInventory() && !invChanged && !task.isStickyCompleteCached(player);
+    }
+
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) return;
 
         Player player = event.player;
+        int fingerprint = computeInventoryFingerprint(player);
+        Integer previous = lastInventoryFingerprint.put(player.getUUID(), fingerprint);
+        boolean invChanged = previous == null || previous != fingerprint;
+
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
             // Snapshot the values instead of iterating the registry's live map directly - the
             // loop body (completion cascades, repeat-resets, QuestEvent.PlayerTick listeners)
@@ -66,9 +123,10 @@ public class QuestProgressTracker {
                 if (!MinecraftForge.EVENT_BUS.post(new QuestEvent.PlayerTick(player, node))) {
                     // Let polling tasks update their state (biome, structure, etc.)
                     for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+                        if (skipInventoryScan(task, player, invChanged)) continue;
                         if (!task.isCompletedFor(player)) task.onTick(player);
                     }
-                    checkAndTryComplete(player, node);
+                    checkAndTryComplete(player, node, invChanged);
                 }
             }
         });
@@ -77,6 +135,14 @@ public class QuestProgressTracker {
     // ── Completion check ──────────────────────────────────────────────────────
 
     public static void checkAndTryComplete(Player player, QuestNode node) {
+        // Always treat inventory as "changed" here - this overload is the one every event-driven
+        // caller uses (crafting, killing, right-clicking, cascades, manual packets), which is
+        // exactly the moment something relevant DID just happen and a real check is wanted, not
+        // the steady-state per-tick poll the invChanged gate below exists for.
+        checkAndTryComplete(player, node, true);
+    }
+
+    private static void checkAndTryComplete(Player player, QuestNode node, boolean invChanged) {
         // Flag-disabled or visibility-DISABLED quests can never be completed
         if (node.isFlagDisabled() || node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
             return;
@@ -87,17 +153,30 @@ public class QuestProgressTracker {
             java.util.List<QuestTask> tasks = node.getEffectiveTasks(player.getServer());
             int minCount = node.getTaskMinCount();
 
+            // An inventory-dependent task that hasn't been re-scanned this tick (because
+            // inventory didn't change) can only still be "not completed" UNLESS it already
+            // latched sticky-complete on some earlier tick - skipInventoryScan() checks that
+            // cached flag first, so this is exact, not an approximation: either the task's real
+            // answer is cheap to get (already latched) or it provably can't have changed.
             boolean complete;
             if (minCount > 0) {
                 // X-of-N mode: count any completed task (optional or not)
                 int done = 0;
-                for (QuestTask task : tasks) if (task.isCompletedFor(player)) done++;
+                for (QuestTask task : tasks) {
+                    if (skipInventoryScan(task, player, invChanged)) continue;
+                    if (task.isCompletedFor(player)) done++;
+                }
                 complete = done >= minCount;
             } else {
                 // Default: all non-optional tasks must be done
                 complete = true;
                 for (QuestTask task : tasks) {
-                    if (!task.isOptional() && !task.isCompletedFor(player)) {
+                    if (task.isOptional()) continue;
+                    if (skipInventoryScan(task, player, invChanged)) {
+                        complete = false;
+                        break;
+                    }
+                    if (!task.isCompletedFor(player)) {
                         complete = false;
                         break;
                     }
@@ -122,7 +201,12 @@ public class QuestProgressTracker {
 
             if (newState == QuestState.COMPLETED) {
                 data.recordCompletion(node.getId());
-                player.sendSystemMessage(Component.literal("§aChronicle: §f" + node.getTitle().getString()));
+                // Notification is the client-side toast system (see QuestToastManager, fired
+                // from S2CSyncPlayerProgressPacket's state-diff below), not chat - a chat message
+                // here fired unconditionally for every completion, including the whole backlog
+                // of quests that unlock-then-instantly-complete during a fresh join's prereq
+                // cascade (see onPlayerLogin), which is what was spamming chat on first login.
+                // The toast packet already has its own suppression for that case.
                 processChildCascades(player, node);
                 if (node.isShared() && player instanceof net.minecraft.server.level.ServerPlayer sp)
                     propagateSharedCompletion(sp, node);
@@ -137,21 +221,26 @@ public class QuestProgressTracker {
     // ── Shared quest team cascade ─────────────────────────────────────────────
 
     private static void propagateSharedCompletion(net.minecraft.server.level.ServerPlayer source, QuestNode node) {
-        // Try Phoenix Guilds first (lightweight built-in teams)
-        GuildManager guildMgr = GuildManager.get(source.getServer().overworld());
-        var pTeam = guildMgr.getGuildFor(source.getUUID());
-        if (pTeam.isPresent()) {
-            for (java.util.UUID memberUUID : pTeam.get().getMembers()) {
-                if (memberUUID.equals(source.getUUID())) continue;
-                net.minecraft.server.level.ServerPlayer member = source.getServer().getPlayerList()
-                        .getPlayer(memberUUID);
-                if (member == null) continue;
-                member.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-                    if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED)
-                        changeQuestState(member, node, QuestState.COMPLETED);
-                });
+        // Try Phoenix Guilds first (lightweight built-in teams) - guarded, since Phoenix Guilds
+        // is meant to be an optional compat, not a hard dependency (see TeamKeyResolver's own
+        // matching fix). Without this check, any pack with a "shared" quest but no Phoenix
+        // Guilds installed would crash with NoClassDefFoundError the moment that quest completed.
+        if (net.minecraftforge.fml.ModList.get().isLoaded("phoenix_guilds")) {
+            GuildManager guildMgr = GuildManager.get(source.getServer().overworld());
+            var pTeam = guildMgr.getGuildFor(source.getUUID());
+            if (pTeam.isPresent()) {
+                for (java.util.UUID memberUUID : pTeam.get().getMembers()) {
+                    if (memberUUID.equals(source.getUUID())) continue;
+                    net.minecraft.server.level.ServerPlayer member = source.getServer().getPlayerList()
+                            .getPlayer(memberUUID);
+                    if (member == null) continue;
+                    member.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+                        if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED)
+                            changeQuestState(member, node, QuestState.COMPLETED);
+                    });
+                }
+                return;
             }
-            return;
         }
 
         // Try FTB Teams next (party/server teams only, not the per-player default team)
@@ -339,9 +428,24 @@ public class QuestProgressTracker {
             for (QuestReward reward : node.getEffectiveRewards(player.getServer())) {
                 reward.grant(player);
             }
+            consumeTaskProgress(player, node);
             data.markRewardsClaimed(node.getId());
             sendProgressSync(player);
         });
+    }
+
+    /**
+     * Runs every task's own tryConsume(Player) - the hook each "consume"-flagged task type (item/
+     * fluid withdrawal, AE2 network extraction, kill-count/stat-baseline resets for repeatable
+     * quests) documents as "call this when claiming rewards", but which nothing actually called
+     * until now: every task with consume behavior just silently never fired it, so items/fluids
+     * were never withdrawn and repeatable-tracking resets never happened, regardless of the
+     * consume flag pack devs had set on those tasks.
+     */
+    private static void consumeTaskProgress(ServerPlayer player, QuestNode node) {
+        for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+            task.tryConsume(player);
+        }
     }
 
     public static QuestState getQuestState(Player player, QuestNode node) {
@@ -370,6 +474,7 @@ public class QuestProgressTracker {
             List<QuestReward> effectiveRewards = node.getEffectiveRewards(player.getServer());
             if (choiceIndex < 0 || choiceIndex >= effectiveRewards.size()) return;
             effectiveRewards.get(choiceIndex).grant(player);
+            consumeTaskProgress(player, node);
             data.setChosenRewardIndex(node.getId(), choiceIndex);
             data.markRewardsClaimed(node.getId());
             sendProgressSync(player);

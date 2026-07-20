@@ -10,9 +10,7 @@ import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -145,68 +143,52 @@ public class QuestContentLoader {
     /**
      * Parses a single quest .md file.
      *
-     * Front matter (between --- delimiters) is scanned for "title:".
-     * Everything after the second --- delimiter is the body/description.
-     * The body may use full markdown including # H1 headings.
+     * Used to scan for a "---" front-matter block (title: key between two "---" delimiter
+     * lines) - a format QuestFileSaver has never actually written (it writes plain
+     * "# Title\n\ndesc", no delimiters at all), so on every real file this loop saw zero "---"
+     * lines, never flipped pastFrontMatter to true, and treated the ENTIRE file - including the
+     * body - as front matter to be silently discarded (only "title:" lines survived, and there
+     * are none in the real format). Worse: a quest whose description legitimately uses the
+     * "---" page-break marker (see QuestTasksScreen.DESC_PAGE_BREAK) would have those lines
+     * miscounted as front-matter delimiters, corrupting the parse in a different way depending
+     * on how many page breaks happened to be present. This only mattered on the path that
+     * actually called this method (LangEditorScreen's reload button), which is presumably why it
+     * went unnoticed for so long, but it's a real landmine for anyone hitting that path.
+     *
+     * Now just delegates to ChronicleOverviewScreen#loadMarkdownContent - the SAME parser every
+     * other description read in the mod already goes through, already handles the real
+     * "# Title\n\ndesc" format, and already preserves page-break markers correctly. Having two
+     * independent parsers for the one file format is exactly how they silently drifted apart
+     * before; there is no reason for this class to maintain its own.
      */
     public static QuestContent parseQuestFile(Path file) {
-        Component title = null;
-        StringBuilder bodyBuilder = new StringBuilder();
-
-        try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            String line;
-            int frontMatterCount = 0; // counts how many "---" lines we've seen
-            boolean pastFrontMatter = false;
-
-            while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
-
-                if (trimmed.equals("---")) {
-                    frontMatterCount++;
-                    if (frontMatterCount == 2) pastFrontMatter = true;
-                    continue;
-                }
-
-                if (!pastFrontMatter) {
-                    // Inside front matter — only look for "title:"
-                    if (trimmed.startsWith("title:")) {
-                        String raw = trimmed.substring("title:".length()).trim();
-                        // Strip surrounding quotes if present
-                        if (raw.startsWith("\"") && raw.endsWith("\"") && raw.length() > 1) {
-                            raw = raw.substring(1, raw.length() - 1);
-                        }
-                        title = Component.literal(raw);
-                    }
-                    // All other front matter keys are intentionally ignored here.
-                    // Structure belongs in the chapter file.
-                    continue;
-                }
-
-                // Body content
-                bodyBuilder.append(line).append("\n");
-            }
-        } catch (IOException e) {
-            LOGGER.error("[Chronicles] IO error reading quest file: {}", file, e);
-            return null;
-        }
-
-        if (title == null) {
-            // Fall back to filename if front matter had no title
+        FullQuestData data = net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen
+                .loadMarkdownContent(file);
+        Component title = data.title();
+        if (title == null || title.getString().isBlank()) {
+            // Fall back to filename if the file had no "# " heading line
             String name = file.getFileName().toString();
             title = Component.literal(name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name);
         }
-
-        return new QuestContent(title, Component.literal(bodyBuilder.toString().trim()));
+        return new QuestContent(title, data.description());
     }
 
     // -------------------------------------------------------------------------
     // Locale resolution
     // -------------------------------------------------------------------------
 
-    private static Path resolveLocaleFile(Path defaultFile, String id) {
+    /**
+     * Resolves {@code defaultFile} to its locale-specific override if one exists on disk, else
+     * returns {@code defaultFile} unchanged. Public so callers with their OWN markdown-reading
+     * path (ChronicleOverviewScreen's live quest-open flow, rather than this class's own JIT
+     * loader above) can get the same locale override behavior without duplicating the folder
+     * convention. {@code id} is only used for the debug log line.
+     */
+    public static Path resolveLocaleFile(Path defaultFile, String id) {
         if (activeLocale.equals("en_us")) return defaultFile;
 
-        // e.g. quests/lang/fr_fr/signal_lost.md
+        // e.g. quests/<category>/lang/fr_fr/signal_lost.md — locale folder sits alongside the
+        // default file within its own category folder, not one single global quests/lang/ tree.
         Path langDir = defaultFile.getParent().resolve("lang").resolve(activeLocale);
         String fileName = defaultFile.getFileName().toString();
         Path localeFile = langDir.resolve(fileName);
@@ -216,6 +198,16 @@ public class QuestContentLoader {
             return localeFile;
         }
         return defaultFile;
+    }
+
+    /**
+     * Points locale resolution at the CLIENT's actual currently-selected game language. Cheap
+     * enough to call on every quest open rather than needing a dedicated language-change event -
+     * this keeps {@link #activeLocale} accurate even if the player changes language mid-session.
+     */
+    public static void syncActiveLocaleFromClient() {
+        Minecraft mc = Minecraft.getInstance();
+        setActiveLocale(mc.options != null ? mc.options.languageCode : null);
     }
 
     // -------------------------------------------------------------------------

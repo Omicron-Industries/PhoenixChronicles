@@ -41,3 +41,9 @@ Welcome to Phoenix's Chronicles, the next gen quest mod! Meant to be better than
         versionRange = "[${gtceu_version},)"
         ordering = "AFTER"
         side = "BOTH"
+    [[dependencies.${mod_id}]]
+        modId = "phoenix_guilds"
+        mandatory = false
+        versionRange = "[0.1.0,)"
+        ordering = "AFTER"
+        side = "BOTH"

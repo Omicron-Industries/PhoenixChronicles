@@ -7,8 +7,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
-import net.minecraft.world.level.material.Fluids;
-import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
@@ -271,31 +269,42 @@ public class QuestToastManager {
         float lx = cfg.label.x * screenW, ly = cfg.label.y * screenH;
         float ix = cfg.icon.x * screenW, iy = cfg.icon.y * screenH;
 
-        // Background rect spans the union of all three element positions plus padding, so it
-        // always visually contains whatever the designer laid out regardless of arrangement.
-        float minX = Math.min(tx, Math.min(lx, ix)) - cfg.bgPadX;
-        float maxX = Math.max(tx, Math.max(lx, ix)) + cfg.bgPadX;
-        float minY = Math.min(ty, Math.min(ly, iy)) - cfg.bgPadY;
-        float maxY = Math.max(ty, Math.max(ly, iy)) + cfg.bgPadY;
+        float minX, maxX, minY, maxY;
+        if (cfg.bgAutoFit) {
+            // Background rect spans the union of all three element positions plus padding, so it
+            // always visually contains whatever the designer laid out regardless of arrangement -
+            // but this also means dragging any ONE element visibly balloons/shifts the whole
+            // background+accent bar along with it. See bgAutoFit's doc comment.
+            minX = Math.min(tx, Math.min(lx, ix)) - cfg.bgPadX;
+            maxX = Math.max(tx, Math.max(lx, ix)) + cfg.bgPadX;
+            minY = Math.min(ty, Math.min(ly, iy)) - cfg.bgPadY;
+            maxY = Math.max(ty, Math.max(ly, iy)) + cfg.bgPadY;
+        } else {
+            // Independent, fixed-size background anchored at its own position - completely
+            // decoupled from wherever the icon/title/label currently sit.
+            float bx = cfg.bgX * screenW, by = cfg.bgY * screenH;
+            minX = bx - cfg.bgPadX;
+            maxX = bx + cfg.bgPadX;
+            minY = by - cfg.bgPadY;
+            maxY = by + cfg.bgPadY;
+        }
 
         g.fill((int) minX, (int) minY, (int) maxX, (int) maxY, (cfg.bgColor & 0x00FFFFFF) | a);
         g.fill((int) minX, (int) minY, (int) minX + 2, (int) maxY, (cfg.accentColor & 0x00FFFFFF) | a);
 
-        drawCustomElement(g, font, cfg.title, rawTitle, screenW, screenH, a);
-        drawCustomElement(g, font, cfg.label, label, screenW, screenH, a);
+        drawCustomElement(g, font, cfg.title, rawTitle, screenW, screenH, a, cfg.bgPadX);
+        drawCustomElement(g, font, cfg.label, label, screenW, screenH, a, cfg.bgPadX);
 
-        // Custom icon set overrides the quest's own auto icon when the designer added any;
-        // otherwise fall back to the quest's icon like before.
+        // Custom icon set overrides the quest's own auto icon when the designer added any - each
+        // entry is independently positioned/scaled (see QuestToastConfig.IconEntry), not forced
+        // into a single row anchored at cfg.icon like before (which meant a second icon could
+        // only ever be moved together with the first).
         if (!cfg.icons.isEmpty()) {
-            int n = cfg.icons.size();
-            int iconPx = Math.round(16 * cfg.icon.scale);
-            int gap = 2;
-            int totalW = n * iconPx + (n - 1) * gap;
-            int sx = Math.round(ix - totalW / 2f);
-            int sy = Math.round(iy - iconPx / 2f);
-            for (QuestGroup.GroupIcon gi : cfg.icons) {
-                renderToastIcon(g, gi, sx, sy, iconPx);
-                sx += iconPx + gap;
+            for (QuestToastConfig.IconEntry entry : cfg.icons) {
+                int iconPx = Math.round(16 * entry.scale);
+                int ex = Math.round(entry.x * screenW) - iconPx / 2;
+                int ey = Math.round(entry.y * screenH) - iconPx / 2;
+                renderToastIcon(g, new QuestGroup.GroupIcon(entry.kind, entry.id), ex, ey, iconPx);
             }
         } else if (node.getIconItem() != null && node.getIconItem() != net.minecraft.world.item.Items.AIR) {
             g.pose().pushPose();
@@ -323,6 +332,23 @@ public class QuestToastManager {
                 logIfStuck(cfg.phantasiaMachineId, preview);
             }
         }
+    }
+
+    /**
+     * The auto-fit background's center, as a fraction of screen size - used by ToastDesignerScreen
+     * to seed {@link QuestToastConfig#bgX}/{@link QuestToastConfig#bgY} when a pack dev switches
+     * from auto-fit to an independent background, so the box doesn't visually jump the moment they
+     * toggle it (same union-of-elements math as {@link #renderCustom}'s auto-fit branch).
+     */
+    public static float[] computeAutoFitCenter(QuestToastConfig cfg) {
+        float tx = cfg.title.x, ty = cfg.title.y;
+        float lx = cfg.label.x, ly = cfg.label.y;
+        float ix = cfg.icon.x, iy = cfg.icon.y;
+        float minX = Math.min(tx, Math.min(lx, ix));
+        float maxX = Math.max(tx, Math.max(lx, ix));
+        float minY = Math.min(ty, Math.min(ly, iy));
+        float maxY = Math.max(ty, Math.max(ly, iy));
+        return new float[] { (minX + maxX) / 2f, (minY + maxY) / 2f };
     }
 
     // Shared cache so repeat toast triggers (and the designer's own preview) reuse an
@@ -384,9 +410,7 @@ public class QuestToastManager {
                 }
                 case FLUID -> {
                     Fluid fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(icon.id));
-                    if (fluid == null || fluid == Fluids.EMPTY) return;
-                    int col = IClientFluidTypeExtensions.of(fluid).getTintColor() | 0xFF000000;
-                    g.fill(x, y, x + size, y + size, col);
+                    net.phoenixvine.chronicles.client.render.ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
                 }
                 case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
             }
@@ -395,15 +419,43 @@ public class QuestToastManager {
         }
     }
 
-    /** Draws one freeform-positioned text element (title or label) of a custom toast design. */
+    /**
+     * Draws one freeform-positioned text element (title or label) of a custom toast design -
+     * word-wrapped to fit within the SMALLER of (a) the background's own half-width and (b) how
+     * much real screen actually remains around this element's own X position. (b) matters on its
+     * own: a background sized to hug a SHORT default title (or one wrapped-height migration from
+     * auto-fit never accounted for multi-line text) doesn't retroactively grow just because the
+     * quest happens to have a much longer title, so wrapping against ONLY the background's width
+     * could still let a long-enough title's wrapped block run past the actual game window edge.
+     * Bounding against real screen space as well is the actual "never off-screen" guarantee.
+     */
     private void drawCustomElement(GuiGraphics g, Font font, QuestToastConfig.Element el, String text,
-                                   int screenW, int screenH, int alpha) {
+                                   int screenW, int screenH, int alpha, float bgHalfWidth) {
         String display = (el.bold ? "§l" : "") + text;
         float x = el.x * screenW, y = el.y * screenH;
+        float screenRoomHalf = Math.min(x, screenW - x) - 8f;
+        float widthCapLocal = Math.min(bgHalfWidth * 2 - 16, screenRoomHalf * 2);
+        int maxWidth = Math.max(20, Math.round(widthCapLocal / el.scale));
+
         g.pose().pushPose();
         g.pose().translate(x, y, 0);
         g.pose().scale(el.scale, el.scale, 1f);
-        g.drawCenteredString(font, display, 0, -font.lineHeight / 2, (el.color & 0x00FFFFFF) | alpha);
+        List<net.minecraft.util.FormattedCharSequence> lines = font
+                .split(net.minecraft.network.chat.Component.literal(display), maxWidth);
+        int totalH = lines.size() * font.lineHeight;
+        int ly = -totalH / 2;
+        // The horizontal cap above stops a long title from running off the SIDE of the screen,
+        // but a title that wraps to several lines can still push the whole block past the TOP or
+        // BOTTOM edge if it's anchored near there - clamp the block's world-space Y range back
+        // into [0, screenH] the same way.
+        float worldTop = y + ly * el.scale;
+        float worldBottom = y + (ly + totalH) * el.scale;
+        if (worldTop < 0) ly -= Math.round(worldTop / el.scale);
+        else if (worldBottom > screenH) ly -= Math.round((worldBottom - screenH) / el.scale);
+        for (net.minecraft.util.FormattedCharSequence line : lines) {
+            g.drawString(font, line, -font.width(line) / 2, ly, (el.color & 0x00FFFFFF) | alpha);
+            ly += font.lineHeight;
+        }
         g.pose().popPose();
     }
 

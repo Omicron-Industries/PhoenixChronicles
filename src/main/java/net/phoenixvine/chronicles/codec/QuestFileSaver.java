@@ -39,6 +39,32 @@ import java.util.stream.Stream;
  */
 public class QuestFileSaver {
 
+    /**
+     * Saves just ONE quest node (its .snbt + .md pair), instead of the entire registry. Editing
+     * a single quest's title/description/tasks doesn't need cleanupStaleQuestFiles/
+     * saveCategoryJsons/saveStubCategories to re-run, or every OTHER quest's files rewritten - on
+     * a pack with hundreds of quests, {@link #saveAllQuestsToDisk()} for a one-field text edit
+     * was a very noticeable freeze (800+ quests → 1600+ file writes) that could look like the
+     * confirming screen had hung.
+     */
+    public static void saveOneQuestToDisk(QuestNode node) {
+        Path base = Minecraft.getInstance().gameDirectory.toPath()
+                .resolve("config").resolve("phoenix_chronicles");
+        try {
+            Files.createDirectories(base);
+            ResourceLocation parentId = null;
+            for (QuestNode candidate : QuestTreeRegistry.getAllQuests().values()) {
+                if (candidate.getChildren().contains(node)) {
+                    parentId = candidate.getId();
+                    break;
+                }
+            }
+            saveNode(base, node, parentId);
+        } catch (IOException e) {
+            System.err.println("[Phoenix Chronicles] Failed to save quest '" + node.getId() + "': " + e.getMessage());
+        }
+    }
+
     public static void saveAllQuestsToDisk() {
         Path base = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
@@ -63,9 +89,17 @@ public class QuestFileSaver {
             try {
                 saveNode(base, node, childToParent.get(node.getId()));
                 saved++;
-            } catch (IOException e) {
+            } catch (Exception e) {
+                // Was IOException-only - one node with bad/unexpected data (malformed task,
+                // null field, anything NOT an IOException) threw straight out of this whole
+                // method instead of just failing that one node, silently skipping every
+                // remaining quest AND aborting whatever caller was waiting on this to finish
+                // (e.g. QuestTextInputScreen's confirm(), which calls setScreen(parent) only
+                // AFTER this returns - an uncaught exception here is exactly why "Confirm"
+                // could look like it hangs and never closes the editor).
                 System.err
                         .println("[Phoenix Chronicles] Failed to save quest '" + node.getId() + "': " + e.getMessage());
+                e.printStackTrace();
             }
         }
 
@@ -127,11 +161,13 @@ public class QuestFileSaver {
         tag.putString("category", category);
         tag.putString("shape", shape);
         if (node.getNodeSize() != QuestNode.NodeSize.NORMAL) tag.putString("node_size", node.getNodeSize().name());
+        if (node.getSizeOverridePx() > 0) tag.putInt("node_size_px", node.getSizeOverridePx());
         tag.putString("parent", parent);
         tag.putInt("positionX", node.getCustomX());
         tag.putInt("positionY", node.getCustomY());
         if (!iconItem.isEmpty()) tag.putString("icon_item", iconItem);
         if (!node.getIconTexture().isEmpty()) tag.putString("icon_texture", node.getIconTexture());
+        if (!node.getIconFluid().isEmpty()) tag.putString("icon_fluid", node.getIconFluid());
         if (!node.getShapeTexture().isEmpty()) tag.putString("shape_texture", node.getShapeTexture());
 
         // Extended metadata
@@ -256,12 +292,20 @@ public class QuestFileSaver {
 
         // ── .md ───────────────────────────────────────────────────────────────
         Path mdPath = categoryFolder.resolve(id + ".md");
-        // Only write .md if it doesn't already exist (preserve author edits)
-        if (!Files.exists(mdPath)) {
-            Files.writeString(mdPath,
-                    "# " + title + "\n\n" + (desc.isEmpty() ? "" : desc + "\n"),
-                    StandardCharsets.UTF_8);
-        }
+        // Always resync the .md body with the current description. This used to only write
+        // the .md if it didn't already exist yet ("preserve author edits") - but the in-game
+        // description editor's live preview (liveDescOverride) and the .md file are the ONLY
+        // two places a description's current text lives; liveDescOverride is per-screen-instance
+        // and resets the moment that screen closes (reopening the quest, or restarting the
+        // world), at which point the description is re-derived straight from THIS file
+        // (ChronicleOverviewScreen#loadMarkdownContent). Once a quest had ever been saved once
+        // (i.e. this file already existed), every later edit updated the .snbt but silently left
+        // this file on its ORIGINAL text - which is what "edited descriptions revert on reopen/
+        // restart" (most visibly reported for page-break "---" markers, since those are the most
+        // noticeable thing to lose) actually was.
+        Files.writeString(mdPath,
+                "# " + title + "\n\n" + (desc.isEmpty() ? "" : desc + "\n"),
+                StandardCharsets.UTF_8);
     }
 
     // ── Stale file cleanup ────────────────────────────────────────────────────
@@ -448,19 +492,22 @@ public class QuestFileSaver {
         patchNodeTag(node, tag -> tag.putString("category", cat));
     }
 
-    public static void updateNodeIcon(QuestNode node) {
+    /**
+     * All three icon fields together in ONE write - the "Set Icon…" picker (item/fluid/texture
+     * are mutually exclusive) always clears the two NOT being set, so a single patch avoids
+     * doing up to 3 separate disk writes for what's conceptually one change.
+     */
+    public static void updateNodeIconAll(QuestNode node) {
         patchNodeTag(node, tag -> {
             String iconId = node.getIconItemId();
             if (iconId == null || iconId.isEmpty()) tag.remove("icon_item");
             else tag.putString("icon_item", iconId);
-        });
-    }
-
-    public static void updateNodeIconTexture(QuestNode node) {
-        patchNodeTag(node, tag -> {
             String texture = node.getIconTexture();
             if (texture == null || texture.isEmpty()) tag.remove("icon_texture");
             else tag.putString("icon_texture", texture);
+            String fluid = node.getIconFluid();
+            if (fluid == null || fluid.isEmpty()) tag.remove("icon_fluid");
+            else tag.putString("icon_fluid", fluid);
         });
     }
 

@@ -10,6 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.rich.RichSpan;
 import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
@@ -17,6 +18,7 @@ import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.tasks.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -79,7 +81,25 @@ public class QuestTasksScreen extends Screen {
 
     private int descScrollY = 0;
     private java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan.Region> richRegions = java.util.List.of();
-    private java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan> richSpans = java.util.List.of();
+    private java.util.List<RichSpan> richSpans = java.util.List.of();
+    // ── Description pagination (fullscreen view only) ─────────────────────────
+    // A line of 3+ hyphens on its own ("---") splits a long description into pages instead of
+    // one continuous scroll - purely opt-in for pack authors, a description with no such marker
+    // behaves exactly as before (one page, scrolls same as ever).
+    private static final java.util.regex.Pattern DESC_PAGE_BREAK = java.util.regex.Pattern
+            .compile("(?m)^[ \\t]*-{3,}[ \\t]*$");
+    private int descPage = 0;
+    private int richSpansPage = -1;
+    private int descPagerX, descPagerY, descPagerW, descPagerH, descPagerPageCount;
+    /**
+     * Set the moment a description edit is confirmed via the popup. `content` (the FullQuestData
+     * loaded once when this screen was constructed) never gets refreshed after that, so without
+     * this override, both the read-only view and a re-opened edit dialog kept showing the
+     * PRE-edit text for the rest of this screen's lifetime - confirming an edit looked like it
+     * silently did nothing (including a freshly inserted page break never showing up), even
+     * though the node and the files on disk were actually updated correctly.
+     */
+    private String liveDescOverride = null;
     private long openTimeMs = -1;
     private static final long OPEN_FADE_MS = 100;
     private int inspectorTab = 2; // default to Tasks tab
@@ -194,7 +214,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private int compactCardH(List<QuestTask> tasks, List<QuestReward> rewards,
-                             java.util.List<net.minecraft.util.FormattedCharSequence> descLines) {
+                             java.util.List<net.minecraft.util.FormattedCharSequence> descLines, int pageCount) {
         // header(20) + divider(1) + icon strip + pad(2) + divider(1) + footer(18)
         int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int allDescLines = buildAllDescLines(tasks, descLines).size();
@@ -203,7 +223,11 @@ public class QuestTasksScreen extends Screen {
         // In edit mode, reserve a minimum-size placeholder box even with no description yet,
         // so there's always a click target to add one.
         int descH = fitted > 0 ? 4 + fitted * 10 + 4 : (isEditMode ? 24 : 0);
-        return fixedH + descH + (descH > 0 ? 1 : 0);
+        // Must match renderCompact()'s own pagerStripH exactly, or the "click outside card"
+        // bounds check and the card's actual rendered footprint disagree - clicking the pager
+        // row itself would misfire as "outside the card" and close it.
+        int pagerStripH = pageCount > 1 ? 17 : 0;
+        return fixedH + descH + (descH > 0 ? 1 : 0) + pagerStripH + (pagerStripH > 0 ? 1 : 0);
     }
 
     /** Combines InfoTask bodies (word-wrapped) with the quest description lines for the bottom section. */
@@ -215,7 +239,7 @@ public class QuestTasksScreen extends Screen {
             if (task instanceof InfoTask info) {
                 String body = info.getBody();
                 if (body != null && !body.isBlank()) {
-                    all.addAll(font.split(Component.literal(body), cardW() - CARD_PAD * 2));
+                    all.addAll(splitRespectingNewlines(font, body, cardW() - CARD_PAD * 2));
                 }
             }
         }
@@ -225,6 +249,19 @@ public class QuestTasksScreen extends Screen {
         }
         all.addAll(questDescLines);
         return all;
+    }
+
+    private java.util.List<net.minecraft.util.FormattedCharSequence> splitRespectingNewlines(net.minecraft.client.gui.Font font,
+                                                                                             String text, int maxW) {
+        java.util.List<net.minecraft.util.FormattedCharSequence> out = new java.util.ArrayList<>();
+        for (String line : text.split("\n", -1)) {
+            if (line.isEmpty()) {
+                out.add(net.minecraft.util.FormattedCharSequence.EMPTY); // preserve blank paragraph-separator lines
+            } else {
+                out.addAll(font.split(Component.literal(line), maxW));
+            }
+        }
+        return out;
     }
 
     // Tracked during renderCompact for tooltip and click handling
@@ -247,6 +284,14 @@ public class QuestTasksScreen extends Screen {
     // Same edit-box affordance as the compact card's description, for the fullscreen content panel.
     private boolean hoveredFsDescBox = false;
     private int fsDescBoxX, fsDescBoxY, fsDescBoxW, fsDescBoxH;
+
+    // ── "Uses" popup (parent/child dependency quick-view) ─────────────────────
+    // Lets a player glance at what a quest requires and what it unlocks without leaving it -
+    // the Prereqs tab already shows parents, but nothing showed children (dependents), and
+    // switching tabs still means losing your place in the Tasks tab you were actually reading.
+    private boolean usesPopupOpen = false;
+    private final List<int[]> usesPopupRowRects = new ArrayList<>(); // [x, y, w, h] per clickable row
+    private final List<QuestNode> usesPopupRowTargets = new ArrayList<>();
 
     // Tracked during renderFullscreen inspector for tooltip and click handling
     private QuestTask hoveredTaskFs = null;
@@ -276,43 +321,43 @@ public class QuestTasksScreen extends Screen {
             g.fill(0, 0, width, height, C_BG);
         }
 
-        // Force everything the parent (including quest node icons, which g.renderItem() writes
-        // to the depth buffer at z=100) just queued to actually submit before this card starts
-        // drawing - renderForChildScreen() already flushes internally, but this pack's rendering
-        // pipeline has repeatedly shown it needs an explicit flush at every layer boundary, not
-        // just an upstream one, or content from the layer below can still bleed through what's
-        // supposed to be an opaque layer on top of it (this was the clicked quest's own canvas
-        // icon showing through above the card instead of staying hidden behind it).
+        // Force everything the parent just queued to submit before this card starts drawing
         g.flush();
 
-        // Elevate z so the card is ALWAYS drawn in front of any parent content,
-        // regardless of render-buffer ordering or leftover scissor state.
+        // Elevate z so the card is ALWAYS drawn in front of any parent content
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
-        // Same missing-flush bleed-through bug fixed elsewhere this session - without this, a
-        // quest node's own icon (z=100 via g.renderItem()) could still win the depth test
-        // against this dim fill and show through it specifically, instead of just reading as
-        // part of the deliberately-dimmed parent canvas behind everything else.
         g.flush();
         g.fill(0, 0, width, height, 0x88000000);
 
         List<QuestTask> tasks = node.getTasks();
         List<QuestReward> rewards = node.getRewards();
-        // .md companion content wins if present (matches renderContent's fullscreen behavior),
-        // but fall back to the quest's own description instead of showing nothing when there's
-        // no .md yet - which was previously every freshly-imported/created quest.
-        String mdDescText = (content != null && content.description() != null) ? content.description().getString() : "";
-        String descText = !mdDescText.isBlank() ? mdDescText : node.getDescription().getString();
-        java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines = descText != null ?
-                font.split(Component.literal(descText), cardW() - CARD_PAD * 2) : java.util.List.of();
+
+        // .md companion content wins if present, otherwise fall back to the quest's own description.
+        // Sliced down to whichever page is currently selected - a page-break marker previously
+        // did nothing at all here, since this view never split on it in the first place (only
+        // the fullscreen view did), so it just showed as literal "---" text mid-scroll.
+        int compactDescPageCount = splitDescPages(currentDisplayDescriptionText()).size();
+        String descText = currentDescriptionPageText(currentDisplayDescriptionText());
+
+        // FIX 1: Strip the custom Markdown syntax tags to get an accurate plain-text line count for layout sizing
+        String plainText = net.phoenixvine.chronicles.client.rich.ChronicleTextParser.toPlain(descText);
+
+        java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines = plainText != null ?
+                splitRespectingNewlines(font, plainText, cardW() - CARD_PAD * 2) : java.util.List.of();
         java.util.List<net.minecraft.util.FormattedCharSequence> descLines = buildAllDescLines(tasks, questDescLines);
 
-        // Layout constants — icon strip replaces the old per-task row list
+        // Layout constants
         int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int rawDesc = Math.min(descLines.size(), CARD_MAX_DESC);
         int fittedDesc = Math.max(0, Math.min(rawDesc, ((height - 20) - fixedH - 9) / 10));
         int descH = fittedDesc > 0 ? 4 + fittedDesc * 10 + 4 : (isEditMode ? 24 : 0);
-        int cardH = fixedH + descH + (descH > 0 ? 1 : 0);
+        // A dedicated, non-scrolling row for the page pager - it used to sit ON TOP of the
+        // scrollable text area itself, both stealing click/hover space from whatever text was
+        // underneath it AND (combined with the clipBot bleed bug above) letting text visibly
+        // render through/around it. Only reserved when there's actually more than one page.
+        int pagerStripH = compactDescPageCount > 1 ? 17 : 0;
+        int cardH = fixedH + descH + (descH > 0 ? 1 : 0) + pagerStripH + (pagerStripH > 0 ? 1 : 0);
 
         int cardX = (width - cardW()) / 2;
         int cardY = Math.max(10, (height - cardH) / 2);
@@ -322,119 +367,45 @@ public class QuestTasksScreen extends Screen {
         g.fill(cardX, cardY, cardX + cardW(), cardY + cardH, C_BG);
         drawBorder(g, cardX, cardY, cardW(), cardH);
 
-        // Everything below is clipped to the card's own bounds so nothing (long descriptions,
-        // overflowing icon strips, etc.) can visually bleed out past the card and onto the
-        // dimmed overview canvas behind it. Tooltips are drawn after disableScissor further down.
+        // Clip bounds to prevent card content leaking out
         g.enableScissor(cardX, cardY, cardX + cardW(), cardY + cardH);
 
         int cy = cardY;
 
         // ── Header ──────────────────────────────────────────────────────────
         g.fill(cardX, cy, cardX + cardW(), cy + 20, C_HEADER);
-        String title = node.getTitle().getString();
+        String title = node.getTitle().getString(); //
         if (font.width(title.replaceAll("§.", "")) > cardW() - 50)
             title = font.plainSubstrByWidth(title, cardW() - 56) + "…";
         g.drawString(font, "§f" + title, cardX + CARD_PAD, cy + 6, C_TEXT, false);
+
         // [+] expand to fullscreen
         boolean fsHov = mx >= cardX + cardW() - 18 && mx < cardX + cardW() - 4 && my >= cy + 3 && my < cy + 17;
         if (fsHov) g.fill(cardX + cardW() - 18, cy + 3, cardX + cardW() - 4, cy + 17, 0x33FFFFFF);
         g.drawCenteredString(font, fsHov ? "§b[+]" : "§8[+]", cardX + cardW() - 11, cy + 6,
                 fsHov ? C_ACTIVE : C_TEXT_FAINT);
+
         // [x] close card
         boolean closeHov = mx >= cardX + cardW() - 34 && mx < cardX + cardW() - 20 && my >= cy + 3 && my < cy + 17;
         if (closeHov) g.fill(cardX + cardW() - 34, cy + 3, cardX + cardW() - 20, cy + 17, 0x33FFFFFF);
         g.drawCenteredString(font, closeHov ? "§c✕" : "§8✕", cardX + cardW() - 27, cy + 6,
                 closeHov ? 0xFFFF6666 : C_TEXT_FAINT);
+
         cy += 20;
         g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
         cy += 1;
 
-        // ── Icon strip (tasks then rewards, FTB-style) ──────────────────────
-        {
-            int sz = ICON_SZ;
-            int gap = 3;
-            int ix = cardX + CARD_PAD + 2;
-            int iy = cy + (ICON_STRIP_H - sz) / 2;
+        // ── Icon Strip ──────────────────────────────────────────────────────
+        renderIconStrip(g, cardX, cy, mx, my, tasks, rewards);
+        cy += ICON_STRIP_H;
 
-            for (QuestTask task : tasks) {
-                if (ix + sz > cardX + cardW() - CARD_PAD) break;
-                boolean done = isTaskDone(task);
-                boolean hov = mx >= ix && mx < ix + sz && my >= iy && my < iy + sz;
-                int border = done ? C_DONE : (task.isOptional() ? C_TEXT_FAINT : C_ACTIVE);
-                int bg = done ? 0xFF0A1A0E : 0xFF0F0F18;
-                if (hov) {
-                    hoveredTask = task;
-                    hoveredSlotX = ix;
-                    hoveredSlotY = iy;
-                }
-                drawIconSlot(g, ix, iy, sz, bg, border, hov);
-                ItemStack icon = getTaskIcon(task);
-                int off = (sz - 16) / 2;
-                if (!icon.isEmpty()) {
-                    g.renderItem(icon, ix + off, iy + off);
-                    if (done) g.fill(ix, iy, ix + sz, iy + sz, 0x5500CC55);
-                } else {
-                    g.drawCenteredString(font, done ? "§a✔" : "§c✗", ix + sz / 2, iy + sz / 2 - 4, 0xFFFFFFFF);
-                }
-                if (done) {
-                    g.fill(ix + sz - 7, iy + sz - 8, ix + sz, iy + sz, 0xFF0A2210);
-                    g.drawString(font, "§a✔", ix + sz - 7, iy + sz - 8, 0xFFFFFFFF, false);
-                }
-                ix += sz + gap;
-            }
-
-            if (!tasks.isEmpty() && !rewards.isEmpty()) {
-                g.fill(ix + 1, iy + 2, ix + 2, iy + sz - 2, C_BORDER);
-                ix += 6;
-            }
-
-            boolean claimed = rewardsClaimed();
-            for (int ri = 0; ri < rewards.size(); ri++) {
-                if (ix + sz > cardX + cardW() - CARD_PAD) break;
-                QuestReward reward = rewards.get(ri);
-                boolean hov = mx >= ix && mx < ix + sz && my >= iy && my < iy + sz;
-                int border = claimed ? C_DONE : C_TEXT_FAINT;
-                int bg = claimed ? 0xFF1A140A : 0xFF0F0F18;
-                if (hov) {
-                    hoveredReward = reward;
-                    hoveredRewardIndex = ri;
-                    hoveredSlotX = ix;
-                    hoveredSlotY = iy;
-                }
-                drawIconSlot(g, ix, iy, sz, bg, border, hov);
-                int off = (sz - 16) / 2;
-                if (reward instanceof QuestReward.ItemReward ir) {
-                    g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), ix + off, iy + off);
-                    if (claimed) g.fill(ix, iy, ix + sz, iy + sz, 0x55CC8800);
-                } else {
-                    String glyph = switch (reward.getType()) {
-                        case XP -> "⚡";
-                        case COMMAND -> "◆";
-                        case LOOT_TABLE -> "📦";
-                        case SCRIPT_EVENT -> "✦";
-                        default -> "?";
-                    };
-                    g.drawCenteredString(font, "§7" + glyph, ix + sz / 2, iy + sz / 2 - 4, C_TEXT_DIM);
-                    if (claimed) g.fill(ix, iy, ix + sz, iy + sz, 0x55CC8800);
-                }
-                if (claimed) {
-                    g.fill(ix + sz - 7, iy + sz - 8, ix + sz, iy + sz, 0xFF1A1000);
-                    g.drawString(font, "§6✔", ix + sz - 7, iy + sz - 8, 0xFFFFFFFF, false);
-                }
-                ix += sz + gap;
-            }
-            cy += ICON_STRIP_H;
-        }
         cy += 2;
         g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
         cy += 1;
 
-        // ── Embedded Phantasia build preview — part of the quest's own content, shown whether
-        // or not the quest also has a view_machine task requiring it to be viewed. Rendered as a
-        // small square anchored to the card's top-left instead of a full-width bar, so it reads
-        // as an inset thumbnail rather than eating the whole row.
+        // ── Embedded Phantasia build preview ────────────────────────────────
         if (phantasiaPreview != null) {
-            int pvSz = PREVIEW_H_COMPACT; // square: width == height
+            int pvSz = PREVIEW_H_COMPACT;
             int pvX = cardX + CARD_PAD;
             int pvY = cy + 1;
             g.fill(pvX, pvY, pvX + pvSz, pvY + pvSz - 2, 0xFF0A0A10);
@@ -451,7 +422,7 @@ public class QuestTasksScreen extends Screen {
             cy += 1;
         }
 
-        // ── Description (bottom) - the card's main content area ─────────────
+        // ── Description (bottom) ────────────────────────────────────────────
         hoveredDescBox = false;
         if (descH > 0) {
             descBoxX = cardX;
@@ -480,26 +451,56 @@ public class QuestTasksScreen extends Screen {
             if (fittedDesc == 0 && isEditMode) {
                 g.drawString(font, "§8Click to add a description", cardX + CARD_PAD, dy, C_TEXT_FAINT, false);
             }
-            for (int i = 0; i < fittedDesc; i++) {
-                int lineIdx = compactDescScrollLine + i;
-                if (lineIdx >= descLines.size()) break;
-                g.drawString(font, descLines.get(lineIdx), cardX + CARD_PAD, dy, C_TEXT_DIM, false);
-                dy += 10;
+
+            // FIX 2: Run the raw description text through the Markdown parsing and rendering pipeline
+            List<net.phoenixvine.chronicles.client.rich.RichSpan> spans = net.phoenixvine.chronicles.client.rich.ChronicleTextParser
+                    .parse(descText); //
+            float compactTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                    .getTextScaleMultiplier();
+            net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.render( //
+                    g, font, spans,
+                    cardX + CARD_PAD, cy + 4, cardW() - CARD_PAD * 2,
+                    // Maps the scroll line integer index to a layout pixel offset, scaled to match
+                    // this same render call's own (now scale-aware) internal line height, or a
+                    // "scroll 1 line" step would move a fraction of a visual line at LARGE scale
+                    // and overshoot past one at SMALL.
+                    compactDescScrollLine * Math.round(10 * compactTextScale),
+                    cy + 1, cy + descH - 1,     // Perfectly restricts rendering to the top/bottom bounds of the
+                                                // description box container
+                    compactTextScale);
+
+            // Render any supplementary plain text lines (like tasks text appended via legacy fallbacks) below the
+            // Markdown flow
+            if (descLines.size() > questDescLines.size()) {
+                for (int i = questDescLines.size(); i < descLines.size(); i++) {
+                    int renderY = cy + 4 + (i * 10) - (compactDescScrollLine * 10);
+                    if (renderY >= cy + 4 && renderY + 10 <= cy + descH - 4) {
+                        g.drawString(font, descLines.get(i), cardX + CARD_PAD, renderY, C_TEXT_DIM, false);
+                    }
+                }
             }
-            // Scroll hint - only shown when there's actually more text than fits, so it doesn't
-            // clutter short descriptions.
+
             if (maxScrollLine > 0) {
                 String hint = compactDescScrollLine < maxScrollLine ? "§7▼ scroll for more" : "§7▲ scroll up";
-                g.drawString(font, hint, cardX + cardW() - font.width(hint) - CARD_PAD - 2,
-                        cy + descH - 11, C_TEXT_FAINT, false);
+                g.drawString(font, hint, cardX + cardW() - font.width(hint) - CARD_PAD - 2, cy + descH - 11,
+                        C_TEXT_FAINT, false);
             } else if (isEditMode) {
                 String hint = "§7✎ edit";
-                g.drawString(font, hint, cardX + cardW() - font.width(hint) - CARD_PAD - 2,
-                        cy + descH - 11, hoveredDescBox ? C_ACTIVE : C_TEXT_FAINT, false);
+                g.drawString(font, hint, cardX + cardW() - font.width(hint) - CARD_PAD - 2, cy + descH - 11,
+                        hoveredDescBox ? C_ACTIVE : C_TEXT_FAINT, false);
             }
             cy += descH;
             g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
             cy += 1;
+
+            // Pager row - its own strip below the description text, not overlapping the area
+            // that actually scrolls.
+            if (pagerStripH > 0) {
+                renderDescPager(g, cardX, cy, cardW(), pagerStripH, mx, my, compactDescPageCount);
+                cy += pagerStripH;
+                g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
+                cy += 1;
+            }
         }
 
         // ── Footer ──────────────────────────────────────────────────────────
@@ -507,7 +508,7 @@ public class QuestTasksScreen extends Screen {
 
         g.disableScissor();
 
-        // ── Tooltip for hovered slot (drawn last, at z+200 so it's above the card) ──
+        // ── Tooltips ────────────────────────────────────────────────────────
         if (hoveredTask != null) {
             g.pose().translate(0f, 0f, 200f);
             g.renderComponentTooltip(font, buildTaskTooltip(hoveredTask), mx, my);
@@ -517,6 +518,87 @@ public class QuestTasksScreen extends Screen {
         }
 
         g.pose().popPose();
+    }
+
+    /** Renders the sequential task and reward slots into the compact card's horizontal strip. */
+    private void renderIconStrip(GuiGraphics g, int cardX, int cy, int mx, int my, List<QuestTask> tasks,
+                                 List<QuestReward> rewards) {
+        int sz = ICON_SZ;
+        int gap = 3;
+        int ix = cardX + CARD_PAD + 2;
+        int iy = cy + (ICON_STRIP_H - sz) / 2;
+
+        // Tasks Loop
+        for (QuestTask task : tasks) {
+            if (ix + sz > cardX + cardW() - CARD_PAD) break;
+            boolean done = isTaskDone(task);
+            boolean hov = mx >= ix && mx < ix + sz && my >= iy && my < iy + sz;
+            int border = done ? C_DONE : (task.isOptional() ? C_TEXT_FAINT : C_ACTIVE);
+            int bg = done ? 0xFF0A1A0E : 0xFF0F0F18;
+            if (hov) {
+                hoveredTask = task;
+                hoveredSlotX = ix;
+                hoveredSlotY = iy;
+            }
+            drawIconSlot(g, ix, iy, sz, bg, border, hov);
+            ItemStack icon = getTaskIcon(task);
+            int off = (sz - 16) / 2;
+            if (!icon.isEmpty()) {
+                g.renderItem(icon, ix + off, iy + off);
+                g.renderItemDecorations(font, icon, ix + off, iy + off);
+                if (done) g.fill(ix, iy, ix + sz, iy + sz, 0x5500CC55);
+            } else {
+                g.drawCenteredString(font, done ? "§a✔" : "§c✗", ix + sz / 2, iy + sz / 2 - 4, 0xFFFFFFFF);
+            }
+            if (done) {
+                g.fill(ix + sz - 7, iy + sz - 8, ix + sz, iy + sz, 0xFF0A2210);
+                g.drawString(font, "§a✔", ix + sz - 7, iy + sz - 8, 0xFFFFFFFF, false);
+            }
+            ix += sz + gap;
+        }
+
+        // Section Separator
+        if (!tasks.isEmpty() && !rewards.isEmpty()) {
+            g.fill(ix + 1, iy + 2, ix + 2, iy + sz - 2, C_BORDER);
+            ix += 6;
+        }
+
+        // Rewards Loop
+        boolean claimed = rewardsClaimed();
+        for (int ri = 0; ri < rewards.size(); ri++) {
+            if (ix + sz > cardX + cardW() - CARD_PAD) break;
+            QuestReward reward = rewards.get(ri);
+            boolean hov = mx >= ix && mx < ix + sz && my >= iy && my < iy + sz;
+            int border = claimed ? C_DONE : C_TEXT_FAINT;
+            int bg = claimed ? 0xFF1A140A : 0xFF0F0F18;
+            if (hov) {
+                hoveredReward = reward;
+                hoveredRewardIndex = ri;
+                hoveredSlotX = ix;
+                hoveredSlotY = iy;
+            }
+            drawIconSlot(g, ix, iy, sz, bg, border, hov);
+            int off = (sz - 16) / 2;
+            if (reward instanceof QuestReward.ItemReward ir) {
+                g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), ix + off, iy + off);
+                if (claimed) g.fill(ix, iy, ix + sz, iy + sz, 0x55CC8800);
+            } else {
+                String glyph = switch (reward.getType()) {
+                    case XP -> "⚡";
+                    case COMMAND -> "◆";
+                    case LOOT_TABLE -> "📦";
+                    case SCRIPT_EVENT -> "✦";
+                    default -> "?";
+                };
+                g.drawCenteredString(font, "§7" + glyph, ix + sz / 2, iy + sz / 2 - 4, C_TEXT_DIM);
+                if (claimed) g.fill(ix, iy, ix + sz, iy + sz, 0x55CC8800);
+            }
+            if (claimed) {
+                g.fill(ix + sz - 7, iy + sz - 8, ix + sz, iy + sz, 0xFF1A1000);
+                g.drawString(font, "§6✔", ix + sz - 7, iy + sz - 8, 0xFFFFFFFF, false);
+            }
+            ix += sz + gap;
+        }
     }
 
     private void renderCompactTaskRow(GuiGraphics g, int x, int y, int w, QuestTask task, int mx, int my) {
@@ -545,6 +627,7 @@ public class QuestTasksScreen extends Screen {
         ItemStack icon = getTaskIcon(task);
         if (!icon.isEmpty()) {
             g.renderItem(icon, textX, y);
+            g.renderItemDecorations(font, icon, textX, y);
             textX += 18;
         } else {
             g.drawString(font, getTaskGlyph(task), textX, y + 3, 0xFFFFFFFF, false);
@@ -558,15 +641,19 @@ public class QuestTasksScreen extends Screen {
         boolean descIsId = desc.isEmpty() || desc.matches("[a-z0-9_]+");
         String primary = (descIsId && detail != null) ? detail : desc;
 
+        float rowTs = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
         // Right-aligned progress counter
         String prog = done ? "§a✔" : (progress != null ? "§8" + progress : "");
-        int progW = prog.isEmpty() ? 0 : font.width(prog) + 2;
+        int progW = prog.isEmpty() ? 0 : Math.round(font.width(prog) * rowTs) + 2;
         int labelW = w - (textX - x) - progW - 2;
-        if (font.width(primary) > labelW)
-            primary = font.plainSubstrByWidth(primary, labelW - 5) + "…";
-        g.drawString(font, (done ? "§7" : "§f") + primary, textX, y + 3, done ? C_TEXT_DIM : C_TEXT, false);
+        // Same pre-scale-vs-post-scale width fix as the header title above.
+        float labelAvailPreScale = labelW / rowTs;
+        if (font.width(primary) > labelAvailPreScale)
+            primary = font.plainSubstrByWidth(primary, (int) (labelAvailPreScale - 5)) + "…";
+        ChroniclesUIKit.drawScaledString(g, font, (done ? "§7" : "§f") + primary, textX, y + 3,
+                done ? C_TEXT_DIM : C_TEXT, rowTs);
         if (!prog.isEmpty()) {
-            g.drawString(font, prog, x + w - progW, y + 3, C_TEXT_FAINT, false);
+            ChroniclesUIKit.drawScaledString(g, font, prog, x + w - progW, y + 3, C_TEXT_FAINT, rowTs);
         }
 
         // Thin progress bar spanning full row width below the text
@@ -653,17 +740,31 @@ public class QuestTasksScreen extends Screen {
 
         if (mx >= 4 && mx < 20 && my >= 6 && my < 22) g.fill(4, 6, 20, 22, 0x22FFFFFF);
         g.drawCenteredString(font, "§7←", 12, 10, C_TEXT_DIM);
-        // Right-side buttons (right → left): pin, edit, collapse
+        // Right-side buttons (right → left): pin, edit, collapse, uses
         boolean pinned = playerData != null && playerData.isPinned(node.getId());
         int pinX = width - 20;
         int editX = pinX - 18;
         int fsX = editX - 20;
-        int titleMaxW = fsX - 32;
+        int usesX = fsX - 20;
+        int titleMaxW = usesX - 32;
 
+        float headerTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
+        // titleMaxW is real screen pixels available; the truncation check needs to compare against
+        // the PRE-scale width (what font.width/plainSubstrByWidth measure) since the drawn glyphs
+        // get scale-times wider once actually rendered - otherwise a scaled-up title silently
+        // overflows into the icon buttons to its right instead of truncating in time.
+        float titleAvailPreScale = titleMaxW / headerTextScale;
         String titleStr = node.getTitle().getString();
-        if (font.width(titleStr.replaceAll("§.", "")) > titleMaxW)
-            titleStr = font.plainSubstrByWidth(titleStr, titleMaxW - 6) + "…";
-        g.drawString(font, "§f" + titleStr, 28, 10, C_TEXT, false);
+        if (font.width(titleStr.replaceAll("§.", "")) > titleAvailPreScale)
+            titleStr = font.plainSubstrByWidth(titleStr, (int) (titleAvailPreScale - 6)) + "…";
+        ChroniclesUIKit.drawScaledString(g, font, "§f" + titleStr, 28, 10, C_TEXT, headerTextScale);
+
+        // 🔗 Uses — parent/child dependency popup, see usesPopupOpen
+        boolean usesHasAny = !node.getPrerequisites().isEmpty() || !node.getChildren().isEmpty();
+        boolean usesHov = usesHasAny && mx >= usesX && mx < usesX + 16 && my >= 6 && my < 22;
+        if (usesHov || usesPopupOpen) g.fill(usesX, 6, usesX + 16, 22, 0x22FFFFFF);
+        g.drawCenteredString(font, "§b🔗", usesX + 8, 10,
+                !usesHasAny ? C_TEXT_FAINT : (usesHov || usesPopupOpen) ? 0xFF55CCFF : C_TEXT_DIM);
 
         // [-] collapse to compact
         if (mx >= fsX && mx < fsX + 16 && my >= 6 && my < 22) g.fill(fsX, 6, fsX + 16, 22, 0x22FFFFFF);
@@ -677,6 +778,73 @@ public class QuestTasksScreen extends Screen {
         // 📌 pin
         if (mx >= pinX && mx < width - 4 && my >= 6 && my < 22) g.fill(pinX, 6, width - 4, 22, 0x22FFFFFF);
         g.drawCenteredString(font, pinned ? "§d📌" : "§8📌", width - 12, 10, pinned ? 0xFFAA44FF : C_TEXT_FAINT);
+
+        if (usesPopupOpen) renderUsesPopup(g, usesX, mx, my);
+    }
+
+    /**
+     * Small dropdown-style popup anchored under the header's 🔗 button, listing this quest's
+     * prerequisites ("Requires") and dependents ("Unlocks") as clickable rows - clicking one
+     * navigates there via the parent overview screen's own onNodeClicked (same locked-quest gate
+     * and markdown-loading path a normal canvas click uses), same as clicking the quest node
+     * itself would. Anything not backed by a ChronicleOverviewScreen parent (shouldn't normally
+     * happen) just can't navigate - the popup still shows the lists either way.
+     */
+    private void renderUsesPopup(GuiGraphics g, int anchorX, int mx, int my) {
+        usesPopupRowRects.clear();
+        usesPopupRowTargets.clear();
+
+        List<QuestNode> requires = node.getPrerequisites();
+        List<QuestNode> unlocks = node.getChildren();
+
+        int rowH = 12;
+        int headerH = 12;
+        int padW = 6, padTop = 4, padBot = 6;
+        int innerW = 160;
+        int contentRows = requires.size() + unlocks.size();
+        int sectionHeaders = (requires.isEmpty() ? 0 : 1) + (unlocks.isEmpty() ? 0 : 1);
+        int popupH = padTop + sectionHeaders * headerH + contentRows * rowH + padBot;
+        if (contentRows == 0) popupH = padTop + 14 + padBot; // "(no connections)" line
+
+        int popupX = Math.max(4, Math.min(anchorX + 16 - innerW, width - innerW - 4));
+        int popupY = HEADER_H + 2;
+
+        g.pose().pushPose();
+        g.pose().translate(0f, 0f, 250f);
+        g.fill(popupX, popupY, popupX + innerW, popupY + popupH, 0xF00A0A0E);
+        drawBorder(g, popupX, popupY, innerW, popupH);
+
+        int ry = popupY + padTop;
+        if (contentRows == 0) {
+            g.drawString(font, "§8(no connections)", popupX + padW, ry + 2, C_TEXT_FAINT, false);
+        } else {
+            ry = renderUsesPopupSection(g, popupX, ry, innerW, padW, rowH, "§8Requires:", requires, mx, my);
+            ry = renderUsesPopupSection(g, popupX, ry, innerW, padW, rowH, "§8Unlocks:", unlocks, mx, my);
+        }
+        g.pose().popPose();
+    }
+
+    private int renderUsesPopupSection(GuiGraphics g, int popupX, int ry, int innerW, int padW, int rowH,
+                                       String header, List<QuestNode> list, int mx, int my) {
+        if (list.isEmpty()) return ry;
+        g.drawString(font, header, popupX + padW, ry + 2, C_TEXT_FAINT, false);
+        ry += rowH;
+        for (QuestNode target : list) {
+            boolean hov = mx >= popupX && mx < popupX + innerW && my >= ry && my < ry + rowH;
+            if (hov) g.fill(popupX + 2, ry, popupX + innerW - 2, ry + rowH, 0x22FFFFFF);
+            QuestState state = playerData != null ? playerData.getQuestState(target.getId(), QuestState.LOCKED) :
+                    QuestState.LOCKED;
+            String title = target.getTitle().getString();
+            int maxW = innerW - padW * 2 - 10;
+            if (font.width(title.replaceAll("§.", "")) > maxW)
+                title = font.plainSubstrByWidth(title, Math.max(0, maxW - 6)) + "…";
+            g.drawString(font, (state == QuestState.COMPLETED ? "§a●" : "§8○") + " " + (hov ? "§f" : "§7") + title,
+                    popupX + padW + 8, ry + 2, hov ? C_TEXT : C_TEXT_DIM, false);
+            usesPopupRowRects.add(new int[] { popupX, ry, innerW, rowH });
+            usesPopupRowTargets.add(target);
+            ry += rowH;
+        }
+        return ry;
     }
 
     /** Actual height of the requirements bar — collapses to 1 when the quest has no tasks. */
@@ -724,6 +892,10 @@ public class QuestTasksScreen extends Screen {
             int off = (sz - 16) / 2;
             if (!icon.isEmpty()) {
                 g.renderItem(icon, iconX + off, iconY + off);
+                // Vanilla stack-count text (bottom-right corner, same as any inventory slot) - was
+                // missing entirely, so a task requiring e.g. 4 of an item looked identical to one
+                // requiring 1. renderItemDecorations no-ops the count text on its own for count 1.
+                g.renderItemDecorations(font, icon, iconX + off, iconY + off);
                 if (done) g.fill(iconX, iconY, iconX + sz, iconY + sz, 0x5500CC55);
             } else {
                 g.drawCenteredString(font, done ? "§a✔" : "§c✗", iconX + sz / 2, iconY + sz / 2 - 4, 0xFFFFFFFF);
@@ -811,23 +983,37 @@ public class QuestTasksScreen extends Screen {
                     hoveredFsDescBox ? C_ACTIVE : C_TEXT_FAINT, false);
         }
 
-        g.enableScissor(x - 8, y - 8, x + w + 8, y + h + 8);
+        // Parse description lazily — a same-session edit wins first (see liveDescOverride), then
+        // the .md file's content, then falling back to the SNBT description.
+        String descRawFull = currentDisplayDescriptionText();
+        java.util.List<String> descPages = splitDescPages(descRawFull);
+        String descRaw = currentDescriptionPageText(descRawFull);
+        // Reserve a strip at the bottom for the pager (own row, not overlapping whatever's
+        // scrolled to be at the bottom of the content column at the time) - it used to just
+        // float on top of the SAME scissor/scroll area as the description/prereqs text below it.
+        int pagerH = descPages.size() > 1 ? 17 : 0;
+        int textBottom = y + h - pagerH;
 
-        // Parse description lazily — .md file content takes priority; fall back to SNBT description
-        String mdDesc = (content != null && content.description() != null) ? content.description().getString() : "";
-        String descRaw = mdDesc.isBlank() ? node.getDescription().getString() : mdDesc;
-        if (richSpans.isEmpty() && !descRaw.isEmpty()) {
-            richSpans = net.phoenixvine.chronicles.client.rich.ChronicleTextParser.parse(descRaw);
+        g.enableScissor(x - 8, y - 8, x + w + 8, textBottom + 8);
+        // Only re-parse when the page actually changed - richSpans.isEmpty() alone can't tell
+        // "just switched pages" apart from "already parsed this page", and always re-parsing every
+        // frame would repeat the (non-trivial) Markdown parse for no reason.
+        if (richSpansPage != descPage) {
+            richSpans = descRaw.isEmpty() ? java.util.List.of() :
+                    net.phoenixvine.chronicles.client.rich.ChronicleTextParser.parse(descRaw);
+            richSpansPage = descPage;
         }
         if (isEditMode && descRaw.isEmpty() && richSpans.isEmpty()) {
             g.drawString(font, "§8Click to add a description", x, y, C_TEXT_FAINT, false);
         }
 
+        float textScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
         richRegions = net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.render(
-                g, font, richSpans, x, y, w, descScrollY, y, y + h);
+                g, font, richSpans, x, y, w, descScrollY, y, textBottom, textScale);
 
         int ly = y +
-                net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureHeight(font, richSpans, w) -
+                net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureHeight(font, richSpans, w,
+                        textScale) -
                 descScrollY;
 
         // Embedded Phantasia build preview — part of the quest's own content, appended after the
@@ -837,7 +1023,7 @@ public class QuestTasksScreen extends Screen {
         if (phantasiaPreview != null) {
             if (ly > y) ly += 8;
             int pvSz = 64; // square: width == height
-            if (ly + pvSz >= y - 10 && ly < y + h) {
+            if (ly + pvSz >= y - 10 && ly < textBottom) {
                 g.fill(x, ly, x + pvSz, ly + pvSz, 0xFF0A0A10);
                 drawBorder(g, x, ly, pvSz, pvSz);
                 previewX = x + 1;
@@ -854,12 +1040,12 @@ public class QuestTasksScreen extends Screen {
         List<QuestNode> prereqs = node.getPrerequisites();
         if (!prereqs.isEmpty()) {
             if (ly > y) ly += 8;
-            if (ly < y + h) {
+            if (ly < textBottom) {
                 if (ly >= y - 10) g.drawString(font, "§8PREREQUISITES:", x, ly, C_TEXT_FAINT, false);
                 ly += 12;
             }
             for (QuestNode req : prereqs) {
-                if (ly >= y + h) break;
+                if (ly >= textBottom) break;
                 QuestState state = playerData != null ? playerData.getQuestState(req.getId(), QuestState.LOCKED) :
                         QuestState.LOCKED;
                 String reqTitle = req.getTitle().getString();
@@ -871,6 +1057,63 @@ public class QuestTasksScreen extends Screen {
             }
         }
         g.disableScissor();
+
+        if (pagerH > 0) renderDescPager(g, x, textBottom, w, pagerH, mx, my, descPages.size());
+    }
+
+    /** Splits a description on any line of 3+ hyphens ("---") into separate pages. No marker → 1 page. */
+    private static java.util.List<String> splitDescPages(String raw) {
+        if (raw == null || raw.isEmpty()) return java.util.List.of("");
+        String[] parts = DESC_PAGE_BREAK.split(raw);
+        return parts.length == 0 ? java.util.List.of("") : java.util.List.of(parts);
+    }
+
+    /**
+     * Fixed pager pill anchored to the bottom of the description box, drawn outside the
+     * description's own scissor/scroll so it stays visible and clickable regardless of scroll
+     * position. Left third = previous page, right third = next page - drawn as visually
+     * distinct button zones (their own hover highlight, a divider separating them from the
+     * page-number label, and dimmed out entirely when that direction has nowhere to go) rather
+     * than one pill with two decorative-looking arrow glyphs either side of it, which read as
+     * "some text with arrows in it" rather than "two clickable buttons."
+     */
+    private void renderDescPager(GuiGraphics g, int x, int y, int w, int h, int mx, int my, int pageCount) {
+        String pageLabel = "Page " + (descPage + 1) + "/" + pageCount;
+        int arrowW = font.width("◀") + 8;
+        int labelW = font.width(pageLabel) + 10;
+        int pw = arrowW * 2 + labelW;
+        int ph = 14;
+        int px = x + (w - pw) / 2;
+        int py = y + h - ph - 2;
+
+        boolean canPrev = descPage > 0;
+        boolean canNext = descPage < pageCount - 1;
+        boolean overLeft = mx >= px && mx < px + arrowW && my >= py && my < py + ph;
+        boolean overRight = mx >= px + pw - arrowW && mx < px + pw && my >= py && my < py + ph;
+
+        g.fill(px, py, px + pw, py + ph, 0xCC0A0A0E);
+        drawBorder(g, px, py, pw, ph);
+        // Hover fill only on the specific arrow zone being hovered, so it's obvious THAT side is
+        // what's about to be clicked, not the pill as a whole.
+        if (canPrev && overLeft) g.fill(px + 1, py + 1, px + arrowW, py + ph - 1, 0x33FFFFFF);
+        if (canNext && overRight) g.fill(px + pw - arrowW, py + 1, px + pw - 1, py + ph - 1, 0x33FFFFFF);
+        // Dividers isolating each arrow zone from the center label - the visual cue that these
+        // are separate buttons, not just flanking decoration.
+        g.fill(px + arrowW, py + 2, px + arrowW + 1, py + ph - 2, 0x33FFFFFF);
+        g.fill(px + pw - arrowW - 1, py + 2, px + pw - arrowW, py + ph - 2, 0x33FFFFFF);
+
+        int dimColor = 0xFF3A3A42; // greyed out - nowhere to go this direction
+        int leftColor = !canPrev ? dimColor : (overLeft ? C_TEXT : C_TEXT_DIM);
+        int rightColor = !canNext ? dimColor : (overRight ? C_TEXT : C_TEXT_DIM);
+        g.drawCenteredString(font, "◀", px + arrowW / 2, py + 3, leftColor);
+        g.drawCenteredString(font, pageLabel, px + arrowW + labelW / 2, py + 3, C_TEXT_DIM);
+        g.drawCenteredString(font, "▶", px + pw - arrowW / 2, py + 3, rightColor);
+
+        descPagerX = px;
+        descPagerY = py;
+        descPagerW = pw;
+        descPagerH = ph;
+        descPagerPageCount = pageCount;
     }
 
     // ── Inspector panel ───────────────────────────────────────────────────────
@@ -916,19 +1159,34 @@ public class QuestTasksScreen extends Screen {
         g.disableScissor(); // pop outer (full inspector panel) scissor
     }
 
+    /**
+     * True only if a 9px-tall text line at {@code lineY} sits ENTIRELY within [viewTop, viewBot).
+     * The inspector's scissor clips at an exact pixel boundary regardless of scroll position, so
+     * a line straddling that boundary during a scroll used to render as a half-cut row of glyphs
+     * instead of just not being drawn yet/anymore - same fix as MultilineTextArea's line culling.
+     */
+    private static boolean lineFullyVisible(int lineY, int viewTop, int viewBot) {
+        return lineY >= viewTop && lineY + 9 <= viewBot;
+    }
+
     private void renderInfoTab(GuiGraphics g, int x, int y, int w, int h) {
         int m = 6;
         int cy = y - inspectorScrollY + 4;
-        g.drawString(font, "§8Category:", x + m, cy, C_TEXT_FAINT, false);
-        g.drawString(font, "§7" + (node.getCategory() != null ? node.getCategory() : "(none)"), x + m, cy + 10, C_TEXT,
-                false);
+        int viewBot = y + h;
+        if (lineFullyVisible(cy, y, viewBot)) g.drawString(font, "§8Category:", x + m, cy, C_TEXT_FAINT, false);
+        if (lineFullyVisible(cy + 10, y, viewBot))
+            g.drawString(font, "§7" + (node.getCategory() != null ? node.getCategory() : "(none)"), x + m, cy + 10,
+                    C_TEXT, false);
         cy += 24;
-        g.drawString(font, "§8Visibility:", x + m, cy, C_TEXT_FAINT, false);
-        g.drawString(font, "§7" + (node.getVisibility() != null ? node.getVisibility() : "NORMAL"), x + m, cy + 10,
-                C_TEXT, false);
+        if (lineFullyVisible(cy, y, viewBot)) g.drawString(font, "§8Visibility:", x + m, cy, C_TEXT_FAINT, false);
+        if (lineFullyVisible(cy + 10, y, viewBot))
+            g.drawString(font, "§7" + (node.getVisibility() != null ? node.getVisibility() : "NORMAL"), x + m,
+                    cy + 10, C_TEXT, false);
         cy += 24;
-        g.drawString(font, "§8ID:", x + m, cy, C_TEXT_FAINT, false);
-        g.drawString(font, "§7" + (node.getId() != null ? node.getId() : "unknown"), x + m, cy + 10, C_TEXT, false);
+        if (lineFullyVisible(cy, y, viewBot)) g.drawString(font, "§8ID:", x + m, cy, C_TEXT_FAINT, false);
+        if (lineFullyVisible(cy + 10, y, viewBot))
+            g.drawString(font, "§7" + (node.getId() != null ? node.getId() : "unknown"), x + m, cy + 10, C_TEXT,
+                    false);
         cy += 24;
 
         // InfoTask bodies — displayed here instead of as a task row
@@ -937,11 +1195,11 @@ public class QuestTasksScreen extends Screen {
             String body = info.getBody();
             if (body == null || body.isBlank()) continue;
             if (cy > y + h) break;
-            g.fill(x + m, cy, x + w - m, cy + 1, C_BORDER);
+            if (cy >= y) g.fill(x + m, cy, x + w - m, cy + 1, C_BORDER);
             cy += 6;
-            for (var line : font.split(Component.literal(body), w - m * 2)) {
+            for (var line : splitRespectingNewlines(font, body, w - m * 2)) {
                 if (cy > y + h) break;
-                g.drawString(font, line, x + m, cy, C_TEXT_DIM, false);
+                if (lineFullyVisible(cy, y, viewBot)) g.drawString(font, line, x + m, cy, C_TEXT_DIM, false);
                 cy += 10;
             }
             cy += 4;
@@ -952,8 +1210,9 @@ public class QuestTasksScreen extends Screen {
         List<QuestNode> prereqs = node.getPrerequisites();
         int m = 6;
         int cy = y - inspectorScrollY + 4;
+        int viewBot = y + h;
         if (prereqs.isEmpty()) {
-            g.drawString(font, "§8(none)", x + m, cy, C_TEXT_FAINT, false);
+            if (lineFullyVisible(cy, y, viewBot)) g.drawString(font, "§8(none)", x + m, cy, C_TEXT_FAINT, false);
             return;
         }
         for (QuestNode req : prereqs) {
@@ -964,8 +1223,9 @@ public class QuestTasksScreen extends Screen {
             int titleMaxW = w - m * 2 - 12;
             if (font.width(reqTitle.replaceAll("§.", "")) > titleMaxW)
                 reqTitle = font.plainSubstrByWidth(reqTitle, Math.max(0, titleMaxW - 6)) + "…";
-            g.drawString(font, (state == QuestState.COMPLETED ? "§a●" : "§8○") + " §7" + reqTitle,
-                    x + m, cy, C_TEXT_DIM, false);
+            if (lineFullyVisible(cy, y, viewBot))
+                g.drawString(font, (state == QuestState.COMPLETED ? "§a●" : "§8○") + " §7" + reqTitle,
+                        x + m, cy, C_TEXT_DIM, false);
             cy += 10;
         }
     }
@@ -974,12 +1234,24 @@ public class QuestTasksScreen extends Screen {
         List<QuestTask> tasks = node.getTasks();
         int m = 6;
         int cy = y - inspectorScrollY + 4;
+        int viewBot = y + h;
         if (tasks.isEmpty()) {
-            g.drawString(font, "§8(none)", x + m, cy, C_TEXT_FAINT, false);
+            if (lineFullyVisible(cy, y, viewBot)) g.drawString(font, "§8(none)", x + m, cy, C_TEXT_FAINT, false);
             return;
         }
         for (QuestTask task : tasks) {
             if (task instanceof InfoTask) continue; // body shown in Info tab
+            // A row starting above the viewport would have its icon/text top clipped mid-glyph
+            // by the scissor rather than cleanly hidden - skip drawing it entirely rather than
+            // showing that half-cut mess, same reasoning as lineFullyVisible() above. Mirrors
+            // renderRichTaskRow's own row-height formula (detail line ? 22 : 14, + 3 + 5 gap)
+            // just to advance cy correctly without actually rendering.
+            String detail = getTaskDetail(task);
+            int rowH = (detail != null ? 22 : 14) + 3 + 5;
+            if (cy < y) {
+                cy += rowH;
+                continue;
+            }
             int rowEndY = renderRichTaskRow(g, x + m, cy, w - m * 2, task, mx, my);
             if (mx >= x + m && mx < x + w - m && my >= cy && my < rowEndY - 5) {
                 hoveredTaskFs = task;
@@ -1008,6 +1280,7 @@ public class QuestTasksScreen extends Screen {
         ItemStack icon = getTaskIcon(task);
         if (!icon.isEmpty()) {
             g.renderItem(icon, cx, y);
+            g.renderItemDecorations(font, icon, cx, y);
             if (done) g.fill(cx, y, cx + 16, y + 16, 0x5500AA44);
             cx += 18;
         } else {
@@ -1015,20 +1288,25 @@ public class QuestTasksScreen extends Screen {
             cx += 10;
         }
 
+        float taskTs = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
+
         // Description — truncate to leave room for progress counter on the right
         String desc = task.getDescription().getString();
-        int progW = (progress != null && !done) ? font.width(progress) + 4 : 0;
+        int progW = (progress != null && !done) ? Math.round(font.width(progress) * taskTs) + 4 : 0;
         int descAvailW = w - (cx - x) - progW;
-        if (font.width(desc) > descAvailW) desc = font.plainSubstrByWidth(desc, Math.max(0, descAvailW - 6)) + "…";
-        g.drawString(font, "§f" + desc, cx, y + 1, done ? C_DONE : C_TEXT, false);
+        float descAvailPreScale = descAvailW / taskTs;
+        if (font.width(desc) > descAvailPreScale)
+            desc = font.plainSubstrByWidth(desc, Math.max(0, (int) (descAvailPreScale - 6))) + "…";
+        ChroniclesUIKit.drawScaledString(g, font, "§f" + desc, cx, y + 1, done ? C_DONE : C_TEXT, taskTs);
 
         // Detail line
         String detail = getTaskDetail(task);
         if (detail != null) {
             int detailAvailW = w - (cx - x);
-            if (font.width(detail) > detailAvailW)
-                detail = font.plainSubstrByWidth(detail, Math.max(0, detailAvailW - 6)) + "…";
-            g.drawString(font, "§8" + detail, cx, y + 11, C_TEXT_FAINT, false);
+            float detailAvailPreScale = detailAvailW / taskTs;
+            if (font.width(detail) > detailAvailPreScale)
+                detail = font.plainSubstrByWidth(detail, Math.max(0, (int) (detailAvailPreScale - 6))) + "…";
+            ChroniclesUIKit.drawScaledString(g, font, "§8" + detail, cx, y + 11, C_TEXT_FAINT, taskTs);
         }
 
         // Progress bar + text
@@ -1038,7 +1316,9 @@ public class QuestTasksScreen extends Screen {
         g.fill(x + 10, barY, x + 10 + barW, barY + 3, 0xFF1A1A22);
         if (pct > 0) g.fill(x + 10, barY, x + 10 + (int) (barW * pct), barY + 3, done ? C_DONE : C_ACTIVE);
         if (progress != null) {
-            g.drawString(font, "§8" + progress, x + w - font.width(progress), barY - 1, C_TEXT_FAINT, false);
+            int progTextW = Math.round(font.width(progress) * taskTs);
+            ChroniclesUIKit.drawScaledString(g, font, "§8" + progress, x + w - progTextW, barY - 1, C_TEXT_FAINT,
+                    taskTs);
         }
 
         return barY + 3 + 5; // 5px gap between tasks
@@ -1172,7 +1452,23 @@ public class QuestTasksScreen extends Screen {
         ResourceLocation id = task.getDisplayItemId();
         if (id == null) return ItemStack.EMPTY;
         Item item = ForgeRegistries.ITEMS.getValue(id);
-        return (item != null && item != net.minecraft.world.item.Items.AIR) ? new ItemStack(item) : ItemStack.EMPTY;
+        if (item == null || item == net.minecraft.world.item.Items.AIR) return ItemStack.EMPTY;
+        return new ItemStack(item, taskRequiredCount(task));
+    }
+
+    /**
+     * How many of the icon's item this task actually requires, so the icon can show it via
+     * vanilla's stack-count decoration (see renderItemDecorations calls below) instead of always
+     * looking like a single-item task even when the real requirement is much higher. Each task
+     * type names its count getter differently (getRequiredCount/getRequired/getCount) so this has
+     * to switch on type rather than share one accessor.
+     */
+    private int taskRequiredCount(QuestTask task) {
+        if (task instanceof ItemRequirementTask t) return Math.max(1, t.getRequiredCount());
+        if (task instanceof CraftItemTask t) return Math.max(1, t.getRequiredCount());
+        if (task instanceof TagItemTask t) return Math.max(1, t.getRequired());
+        if (task instanceof FilterItemTask t) return Math.max(1, t.getCount());
+        return 1;
     }
 
     private String getTaskGlyph(QuestTask task) {
@@ -1279,18 +1575,32 @@ public class QuestTasksScreen extends Screen {
         return lines;
     }
 
-    /** Tries to open EMI or JEI for the given ItemStack via reflection (no hard dependency). */
     private void tryOpenInRecipeViewer(ItemStack stack) {
         if (stack.isEmpty() || minecraft == null) return;
-        // EMI — displayRecipes() takes the EmiIngredient interface, not the concrete EmiStack
-        // class, so getMethod(esClass) never matched (NoSuchMethodException, silently swallowed)
-        // and this always fell through to the fullscreen-expand fallback below.
         try {
             Class<?> api = Class.forName("dev.emi.emi.api.EmiApi");
             Class<?> esClass = Class.forName("dev.emi.emi.api.stack.EmiStack");
             Class<?> ingredientClass = Class.forName("dev.emi.emi.api.stack.EmiIngredient");
             Object es = esClass.getMethod("of", ItemStack.class).invoke(null, stack);
-            api.getMethod("displayRecipes", ingredientClass).invoke(null, es);
+
+            // FIX: Change "displayRecipes" to "displayUses" so EMI shows what quests REQUIRE this item
+            api.getMethod("displayUses", ingredientClass).invoke(null, es);
+
+            // Your custom EmiReturnScreenFix logic below stays exactly the same...
+            try {
+                if (!net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                        .isReturnToQuestbookFromRecipeViewer())
+                    return;
+                Class<?> recipeScreenClass = Class.forName("dev.emi.emi.screen.RecipeScreen");
+                Object current = minecraft.screen;
+                if (recipeScreenClass.isInstance(current)) {
+                    Object ephemeral = recipeScreenClass.getField("old").get(current);
+                    if (ephemeral instanceof net.minecraft.client.gui.screens.Screen ephemeralScreen &&
+                            ephemeralScreen != this) {
+                        net.phoenixvine.chronicles.client.EmiReturnScreenFix.armReturnTo(ephemeralScreen, this);
+                    }
+                }
+            } catch (Exception ignored) {}
             return;
         } catch (Exception ignored) {}
         // JEI fallback
@@ -1338,14 +1648,15 @@ public class QuestTasksScreen extends Screen {
 
         List<QuestTask> tasks = node.getTasks();
         List<QuestReward> rewards = node.getRewards();
-        // .md companion content wins if present (matches renderContent's fullscreen behavior),
-        // but fall back to the quest's own description instead of showing nothing when there's
-        // no .md yet - which was previously every freshly-imported/created quest.
-        String mdDescText = (content != null && content.description() != null) ? content.description().getString() : "";
-        String descText = !mdDescText.isBlank() ? mdDescText : node.getDescription().getString();
+        // Mirrors renderCompact()'s own page-sliced description exactly - this is only used to
+        // recompute cardH/cardX/cardY for hit-testing, so it must match what's actually on
+        // screen for the "click outside card" bounds check (and the pager itself) to line up.
+        String fullDescText = currentDisplayDescriptionText();
+        int pageCount = splitDescPages(fullDescText).size();
+        String descText = currentDescriptionPageText(fullDescText);
         java.util.List<net.minecraft.util.FormattedCharSequence> descLines2 = descText != null ?
                 font.split(Component.literal(descText), cardW() - CARD_PAD * 2) : java.util.List.of();
-        int cardH = compactCardH(tasks, rewards, descLines2);
+        int cardH = compactCardH(tasks, rewards, descLines2, pageCount);
         int cardX = (width - cardW()) / 2;
         int cardY = Math.max(10, (height - cardH) / 2);
 
@@ -1366,16 +1677,29 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
 
+        // Description pager — takes priority over the edit-click below since it sits inside the
+        // same description box area (see renderDescPager's call site in renderCompact()).
+        if (descPagerPageCount > 1 && mx >= descPagerX && mx < descPagerX + descPagerW &&
+                my >= descPagerY && my < descPagerY + descPagerH) {
+            boolean leftHalf = mx < descPagerX + descPagerW / 2.0;
+            if (leftHalf && descPage > 0) descPage--;
+            else if (!leftHalf && descPage < descPagerPageCount - 1) descPage++;
+            compactDescScrollLine = 0;
+            return true;
+        }
+
         // Description box — click to open the rich-text editor (edit mode only)
         // Prefills with the raw (untranslated) default: a live lang-registry override should
         // stay in lang/en_us.json, not get shown here and silently re-baked as the new SNBT
         // default the instant this dialog is confirmed without actually changing anything.
         if (hoveredDescBox && isEditMode && minecraft != null) {
             minecraft.setScreen(new QuestTextInputScreen(this, "Description",
-                    node.getDescriptionRaw().getString(), 1024,
+                    currentFullDescriptionRaw(), 8192,
                     v -> {
                         node.setDescription(Component.literal(v));
-                        net.phoenixvine.chronicles.codec.QuestFileSaver.saveAllQuestsToDisk();
+                        liveDescOverride = v;
+                        richSpansPage = -1; // force re-parse - the underlying text just changed
+                        net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
                     }));
             return true;
         }
@@ -1413,6 +1737,35 @@ public class QuestTasksScreen extends Screen {
     }
 
     private boolean handleFullscreenClick(double mx, double my, int btn) {
+        // Uses popup — while open, ANY click either activates a row or dismisses the popup (same
+        // toggle-and-swallow pattern ChronicleOverviewScreen's ctxOpen uses) rather than falling
+        // through to whatever's rendered underneath it. This also makes re-clicking the 🔗 button
+        // itself close the popup, since that click isn't a row match either.
+        if (usesPopupOpen && btn == 0) {
+            for (int i = 0; i < usesPopupRowRects.size(); i++) {
+                int[] r = usesPopupRowRects.get(i);
+                if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) {
+                    QuestNode target = usesPopupRowTargets.get(i);
+                    usesPopupOpen = false;
+                    if (minecraft != null && parent instanceof ChronicleOverviewScreen overview) {
+                        overview.onNodeClicked(target);
+                    }
+                    return true;
+                }
+            }
+            usesPopupOpen = false;
+            return true;
+        }
+        // Description pager — only present at all when descPagerPageCount > 1 (see
+        // renderDescPager). Left half of the pill = previous page, right half = next page.
+        if (btn == 0 && descPagerPageCount > 1 && mx >= descPagerX && mx < descPagerX + descPagerW &&
+                my >= descPagerY && my < descPagerY + descPagerH) {
+            boolean leftHalf = mx < descPagerX + descPagerW / 2.0;
+            if (leftHalf && descPage > 0) descPage--;
+            else if (!leftHalf && descPage < descPagerPageCount - 1) descPage++;
+            descScrollY = 0;
+            return true;
+        }
         if (btn == 1 && isEditMode && minecraft != null &&
                 (hoveredStripTask != null || hoveredStripReward != null ||
                         hoveredTaskFs != null || hoveredRewardFs != null)) {
@@ -1441,6 +1794,13 @@ public class QuestTasksScreen extends Screen {
         int pinX2 = width - 20;
         int editX2 = pinX2 - 18;
         int fsX2 = editX2 - 20;
+        int usesX2 = fsX2 - 20;
+        // 🔗 Uses — opens the parent/child popup (usesPopupOpen==true already handled above)
+        boolean usesHasAny = !node.getPrerequisites().isEmpty() || !node.getChildren().isEmpty();
+        if (usesHasAny && mx >= usesX2 && mx < usesX2 + 16 && my >= 6 && my < 22 && btn == 0) {
+            usesPopupOpen = true;
+            return true;
+        }
         // [-] collapse
         if (mx >= fsX2 && mx < fsX2 + 16 && my >= 6 && my < 22 && btn == 0) {
             isFullscreen = false;
@@ -1524,18 +1884,73 @@ public class QuestTasksScreen extends Screen {
         // the compact card's description box.
         if (hoveredFsDescBox && isEditMode && minecraft != null) {
             minecraft.setScreen(new QuestTextInputScreen(this, "Description",
-                    node.getDescriptionRaw().getString(), 1024,
+                    currentFullDescriptionRaw(), 8192,
                     v -> {
                         node.setDescription(Component.literal(v));
-                        net.phoenixvine.chronicles.codec.QuestFileSaver.saveAllQuestsToDisk();
+                        liveDescOverride = v;
+                        richSpansPage = -1; // force re-parse - the underlying text just changed
+                        net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
                     }));
             return true;
         }
         return super.mouseClicked(mx, my, btn);
     }
 
+    /**
+     * The full, untranslated description text to seed the edit dialog with - preferring the
+     * .md companion file's content over the QuestNode's own in-memory description, exactly like
+     * renderContent()'s read-only display already does. Without this, editing pulled from
+     * node.getDescriptionRaw() directly, which can be a STALE, truncated copy if an earlier
+     * session ever saved while hitting the (now-fixed) character cap: the .snbt got permanently
+     * cut short at that point, while the .md companion - not touched by that bug - still has the
+     * real, complete text. Falls back to the node's own value when there's no .md content at all.
+     */
+    private String currentFullDescriptionRaw() {
+        if (liveDescOverride != null) return liveDescOverride;
+        String mdDesc = (content != null && content.description() != null) ? content.description().getString() : "";
+        return mdDesc.isBlank() ? node.getDescriptionRaw().getString() : mdDesc;
+    }
+
+    /**
+     * Same precedence as {@link #currentFullDescriptionRaw()} but for DISPLAY (compact card and
+     * fullscreen), which should show the translated text when a lang-registry override exists,
+     * not the raw default - so this falls back to node.getDescription() (translated), not
+     * getDescriptionRaw(). Both renderCompact() and renderContent() used to independently
+     * duplicate this same "mdDesc-or-node" fallback inline (and neither one knew about
+     * liveDescOverride at all), so a same-session edit only ever showed up in whichever one
+     * happened to get patched - now both single-source from here.
+     */
+    private String currentDisplayDescriptionText() {
+        if (liveDescOverride != null) return liveDescOverride;
+        String mdDesc = (content != null && content.description() != null) ? content.description().getString() : "";
+        return mdDesc.isBlank() ? node.getDescription().getString() : mdDesc;
+    }
+
+    /**
+     * Splits the full description into pages (see splitDescPages) and returns just the
+     * currently-selected one, clamping descPage into range as a side effect. Shared by both the
+     * compact card and fullscreen views so a page break behaves identically in either - only one
+     * of them is ever visible at a time, so sharing the single descPage field is safe.
+     */
+    private String currentDescriptionPageText(String fullText) {
+        java.util.List<String> pages = splitDescPages(fullText);
+        descPage = Math.max(0, Math.min(descPage, pages.size() - 1));
+        return pages.get(descPage);
+    }
+
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
+        // Description pager: scrolling while hovering it switches pages, same as clicking either
+        // arrow - checked before the description-text scroll below since the pill sits inside
+        // that same box area in both compact and fullscreen layouts.
+        if (descPagerPageCount > 1 && mx >= descPagerX && mx < descPagerX + descPagerW &&
+                my >= descPagerY && my < descPagerY + descPagerH) {
+            if (delta > 0 && descPage > 0) descPage--;
+            else if (delta < 0 && descPage < descPagerPageCount - 1) descPage++;
+            if (isFullscreen) descScrollY = 0;
+            else compactDescScrollLine = 0;
+            return true;
+        }
         if (!isFullscreen) {
             int maxScrollLine = Math.max(0, compactDescTotalLines - compactDescFittedLines);
             if (maxScrollLine == 0) return false;

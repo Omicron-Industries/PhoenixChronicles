@@ -66,6 +66,18 @@ public class ChronicleKeyBindings {
             GLFW.GLFW_KEY_M,
             "key.categories.phoenix_chronicles");
 
+    /**
+     * Held (not pressed) while scrolling to anchor zoom to the mouse cursor instead of the
+     * canvas center - see ChronicleOverviewScreen#mouseScrolled, which checks isDown() rather
+     * than matches(), same as vanilla's sprint/sneak keys. Defaults to Left Shift so existing
+     * muscle memory from before this had its own binding keeps working, but now it's rebindable
+     * (e.g. to Ctrl) via the Controls menu like every other binding here.
+     */
+    public static final KeyMapping CURSOR_ZOOM = new KeyMapping(
+            "key.phoenix_chronicles.cursor_zoom",
+            GLFW.GLFW_KEY_LEFT_SHIFT,
+            "key.categories.phoenix_chronicles");
+
     /** Dev-mode only - see ChronicleOverviewScreen#keyPressed for the isDevMode gate. */
     public static final KeyMapping TOGGLE_VALIDATION = new KeyMapping(
             "key.phoenix_chronicles.toggle_validation",
@@ -105,6 +117,7 @@ public class ChronicleKeyBindings {
         event.register(FIT_TO_CANVAS);
         event.register(TOGGLE_LINE_STYLE);
         event.register(TOGGLE_MINIMAP);
+        event.register(CURSOR_ZOOM);
         event.register(TOGGLE_VALIDATION);
         event.register(TOGGLE_STATS);
         event.register(TOGGLE_SUBGRAPH);

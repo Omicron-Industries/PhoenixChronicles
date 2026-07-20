@@ -10,13 +10,18 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.capability.TaskProgressAccess;
+import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
 import net.phoenixvine.chronicles.model.QuestTask;
+import net.phoenixvine.chronicles.registry.QuestEngineConfig;
 
 public class FluidRequirementTask extends QuestTask {
 
     private ResourceLocation fluidId;
     private int requiredAmount;
     private boolean consume; // NEW: Toggle rule variable
+    /** See ItemRequirementTask#sticky. */
+    private boolean sticky = true;
 
     public FluidRequirementTask(ResourceLocation taskId, Component description, ResourceLocation fluidId,
                                 int requiredAmount, boolean consume) {
@@ -38,10 +43,44 @@ public class FluidRequirementTask extends QuestTask {
         return consume;
     }
 
+    public boolean isSticky() {
+        return sticky;
+    }
+
+    public void setSticky(boolean sticky) {
+        this.sticky = sticky;
+    }
+
+    /** See ItemRequirementTask#checksAe2Storage - same rationale, no nbtFilter to worry about here. */
+    private boolean checksAe2Storage() {
+        return QuestEngineConfig.isAe2StorageForItemFluidTasksEnabled() && AE2Compat.isAvailable();
+    }
+
+    /** See ItemRequirementTask#dependsOnInventory for the full rationale. */
+    @Override
+    public boolean dependsOnInventory() {
+        return !checksAe2Storage();
+    }
+
     @Override
     public boolean isCompletedFor(Player player) {
+        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (fluidId == null || requiredAmount <= 0) return false;
-        return getTotalFluidInInventory(player) >= requiredAmount;
+        long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, getFluid()) : 0;
+        if (found >= requiredAmount) {
+            if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
+            return true;
+        }
+        if (found + getTotalFluidInInventory(player) >= requiredAmount) {
+            if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
+            return true;
+        }
+        return false;
+    }
+
+    private net.minecraft.world.level.material.Fluid getFluid() {
+        return fluidId == null ? null : ForgeRegistries.FLUIDS.getValue(fluidId);
     }
 
     private int getTotalFluidInInventory(Player player) {
@@ -69,6 +108,7 @@ public class FluidRequirementTask extends QuestTask {
     /**
      * Call this when claiming rewards. It explicitly respects the 'consume' config toggle.
      */
+    @Override
     public void tryConsume(Player player) {
         if (fluidId == null || !consume || requiredAmount <= 0) return; // Skip completely if consume is false
 
@@ -96,11 +136,18 @@ public class FluidRequirementTask extends QuestTask {
             }
         }
         player.getInventory().setChanged();
+        // Only reaches into the network for whatever physical inventory couldn't cover.
+        if (remainingToDrain > 0 && checksAe2Storage()) {
+            AE2Compat.tryConsume(player, getFluid(), remainingToDrain);
+        }
     }
 
     @Override
     public String getProgressString(Player player) {
-        int found = Math.min(getTotalFluidInInventory(player), requiredAmount);
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
+            return String.format("%,d / %,d mB", requiredAmount, requiredAmount);
+        long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, getFluid()) : 0;
+        found = Math.min(found + getTotalFluidInInventory(player), requiredAmount);
         return String.format("%,d / %,d mB", found, requiredAmount);
     }
 
@@ -122,6 +169,7 @@ public class FluidRequirementTask extends QuestTask {
         tag.putString("fluid_id", fluidId != null ? fluidId.toString() : "minecraft:empty");
         tag.putInt("amount", requiredAmount);
         tag.putBoolean("consume", consume); // Save parameter config
+        tag.putBoolean("sticky", sticky);
         return tag;
     }
 
@@ -132,5 +180,6 @@ public class FluidRequirementTask extends QuestTask {
         }
         this.requiredAmount = nbt.getInt("amount");
         this.consume = nbt.getBoolean("consume"); // Load parameter config
+        this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }

@@ -13,6 +13,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.energy.IEnergyStorage;
+import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 import java.util.HashMap;
@@ -83,6 +84,13 @@ public class EnergyStorageTask extends QuestTask {
     private long requiredEnergy;
     private EnergyType energyType;
     private Source source;
+    /**
+     * Off by default, unlike the item/fluid hold-tasks - an energy reading is inherently
+     * transient (a battery drains, a machine's buffer empties on its own), so continuously
+     * re-checking is usually the correct default here. Available as an opt-in for packs that
+     * specifically want "reached this threshold once" semantics instead.
+     */
+    private boolean sticky = false;
 
     public EnergyStorageTask(ResourceLocation taskId, Component description,
                              long requiredEnergy, EnergyType energyType, Source source) {
@@ -104,17 +112,45 @@ public class EnergyStorageTask extends QuestTask {
         return source;
     }
 
+    public boolean isSticky() {
+        return sticky;
+    }
+
+    public void setSticky(boolean sticky) {
+        this.sticky = sticky;
+    }
+
     // ── Logic ─────────────────────────────────────────────────────────────────
+
+    /**
+     * BLOCK source is populated once per right-click, never per-tick - it must NOT be gated
+     * behind "inventory changed" or it would never re-check at all outside a right-click.
+     * INVENTORY/HELD read straight from the stack's own NBT-backed energy capability, which the
+     * per-tick inventory fingerprint (hashes each tracked slot's current tag content) already
+     * picks up regardless of what caused it to change - including a passive in-place recharge
+     * that mutates an item's NBT without any slot/count change.
+     */
+    @Override
+    public boolean dependsOnInventory() {
+        return source != Source.BLOCK;
+    }
 
     @Override
     public boolean isCompletedFor(Player player) {
-        return getStored(player) >= requiredEnergy;
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
+        if (getStored(player) >= requiredEnergy) {
+            if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
+            return true;
+        }
+        return false;
     }
 
     @Override
     public String getProgressString(Player player) {
-        long stored = Math.min(getStored(player), requiredEnergy);
         String unit = (energyType == EnergyType.EU) ? "EU" : "FE";
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
+            return format(requiredEnergy, unit) + " / " + format(requiredEnergy, unit);
+        long stored = Math.min(getStored(player), requiredEnergy);
         return format(stored, unit) + " / " + format(requiredEnergy, unit);
     }
 
@@ -179,6 +215,7 @@ public class EnergyStorageTask extends QuestTask {
         tag.putLong("required_energy", requiredEnergy);
         tag.putString("energy_type", energyType.name());
         tag.putString("source", source.name());
+        tag.putBoolean("sticky", sticky);
         return tag;
     }
 
@@ -210,6 +247,10 @@ public class EnergyStorageTask extends QuestTask {
             String mode = nbt.getString("mode").toUpperCase();
             this.source = mode.equals("HELD") ? Source.HELD : Source.INVENTORY;
         }
+
+        // Default false for quests saved before this field existed - opt-in, not opt-out, unlike
+        // the item/fluid tasks (see the sticky field's own doc comment for why).
+        this.sticky = nbt.getBoolean("sticky");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

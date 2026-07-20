@@ -66,6 +66,7 @@ public class KillEntityTask extends QuestTask {
      * Call this when claiming rewards.
      * If 'consume' is true, it resets the player's kill count tracking for repeatable/bounty stability.
      */
+    @Override
     public void tryConsume(Player player) {
         if (!consume) return; // Retain completion progress flags if consume is turned off
 

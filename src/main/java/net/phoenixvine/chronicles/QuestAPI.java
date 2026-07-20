@@ -17,6 +17,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Public inbound API for the Phoenix Chronicles quest system.
@@ -57,6 +59,53 @@ public final class QuestAPI {
     private QuestAPI() {}
 
     /**
+     * Every "caller made a mistake" warning below is logged through here instead of a plain
+     * LOGGER.warn - a broken integration calling an API method every tick (e.g. a typo'd quest
+     * ID checked in a HUD render loop) would otherwise flood the log 20x/sec forever. Each
+     * distinct mistake (keyed by method + the bad input) is logged once per server session, not
+     * silently swallowed and not spammed - the whole point is that a mistake gets NOTICED, which
+     * a wall of repeated identical lines defeats just as much as no message at all.
+     */
+    private static final Set<String> warnedOnce = ConcurrentHashMap.newKeySet();
+
+    private static void warnOnce(String key, String message, Object... args) {
+        if (warnedOnce.add(key)) {
+            PhoenixChronicles.LOGGER.warn("[QuestAPI] " + message, args);
+        }
+    }
+
+    /**
+     * Shared quest-ID resolution for setState/getState/getProgress - logs the SPECIFIC reason a
+     * lookup failed (malformed ID vs. not registered) rather than letting every caller silently
+     * fall back to a default (LOCKED / 0f / false) with no way to tell "this quest genuinely
+     * isn't done yet" apart from "you typo'd the ID and this has never once looked at a real
+     * quest." Returns null on any failure; caller decides the appropriate fallback return value.
+     */
+    @Nullable
+    private static QuestNode resolveQuest(String methodName, @Nullable String questId) {
+        if (questId == null || questId.isBlank()) {
+            warnOnce(methodName + ":blank-id", "{}() called with a null/blank questId - ignored.", methodName);
+            return null;
+        }
+        ResourceLocation id = ResourceLocation.tryParse(questId);
+        if (id == null) {
+            warnOnce(methodName + ":bad-id:" + questId,
+                    "{}(\"{}\") - not a valid quest ID (expected " + "\"namespace:path\") - ignored.", methodName,
+                    questId);
+            return null;
+        }
+        QuestNode node = QuestTreeRegistry.getQuest(id);
+        if (node == null) {
+            warnOnce(methodName + ":not-found:" + questId,
+                    "{}(\"{}\") - no quest with that ID is registered " +
+                            "(check for a typo, or that the quest pack has finished loading before this is called).",
+                    methodName, questId);
+            return null;
+        }
+        return node;
+    }
+
+    /**
      * Signals that a custom external event occurred for a player.
      *
      * <p>
@@ -73,18 +122,40 @@ public final class QuestAPI {
      *                  and available to Forge event subscribers. May be {@code null}.
      */
     public static void fireExternalEvent(Player player, String triggerId, @Nullable CompoundTag data) {
-        if (player == null || triggerId == null || triggerId.isBlank()) return;
-        if (player.level().isClientSide()) return;
+        if (player == null) {
+            warnOnce("fireExternalEvent:null-player", "fireExternalEvent() called with a null player - ignored.");
+            return;
+        }
+        if (triggerId == null || triggerId.isBlank()) {
+            warnOnce("fireExternalEvent:blank-trigger", "fireExternalEvent() called with a null/blank triggerId for " +
+                    "player {} - ignored. Pass the same namespaced trigger_id your ExternalTriggerTask quests use.",
+                    player.getGameProfile().getName());
+            return;
+        }
+        if (player.level().isClientSide()) {
+            warnOnce("fireExternalEvent:client:" + triggerId,
+                    "fireExternalEvent(\"{}\") called on the CLIENT - " +
+                            "ignored. This must be called server-side (e.g. from a server_scripts event, not " +
+                            "client_scripts).",
+                    triggerId);
+            return;
+        }
+        if (!player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).isPresent()) {
+            warnOnce("fireExternalEvent:no-cap:" + player.getGameProfile().getName(), "fireExternalEvent(\"{}\") " +
+                    "called for player {}, who has no quest-progress capability attached - ignored. This usually " +
+                    "means it was called on something other than a real player entity.",
+                    triggerId, player.getGameProfile().getName());
+        }
 
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(questData -> {
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 if (node.isFlagDisabled()) continue;
-                if (node.getVisibility() == QuestNode.Visibility.DISABLED) continue;
+                if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
 
                 QuestState state = questData.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state != QuestState.ACTIVE && state != QuestState.UNLOCKED) continue;
 
-                for (Object task : node.getTasks()) {
+                for (Object task : node.getEffectiveTasks(player.getServer())) {
                     if (!(task instanceof ExternalTriggerTask ext)) continue;
                     if (!triggerId.equals(ext.getTriggerId())) continue;
                     if (ext.isCompletedFor(player)) continue;
@@ -126,9 +197,21 @@ public final class QuestAPI {
      * @return {@code true} if the quest was found and transitioned.
      */
     public static boolean setState(Player player, String questId, QuestState newState) {
-        ResourceLocation id = ResourceLocation.tryParse(questId);
-        if (id == null || newState == null) return false;
-        QuestNode node = QuestTreeRegistry.getQuest(id);
+        if (player == null) {
+            warnOnce("setState:null-player", "setState() called with a null player - ignored.");
+            return false;
+        }
+        if (newState == null) {
+            warnOnce("setState:null-state:" + questId,
+                    "setState(\"{}\", null) called - a QuestState is required - ignored.", questId);
+            return false;
+        }
+        if (player.level().isClientSide()) {
+            warnOnce("setState:client:" + questId, "setState(\"{}\") called on the CLIENT - ignored. This " +
+                    "mutates authoritative quest state and must be called server-side.", questId);
+            return false;
+        }
+        QuestNode node = resolveQuest("setState", questId);
         if (node == null) return false;
         QuestProgressTracker.changeQuestState(player, node, newState);
         return true;
@@ -142,9 +225,11 @@ public final class QuestAPI {
      * @return The {@link QuestState}, or {@link QuestState#LOCKED} if not found.
      */
     public static QuestState getState(Player player, String questId) {
-        ResourceLocation id = ResourceLocation.tryParse(questId);
-        if (id == null) return QuestState.LOCKED;
-        QuestNode node = QuestTreeRegistry.getQuest(id);
+        if (player == null) {
+            warnOnce("getState:null-player", "getState() called with a null player - returning LOCKED.");
+            return QuestState.LOCKED;
+        }
+        QuestNode node = resolveQuest("getState", questId);
         if (node == null) return QuestState.LOCKED;
         return QuestProgressTracker.getQuestState(player, node);
     }
@@ -155,6 +240,10 @@ public final class QuestAPI {
      * directly. The returned map is a snapshot — mutating it has no effect on the player.
      */
     public static Map<ResourceLocation, QuestState> getAllStates(Player player) {
+        if (player == null) {
+            warnOnce("getAllStates:null-player", "getAllStates() called with a null player - returning an empty map.");
+            return Collections.emptyMap();
+        }
         return player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS)
                 .map(data -> Map.copyOf(data.getAllStates()))
                 .orElse(Collections.emptyMap());
@@ -186,14 +275,16 @@ public final class QuestAPI {
      * @param questId The quest ID.
      */
     public static float getProgress(Player player, String questId) {
-        ResourceLocation id = ResourceLocation.tryParse(questId);
-        if (id == null) return 0f;
-        QuestNode node = QuestTreeRegistry.getQuest(id);
+        if (player == null) {
+            warnOnce("getProgress:null-player", "getProgress() called with a null player - returning 0.");
+            return 0f;
+        }
+        QuestNode node = resolveQuest("getProgress", questId);
         if (node == null) return 0f;
-        if (getState(player, questId) == QuestState.COMPLETED) return 1f;
+        if (QuestProgressTracker.getQuestState(player, node) == QuestState.COMPLETED) return 1f;
 
         int total = 0, done = 0;
-        for (QuestTask task : node.getTasks()) {
+        for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
             if (task.isOptional()) continue;
             total++;
             if (task.isCompletedFor(player)) done++;

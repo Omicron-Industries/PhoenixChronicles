@@ -16,7 +16,7 @@ import lombok.Getter;
  *
  * // server_scripts/quest_rewards.js
  * ForgeEvents.onEvent(
- * 'net.phoenix.core.integration.phoenix_chronicles.event.PhoenixQuestScriptRewardEvent',
+ * 'net.phoenixvine.chronicles.event.PhoenixQuestScriptRewardEvent',
  * event => {
  * const id = event.eventId
  * const player = event.player

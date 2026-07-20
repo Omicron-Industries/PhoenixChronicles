@@ -80,6 +80,17 @@ public final class NodeShapeRenderer {
         g.flush();
         RenderSystem.disableCull();
 
+        // The badge flush (renderNodeDetails' second pass - see renderNodesAndDetails()) runs
+        // strictly after every node's g.renderItem() icon for this frame in source order, but
+        // renderItem()'s 3D icon geometry writes real depth-buffer values (the same "wins every
+        // z-order trick" behavior documented all over ChronicleOverviewScreen). Without disabling
+        // depth test here, a badge quad landing on a corner the icon's geometry also covers can
+        // fail the depth comparison and render invisible/behind it despite being queued and
+        // flushed later - this was the "state badge renders behind the item icon" bug. The shape
+        // pass's own flush (queued/flushed before any icon exists yet this frame) doesn't need
+        // this, but disabling it unconditionally here is harmless for that call too.
+        RenderSystem.disableDepthTest();
+
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -100,6 +111,7 @@ public final class NodeShapeRenderer {
         }
 
         BufferUploader.drawWithShader(bb.end());
+        RenderSystem.enableDepthTest();
         fillQueue.clear();
         return count;
     }
@@ -134,33 +146,44 @@ public final class NodeShapeRenderer {
      * GUI scale factor, used to rasterize fills (and outlineCircle) at physical-pixel resolution
      * instead of one scanline/plot per logical GUI pixel.
      *
-     * The other outline_X methods (diamond, hexagon, triangle, star, pentagon, shield, cross)
-     * briefly did this too, to fix them looking blockier than their own fill underneath - but a
-     * profiler run showed "node:shape" alone costing 50-70ms/frame with only 126 nodes on screen,
-     * dominating total render time. Root cause: Bresenham/plot-based outlines emit roughly one
-     * g.fill() draw call per PHYSICAL pixel of edge length, and supersampling multiplies that by
-     * guiScale (2-3x at common scales) across 7 shapes that previously didn't pay this cost at
-     * all. Reverted those 7 back to cheap logical-space plotting; only the circle (which already
-     * had this before this session) keeps it. A real fix would batch each outline into a handful
-     * of filled quads (like DependencyLineRenderer's rail rendering) instead of per-pixel plots -
-     * that's a bigger rewrite, not attempted here given this needs to stop regressing frame time
-     * *now*.
+     * The original reason this was capped at 2x (see git history) doesn't fully apply anymore:
+     * the outline_X methods for diamond/hexagon/triangle/star/pentagon/shield/cross were briefly
+     * ALSO physical-pixel-supersampled here, which multiplied their per-pixel plot count by
+     * guiScale on top of an already dominant per-node cost - that's what drove "node:shape" to
+     * 50-70ms/frame. Those 7 outlines have since moved to queuedDrawLine's Wu's-algorithm /
+     * Bresenham-core renderer, which works in fixed LOGICAL coordinates and doesn't call this
+     * method AT ALL - so raising the cap here no longer multiplies 7 extra shapes' outline cost
+     * the way it used to. Only the FILLS (all 7 shapes) and outlineCircle still scale with it,
+     * and each row now costs up to 3 quads (interior + 2 AA edges) instead of 1, so the
+     * fillAARow edge blending already does most of the smoothing analytically regardless of row
+     * density - more rows mainly buys smoother top/bottom curve caps, not sharper edges.
+     * Raised 2x → 3x → 4x on that basis (3x confirmed no measurable regression); if this ever
+     * needs revisiting, this is the one line to change.
      *
-     * Capped at 2x even when the window's real GUI scale is higher (3-4x is common on
-     * 1440p/4K setups with GUI Scale left on Auto). Node shapes only ever occupy a handful of
-     * physical pixels once zoomed, so 2x supersampling already looks smooth - going to 3-4x
-     * buys no visible improvement while multiplying every fill's scanline (now batched quad)
-     * count 1:1 with the real scale. This was still the single largest chunk of "node visuals"
-     * even after batching the fills into one draw call, since the cap here controls how many
-     * quads get built and queued in the first place, not just how they're uploaded.
+     * IMPORTANT: this must NOT be Math.min()'d against the window's actual GUI Scale setting.
+     * That was the bug behind "backgrounds still look bad, especially zoomed in, but icons
+     * don't" - most players run GUI Scale 2 or 3, so min(4, realScale) silently clamped this
+     * back down to whatever the player's display setting was, and none of the 2x/3x/4x cap
+     * raises above that ever took effect for them. Node icons (g.renderItem()) are real 3D
+     * geometry rendered through the pose transform, so they stay smooth at any canvas zoom
+     * level; these shapes are pre-rasterized scanlines, so their sample count has to be a
+     * fixed target of its own, independent of the display's GUI scale, or they visibly
+     * blockify the more the canvas zoom stretches them across the screen.
      */
     private static double guiScale() {
-        return Math.min(2.0, net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale());
+        return 4.0;
     }
 
     // ── Shape fill primitives ─────────────────────────────────────────────────
 
-    /** Fills every pixel inside a circle inscribed in the [x,y,sz] box. */
+    /**
+     * Fills every pixel inside a circle inscribed in the [x,y,sz] box. The physical-pixel
+     * supersampling above already halves the visible stair-step size, but every sample was still
+     * either "fully in" or "fully out" - a REAL circle silhouette (or hexagon, see fillHexagon)
+     * needs its boundary row to blend partial alpha for the fraction of the edge pixel it
+     * actually covers, not just round to the nearest whole pixel at a finer grid. That's true
+     * even at 2x supersampling: rounding still produces a visible stair-step, just a smaller one.
+     */
     public static void fillCircle(GuiGraphics g, int x, int y, int sz, int color) {
         double gs = guiScale();
         float s = (float) (1.0 / gs);
@@ -172,30 +195,91 @@ public final class NodeShapeRenderer {
         int py0 = (int) Math.floor(cy - r), py1 = (int) Math.ceil(cy + r);
         for (int py = py0; py < py1; py++) {
             float dy = py + 0.5f - cy;
-            float dx = (float) Math.sqrt(Math.max(0, r * r - dy * dy));
-            int x0 = (int) Math.ceil(cx - dx), x1 = (int) Math.floor(cx + dx);
-            if (x1 >= x0) queueFillRect(g, x0, py, x1 + 1, py + 1, color);
+            float dSq = r * r - dy * dy;
+            if (dSq < 0) continue;
+            float dx = (float) Math.sqrt(dSq);
+            fillAARow(g, cx - dx, cx + dx, py, color);
         }
         g.pose().popPose();
     }
 
-    /** Outline of a circle at physical-pixel precision, stroke width scaled by thickness. */
+    /**
+     * Fills the horizontal span [edgeL, edgeR) on row py, blending partial alpha into the two
+     * boundary pixels (based on how much of each is actually covered) instead of just rounding
+     * the span to whole pixels - the shared anti-aliasing primitive for fillCircle/fillHexagon
+     * and any other curved/angled shape edge.
+     */
+    private static void fillAARow(GuiGraphics g, float edgeL, float edgeR, int py, int color) {
+        if (edgeR <= edgeL) return;
+        int alpha = (color >>> 24) & 0xFF;
+
+        int xL = (int) Math.floor(edgeL);  // pixel containing the left edge
+        int xR = (int) Math.floor(edgeR);  // pixel containing the right edge
+
+        // Bug fixed here: when the whole span [edgeL, edgeR) fits inside a single pixel (a
+        // near-cap row of a curved/pointed shape is often narrower than 1px), this used to fall
+        // through to the multi-pixel logic below, which treats xL as a "left fragment" whose
+        // coverage runs all the way to the NEXT pixel boundary - overestimating how much of the
+        // pixel the span actually covers, and (via the old "xR != xL" guard) silently dropping
+        // the right-side truncation entirely. The thinner the row, the bigger that overestimate -
+        // negligible on a large shape (only its very tip has rows this thin) but a large fraction
+        // of a SMALL shape's total rows are this thin, which is why small shapes looked
+        // noticeably blockier/wrong than large ones despite using the exact same AA math.
+        if (xL == xR) {
+            float cov = edgeR - edgeL;
+            if (cov > 0.02f) queueFillRect(g, xL, py, xL + 1, py + 1, withAlpha(color, Math.round(alpha * cov)));
+            return;
+        }
+
+        int x0 = (int) Math.ceil(edgeL);   // first fully-covered pixel
+        int x1 = xR - 1;                   // last fully-covered pixel
+        if (xL < x0) {
+            float cov = x0 - edgeL;
+            if (cov > 0.02f) queueFillRect(g, xL, py, xL + 1, py + 1, withAlpha(color, Math.round(alpha * cov)));
+        }
+        if (x1 >= x0) queueFillRect(g, x0, py, x1 + 1, py + 1, color);
+        float covR = edgeR - xR;
+        if (covR > 0.02f) queueFillRect(g, xR, py, xR + 1, py + 1, withAlpha(color, Math.round(alpha * covR)));
+    }
+
+    private static int withAlpha(int color, int alpha) {
+        return (Math.max(0, Math.min(255, alpha)) << 24) | (color & 0x00FFFFFF);
+    }
+
+    /**
+     * Outline of a circle, rendered as an anti-aliased RING (outer circle minus inner circle)
+     * via the same per-row fillAARow edges fillCircle uses, instead of stamping a
+     * thickness×thickness square at points walked around the circumference. Point-plotting
+     * left visible gaps or overlap depending on the ratio of radius to step count, and looked
+     * like a dotted/jagged ring rather than a continuous stroke - most obvious exactly where it
+     * was reported: small node sizes when zoomed out, where "steps" is clamped low but the
+     * circle is still visually prominent.
+     */
     public static void outlineCircle(GuiGraphics g, int x, int y, int sz, int color, int thickness) {
         double gs = guiScale();
         float s = (float) (1.0 / gs);
         g.pose().pushPose();
         g.pose().scale(s, s, 1f);
 
-        int pThick = Math.max(1, (int) Math.round(thickness * gs));
-        float pcx = (float) ((x + sz / 2f) * gs);
-        float pcy = (float) ((y + sz / 2f) * gs);
-        float pr = (float) ((sz / 2f - 1f) * gs);
-        int steps = Math.max(64, (int) (pr * 6.3f));
-        for (int i = 0; i < steps; i++) {
-            double a = 2 * Math.PI * i / steps;
-            int px = (int) Math.round(pcx + Math.cos(a) * pr);
-            int py = (int) Math.round(pcy + Math.sin(a) * pr);
-            queueFillRect(g, px, py, px + pThick, py + pThick, color);
+        float pcx = (float) ((x + sz / 2f) * gs), pcy = (float) ((y + sz / 2f) * gs);
+        float outerR = (float) ((sz / 2f - 0.5f) * gs);
+        float innerR = Math.max(0f, outerR - (float) (thickness * gs));
+        int py0 = (int) Math.floor(pcy - outerR), py1 = (int) Math.ceil(pcy + outerR);
+        for (int py = py0; py < py1; py++) {
+            float dy = py + 0.5f - pcy;
+            float outerSq = outerR * outerR - dy * dy;
+            if (outerSq < 0) continue;
+            float outerDx = (float) Math.sqrt(outerSq);
+            float innerSq = innerR * innerR - dy * dy;
+            if (innerSq <= 0) {
+                // This row is entirely within the ring's thickness (near the top/bottom cap,
+                // where there's no "hole" yet) - one solid AA span across the full width.
+                fillAARow(g, pcx - outerDx, pcx + outerDx, py, color);
+            } else {
+                float innerDx = (float) Math.sqrt(innerSq);
+                fillAARow(g, pcx - outerDx, pcx - innerDx, py, color);
+                fillAARow(g, pcx + innerDx, pcx + outerDx, py, color);
+            }
         }
         g.pose().popPose();
     }
@@ -213,20 +297,20 @@ public final class NodeShapeRenderer {
         for (int py = py0; py < py1; py++) {
             float dist = Math.abs(py + 0.5f - cy);
             float half = h - dist;
-            if (half > 0) queueFillRect(g, (int) (cx - half), py, (int) (cx + half), py + 1, color);
+            if (half > 0) fillAARow(g, cx - half, cx + half, py, color);
         }
         g.pose().popPose();
     }
 
     public static void outlineDiamond(GuiGraphics g, int x, int y, int sz, int color, int thickness) {
         int cx = x + sz / 2, cy = y + sz / 2, h = sz / 2 - 1;
-        // Four edges: top-left, top-right, bottom-left, bottom-right
-        for (int i = 0; i <= h; i++) {
-            queuedPlot(g, cx - i, cy - h + i, thickness, color); // TL edge
-            queuedPlot(g, cx + i, cy - h + i, thickness, color); // TR edge
-            queuedPlot(g, cx - i, cy + h - i, thickness, color); // BL edge
-            queuedPlot(g, cx + i, cy + h - i, thickness, color); // BR edge
-        }
+        // Four edges, drawn through the shared AA line routine (was a manual per-pixel
+        // queuedPlot walk that never went through queuedDrawLine at all, so it stayed jagged
+        // even after the other shapes' outlines got anti-aliased).
+        queuedDrawLine(g, cx, cy - h, cx - h, cy, color, thickness); // top-left edge
+        queuedDrawLine(g, cx, cy - h, cx + h, cy, color, thickness); // top-right edge
+        queuedDrawLine(g, cx - h, cy, cx, cy + h, color, thickness); // bottom-left edge
+        queuedDrawLine(g, cx + h, cy, cx, cy + h, color, thickness); // bottom-right edge
     }
 
     /**
@@ -256,7 +340,7 @@ public final class NodeShapeRenderer {
             float hw;
             if (dy <= r / 2f) hw = qr;
             else hw = qr * (1f - (dy - r / 2f) / (r / 2f));
-            if (hw > 0) queueFillRect(g, (int) (cx - hw), py, (int) (cx + hw) + 1, py + 1, color);
+            if (hw > 0) fillAARow(g, cx - hw, cx + hw, py, color);
         }
         g.pose().popPose();
     }
@@ -267,8 +351,13 @@ public final class NodeShapeRenderer {
         for (int i = 0; i < sides; i++) {
             double a0 = Math.PI / 6 + i * Math.PI / 3;
             double a1 = Math.PI / 6 + (i + 1) * Math.PI / 3;
-            int x0 = (int) (cx + Math.cos(a0) * r), y0 = (int) (cy + Math.sin(a0) * r);
-            int x1 = (int) (cx + Math.cos(a1) * r), y1 = (int) (cy + Math.sin(a1) * r);
+            // Math.round(), not a truncating (int) cast - truncation always rounds toward zero
+            // rather than to the nearest pixel, so it introduces a systematic (not random) up-
+            // to-1px bias in every vertex. Invisible on a large hexagon; on a small one that's a
+            // big fraction of the whole radius, which is exactly why this read as visibly lopsided
+            // specifically when zoomed out.
+            int x0 = (int) Math.round(cx + Math.cos(a0) * r), y0 = (int) Math.round(cy + Math.sin(a0) * r);
+            int x1 = (int) Math.round(cx + Math.cos(a1) * r), y1 = (int) Math.round(cy + Math.sin(a1) * r);
             queuedDrawLine(g, x0, y0, x1, y1, color, thickness);
         }
     }
@@ -286,7 +375,7 @@ public final class NodeShapeRenderer {
         for (int py = py0; py <= py1; py++) {
             float t = (py - top) / (bot - top);
             float half = t * sz / 2f * (float) gs;
-            queueFillRect(g, (int) (cx - half), py, (int) (cx + half) + 1, py + 1, color);
+            fillAARow(g, cx - half, cx + half, py, color);
         }
         g.pose().popPose();
     }
@@ -344,7 +433,7 @@ public final class NodeShapeRenderer {
                 xs[k + 1] = v;
             }
             for (int i = 0; i + 1 < count; i += 2)
-                queueFillRect(g, (int) xs[i], scanY, (int) xs[i + 1] + 1, scanY + 1, color);
+                fillAARow(g, xs[i], xs[i + 1], scanY, color);
         }
         g.pose().popPose();
     }
@@ -357,7 +446,8 @@ public final class NodeShapeRenderer {
         for (int i = 0; i <= points * 2; i++) {
             double a = -Math.PI / 2 + i * Math.PI / points;
             float r2 = (i % 2 == 0) ? outerR : innerR;
-            int nx = (int) (cx + Math.cos(a) * r2), ny = (int) (cy + Math.sin(a) * r2);
+            // Rounded, not truncated - see outlineHexagon's matching comment.
+            int nx = (int) Math.round(cx + Math.cos(a) * r2), ny = (int) Math.round(cy + Math.sin(a) * r2);
             if (i > 0) queuedDrawLine(g, prevX, prevY2, nx, ny, color, thickness);
             prevX = nx;
             prevY2 = ny;
@@ -390,7 +480,8 @@ public final class NodeShapeRenderer {
         int prevX = 0, prevY2 = 0;
         for (int i = 0; i <= sides; i++) {
             double a = -Math.PI / 2 + (i % sides) * 2 * Math.PI / sides;
-            int nx = (int) (cx + Math.cos(a) * r), ny = (int) (cy + Math.sin(a) * r);
+            // Rounded, not truncated - see outlineHexagon's matching comment.
+            int nx = (int) Math.round(cx + Math.cos(a) * r), ny = (int) Math.round(cy + Math.sin(a) * r);
             if (i > 0) queuedDrawLine(g, prevX, prevY2, nx, ny, color, thickness);
             prevX = nx;
             prevY2 = ny;
@@ -415,7 +506,7 @@ public final class NodeShapeRenderer {
         for (int py = py0; py < py1; py++) {
             float t = (py - midY) / (bot - midY);
             float half = (1f - t) * (sz / 2f - 1) * (float) gs;
-            if (half > 0) queueFillRect(g, (int) (cx - half), py, (int) (cx + half) + 1, py + 1, color);
+            if (half > 0) fillAARow(g, cx - half, cx + half, py, color);
         }
         g.pose().popPose();
     }
@@ -495,7 +586,7 @@ public final class NodeShapeRenderer {
                 xs[k + 1] = v;
             }
             for (int i = 0; i + 1 < count; i += 2)
-                queueFillRect(g, (int) xs[i], scanY, (int) xs[i + 1] + 1, scanY + 1, color);
+                fillAARow(g, xs[i], xs[i + 1], scanY, color);
         }
     }
 
@@ -548,7 +639,85 @@ public final class NodeShapeRenderer {
      * LOGICAL space so their step count is small per edge, but every step was still its own
      * immediate g.fill() draw call.
      */
+    /**
+     * Every straight-edge outline (diamond/hexagon/triangle/star/pentagon/shield/cross) routes
+     * through this one method. For a thin (thickness 1) line, Wu's algorithm alone is correct
+     * and sufficient - see drawWuLine(). For thickness > 1, applying Wu's per-step alpha split
+     * directly to a thickness×thickness block was the actual bug reported here: consecutive
+     * steps' blocks overlap once thickness > 1 (each step only advances 1px along the line, but
+     * the block is `thickness` px wide/tall), so the SAME semi-transparent color kept
+     * re-blending on top of itself across most of the stroke's BODY, not just its boundary -
+     * reading as an overall darker/muddier stroke instead of a clean line with softened edges.
+     * Fixed by drawing the thick core as a solid, fully-opaque Bresenham walk (no blending, so
+     * no compounding), then adding a thin 1px anti-aliased fringe offset to each side of that
+     * core to soften just the two true edges.
+     */
     private static void queuedDrawLine(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int thickness) {
+        if (thickness <= 1) {
+            drawWuLine(g, x0, y0, x1, y1, color, 1);
+            return;
+        }
+        bresenhamCore(g, x0, y0, x1, y1, color, thickness);
+
+        double dx = x1 - x0, dy = y1 - y0;
+        double len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 0.5) return;
+        double nx = -dy / len, ny = dx / len; // unit normal, perpendicular to the line
+        double off = thickness / 2.0 + 0.5;
+
+        int ax0 = (int) Math.round(x0 + nx * off), ay0 = (int) Math.round(y0 + ny * off);
+        int ax1 = (int) Math.round(x1 + nx * off), ay1 = (int) Math.round(y1 + ny * off);
+        drawWuLine(g, ax0, ay0, ax1, ay1, color, 1);
+
+        int bx0 = (int) Math.round(x0 - nx * off), by0 = (int) Math.round(y0 - ny * off);
+        int bx1 = (int) Math.round(x1 - nx * off), by1 = (int) Math.round(y1 - ny * off);
+        drawWuLine(g, bx0, by0, bx1, by1, color, 1);
+    }
+
+    /**
+     * Xiaolin Wu-style anti-aliased 1px-wide line - see queuedDrawLine's doc for why thickness > 1 needs different
+     * handling.
+     */
+    private static void drawWuLine(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int thickness) {
+        boolean steep = Math.abs(y1 - y0) > Math.abs(x1 - x0);
+        if (steep) {
+            int t = x0;
+            x0 = y0;
+            y0 = t;
+            t = x1;
+            x1 = y1;
+            y1 = t;
+        }
+        if (x0 > x1) {
+            int t = x0;
+            x0 = x1;
+            x1 = t;
+            t = y0;
+            y0 = y1;
+            y1 = t;
+        }
+        float dx = x1 - x0, dy = y1 - y0;
+        float gradient = dx == 0 ? 1f : dy / dx;
+        int alpha = (color >>> 24) & 0xFF;
+        float intery = y0;
+        for (int x = x0; x <= x1; x++) {
+            int iy = (int) Math.floor(intery);
+            float frac = intery - iy;
+            int a1 = Math.round(alpha * (1f - frac));
+            int a2 = Math.round(alpha * frac);
+            if (steep) {
+                if (a1 > 2) queuedPlot(g, iy, x, thickness, withAlpha(color, a1));
+                if (a2 > 2) queuedPlot(g, iy + 1, x, thickness, withAlpha(color, a2));
+            } else {
+                if (a1 > 2) queuedPlot(g, x, iy, thickness, withAlpha(color, a1));
+                if (a2 > 2) queuedPlot(g, x, iy + 1, thickness, withAlpha(color, a2));
+            }
+            intery += gradient;
+        }
+    }
+
+    /** Opaque Bresenham walk - the solid core of a thick outline stroke (see queuedDrawLine). */
+    private static void bresenhamCore(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int thickness) {
         int dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
         int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
         int err = dx - dy;

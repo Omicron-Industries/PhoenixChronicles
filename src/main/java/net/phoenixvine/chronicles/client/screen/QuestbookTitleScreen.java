@@ -15,16 +15,18 @@ import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Inline popup for naming and icon-ing the questbook itself, shown above the category list -
- * the pack-level equivalent of CategoryThemeScreen's per-chapter name/icon editing.
+ * Inline popup for naming and icon-ing the questbook itself.
+ * Cleaned up with standard padding, comfortable spacing, and standard component heights.
  */
 public class QuestbookTitleScreen extends Screen {
 
-    private static final int PANEL_W = 220;
-    private static final int PANEL_H = 92;
-    private static final int MARGIN = 12;
-    private static final int FIELD_H = 13;
-    private static final int STRIDE = FIELD_H + 8;
+    // --- Layout Constants ---
+    private static final int PANEL_W = 240;        // Slightly wider for better text flow
+    private static final int PANEL_H = 145;        // Tall enough to comfortably fit elements
+    private static final int MARGIN = 16;          // Generous breathing room from borders
+    private static final int COMPONENT_H = 20;     // Minecraft standard height for buttons/inputs
+    private static final int SPACING = 6;          // Vertical gap between related items
+    private static final int SECTION_GAP = 14;     // Vertical gap between different sections
     private static final int ACCENT = 0xFF4499CC;
 
     private final Screen parent;
@@ -48,18 +50,25 @@ public class QuestbookTitleScreen extends Screen {
         panelTop = (height - PANEL_H) / 2;
 
         int fx = panelLeft + MARGIN;
-        int fw = PANEL_W - MARGIN * 2;
-        int y = panelTop + 28;
+        int fw = PANEL_W - (MARGIN * 2);
 
-        nameBox = new EditBox(font, fx, y + 9, fw, FIELD_H, Component.empty());
+        // Start below the header title area
+        int currentY = panelTop + 28;
+
+        // --- 1. Name Field Configuration ---
+        // Title label is drawn in render(), field goes right under it
+        nameBox = new EditBox(font, fx, currentY + 12, fw, COMPONENT_H, Component.empty());
         nameBox.setMaxLength(48);
         nameBox.setHint(Component.literal("§8Quest Book"));
         nameBox.setValue(cachedName.equals("Quest Book") ? "" : cachedName);
         nameBox.setResponder(v -> cachedName = v.trim());
         addRenderableWidget(nameBox);
-        y += STRIDE + 10;
 
-        int iconPreviewW = FIELD_H + 4;
+        // Advance past label + text field + section break
+        currentY += 12 + COMPONENT_H + SECTION_GAP;
+
+        // --- 2. Icon Field Configuration ---
+        int iconPreviewW = COMPONENT_H; // Keep it perfectly square with standard height
         addRenderableWidget(Button.builder(Component.literal("§7Change icon…"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
@@ -67,18 +76,20 @@ public class QuestbookTitleScreen extends Screen {
                                 .toString();
                     }));
                 })
-                .bounds(fx + iconPreviewW + 4, y, fw - iconPreviewW - 4, FIELD_H).build());
-        y += STRIDE + 6;
+                .bounds(fx + iconPreviewW + 8, currentY + 12, fw - iconPreviewW - 8, COMPONENT_H).build());
 
-        int btnY = panelTop + PANEL_H - 10 - 18;
-        int half = (fw - 6) / 2;
+        // --- 3. Bottom Action Buttons ---
+        int btnY = panelTop + PANEL_H - MARGIN - COMPONENT_H;
+        int halfBtnW = (fw - 6) / 2;
+
         addRenderableWidget(Button.builder(Component.literal("§aSave"), b -> save())
-                .bounds(fx, btnY, half, 18).build());
+                .bounds(fx, btnY, halfBtnW, COMPONENT_H).build());
+
         addRenderableWidget(Button.builder(Component.literal("§7Cancel"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })
-                .bounds(fx + half + 6, btnY, half, 18).build());
+                .bounds(fx + halfBtnW + 6, btnY, halfBtnW, COMPONENT_H).build());
     }
 
     private Item resolveIconPreview() {
@@ -107,11 +118,7 @@ public class QuestbookTitleScreen extends Screen {
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         if (parent != null) parent.render(g, -1, -1, partial);
 
-        // See CategoryThemeScreen/ToastDesignerScreen's render() for the full writeup - this
-        // pack's rendering pipeline needs the parent's queued draws forced out before this
-        // screen's own content, or the parent bleeds through what should be an opaque panel.
         g.flush();
-
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
 
@@ -120,14 +127,24 @@ public class QuestbookTitleScreen extends Screen {
                 ACCENT, ChroniclesThemePalette.TEXT);
 
         int fx = panelLeft + MARGIN;
-        int y = panelTop + 28;
-        g.drawString(font, "§8Name", fx, y, ChroniclesThemePalette.TEXT_FAINT);
-        y += STRIDE + 10;
+        int currentY = panelTop + 28;
 
-        Item iconItem = resolveIconPreview();
-        g.fill(fx, y, fx + FIELD_H + 4, y + FIELD_H + 4, 0xFF0B0B0F);
-        ChroniclesUIKit.drawBorder(g, fx, y, FIELD_H + 4, FIELD_H + 4, 0xFF333344);
-        g.renderItem(new ItemStack(iconItem), fx + 2, y + 2);
+        // Draw Name Label
+        g.drawString(font, "§8Name", fx, currentY, ChroniclesThemePalette.TEXT_FAINT);
+
+        // Step down to Icon section matching the init() layout math
+        currentY += 12 + COMPONENT_H + SECTION_GAP;
+
+        // Draw Icon Label
+        g.drawString(font, "§8Icon", fx, currentY, ChroniclesThemePalette.TEXT_FAINT);
+
+        // Render Icon Preview Slot (Now vertically perfectly aligned with the change button)
+        int iconY = currentY + 12;
+        g.fill(fx, iconY, fx + COMPONENT_H, iconY + COMPONENT_H, 0xFF0B0B0F);
+        ChroniclesUIKit.drawBorder(g, fx, iconY, COMPONENT_H, COMPONENT_H, 0xFF333344);
+
+        // Center item rendering inside the 20x20 slot (Minecraft items are 16x16)
+        g.renderItem(new ItemStack(resolveIconPreview()), fx + 2, iconY + 2);
 
         g.flush();
         super.render(g, mx, my, partial);

@@ -49,6 +49,11 @@ public class QuestStyleEditorScreen extends Screen {
     /** Picked texture for the "CUSTOM" shape - ignored for every other shape id. */
     private String selectedShapeTexture;
     private QuestNode.NodeSize selectedSize;
+    // Only true once the user actually clicks a size preset button - setNodeSize() always clears
+    // any freeform pixel override set via the canvas's own "Resize (scroll + drag)…" mode as a
+    // side effect, so applyAndSave() must NOT call it just because this screen was opened and
+    // saved for an unrelated field (shape/description/etc), or it'd silently wipe that override.
+    private boolean sizeChanged = false;
 
     // Description multiline simulation: list of rows that wrap
     private static final int DESC_ROWS = 5;
@@ -194,7 +199,8 @@ public class QuestStyleEditorScreen extends Screen {
                     .parse(descRaw);
             net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.render(
                     g, font, spans, descPreviewX + 4, descPreviewY + 4, descPreviewW - 8, 0,
-                    descPreviewY + 2, descPreviewY + descPreviewH - 2);
+                    descPreviewY + 2, descPreviewY + descPreviewH - 2,
+                    net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier());
         } else {
             g.drawString(font, "§8Click to add a description…", descPreviewX + 4, descPreviewY + 4,
                     C_TEXT_FAINT, false);
@@ -300,7 +306,7 @@ public class QuestStyleEditorScreen extends Screen {
         if (mx >= descPreviewX && mx < descPreviewX + descPreviewW &&
                 my >= descPreviewY && my < descPreviewY + descPreviewH) {
             if (minecraft != null) {
-                minecraft.setScreen(new QuestTextInputScreen(this, "Description", descRaw, 2000,
+                minecraft.setScreen(new QuestTextInputScreen(this, "Description", descRaw, 8192,
                         v -> descRaw = v));
             }
             return true;
@@ -344,6 +350,7 @@ public class QuestStyleEditorScreen extends Screen {
             for (QuestNode.NodeSize sz : sizes) {
                 if (mx >= sx && mx < sx + sizeW && my >= cy && my < cy + 18) {
                     selectedSize = sz;
+                    sizeChanged = true;
                     return true;
                 }
                 sx += sizeW + 3;
@@ -396,7 +403,7 @@ public class QuestStyleEditorScreen extends Screen {
         node.setDescription(net.minecraft.network.chat.Component.literal(newDesc));
         node.setShapeType(selectedShape);
         node.setShapeTexture(selectedShapeTexture);
-        node.setNodeSize(selectedSize);
+        if (sizeChanged) node.setNodeSize(selectedSize);
         node.setDevNotes(newNotes);
 
         // Persist to disk

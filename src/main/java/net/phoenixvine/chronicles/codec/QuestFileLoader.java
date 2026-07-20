@@ -66,11 +66,13 @@ public class QuestFileLoader {
                                int rewardChoiceCount,
                                String devNotes,
                                QuestNode.NodeSize nodeSize,
+                               int sizeOverridePx,
                                ResourceLocation linkTarget,
                                String iconTexture,
                                String shapeTexture,
                                List<QuestNode.QuestVariant> variants,
-                               String previewMachineId) {}
+                               String previewMachineId,
+                               String iconFluid) {}
 
     /** Applies this edge's per-line shape/style/speed overrides (if any) onto {@code node}. */
     private static void applyLineOverrides(QuestNode node, QuestNode prereq, QuestRecord rec, String pid) {
@@ -195,8 +197,10 @@ public class QuestFileLoader {
             node.setDevNotes(rec.devNotes());
             node.setPreviewMachineId(rec.previewMachineId());
             node.setNodeSize(rec.nodeSize());
+            if (rec.sizeOverridePx() > 0) node.setSizeOverridePx(rec.sizeOverridePx());
             node.setLinkTarget(rec.linkTarget());
             node.setIconTexture(rec.iconTexture());
+            node.setIconFluid(rec.iconFluid());
             node.setShapeTexture(rec.shapeTexture());
             if (!rec.iconItemId().isEmpty()) node.setIconItemById(rec.iconItemId());
             node.setRepeatMode(rec.repeatMode());
@@ -301,6 +305,7 @@ public class QuestFileLoader {
             String shape = tag.contains("shape") ? tag.getString("shape") : "SQUARE";
             String iconItem = tag.contains("icon_item") ? tag.getString("icon_item") : "";
             String iconTexture = tag.contains("icon_texture") ? tag.getString("icon_texture") : "";
+            String iconFluid = tag.contains("icon_fluid") ? tag.getString("icon_fluid") : "";
             String shapeTexture = tag.contains("shape_texture") ? tag.getString("shape_texture") : "";
             int posX = tag.contains("positionX") ? tag.getInt("positionX") : 40;
             int posY = tag.contains("positionY") ? tag.getInt("positionY") : 70;
@@ -413,6 +418,7 @@ public class QuestFileLoader {
                     nodeSize = QuestNode.NodeSize.valueOf(tag.getString("node_size").toUpperCase());
                 } catch (IllegalArgumentException ignored) {}
             }
+            int sizeOverridePx = tag.contains("node_size_px") ? tag.getInt("node_size_px") : 0;
 
             // FTB "quest link" equivalent: a visual placeholder pointing at a real quest
             // defined elsewhere (possibly a different category). No tasks/rewards of its own.
@@ -441,8 +447,8 @@ public class QuestFileLoader {
                     prereqRequired, optionalPrereqMinCount, enableIf, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, hideDepLine,
                     disabledBlocksChildren, shared, pooledProgress, tutorialSteps, autoClaimRewards, rewardChoice,
-                    rewardChoiceCount, devNotes, nodeSize, linkTarget, iconTexture, shapeTexture, variants,
-                    previewMachineId);
+                    rewardChoiceCount, devNotes, nodeSize, sizeOverridePx, linkTarget, iconTexture, shapeTexture,
+                    variants, previewMachineId, iconFluid);
 
         } catch (Exception e) {
             String msg = "Failed to parse '" + file.getFileName() + "': " + e.getMessage();

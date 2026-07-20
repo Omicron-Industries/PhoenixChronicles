@@ -22,9 +22,16 @@ public final class TeamKeyResolver {
     private TeamKeyResolver() {}
 
     public static Optional<String> resolve(ServerPlayer player) {
-        GuildManager guildMgr = GuildManager.get(player.getServer().overworld());
-        var guild = guildMgr.getGuildFor(player.getUUID());
-        if (guild.isPresent()) return Optional.of("guild:" + guild.get().getId());
+        // Phoenix Guilds is supposed to be an optional compat, not a hard dependency - this used
+        // to call GuildManager unconditionally, which is exactly backwards from "optional": this
+        // method is called for EVERY pooled-progress task check (see TaskProgressAccess), so any
+        // pack running pooled-progress quests without Phoenix Guilds installed would immediately
+        // hit NoClassDefFoundError the first time any player made progress on one.
+        if (net.minecraftforge.fml.ModList.get().isLoaded("phoenix_guilds")) {
+            GuildManager guildMgr = GuildManager.get(player.getServer().overworld());
+            var guild = guildMgr.getGuildFor(player.getUUID());
+            if (guild.isPresent()) return Optional.of("guild:" + guild.get().getId());
+        }
 
         if (FTBTeamsAPI.api().isManagerLoaded()) {
             var opt = FTBTeamsAPI.api().getManager().getTeamForPlayerID(player.getUUID());

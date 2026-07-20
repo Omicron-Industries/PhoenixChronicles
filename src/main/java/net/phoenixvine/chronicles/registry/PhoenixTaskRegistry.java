@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.registry;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.filter.FluidFilters;
 import net.phoenixvine.chronicles.filter.ItemFilters;
@@ -10,6 +11,9 @@ import net.phoenixvine.chronicles.tasks.*;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 
 /**
@@ -79,6 +83,24 @@ public final class PhoenixTaskRegistry {
         }
     }
 
+    /**
+     * The runtime behavior behind a KubeJS-registered {@link ScriptTask} type - one instance per
+     * TYPE (shared by every quest using that type), populated via the {@link Builder#onCompleted}/
+     * {@link Builder#onConsume}/{@link Builder#progressString}/{@link Builder#dependsOnInventory}
+     * chain methods after {@link #registerScripted}. Uses plain java.util.function types (rather
+     * than a custom interface with several methods) specifically so a KubeJS script can pass a
+     * bare arrow function for each callback - Rhino's LiveConnect reliably coerces a JS function
+     * into a single-abstract-method Java functional interface, which is NOT a safe bet for
+     * multi-method interfaces (missing properties for unset methods have no clean fallback).
+     */
+    public static final class ScriptTaskHandler {
+
+        public BiPredicate<ScriptTask, Player> isCompletedFor = (t, p) -> false;
+        public BiConsumer<ScriptTask, Player> tryConsume = (t, p) -> {};
+        public BiFunction<ScriptTask, Player, String> progressString = (t, p) -> null;
+        public boolean dependsOnInventory = true;
+    }
+
     public record TaskEntry(
                             String typeId,
                             Function<CompoundTag, Object> deserializer,
@@ -97,11 +119,36 @@ public final class PhoenixTaskRegistry {
     private static final Map<String, TaskEntry> REGISTRY = new LinkedHashMap<>();
     // Ordered list for editor dropdown (insertion-order, built-ins first)
     private static final List<TaskEntry> EDITOR_ORDER = new ArrayList<>();
+    private static final Map<String, ScriptTaskHandler> SCRIPT_HANDLERS = new HashMap<>();
 
     // ── Registration API ──────────────────────────────────────────────────────
 
     public static Builder register(String typeId, Function<CompoundTag, Object> deserializer) {
         return new Builder(typeId, deserializer);
+    }
+
+    /**
+     * Registers a fully script-defined task type - no Java mod/subclass needed at all. Chain
+     * {@code .onCompleted(...)}, optionally {@code .onConsume(...)}/{@code .progressString(...)}/
+     * {@code .dependsOnInventory(...)}, then the usual {@code .label()/.icon()/.tooltip()/.field()}
+     * editor metadata, then {@code .register()}. Backed by {@link ScriptTask} at runtime; see the
+     * API Reference wiki page for a full KubeJS example.
+     */
+    public static Builder registerScripted(String typeId) {
+        ScriptTaskHandler handler = new ScriptTaskHandler();
+        SCRIPT_HANDLERS.put(typeId, handler);
+        Builder b = register(typeId, tag -> {
+            ScriptTask t = new ScriptTask(taskId(tag), desc(tag), typeId);
+            t.deserializeNBT(tag);
+            return t;
+        });
+        b.scriptHandler = handler;
+        return b;
+    }
+
+    @Nullable
+    public static ScriptTaskHandler getScriptHandler(String typeId) {
+        return SCRIPT_HANDLERS.get(typeId);
     }
 
     public static final class Builder {
@@ -112,6 +159,7 @@ public final class PhoenixTaskRegistry {
         private String label = null;
         private String tooltip = null;
         private final List<FieldDef> fields = new ArrayList<>();
+        private ScriptTaskHandler scriptHandler = null;
 
         private Builder(String typeId, Function<CompoundTag, Object> deserializer) {
             this.typeId = typeId;
@@ -136,6 +184,39 @@ public final class PhoenixTaskRegistry {
         public Builder field(FieldDef f) {
             this.fields.add(f);
             return this;
+        }
+
+        /** Only valid after {@link #registerScripted} - the script's completion check. */
+        public Builder onCompleted(BiPredicate<ScriptTask, Player> fn) {
+            requireScriptHandler().isCompletedFor = fn;
+            return this;
+        }
+
+        /** Only valid after {@link #registerScripted} - called once when the player claims rewards. */
+        public Builder onConsume(BiConsumer<ScriptTask, Player> fn) {
+            requireScriptHandler().tryConsume = fn;
+            return this;
+        }
+
+        /** Only valid after {@link #registerScripted} - return null to fall back to Done/Pending. */
+        public Builder progressString(BiFunction<ScriptTask, Player, String> fn) {
+            requireScriptHandler().progressString = fn;
+            return this;
+        }
+
+        /** Only valid after {@link #registerScripted} - see QuestTask#dependsOnInventory. */
+        public Builder dependsOnInventory(boolean v) {
+            requireScriptHandler().dependsOnInventory = v;
+            return this;
+        }
+
+        private ScriptTaskHandler requireScriptHandler() {
+            if (scriptHandler == null) {
+                throw new IllegalStateException(
+                        "onCompleted/onConsume/progressString/dependsOnInventory can only be used on a " +
+                                "Builder from registerScripted(...), not register(...)");
+            }
+            return scriptHandler;
         }
 
         public void register() {
@@ -359,6 +440,36 @@ public final class PhoenixTaskRegistry {
                 .field(FieldDef.text("energy_type", "Energy Type", "FE / EU / ANY"))
                 .field(FieldDef.text("source", "Source", "INVENTORY / HELD / BLOCK"))
                 .field(FieldDef.integer("required", "Amount (FE)"))
+                .register();
+
+        register("ae2_item_storage", tag -> {
+            net.phoenixvine.chronicles.tasks.AE2ItemStorageTask t = new net.phoenixvine.chronicles.tasks.AE2ItemStorageTask(
+                    taskId(tag), desc(tag),
+                    net.minecraft.world.item.Items.DIRT, 1, false);
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b◆").label("AE2 Item Storage")
+                .tooltip("Have an item amount stored in your Applied Energistics 2 network.\n" +
+                        "Read through whichever wireless terminal you're currently holding.\n" +
+                        "Target: item registry id. Consume: withdraw items on complete.")
+                .field(FieldDef.itemId("item_id", "Item ID"))
+                .field(FieldDef.integer("count", "Count"))
+                .field(FieldDef.bool("consume", "Consume"))
+                .register();
+
+        register("ae2_fluid_storage", tag -> {
+            net.phoenixvine.chronicles.tasks.AE2FluidStorageTask t = new net.phoenixvine.chronicles.tasks.AE2FluidStorageTask(
+                    taskId(tag), desc(tag),
+                    new net.minecraft.resources.ResourceLocation("minecraft", "water"), 1000, false);
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b≋").label("AE2 Fluid Storage")
+                .tooltip("Have a fluid amount stored in your Applied Energistics 2 network.\n" +
+                        "Read through whichever wireless terminal you're currently holding.\n" +
+                        "Target: fluid id. Count: amount in mB.")
+                .field(FieldDef.fluidId("fluid_id", "Fluid ID"))
+                .field(FieldDef.integer("amount", "Amount (mB)"))
+                .field(FieldDef.bool("consume", "Consume"))
                 .register();
 
         register("filter_item", tag -> {

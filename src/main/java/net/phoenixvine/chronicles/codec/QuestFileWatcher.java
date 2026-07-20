@@ -121,6 +121,7 @@ public final class QuestFileWatcher {
             QuestTreeRegistry.clearConfigQuests();
             CategoryFlagRegistry.load(configDir);
             net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+            net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
             RewardTableRegistry.load(configDir);
             ChapterFolderRegistry.load(configDir);
             QuestFileLoader.loadAdditiveFromDisk(configDir);

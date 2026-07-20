@@ -16,6 +16,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.filter.IItemFilter;
+import net.phoenixvine.chronicles.filter.ItemFilters;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
@@ -79,6 +81,10 @@ public class TaskRewardEditorScreen extends Screen {
     private String taskType = "kill_entity";
     private boolean taskConsume = true;
     private boolean taskOptional = false;
+    // "Hold X" style tasks (item/tag/fluid checks) default to sticky - see
+    // ItemRequirementTask#sticky. Energy checks default false since a reading is inherently
+    // transient; showSticky() below only exposes the button for the task types that support it.
+    private boolean taskSticky = true;
     private boolean taskTypeDropOpen = false;
     private EditBox taskDescBox, taskTargetBox, taskCountBox, taskSecondaryBox, taskNbtBox;
 
@@ -257,7 +263,13 @@ public class TaskRewardEditorScreen extends Screen {
             }
         };
         boolean showConsume = switch (taskType) {
-            case "kill_entity", "item_check", "craft_item", "fluid_check", "location_terminal", "stat", "block_interact" -> true;
+            case "kill_entity", "item_check", "craft_item", "fluid_check", "location_terminal", "stat", "block_interact", "filter_item" -> true;
+            default -> false;
+        };
+        // "Hold X" tasks where placing/using the item before some other requirement is met
+        // shouldn't force re-gathering it - see the sticky field on each of these task classes.
+        boolean showSticky = switch (taskType) {
+            case "item_check", "tag_item", "fluid_check", "energy_check", "filter_item" -> true;
             default -> false;
         };
 
@@ -282,6 +294,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "structure" -> "§8Structure id";
                 case "tag_item" -> "§8Item tag  (e.g. c:ores/iron)";
                 case "energy_check" -> "§8FE / EU / ANY";
+                case "filter_item" -> "§8Item id(s), semicolon-separated — ANY match  (e.g. wire;cable)";
                 case "external_trigger" -> "§8Trigger id";
                 case "view_machine" -> "§8Machine id  (Phantasia multiblock definition id)";
                 case "view_scene" -> "§8Scene id  (Phantasia scene definition id)";
@@ -298,8 +311,11 @@ public class TaskRewardEditorScreen extends Screen {
                 }
             };
             boolean hasItemPicker = taskType.equals("item_check") || taskType.equals("craft_item");
+            // "Any of" list — the picker APPENDS (semicolon-joined) instead of replacing the box,
+            // since the whole point is building up a list of alternatives (e.g. wire OR cable).
+            boolean hasItemListPicker = taskType.equals("filter_item");
             boolean hasFluidPicker = taskType.equals("fluid_check");
-            int tw = (hasItemPicker || hasFluidPicker) ? colW - 18 : colW;
+            int tw = (hasItemPicker || hasItemListPicker || hasFluidPicker) ? colW - 18 : colW;
             int tmaxLen = isInfo ? 512 : 160;
             taskTargetBox = new EditBox(font, tx, fy, tw, FIELD_H, Component.empty());
             taskTargetBox.setHint(Component.literal(hint));
@@ -313,6 +329,17 @@ public class TaskRewardEditorScreen extends Screen {
                         if (id != null && taskTargetBox != null) taskTargetBox.setValue(id.toString());
                     }));
                 }).bounds(tx + tw, fy, 16, FIELD_H).build());
+            } else if (hasItemListPicker) {
+                addRenderableWidget(Button.builder(Component.literal("§7⊞"), b -> {
+                    if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                        if (id == null || taskTargetBox == null) return;
+                        String cur = taskTargetBox.getValue().trim();
+                        taskTargetBox.setValue(cur.isEmpty() ? id.toString() : cur + ";" + id);
+                    }));
+                }).bounds(tx + tw, fy, 16, FIELD_H)
+                        .tooltip(Tooltip.create(Component.literal("Add another item to the ANY-match list")))
+                        .build());
             } else if (hasFluidPicker) {
                 addRenderableWidget(Button.builder(Component.literal("§3⊞"), b -> {
                     if (minecraft != null) minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
@@ -387,6 +414,20 @@ public class TaskRewardEditorScreen extends Screen {
                     .bounds(cx2, rowY, 54, FIELD_H)
                     .tooltip(Tooltip.create(
                             Component.literal("Remove the item/fluid from the player's inventory on completion")))
+                    .build());
+        }
+        if (showSticky) {
+            addRenderableWidget(Button.builder(
+                    Component.literal(taskSticky ? "§bSticky" : "§8Sticky"),
+                    b -> {
+                        taskSticky = !taskSticky;
+                        rebuildWidgets();
+                    })
+                    .bounds(tx + colW - 162, rowY, 56, FIELD_H)
+                    .tooltip(Tooltip.create(Component.literal(
+                            "ON (default): once satisfied, stays satisfied - placing/using the item\n" +
+                                    "later won't un-complete this task.\n" +
+                                    "OFF: re-checked live - task un-completes if you stop holding enough.")))
                     .build());
         }
         addRenderableWidget(Button.builder(
@@ -556,6 +597,19 @@ public class TaskRewardEditorScreen extends Screen {
                 case "location_terminal" -> new LocationOrTerminalTask(taskId, descComp, new ResourceLocation(target),
                         taskConsume);
                 case "advancement" -> new AdvancementTask(taskId, descComp, new ResourceLocation(target));
+                case "filter_item" -> {
+                    List<IItemFilter> alts = new ArrayList<>();
+                    for (String part : target.split(";")) {
+                        String id = part.trim();
+                        if (id.isEmpty()) continue;
+                        Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+                        if (item != null && item != Items.AIR) alts.add(ItemFilters.exact(item));
+                    }
+                    if (alts.isEmpty()) yield null;
+                    IItemFilter filter = alts.size() == 1 ? alts.get(0) :
+                            ItemFilters.anyOf(alts.toArray(new IItemFilter[0]));
+                    yield new FilterItemTask(taskId, descComp, filter, count, taskConsume);
+                }
                 case "block_interact" -> {
                     var block = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(target));
                     String mode = second.isEmpty() ? "PLACE" : second.toUpperCase();
@@ -614,6 +668,7 @@ public class TaskRewardEditorScreen extends Screen {
 
         if (task != null) {
             task.setOptional(taskOptional);
+            applyStickyIfSupported(task, taskSticky);
             pushUndo();
             if (editingTaskIndex >= 0 && editingTaskIndex < tasks.size()) {
                 tasks.set(editingTaskIndex, task);
@@ -623,6 +678,7 @@ public class TaskRewardEditorScreen extends Screen {
             editingTaskIndex = -1;
             taskTypeDropOpen = false;
             taskOptional = false;
+            taskSticky = true;
             pendingTaskDesc = pendingTaskTarget = pendingTaskSecondary = pendingTaskCount = pendingTaskNbt = "";
             forcePendingTaskValues = true;
             rebuildWidgets();
@@ -637,6 +693,13 @@ public class TaskRewardEditorScreen extends Screen {
         taskType = taskTypeIdFor(t);
         taskOptional = t.isOptional();
         taskConsume = true;
+        taskSticky = true;
+        if (t instanceof ItemRequirementTask x) taskSticky = x.isSticky();
+        else if (t instanceof TagItemTask x) taskSticky = x.isSticky();
+        else if (t instanceof FilterItemTask x) taskSticky = x.isSticky();
+        else if (t instanceof FluidRequirementTask x) taskSticky = x.isSticky();
+        else if (t instanceof FilterFluidTask x) taskSticky = x.isSticky();
+        else if (t instanceof EnergyStorageTask x) taskSticky = x.isSticky();
         pendingTaskDesc = t.getDescriptionRaw().getString();
         pendingTaskTarget = "";
         pendingTaskSecondary = "";
@@ -706,12 +769,50 @@ public class TaskRewardEditorScreen extends Screen {
         } else if (t instanceof ExternalTriggerTask xt) {
             pendingTaskTarget = xt.getTriggerId();
             pendingTaskCount = String.valueOf(xt.getRequired());
+        } else if (t instanceof FilterItemTask fit) {
+            pendingTaskTarget = describeItemFilterAsIdList(fit.getFilter());
+            pendingTaskCount = String.valueOf(fit.getCount());
+            taskConsume = fit.isConsume();
         }
 
         forcePendingTaskValues = true;
         taskTypeDropOpen = false;
         rewardTypeDropOpen = false;
         rebuildWidgets();
+    }
+
+    /**
+     * Flattens an item filter back into the semicolon-separated id list the "filter_item" form
+     * field expects, so re-opening an existing task for editing shows its actual item list
+     * instead of a blank box. Only ExactItem/AnyOf-of-ExactItem round-trip cleanly (that's all
+     * this editor ever builds) - anything else (a hand-authored tag/mod/allOf/not filter from
+     * NBT or KubeJS) falls back to its human-readable describe() text, which won't re-parse into
+     * the same filter if saved again, but at least isn't blank.
+     */
+    private static String describeItemFilterAsIdList(IItemFilter f) {
+        if (f instanceof ItemFilters.ExactItem ex) {
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(ex.item());
+            return id != null ? id.toString() : "";
+        }
+        if (f instanceof ItemFilters.AnyOf any) {
+            List<String> ids = new ArrayList<>();
+            for (IItemFilter child : any.children()) {
+                String s = describeItemFilterAsIdList(child);
+                if (!s.isEmpty()) ids.add(s);
+            }
+            return String.join(";", ids);
+        }
+        return f.describe();
+    }
+
+    /** Applies the Sticky toggle to whichever task types actually support it (see each class's own sticky field). */
+    private static void applyStickyIfSupported(QuestTask t, boolean sticky) {
+        if (t instanceof ItemRequirementTask x) x.setSticky(sticky);
+        else if (t instanceof TagItemTask x) x.setSticky(sticky);
+        else if (t instanceof FilterItemTask x) x.setSticky(sticky);
+        else if (t instanceof FluidRequirementTask x) x.setSticky(sticky);
+        else if (t instanceof FilterFluidTask x) x.setSticky(sticky);
+        else if (t instanceof EnergyStorageTask x) x.setSticky(sticky);
     }
 
     /** Reverses the construction switch in {@link #commitTaskFromForm()} to find a task's editor type id. */
@@ -738,6 +839,7 @@ public class TaskRewardEditorScreen extends Screen {
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "view_machine";
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "view_scene";
         if (t instanceof EnergyStorageTask) return "energy_check";
+        if (t instanceof FilterItemTask) return "filter_item";
         return "checkmark";
     }
 
@@ -856,12 +958,19 @@ public class TaskRewardEditorScreen extends Screen {
         if (variantTarget != null) {
             variantTarget.tasks = new ArrayList<>(tasks);
             variantTarget.rewards = new ArrayList<>(rewards);
-            return;
+        } else {
+            questNode.clearTasks();
+            for (QuestTask t : tasks) questNode.addTask(t);
+            questNode.clearRewards();
+            for (QuestReward r : rewards) questNode.addReward(r);
         }
-        questNode.clearTasks();
-        for (QuestTask t : tasks) questNode.addTask(t);
-        questNode.clearRewards();
-        for (QuestReward r : rewards) questNode.addReward(r);
+        // This used to only mutate the in-memory QuestNode, relying on some OTHER trigger
+        // (logout/shutdown's saveAllQuestsToDisk, or an unrelated edit elsewhere) to actually
+        // persist it - meaning a task/reward edit here survived only until the next abnormal
+        // exit (crash, force-quit), exactly the same "works this session, reverts on restart"
+        // bug this session already found and fixed for descriptions. variantTarget edits are
+        // covered too since a variant is serialized as part of its owning quest's own SNBT.
+        net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
     }
 
     // ── Render ────────────────────────────────────────────────────────────────

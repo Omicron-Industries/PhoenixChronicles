@@ -18,6 +18,7 @@ import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.jetbrains.annotations.NotNull;
+import org.lwjgl.glfw.GLFW;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -47,6 +48,10 @@ public class LangEditorScreen extends Screen {
     private static final int HEADER_H = 36;
     private static final int GROUP_H = 16;   // quest-name header row height
     private static final int ROW_H = 38;   // label + key hint + edit box (stacked)
+    // Descriptions get a real multi-line editor instead of a single-line EditBox (which has no
+    // concept of Enter-as-newline at all) - tall enough for several wrapped lines/paragraphs so
+    // markdown blank-line spacing is actually visible while typing, not just after saving.
+    private static final int DESC_ROW_H = 132;
     private static final int FIELD_H = 13;
     private static final int FOOTER_H = 20;
 
@@ -66,8 +71,8 @@ public class LangEditorScreen extends Screen {
     private String statusMsg = "";
     private int statusTimer = 0;
 
-    /** Subset of all widgets: the per-row EditBoxes currently on screen. */
-    private final List<EditBox> rowBoxes = new ArrayList<>();
+    /** Subset of all widgets: the per-row EditBox/MultilineTextArea currently on screen. */
+    private final List<net.minecraft.client.gui.components.AbstractWidget> rowBoxes = new ArrayList<>();
 
     /** fieldType: "title" | "description" | "subtitle" | "task_N" */
     private record TextEntry(
@@ -183,6 +188,11 @@ public class LangEditorScreen extends Screen {
         return height - FOOTER_H;
     }
 
+    /** Descriptions get the taller multi-line editor row; everything else stays single-line. */
+    private static int rowHeightFor(TextEntry e) {
+        return e.fieldType().equals("description") ? DESC_ROW_H : ROW_H;
+    }
+
     /**
      * Returns the Y coordinate (relative to the top of the content area, before scroll)
      * of the START of entry[ei], accounting for group-header rows above it.
@@ -196,7 +206,7 @@ public class LangEditorScreen extends Screen {
                 lastQuest = e.questId();
                 y += GROUP_H;
             }
-            if (i < ei) y += ROW_H;
+            if (i < ei) y += rowHeightFor(e);
         }
         return y;
     }
@@ -204,7 +214,7 @@ public class LangEditorScreen extends Screen {
     private int totalContentHeight() {
         if (entries.isEmpty()) return 0;
         int last = entries.size() - 1;
-        return entryY(last) + ROW_H;
+        return entryY(last) + rowHeightFor(entries.get(last));
     }
 
     private int maxScrollPx() {
@@ -226,20 +236,32 @@ public class LangEditorScreen extends Screen {
         int fieldW = listW - 8;
 
         for (int ei = 0; ei < entries.size(); ei++) {
-            int rowY = top + entryY(ei) - scrollPx;
-            if (rowY + ROW_H <= top) continue;  // above viewport
-            if (rowY >= bott) break;             // below viewport
-
             TextEntry entry = entries.get(ei);
-            // Box sits at the bottom of the row, below label and key hint
-            int boxY = rowY + ROW_H - FIELD_H - 3;
-            EditBox box = new EditBox(font, fieldX, boxY, fieldW, FIELD_H, Component.empty());
-            box.setMaxLength(512);
-            box.setValue(dirty.getOrDefault(entry.key(), entry.value()));
+            int rh = rowHeightFor(entry);
+            int rowY = top + entryY(ei) - scrollPx;
+            if (rowY + rh <= top) continue;  // above viewport
+            if (rowY >= bott) break;          // below viewport
+
             String key = entry.key();
-            box.setResponder(v -> dirty.put(key, v));
-            addRenderableWidget(box);
-            rowBoxes.add(box);
+            if (entry.fieldType().equals("description")) {
+                // Multi-line editor spans most of the taller row, below label and key hint
+                int boxY = rowY + 16;
+                int boxH = rh - 16 - 4;
+                MultilineTextArea box = new MultilineTextArea(font, fieldX, boxY, fieldW, boxH, 8192);
+                box.setValue(dirty.getOrDefault(key, entry.value()));
+                box.setResponder(v -> dirty.put(key, v));
+                addRenderableWidget(box);
+                rowBoxes.add(box);
+            } else {
+                // Box sits at the bottom of the row, below label and key hint
+                int boxY = rowY + rh - FIELD_H - 3;
+                EditBox box = new EditBox(font, fieldX, boxY, fieldW, FIELD_H, Component.empty());
+                box.setMaxLength(512);
+                box.setValue(dirty.getOrDefault(key, entry.value()));
+                box.setResponder(v -> dirty.put(key, v));
+                addRenderableWidget(box);
+                rowBoxes.add(box);
+            }
         }
     }
 
@@ -325,10 +347,11 @@ public class LangEditorScreen extends Screen {
                 }
             }
 
-            if (rowY + ROW_H <= top || rowY >= bott) continue;
+            int rh = rowHeightFor(entry);
+            if (rowY + rh <= top || rowY >= bott) continue;
 
             // Alternating row bg
-            g.fill(listX, rowY, listX + listW, rowY + ROW_H, ei % 2 == 0 ? C_ROW_A : C_ROW_B);
+            g.fill(listX, rowY, listX + listW, rowY + rh, ei % 2 == 0 ? C_ROW_A : C_ROW_B);
 
             // Field label (top-left of row)
             g.drawString(font, "§7" + entry.label(), listX + 6, rowY + 3, ChroniclesThemePalette.TEXT_DIM);
@@ -354,7 +377,7 @@ public class LangEditorScreen extends Screen {
 
             // Dirty indicator strip
             if (dirty.containsKey(entry.key()))
-                g.fill(listX + listW - 3, rowY, listX + listW, rowY + ROW_H, C_DIRTY_DOT);
+                g.fill(listX + listW - 3, rowY, listX + listW, rowY + rh, C_DIRTY_DOT);
         }
 
         g.disableScissor();
@@ -449,6 +472,21 @@ public class LangEditorScreen extends Screen {
             saveAll();
             return true;
         } // Ctrl+S
+
+        // Enter/newline routed explicitly to whichever description box is focused, rather than
+        // trusting vanilla's getFocused()-based dispatch alone - this screen has dozens of
+        // sibling EditBox/MultilineTextArea widgets on screen at once (one pair per visible
+        // row), and container-level focus tracking across that many widgets is exactly the kind
+        // of thing that silently breaks. Doing it here guarantees the newline lands regardless.
+        if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
+            for (net.minecraft.client.gui.components.AbstractWidget w : rowBoxes) {
+                if (w instanceof MultilineTextArea mta && mta.isFocused()) {
+                    mta.forceInsert("\n");
+                    return true;
+                }
+            }
+        }
+
         return super.keyPressed(key, scan, mods);
     }
 

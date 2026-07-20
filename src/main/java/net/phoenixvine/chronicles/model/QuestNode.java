@@ -39,9 +39,11 @@ public class QuestNode {
     private String shapeTexture = "";
 
     public enum NodeSize {
+        TINY,
         SMALL,
         NORMAL,
-        LARGE
+        LARGE,
+        HUGE
     }
 
     private NodeSize nodeSize = NodeSize.NORMAL;
@@ -494,15 +496,37 @@ public class QuestNode {
         return nodeSize;
     }
 
+    /** Picking a preset clears any explicit {@link #sizeOverridePx} - a preset should look exactly like the preset. */
     public void setNodeSize(NodeSize s) {
         this.nodeSize = s != null ? s : NodeSize.NORMAL;
+        this.sizeOverridePx = 0;
+    }
+
+    /**
+     * Explicit pixel-size override, set by the canvas's freeform "Resize (scroll + drag)…" mode
+     * for pack devs who want finer control than the 5 fixed presets - 0 means "no override, use
+     * the {@link #nodeSize} preset instead" (the common case, and what every quest saved before
+     * this field existed has).
+     */
+    private int sizeOverridePx = 0;
+
+    public int getSizeOverridePx() {
+        return sizeOverridePx;
+    }
+
+    /** Clamped to a sane range - use {@link #setNodeSize} instead to clear back to a preset. */
+    public void setSizeOverridePx(int px) {
+        this.sizeOverridePx = Math.max(8, Math.min(200, px));
     }
 
     /** Returns the logical pixel size of this node (before zoom). NORMAL=32 matches the original constant. */
     public int getNodePixelSize() {
+        if (sizeOverridePx > 0) return sizeOverridePx;
         return switch (nodeSize) {
+            case TINY -> 14;
             case SMALL -> 18;
             case LARGE -> 48;
+            case HUGE -> 64;
             default -> 32;
         };
     }
@@ -532,6 +556,24 @@ public class QuestNode {
         if (iconItem == null) return "";
         ResourceLocation key = ForgeRegistries.ITEMS.getKey(iconItem);
         return key != null ? key.toString() : "";
+    }
+
+    /**
+     * Registry id of a fluid to use as this quest's icon (rendered as a flat tinted square, same
+     * convention as QuestToastConfig's fluid icons) - "" = none. Sits in the SAME priority chain
+     * as {@link #iconItem}/{@link #iconTexture}: a custom per-quest PNG wins over everything, then
+     * iconTexture, then this, then iconItem, then a state glyph fallback. Setting any ONE of
+     * iconItem/iconTexture/iconFluid via the "Set Icon…" picker clears the other two - they're
+     * mutually exclusive choices of what to render, not independently stackable.
+     */
+    private String iconFluid = "";
+
+    public String getIconFluid() {
+        return iconFluid;
+    }
+
+    public void setIconFluid(String fluidId) {
+        this.iconFluid = fluidId == null ? "" : fluidId.trim();
     }
 
     public int getCustomX() {

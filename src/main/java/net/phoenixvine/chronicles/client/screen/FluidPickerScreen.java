@@ -8,7 +8,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
@@ -160,9 +159,10 @@ public class FluidPickerScreen extends Screen {
                 g.fill(panelLeft + 2, ry, panelLeft + PANEL_W - 2, ry + ROW_H, COL_HOVER);
             }
 
-            // Fluid colour swatch (16×16)
-            int swatchColor = getFluidColor(fluid);
-            g.fill(panelLeft + 4, ry + 2, panelLeft + 20, ry + ROW_H - 2, swatchColor | 0xFF000000);
+            // Fluid icon (16×16) - the actual still-texture sprite, tinted, not just a flat fill
+            // of the tint color (which reads as plain white for lava and plenty of modded fluids
+            // whose tint is white/no-op since their real color comes from the texture itself).
+            ChroniclesUIKit.drawFluidIcon(g, fluid, panelLeft + 4, ry + 2, 16);
             ChroniclesUIKit.drawBorder(g, panelLeft + 4, ry + 2, 16, ROW_H - 4, 0xFF444455);
 
             // Label: fluid description + registry id
@@ -185,8 +185,7 @@ public class FluidPickerScreen extends Screen {
             int prevY = footerY - 18;
             g.fill(panelLeft, prevY - 1, panelLeft + PANEL_W, prevY, ChroniclesThemePalette.BORDER);
             g.fill(panelLeft, prevY, panelLeft + PANEL_W, footerY, ChroniclesThemePalette.PANEL_DARK);
-            int sc = getFluidColor(selectedFluid) | 0xFF000000;
-            g.fill(panelLeft + 4, prevY + 1, panelLeft + 20, prevY + 17, sc);
+            ChroniclesUIKit.drawFluidIcon(g, selectedFluid, panelLeft + 4, prevY + 1, 16);
             ChroniclesUIKit.drawBorder(g, panelLeft + 4, prevY + 1, 16, 16, 0xFF444455);
             ResourceLocation selId = ForgeRegistries.FLUIDS.getKey(selectedFluid);
             String selStr = selId != null ? selId.toString() : "?";
@@ -235,14 +234,5 @@ public class FluidPickerScreen extends Screen {
             if (id != null) onPick.accept(id.toString());
         }
         if (minecraft != null) minecraft.setScreen(parent);
-    }
-
-    private int getFluidColor(Fluid fluid) {
-        try {
-            IClientFluidTypeExtensions ext = IClientFluidTypeExtensions.of(fluid);
-            return ext.getTintColor();
-        } catch (Exception e) {
-            return 0x3355FF; // fallback blue
-        }
     }
 }

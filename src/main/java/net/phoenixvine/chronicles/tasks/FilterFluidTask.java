@@ -9,6 +9,7 @@ import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
+import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.filter.FluidFilters;
 import net.phoenixvine.chronicles.filter.IFluidFilter;
 import net.phoenixvine.chronicles.model.QuestTask;
@@ -51,6 +52,8 @@ public class FilterFluidTask extends QuestTask {
     private IFluidFilter filter;
     private int amount;
     private boolean consume;
+    /** See ItemRequirementTask#sticky. */
+    private boolean sticky = true;
 
     public FilterFluidTask(ResourceLocation taskId, Component description,
                            IFluidFilter filter, int amount, boolean consume) {
@@ -97,12 +100,25 @@ public class FilterFluidTask extends QuestTask {
     // ── QuestTask ─────────────────────────────────────────────────────────────
 
     @Override
+    public boolean dependsOnInventory() {
+        return true;
+    }
+
+    @Override
     public boolean isCompletedFor(Player player) {
-        return getTotalMatchingFluid(player) >= amount;
+        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
+        if (getTotalMatchingFluid(player) >= amount) {
+            if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
+            return true;
+        }
+        return false;
     }
 
     @Override
     public String getProgressString(Player player) {
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
+            return String.format("%,d / %,d mB", amount, amount);
         int found = Math.min(getTotalMatchingFluid(player), amount);
         return String.format("%,d / %,d mB", found, amount);
     }
@@ -123,6 +139,7 @@ public class FilterFluidTask extends QuestTask {
     }
 
     /** Drain {@code amount} mB of matching fluid from inventory items, respecting consume flag. */
+    @Override
     public void tryConsume(Player player) {
         if (!consume) return;
         int remaining = amount;
@@ -155,6 +172,7 @@ public class FilterFluidTask extends QuestTask {
         tag.putString("type", "filter_fluid");
         tag.putInt("amount", amount);
         tag.putBoolean("consume", consume);
+        tag.putBoolean("sticky", sticky);
         tag.put("filter", filter.serialize());
         return tag;
     }
@@ -163,6 +181,7 @@ public class FilterFluidTask extends QuestTask {
     public void deserializeNBT(CompoundTag nbt) {
         this.amount = Math.max(1, nbt.getInt("amount"));
         this.consume = nbt.getBoolean("consume");
+        this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
         if (nbt.contains("filter")) this.filter = FluidFilters.deserialize(nbt.getCompound("filter"));
     }
 
@@ -190,5 +209,13 @@ public class FilterFluidTask extends QuestTask {
 
     public void setConsume(boolean v) {
         this.consume = v;
+    }
+
+    public boolean isSticky() {
+        return sticky;
+    }
+
+    public void setSticky(boolean v) {
+        this.sticky = v;
     }
 }

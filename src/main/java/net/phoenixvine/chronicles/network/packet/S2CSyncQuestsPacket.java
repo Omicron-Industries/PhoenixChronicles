@@ -43,7 +43,13 @@ import java.util.function.Supplier;
  * "task_id" : String (ResourceLocation.toString())
  * "description" : String (Component JSON)
  * + all type-specific fields written by QuestTask.serializeNBT()
- * String iconTexture, then String shapeTexture (trailing fields, see encode())
+ * String iconTexture, then String shapeTexture, then String nodeSize (NodeSize enum name),
+ * then int sizeOverridePx (0 = none), then String iconFluid ("" = none) - trailing fields, see
+ * encode(). This packet is the ONLY thing that gives the client's own QuestNode instances their
+ * size/fluid icon - every field not listed here (these included, until they were added) never
+ * reaches the client no matter how correctly
+ * it's saved/loaded server-side, since the client rebuilds its whole registry from scratch from
+ * exactly this wire data on every (re)sync, not from disk.
  *
  * Root detection in Phase 2:
  * A node is a root iff its id does not appear in any snapshot's childIds list.
@@ -119,13 +125,17 @@ public class S2CSyncQuestsPacket {
             ResourceLocation linkTarget = buf.readBoolean() ? buf.readResourceLocation() : null;
             String iconTexture = buf.readUtf();
             String shapeTexture = buf.readUtf();
+            String nodeSize = buf.readUtf();
+            int sizeOverridePx = buf.readInt();
+            String iconFluid = buf.readUtf();
 
             snapshotMap.put(id, new QuestSnapshot(
                     id, title, description, category, shapeType, iconItemId,
                     customX, customY, subtitle, visibility, enableIf, taskMinCount, requireAllPrerequisites,
                     childIds, prereqIds, prereqRequired, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow,
-                    optionalPrereqMinCount, tasksNbt, linkTarget, iconTexture, shapeTexture));
+                    optionalPrereqMinCount, tasksNbt, linkTarget, iconTexture, shapeTexture,
+                    nodeSize, sizeOverridePx, iconFluid));
         }
     }
 
@@ -174,6 +184,9 @@ public class S2CSyncQuestsPacket {
             if (snap.linkTarget != null) buf.writeResourceLocation(snap.linkTarget);
             buf.writeUtf(snap.iconTexture);
             buf.writeUtf(snap.shapeTexture);
+            buf.writeUtf(snap.nodeSize);
+            buf.writeInt(snap.sizeOverridePx);
+            buf.writeUtf(snap.iconFluid);
         }
     }
 
@@ -228,6 +241,12 @@ public class S2CSyncQuestsPacket {
         final String iconTexture;
         /** Picked shape texture, used only when shapeType is "CUSTOM", "" = none. */
         final String shapeTexture;
+        /** QuestNode.NodeSize enum name - see QuestNode#getNodeSize. */
+        final String nodeSize;
+        /** 0 = no override, use nodeSize preset - see QuestNode#getSizeOverridePx. */
+        final int sizeOverridePx;
+        /** Fluid registry id for the icon, "" = none - see QuestNode#getIconFluid. */
+        final String iconFluid;
 
         /** Server-side: capture everything from a live QuestNode. */
         QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
@@ -248,6 +267,9 @@ public class S2CSyncQuestsPacket {
             this.linkTarget = node.getLinkTarget();
             this.iconTexture = node.getIconTexture() != null ? node.getIconTexture() : "";
             this.shapeTexture = node.getShapeTexture() != null ? node.getShapeTexture() : "";
+            this.nodeSize = node.getNodeSize().name();
+            this.sizeOverridePx = node.getSizeOverridePx();
+            this.iconFluid = node.getIconFluid() != null ? node.getIconFluid() : "";
 
             this.childIds = new ArrayList<>();
             for (QuestNode child : node.getChildren()) childIds.add(child.getId());
@@ -302,7 +324,8 @@ public class S2CSyncQuestsPacket {
                       List<String> prereqLineArrow,
                       Integer optionalPrereqMinCount,
                       List<CompoundTag> tasksNbt,
-                      ResourceLocation linkTarget, String iconTexture, String shapeTexture) {
+                      ResourceLocation linkTarget, String iconTexture, String shapeTexture,
+                      String nodeSize, int sizeOverridePx, String iconFluid) {
             this.id = id;
             this.title = title;
             this.description = description;
@@ -331,6 +354,9 @@ public class S2CSyncQuestsPacket {
             this.linkTarget = linkTarget;
             this.iconTexture = iconTexture;
             this.shapeTexture = shapeTexture;
+            this.nodeSize = nodeSize;
+            this.sizeOverridePx = sizeOverridePx;
+            this.iconFluid = iconFluid;
         }
     }
 
@@ -362,7 +388,12 @@ public class S2CSyncQuestsPacket {
                 node.setEnableIf(snap.enableIf.isEmpty() ? null : snap.enableIf);
                 node.setLinkTarget(snap.linkTarget);
                 node.setIconTexture(snap.iconTexture);
+                node.setIconFluid(snap.iconFluid);
                 node.setShapeTexture(snap.shapeTexture);
+                try {
+                    node.setNodeSize(QuestNode.NodeSize.valueOf(snap.nodeSize));
+                } catch (Exception ignored) {}
+                if (snap.sizeOverridePx > 0) node.setSizeOverridePx(snap.sizeOverridePx);
 
                 if (!snap.iconItemId.isEmpty()) {
                     node.setIconItemById(snap.iconItemId);

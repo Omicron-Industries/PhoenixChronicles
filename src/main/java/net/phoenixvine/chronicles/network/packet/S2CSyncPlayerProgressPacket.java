@@ -50,6 +50,21 @@ public class S2CSyncPlayerProgressPacket {
     private static boolean receivedFirstSync = false;
 
     /**
+     * Wall-clock time the first sync of this session was applied - a fresh join's prereq
+     * cascade (see ChronicleEvents#onPlayerLogin/QuestProgressTracker#processChildCascades)
+     * doesn't necessarily finish within that single first packet; it can keep unlocking and
+     * auto-completing quests across the next several server ticks as the cascade ripples
+     * through the tree, each firing its own follow-up sync. Those still read as genuine
+     * LOCKED→COMPLETED transitions against the (already-applied) baseline, so skipping only
+     * the very first sync isn't enough on its own - toasts for that whole login backlog would
+     * still fire, just in a burst a tick or two later instead of on the first packet. Suppress
+     * any transition within this window of the first sync too, so only completions from the
+     * player actually playing show up.
+     */
+    private static long firstSyncTimeMs = 0;
+    private static final long LOGIN_GRACE_MS = 3000;
+
+    /**
      * Bumped every time a sync is applied, so screens holding per-category progress caches
      * (e.g. ChronicleOverviewScreen) can invalidate only when progress actually changed instead
      * of unconditionally every client tick.
@@ -62,6 +77,7 @@ public class S2CSyncPlayerProgressPacket {
 
     public static void resetForNewSession() {
         receivedFirstSync = false;
+        firstSyncTimeMs = 0;
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -86,7 +102,12 @@ public class S2CSyncPlayerProgressPacket {
             data.deserializeNBT(nbt);
             version++;
 
-            if (isFirstSync) return; // establishing baseline, not new completions - see javadoc above
+            if (isFirstSync) {
+                firstSyncTimeMs = System.currentTimeMillis();
+                return; // establishing baseline, not new completions - see javadoc above
+            }
+            if (System.currentTimeMillis() - firstSyncTimeMs < LOGIN_GRACE_MS) return; // still catching up from login -
+                                                                                       // see firstSyncTimeMs javadoc
 
             // Fire toasts for any quests that newly became UNLOCKED or COMPLETED
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {

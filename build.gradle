@@ -68,6 +68,16 @@ repositories {
     maven {
         url = "https://maven.architectury.dev"
     }
+    maven {
+        // KubeJS, Rhino
+        name = "LatvianModder"
+        url = "https://maven.latvian.dev/releases"
+    }
+    maven {
+        // Applied Energistics 2
+        name = "ModMaven"
+        url = "https://modmaven.dev/"
+    }
 
     maven {
         url = "https://thedarkcolour.github.io/KotlinForForge/"
@@ -156,18 +166,7 @@ dependencies {
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
-    // TEMPORARY local override while PhantasiaMachinePreview's always-async load bug (hung
-    // indefinitely for at least one GTCEu machine) is fixed in the sibling Phantasia project and
-    // not yet published as a new CurseForge version - swap back to the curse.maven coordinate
-    // below once a new Phantasia build is uploaded.
-    // modCompileOnly("curse.maven:phantasia-1589286:8326565")
-    // modRuntimeOnly("curse.maven:phantasia-1589286:8326565")
-    // Needs the "mod" prefix (not plain compileOnly/runtimeOnly) so ForgeGradle actually runs its
-    // SRG-to-mapped remap transform on this jar - without it, the jar's compiled field/method
-    // references stay in SRG form (e.g. "f_50075_") and crash with NoSuchFieldError at runtime
-    // against the mapped names Minecraft actually uses in a dev environment. And it needs a real
-    // flatDir coordinate (see the repositories block above), not a raw files() collection, since
-    // writeClientLegacyClasspath's dependency-constraint code can't handle a FileCollection.
+    modCompileOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modCompileOnly("phantasia:Phantasia:1.0.0")
     modRuntimeOnly("phantasia:Phantasia:1.0.0")
 
@@ -175,16 +174,48 @@ dependencies {
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
     modCompileOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
 
+    // KubeJS - compile-time only, same as JEI/EMI above: the plugin class is only ever
+    // instantiated by KubeJS itself (via kubejs.plugins.txt), and only if KubeJS is actually
+    // installed, so this mod works fine without it at runtime. Not added as modRuntimeOnly since
+    // packs that DO run KubeJS already provide it themselves - bundling/requiring our own copy
+    // would just be redundant (and risk a version clash with whatever the pack ships).
+    modCompileOnly("dev.latvian.mods:kubejs-forge:${kubejs_version}")
+
+    // Applied Energistics 2 - soft dependency, same pattern as GTCEu/phoenix_guilds (see
+    // AE2Compat): guarded behind ModList.isLoaded("ae2") everywhere, only needs to be on the
+    // classpath to compile against.
+    modCompileOnly("appeng:appliedenergistics2-forge:${appeng_version}")
+    modRuntimeOnly("appeng:appliedenergistics2-forge:${appeng_version}")
+
     modRuntimeOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
     modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
 
-    modImplementation 'local:phoenix_guilds:0.1.0'
+    // Optional compat, not a hard dependency - QuestProgressTracker/TeamKeyResolver both guard
+    // every GuildManager call behind ModList.isLoaded("phoenix_guilds") now, so this only needs
+    // to be on the classpath to COMPILE against; modImplementation was wrong here, since that
+    // marks it as something this mod always requires/ships with, same mistake GTCEu currently
+    // has (see the comment below it) just smaller in scope - phoenix_guilds is a 2-call-site,
+    // already-guarded integration, not something baked into core registration like GTCEu is.
+    modCompileOnly('local:phoenix_guilds:0.1.0')
+    modRuntimeOnly('local:phoenix_guilds:0.1.0')
 
-    // GregTech and dependencies
-    modImplementation("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}:slim") { transitive = false }
-    modImplementation("com.lowdragmc.ldlib:ldlib-forge-${minecraft_version}:${ldlib_version}") { transitive = false }
-    modImplementation("com.tterrag.registrate:Registrate:${registrate_version}")
-    modImplementation("dev.toma.configuration:configuration-forge-${minecraft_version}:${configuration_version}")
+    // GregTech and dependencies - soft, same as phoenix_guilds above. GTCEuCompat now guards
+    // every GTCEu-touching call (registrate setup, the material-registry listener, the
+    // energy_check task's block-reading, the multiblock-formed mixin), so this only needs to be
+    // on the classpath to COMPILE against. Was modImplementation - a hard requirement - which
+    // contradicted mods.toml's own "mandatory = false" for gtceu and meant the mod crashed on
+    // construction (a static field eagerly resolved GTRegistrate) for anyone running without it.
+    // LDLib/Registrate/configuration aren't independently used by this mod's own code at all -
+    // they're only here because GTCEu's slim jar (transitive = false) needs them; their
+    // optionality is entirely inherited from GTCEu's.
+    modCompileOnly("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}:slim") { transitive = false }
+    modCompileOnly("com.lowdragmc.ldlib:ldlib-forge-${minecraft_version}:${ldlib_version}") { transitive = false }
+    modCompileOnly("com.tterrag.registrate:Registrate:${registrate_version}")
+    modCompileOnly("dev.toma.configuration:configuration-forge-${minecraft_version}:${configuration_version}")
+    modRuntimeOnly("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}:slim") { transitive = false }
+    modRuntimeOnly("com.lowdragmc.ldlib:ldlib-forge-${minecraft_version}:${ldlib_version}") { transitive = false }
+    modRuntimeOnly("com.tterrag.registrate:Registrate:${registrate_version}")
+    modRuntimeOnly("dev.toma.configuration:configuration-forge-${minecraft_version}:${configuration_version}")
 
     // lombok
     compileOnly 'org.projectlombok:lombok:1.18.24'

@@ -71,6 +71,7 @@ public class StatTrackerTask extends QuestTask {
      * If 'consume' is true, it snapshots the current stats value as a baseline offset for repeatable/bounty capability
      * updates.
      */
+    @Override
     public void tryConsume(Player player) {
         if (!consume) return; // Keep standard milestone tracking active if consumption rules are disabled
 

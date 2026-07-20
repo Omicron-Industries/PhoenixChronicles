@@ -6,6 +6,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.filter.IItemFilter;
 import net.phoenixvine.chronicles.filter.ItemFilters;
 import net.phoenixvine.chronicles.model.QuestTask;
@@ -51,6 +52,8 @@ public class FilterItemTask extends QuestTask {
     private IItemFilter filter;
     private int count;
     private boolean consume;
+    /** See ItemRequirementTask#sticky. */
+    private boolean sticky = true;
 
     public FilterItemTask(ResourceLocation taskId, Component description,
                           IItemFilter filter, int count, boolean consume) {
@@ -81,12 +84,25 @@ public class FilterItemTask extends QuestTask {
     // ── QuestTask ─────────────────────────────────────────────────────────────
 
     @Override
+    public boolean dependsOnInventory() {
+        return true;
+    }
+
+    @Override
     public boolean isCompletedFor(Player player) {
-        return countMatching(player) >= count;
+        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
+        if (countMatching(player) >= count) {
+            if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
+            return true;
+        }
+        return false;
     }
 
     @Override
     public String getProgressString(Player player) {
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
+            return count + "/" + count;
         return Math.min(countMatching(player), count) + "/" + count;
     }
 
@@ -99,6 +115,7 @@ public class FilterItemTask extends QuestTask {
     }
 
     /** Consume exactly {@code count} matching items from the player's inventory. */
+    @Override
     public void tryConsume(Player player) {
         if (!consume) return;
         int remaining = count;
@@ -120,6 +137,7 @@ public class FilterItemTask extends QuestTask {
         tag.putString("type", "filter_item");
         tag.putInt("count", count);
         tag.putBoolean("consume", consume);
+        tag.putBoolean("sticky", sticky);
         tag.put("filter", filter.serialize());
         return tag;
     }
@@ -128,6 +146,7 @@ public class FilterItemTask extends QuestTask {
     public void deserializeNBT(CompoundTag nbt) {
         this.count = Math.max(1, nbt.getInt("count"));
         this.consume = nbt.getBoolean("consume");
+        this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
         if (nbt.contains("filter")) this.filter = ItemFilters.deserialize(nbt.getCompound("filter"));
     }
 
@@ -155,5 +174,13 @@ public class FilterItemTask extends QuestTask {
 
     public void setConsume(boolean v) {
         this.consume = v;
+    }
+
+    public boolean isSticky() {
+        return sticky;
+    }
+
+    public void setSticky(boolean v) {
+        this.sticky = v;
     }
 }

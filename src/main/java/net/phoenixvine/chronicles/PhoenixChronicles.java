@@ -1,7 +1,5 @@
 package net.phoenixvine.chronicles;
 
-import com.gregtechceu.gtceu.api.GTCEuAPI;
-import com.gregtechceu.gtceu.api.data.chemical.material.event.MaterialRegistryEvent;
 import com.gregtechceu.gtceu.api.registry.registrate.GTRegistrate;
 
 import net.minecraft.client.Minecraft;
@@ -25,7 +23,18 @@ public class PhoenixChronicles {
 
     public static final String MOD_ID = "phoenix_chronicles";
     public static final Logger LOGGER = LogManager.getLogger();
-    public static GTRegistrate CHRONICLES_REGISTRATE = GTRegistrate.create(PhoenixChronicles.MOD_ID);
+    /**
+     * Null unless GTCEu is actually loaded - was a static field initialized straight from
+     * {@code GTRegistrate.create(...)}, meaning the JVM had to resolve GTCEu classes the instant
+     * this class loaded, before any "is GTCEu installed" check could run at all. GTCEu is
+     * supposed to be a soft dependency ({@code mods.toml} already declares it
+     * {@code mandatory = false}), so that was backwards - see GTCEuCompat#init, which sets this
+     * (guarded) from the constructor below. {@code ChroniclesGTAddon#getRegistrate()} reads this
+     * field, but that's only ever called by GTCEu's own addon-loading system, which itself only
+     * runs when GTCEu is present - so by the time anything reads a non-null value here, GTCEu is
+     * guaranteed to already be loaded.
+     */
+    public static GTRegistrate CHRONICLES_REGISTRATE = null;
 
     public PhoenixChronicles() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -33,11 +42,13 @@ public class PhoenixChronicles {
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::clientSetup);
 
-        modEventBus.addListener(this::addMaterialRegistries);
         modEventBus.addListener(this::addPackFinders);
 
         MinecraftForge.EVENT_BUS.register(this);
-        CHRONICLES_REGISTRATE.registerRegistrate();
+
+        if (net.phoenixvine.chronicles.integration.gtceu.GTCEuCompat.isAvailable()) {
+            net.phoenixvine.chronicles.integration.gtceu.GTCEuCompat.init(modEventBus);
+        }
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -69,10 +80,6 @@ public class PhoenixChronicles {
 
     public static ResourceLocation id(String path) {
         return new ResourceLocation(MOD_ID, path);
-    }
-
-    private void addMaterialRegistries(MaterialRegistryEvent event) {
-        GTCEuAPI.materialManager.createRegistry(PhoenixChronicles.MOD_ID);
     }
 
     /**

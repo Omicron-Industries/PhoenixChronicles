@@ -39,6 +39,19 @@ public class QuestChroniclesSettings {
         STRAIGHT  // vertex straight lines
     }
 
+    /**
+     * How the category sidebar's collapsed/expanded state behaves.
+     * COLLAPSIBLE (default) - the existing behavior: a small arrow toggle you click to pin it
+     * collapsed or expanded, staying that way until clicked again.
+     * HOVER_TO_EXPAND - FTB Quests-style: always collapsed to a narrow strip, and moving the
+     * mouse over it temporarily expands it full-width; moving away collapses it back. No manual
+     * toggle needed (or shown) in this mode.
+     */
+    public enum SidebarBehavior {
+        COLLAPSIBLE,
+        HOVER_TO_EXPAND
+    }
+
     public enum LineVisualStyle {
         THIN,    // 1px hairline
         NORMAL,  // 3px core with soft edge (default)
@@ -143,6 +156,16 @@ public class QuestChroniclesSettings {
      * line "marching ants") for players sensitive to constant motion/flicker.
      */
     private boolean reduceMotion = false;
+    /**
+     * Whether opening EMI's recipe viewer from a task/reward icon in the quest book arranges to
+     * return to the quest book on close instead of EMI's own default (a throwaway inventory
+     * screen, then straight to gameplay - see EmiReturnScreenFix). On by default since that
+     * default is almost universally not what anyone wants, but some players specifically prefer
+     * EMI's normal behavior, so it's an opt-out.
+     */
+    private boolean returnToQuestbookFromRecipeViewer = true;
+    /** See {@link SidebarBehavior}. Defaults to the existing click-to-toggle behavior. */
+    private SidebarBehavior sidebarBehavior = SidebarBehavior.COLLAPSIBLE;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path SETTINGS_FILE = Paths.get("config", "phoenix_chronicles_settings.json");
@@ -391,6 +414,22 @@ public class QuestChroniclesSettings {
 
     public void setHideCompletedByDefault(boolean hide) {
         this.hideCompletedByDefault = hide;
+    }
+
+    public boolean isReturnToQuestbookFromRecipeViewer() {
+        return returnToQuestbookFromRecipeViewer;
+    }
+
+    public void setReturnToQuestbookFromRecipeViewer(boolean b) {
+        this.returnToQuestbookFromRecipeViewer = b;
+    }
+
+    public SidebarBehavior getSidebarBehavior() {
+        return sidebarBehavior != null ? sidebarBehavior : SidebarBehavior.COLLAPSIBLE;
+    }
+
+    public void setSidebarBehavior(SidebarBehavior b) {
+        this.sidebarBehavior = b != null ? b : SidebarBehavior.COLLAPSIBLE;
     }
 
     public int getDefaultGridSnap() {

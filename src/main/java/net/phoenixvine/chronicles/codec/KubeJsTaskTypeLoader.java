@@ -55,7 +55,7 @@ import java.util.List;
  * 
  * <pre>
  * // server_scripts/quest_triggers.js
- * const QuestAPI = Java.loadClass('net.phoenix.core.integration.phoenix_chronicles.QuestAPI')
+ * const QuestAPI = Java.loadClass('net.phoenixvine.chronicles.QuestAPI')
  *
  * ForgeEvents.onEvent('...LivingDeathEvent', event => {
  *   if (event.entity.type.registryName.equals('mypack:sun')) {

@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 
 import org.jetbrains.annotations.NotNull;
@@ -66,6 +67,16 @@ public class ChroniclesThemeEditorScreen extends Screen {
 
     // ── Constants ─────────────────────────────────────────────────────────────
     private static final int SIDEBAR_MIN = 185;
+
+    // ── Preview animation (mirrors the pulse/glow language Phantasia's own screens use for their
+    // highlight rings and cursor glow) — gated behind Reduce Motion like every other pulse in the
+    // mod, since this screen exists purely to preview the theme, not to distract from it. ────────
+    private long animTick = 0L;
+
+    private static float animPulse(float base, float amplitude, double periodDivisor) {
+        if (QuestChroniclesSettings.get().isReduceMotion()) return base;
+        return base + amplitude * (float) Math.sin(System.currentTimeMillis() / periodDivisor);
+    }
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -190,16 +201,22 @@ public class ChroniclesThemeEditorScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+        animTick = QuestChroniclesSettings.get().isReduceMotion() ? 0L : System.currentTimeMillis();
         int sbW = sidebarW();
 
-        // Canvas background + sidebar
-        g.fill(0, 0, width - sbW, height, C_BG);
+        // Canvas background + sidebar — subtle top-to-bottom gradient instead of a flat fill, same
+        // trick PhantasiaTutorialScreen/PhantasiaGuideScreen use for their backdrops.
+        int bgTop = C_BG;
+        int bgBot = blend(C_BG, 0xFF000000, 0.35f);
+        g.fillGradient(0, 0, width - sbW, height, bgTop, bgBot);
         g.fill(width - sbW, 0, width, height, C_PANEL);
         g.fill(width - sbW, 0, width - sbW + 1, height, C_BORDER);
 
         // Sidebar header
         g.fill(width - sbW, 0, width, 28, C_HEADER);
-        g.fill(width - sbW, 27, width, 28, C_BORDER);
+        float headerPulse = animPulse(0.7f, 0.3f, 900.0);
+        int headerAccent = (Math.min(255, (int) (0xFF * headerPulse)) << 24) | (C_ACCENT & 0xFFFFFF);
+        g.fill(width - sbW, 27, width, 28, headerAccent);
         g.drawString(font, "§fTheme Editor", width - sbW + 8, 8, C_ACCENT, false);
 
         // Status line
@@ -228,13 +245,9 @@ public class ChroniclesThemeEditorScreen extends Screen {
             int sx = f.box.getX() + f.box.getWidth() + 3;
             int sy = f.box.getY();
             int sw = 14;
-            int previewColor;
-            try {
-                previewColor = (int) Long.parseUnsignedLong(f.box.getValue().trim().toUpperCase(Locale.ROOT), 16);
-            } catch (Exception e) {
-                previewColor = 0xFF888888;
-            }
-            g.fill(sx, sy, sx + sw, sy + 14, previewColor);
+            // target.getColor() (not a raw re-parse of the box text) so keyword colors like
+            // RAINBOW/MAGMA show their real animated swatch here instead of falling back to gray.
+            g.fill(sx, sy, sx + sw, sy + 14, f.target.getColor());
             // swatch border
             g.fill(sx, sy, sx + sw, sy + 1, C_BORDER);
             g.fill(sx, sy + 13, sx + sw, sy + 14, C_BORDER);
@@ -290,17 +303,33 @@ public class ChroniclesThemeEditorScreen extends Screen {
         int ny = mockTop + hdrH + (mockH - hdrH) / 2 - sz / 2;
 
         // Dep lines (behind nodes)
-        drawMockLine(g, n1x + sz, ny + sz / 2, n2x, ny + sz / 2, t.done.getColor());
-        drawMockLine(g, n2x + sz, ny + sz / 2, n3x, ny + sz / 2,
+        int lineY = ny + sz / 2;
+        drawMockLine(g, n1x + sz, lineY, n2x, lineY, t.done.getColor());
+        drawMockLine(g, n2x + sz, lineY, n3x, lineY,
                 (t.locked.getColor() & 0x00FFFFFF) | 0x66000000);
+
+        // Traveling spark along the completed→active edge, same "energy flowing toward the next
+        // quest" language the real dependency-line renderer uses on the actual canvas.
+        if (!QuestChroniclesSettings.get().isReduceMotion()) {
+            float sparkT = (float) ((animTick / 900.0) % 1.0);
+            int sparkX = n1x + sz + (int) (sparkT * (n2x - (n1x + sz)));
+            int sparkA = Math.min(255, (int) (0xFF * animPulse(0.75f, 0.25f, 200.0)));
+            g.fill(sparkX - 1, lineY - 2, sparkX + 2, lineY + 3,
+                    (sparkA << 24) | (t.activeColor.getColor() & 0xFFFFFF));
+        }
 
         // Node 1 — DONE (green)
         g.fill(n1x, ny, n1x + sz, ny + sz, (t.done.getColor() & 0x00FFFFFF) | 0xFF081A0E);
         drawBorder(g, n1x, ny, sz, sz, t.done.getColor());
         g.drawCenteredString(font, "§a✔", n1x + sz / 2, ny + sz / 2 - 4, t.done.getColor());
 
-        // Node 2 — ACTIVE (gold pulse sim: static here)
+        // Node 2 — ACTIVE: a genuine pulsing glow ring around the node, mirroring the highlight
+        // pulse Phantasia draws around its own tutorial callouts, instead of a flat static border.
         g.fill(n2x, ny, n2x + sz, ny + sz, (t.activeColor.getColor() & 0x00FFFFFF) | 0xFF221C00);
+        float activePulse = animPulse(0.6f, 0.4f, 500.0);
+        int glowA = Math.min(255, (int) (0x55 * activePulse));
+        int glowColor = (glowA << 24) | (t.activeColor.getColor() & 0xFFFFFF);
+        drawBorder(g, n2x - 2, ny - 2, sz + 4, sz + 4, glowColor);
         drawBorder(g, n2x, ny, sz, sz, t.activeColor.getColor());
         g.drawCenteredString(font, "§e◎", n2x + sz / 2, ny + sz / 2 - 4, t.activeColor.getColor());
 
@@ -573,6 +602,15 @@ public class ChroniclesThemeEditorScreen extends Screen {
     private void drawMockLine(GuiGraphics g, int x1, int y, int x2, int y2, int color) {
         // Simple horizontal line for the preview (real dep lines are bezier)
         for (int x = x1; x < x2; x++) g.fill(x, y - 1, x + 1, y + 2, color);
+    }
+
+    /** Linear per-channel blend of two ARGB colors, {@code t}=0 returns {@code a}, 1 returns {@code b}. */
+    private static int blend(int a, int b, float t) {
+        int aa = (a >> 24) & 0xFF, ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+        int ba = (b >> 24) & 0xFF, br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+        int ra = (int) (aa + (ba - aa) * t), rr = (int) (ar + (br - ar) * t);
+        int rg = (int) (ag + (bg - ag) * t), rb = (int) (ab + (bb - ab) * t);
+        return (ra << 24) | (rr << 16) | (rg << 8) | rb;
     }
 
     // ── Records ───────────────────────────────────────────────────────────────

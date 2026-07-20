@@ -55,14 +55,150 @@ public class ChronicleOverviewScreen extends Screen {
     private static final int SIDEBAR_W_EXPANDED = 150;
     private static final int SIDEBAR_W_COLLAPSED = 12;
     private boolean sidebarCollapsed = false;
+    /**
+     * Transient "currently peeking open" state for HOVER_TO_EXPAND mode - recomputed once per
+     * frame in render() (see updateSidebarHoverPeek), never persisted. Meaningless in COLLAPSIBLE
+     * mode, where sidebarCollapsed itself is the source of truth instead.
+     */
+    private boolean sidebarHoverPeek = false;
     private int sidebarScrollY = 0;
+
+    private boolean isHoverSidebar() {
+        return QuestChroniclesSettings.get().getSidebarBehavior() ==
+                QuestChroniclesSettings.SidebarBehavior.HOVER_TO_EXPAND;
+    }
 
     /**
      * All 45-odd call sites read this instead of a raw constant so the collapse toggle can
      * actually reclaim canvas width, not just hide tile detail within the same footprint.
      */
     private int sidebarW() {
+        if (isHoverSidebar()) return sidebarHoverPeek ? SIDEBAR_W_EXPANDED : SIDEBAR_W_COLLAPSED;
         return sidebarCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
+    }
+
+    /**
+     * True whenever the sidebar is currently showing its narrow (collapsed/not-peeking) footprint,
+     * regardless of which behavior mode is active - the single check every "hide full sidebar
+     * content while narrow" call site should use instead of the raw sidebarCollapsed field, which
+     * only reflects the truth in COLLAPSIBLE mode.
+     */
+    private boolean isSidebarNarrow() {
+        return isHoverSidebar() ? !sidebarHoverPeek : sidebarCollapsed;
+    }
+
+    /**
+     * Current ANIMATED sidebar width for HOVER_TO_EXPAND mode - eases toward sidebarW()'s target
+     * over SIDEBAR_ANIM_MS instead of snapping instantly. sidebarW() itself (used for the canvas
+     * boundary, node placement, and click hit-testing) still changes in one discrete step, same
+     * as before - see updateSidebarHoverPeek's doc for why that discrete flip is delayed until
+     * this animation actually finishes instead of happening the instant the mouse leaves.
+     * COLLAPSIBLE mode's manual toggle is untouched by any of this and still snaps instantly,
+     * since only the hover-peek behavior was reported as feeling too abrupt.
+     */
+    private float sidebarAnimW = SIDEBAR_W_COLLAPSED;
+    private long lastSidebarAnimNanos = 0L;
+    private static final long SIDEBAR_ANIM_MS = 1000L;
+
+    /**
+     * Small buffer added on top of the CURRENT animated width to get the "stay open" hover zone
+     * while HOVER_TO_EXPAND is peeking (see updateSidebarHoverPeek's doc). Tracking the animated
+     * width - rather than pinning to the full SIDEBAR_W_EXPANDED target for the whole peek, which
+     * is what an earlier revision did - means the zone always roughly matches whatever's actually
+     * visible: generous while the panel is still opening (so a normal-paced mouse move into it
+     * doesn't immediately re-trigger the narrow check and slam it shut), the true full panel width
+     * once fully open (so hovering real row content near its right edge doesn't start closing it
+     * out from under you), and shrinking right along with it while it's closing - which is the
+     * part that was reported as needing the mouse to travel unreasonably far right to register.
+     * A fixed width less than the full panel would fix the closing case but break the fully-open
+     * one, since sidebar rows really do extend across the whole panel.
+     */
+    private static final int SIDEBAR_HOVER_MARGIN = 20;
+
+    /**
+     * The sidebar-width x-offset currently baked into nodeScreenPos/nodeButtons/depLineRenderer's
+     * cached positions - i.e. what cl was the last time those caches were placed or shifted.
+     * rebuild() always lays nodes out against the LOGICAL target (sidebarW()), so it resets this
+     * to sidebarW() every time it runs. updateSidebarHoverPeek() then walks this value toward
+     * sidebarVisualW() a little every frame via panCanvas's cheap shift instead of a full rebuild,
+     * which is what makes nodes/lines slide open in step with the panel instead of snapping to
+     * their final spot the instant the hover-peek flag flips.
+     */
+    private int nodeLayoutAnimBaseX = SIDEBAR_W_COLLAPSED;
+
+    private int sidebarVisualW() {
+        return isHoverSidebar() ? Math.round(sidebarAnimW) : sidebarW();
+    }
+
+    /**
+     * Recomputes sidebarHoverPeek and sidebarAnimW from the current mouse position - call once
+     * per frame, before anything this frame reads sidebarW()/sidebarVisualW()/isSidebarNarrow().
+     *
+     * The "stay open" trigger zone is the current animated width plus SIDEBAR_HOVER_MARGIN while
+     * already peeking, but only the narrow collapsed strip to trigger opening in the first place -
+     * without that widened stay-open zone, moving the mouse from the 12px strip into the
+     * newly-opened panel would immediately re-trigger the narrow check and slam it shut before the
+     * mouse ever reached anything inside it.
+     *
+     * sidebarHoverPeek (the DISCRETE flag driving the real canvas boundary) flips to true the
+     * instant the mouse enters, so the canvas gets its extra room right away and the panel can
+     * grow into it with nothing behind it to fight over draw order with. Closing works the other
+     * way around on purpose: flipping the canvas boundary back immediately (the instant the
+     * mouse leaves) would reflow the canvas into that space on the very next frame - and since
+     * the canvas draws AFTER the sidebar panel each frame, it would paint straight over the
+     * panel's still-shrinking visual before the animation ever got to play. Delaying that flip
+     * (and the rebuild() it triggers) until sidebarAnimW has actually reached the collapsed width
+     * keeps the canvas pinned wide for the whole shrink, so there's nothing behind the panel to
+     * paint over it until the animation is done.
+     */
+    private void updateSidebarHoverPeek(int mx, int my) {
+        if (!isHoverSidebar()) {
+            sidebarHoverPeek = false;
+            sidebarAnimW = SIDEBAR_W_COLLAPSED;
+            lastSidebarAnimNanos = 0L;
+            // COLLAPSIBLE mode's own toggle snaps instantly (rebuild() already lands the caches
+            // on the new target in one shot), so there's nothing to ease here - just keep the
+            // baseline honest for whenever hover mode gets switched back on.
+            nodeLayoutAnimBaseX = sidebarW();
+            return;
+        }
+
+        long now = System.nanoTime();
+        long elapsedMs = lastSidebarAnimNanos == 0L ? 0L : (now - lastSidebarAnimNanos) / 1_000_000L;
+        lastSidebarAnimNanos = now;
+
+        int triggerW = sidebarHoverPeek ? Math.round(sidebarAnimW) + SIDEBAR_HOVER_MARGIN : SIDEBAR_W_COLLAPSED;
+        boolean hovering = mx >= 0 && mx < triggerW;
+
+        float target = hovering ? SIDEBAR_W_EXPANDED : SIDEBAR_W_COLLAPSED;
+        float maxStep = (SIDEBAR_W_EXPANDED - SIDEBAR_W_COLLAPSED) * (elapsedMs / (float) SIDEBAR_ANIM_MS);
+        if (sidebarAnimW < target) sidebarAnimW = Math.min(target, sidebarAnimW + maxStep);
+        else if (sidebarAnimW > target) sidebarAnimW = Math.max(target, sidebarAnimW - maxStep);
+
+        if (hovering) {
+            if (!sidebarHoverPeek) {
+                sidebarHoverPeek = true;
+                sidebarScrollY = 0;
+                rebuild(); // canvas gets more room now - mirrors the manual toggle's own rebuild()
+            }
+        } else if (sidebarHoverPeek && sidebarAnimW <= SIDEBAR_W_COLLAPSED + 0.5f) {
+            sidebarHoverPeek = false;
+            rebuild();
+        }
+
+        // Ease the cached node/hitbox/line positions toward this frame's animated width using
+        // the same shift panCanvas already does for drag-panning - cheap, and it's what actually
+        // makes nodes (and the dependency lines between them) slide open in lockstep with the
+        // panel instead of sitting at their final spot for the whole second the panel takes to
+        // visually catch up. rebuild() above (if it ran) already reset nodeLayoutAnimBaseX to the
+        // logical target, so on that same frame this immediately eases it back down/up to match
+        // wherever sidebarAnimW actually is right now, rather than leaving it at the target.
+        int desiredBaseX = sidebarVisualW();
+        int shift = desiredBaseX - nodeLayoutAnimBaseX;
+        if (shift != 0) {
+            panCanvas(shift, 0);
+            nodeLayoutAnimBaseX = desiredBaseX;
+        }
     }
 
     private static final int HEADER_H = 38;  // title bar (22) + search/filter row (16)
@@ -132,6 +268,7 @@ public class ChronicleOverviewScreen extends Screen {
     private int dbgFull3DIconCount = 0;
     private int dbgCustomIconCount = 0;
     private int dbgPickedTextureIconCount = 0;
+    private int dbgFluidIconCount = 0;
     private int dbgGlyphIconCount = 0;
     /** Per-shape-type node counts this frame, so node:shape cost can be attributed to specific shapes. */
     private final Map<String, Integer> dbgShapeCounts = new HashMap<>();
@@ -216,6 +353,15 @@ public class ChronicleOverviewScreen extends Screen {
     private BackgroundPictureConfig.Picture pictureEditMode = null;
     private static final float PIC_EDIT_MIN_SIZE = 4f, PIC_EDIT_MAX_SIZE = 4096f;
 
+    /**
+     * Interactive node-size edit mode ("Resize (scroll + drag)…" in the node's context menu) -
+     * mirrors pictureEditMode exactly (scroll to resize, drag to reposition, right-click/Esc to
+     * finish) except scrolling steps through the fixed NodeSize enum (TINY..HUGE) one notch per
+     * tick instead of scaling a continuous float, since a node's size isn't freeform like a
+     * picture's.
+     */
+    @Nullable
+    private QuestNode nodeSizeEditMode = null;
     // ── Context menu (pure-render, no hidden buttons) ─────────────────────────
     private static final int CTX_ROW = 16;
     private static final int CTX_SEP = 5;
@@ -345,6 +491,19 @@ public class ChronicleOverviewScreen extends Screen {
     /** Cycle: 1 (free) → 4 → 8 → 16 → 32 → back to 1. Shift-drag always bypasses to 1. */
     private int gridSnap = 8;
     private static final int[] GRID_SNAP_CYCLE = { 1, 4, 8, 16, 32 };
+    /**
+     * Global on/off switch for the regular Shift+left-click node drag, toggled from the
+     * empty-canvas right-click menu (see buildCtxItems). Middle-click-drag ignores this entirely -
+     * see dragForceSnap - since that gesture exists specifically to guarantee a snapped drop even
+     * with the switch off.
+     */
+    private boolean gridSnapEnabled = true;
+    /**
+     * Set for the duration of a middle-click-initiated node drag. While true, the drag always
+     * snaps to {@link #gridSnap} regardless of {@link #gridSnapEnabled}, and a visual grid overlay
+     * is drawn under the canvas so the snap points are visible while dragging.
+     */
+    private boolean dragForceSnap = false;
 
     // ── Unlock path visualization ─────────────────────────────────────────────
     private final Set<ResourceLocation> unlockPathHighlight = new HashSet<>();
@@ -390,6 +549,13 @@ public class ChronicleOverviewScreen extends Screen {
     // ── Quest clipboard (Ctrl+C / Ctrl+V) ────────────────────────────────────
     /** Raw SNBT text of the last copied quest. null if nothing copied. */
     private String questClipboard = null;
+
+    // Recorded by drawToolbarBtnR each frame (keyed by a stable id, NOT the display label, since
+    // labels change with state/color codes) and consumed by the click handler below instead of
+    // that handler re-deriving its own independent copy of the same rx-stepping arithmetic -
+    // exactly the class of bug ("map"/"hide done" hitboxes silently drifting out of sync with
+    // where those buttons are actually drawn) that's bitten this codebase before.
+    private final java.util.Map<String, int[]> toolbarBtnBounds = new java.util.HashMap<>();
 
     // ── Minimap ───────────────────────────────────────────────────────────────
     private boolean minimapOpen = false;
@@ -653,6 +819,36 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     protected void init() {
+        refreshPalette();
+        QuestGroupManager.invalidate(); // force reload from disk each time the screen opens
+        openTimeMs = System.currentTimeMillis();
+        rebuild();
+    }
+
+    /**
+     * Vanilla Screen only calls the no-arg init() (above) the FIRST time a screen opens; every
+     * later resize() instead calls this - which we never overrode, so width/height updated but
+     * nothing ever told nodeScreenPos/canvas bounds/sidebar layout to recompute against the new
+     * values. The screen kept rendering (and hit-testing) against stale pre-resize math until
+     * some unrelated click handler happened to call rebuild()/softRebuild() for its own reasons,
+     * which is what made it look like resizing "did nothing until you clicked." softRebuild()
+     * (not the raw rebuild()) since a resize has no reason to blow away the progress/attention/
+     * validation/category-list caches rebuild() otherwise clears.
+     */
+    @Override
+    protected void repositionElements() {
+        softRebuild();
+    }
+
+    /**
+     * Re-derives every cached C_* color (and the shared {@link ChroniclesThemePalette}) from the
+     * live theme. Originally only ran once in {@link #init()}, which was fine while every
+     * ThemeColor resolved to a fixed hex - but animated keyword colors (RAINBOW, MAGMA, etc, see
+     * {@link ChroniclesTheme.ThemeColor#getColor()}) need re-evaluating every frame to actually
+     * animate instead of freezing at whatever value they had the moment this screen opened. Cheap
+     * enough (bitwise blends only, no allocation) to call from render() every frame too.
+     */
+    private void refreshPalette() {
         ChroniclesTheme t = ChroniclesTheme.current();
         // ChroniclesThemePalette.refresh() was never actually called anywhere in the codebase -
         // its static fields (BG, PANEL, TEXT, etc.) all sat at Java's default 0 the whole time.
@@ -696,10 +892,6 @@ public class ChronicleOverviewScreen extends Screen {
         C_LINE_LOCKED = 0x38000000 | (t.locked.getColor() & 0x00FFFFFF);
         C_LINE_DONE = 0x99000000 | (t.done.getColor() & 0x00FFFFFF);
         C_LINE_ACTIVE = 0x88000000 | (t.activeColor.getColor() & 0x00FFFFFF);
-
-        QuestGroupManager.invalidate(); // force reload from disk each time the screen opens
-        openTimeMs = System.currentTimeMillis();
-        rebuild();
     }
 
     private Path groupsConfigPath() {
@@ -741,11 +933,10 @@ public class ChronicleOverviewScreen extends Screen {
         List<String> cats = buildCategoryList();
         if (!cats.isEmpty() && !cats.contains(selectedCategory)) selectedCategory = cats.get(0);
 
-        // Genuine category switch (including the very first rebuild() on screen open) - save
-        // the outgoing category's pan/zoom and load the incoming one's. Every OTHER rebuild()
-        // call (quest edits, etc.) hits the equals() check below and leaves zoom/viewOffX/Y alone.
+        // Genuine category switch (including the very first rebuild() on screen open) - reset
+        // to a fresh fit-to-content view for the incoming chapter. Every OTHER rebuild() call
+        // (quest edits, etc.) hits the equals() check below and leaves zoom/viewOffX/Y alone.
         if (!selectedCategory.equals(viewCategoryTracker)) {
-            if (viewCategoryTracker != null) saveViewForCategory(viewCategoryTracker);
             restoreViewForCategory(selectedCategory);
             viewCategoryTracker = selectedCategory;
             QuestChroniclesSettings settings = QuestChroniclesSettings.get();
@@ -790,25 +981,23 @@ public class ChronicleOverviewScreen extends Screen {
             if (catMatches(n)) placeNodeRecursive(n, cl, cr);
         }
         buildLineCache();
+        // Every node/hitbox above was just placed against cl (the logical target width) -
+        // record that as the caches' current baseline so updateSidebarHoverPeek's per-frame
+        // panCanvas shift knows where to start easing from instead of assuming it's already at
+        // whatever the animated width happens to be this frame.
+        nodeLayoutAnimBaseX = cl;
     }
 
-    /** Persists the current pan/zoom into the given category's CategoryConfig entry. */
-    private void saveViewForCategory(String cat) {
-        if (cat == null || cat.isEmpty()) return;
-        CategoryConfig cfg = CategoryConfig.get(cat);
-        cfg.setView(zoom, viewOffX, viewOffY);
-        CategoryConfig.put(cat, cfg);
-        CategoryConfig.save();
-    }
-
-    /** Applies a category's saved pan/zoom, or the default centered 100% view if none was ever saved. */
+    /**
+     * Resets pan/zoom to a fresh fit-to-content view for the given category. Zoom/pan is
+     * deliberately NOT persisted per-chapter (it used to be, via CategoryConfig) - being
+     * dropped back into whatever crop you'd zoomed into last time meant every chapter switch
+     * needed a manual zoom-out first just to see where you were. The chapter/category
+     * SELECTION itself still persists (see QuestChroniclesSettings.setLastCategory above) -
+     * only the camera position resets, every time.
+     */
     private void restoreViewForCategory(String cat) {
-        CategoryConfig cfg = CategoryConfig.get(cat);
-        if (cfg.getViewZoom() != 0f) {
-            zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cfg.getViewZoom()));
-            viewOffX = cfg.getViewOffX();
-            viewOffY = cfg.getViewOffY();
-        } else {
+        if (!applyFitView()) {
             zoom = 1.0f;
             viewOffX = 0;
             viewOffY = 0;
@@ -857,12 +1046,37 @@ public class ChronicleOverviewScreen extends Screen {
     // clickable dot instead of a near-invisible speck.
     private static final int MIN_NODE_PX = 12;
 
+    // A FLAT floor (Math.max(MIN_NODE_PX, raw)) silently equalizes every NodeSize the instant
+    // zoom drops low enough that even the biggest node's raw scaled size dips under it - a Huge
+    // node and a Tiny node both bottom out at the exact same 12px, so the "bigger" choice stops
+    // reading as bigger at all once you're zoomed out (which is routine on a large imported
+    // pack). 0.375 is chosen so a NORMAL(32px) node's floor works out to exactly the old flat
+    // 12px - Math.round(32 * 0.375) == 12 - so nothing changes for the common case, but every
+    // OTHER size gets its own proportionally smaller/larger floor instead of converging on one.
+    private static final float MIN_NODE_FLOOR_FRACTION = 0.375f;
+
     private int scaledNodeSize(QuestNode node) {
-        return Math.max(MIN_NODE_PX, (int) (node.getNodePixelSize() * zoom));
+        int pixelSize = node.getNodePixelSize();
+        int floor = Math.max(4, Math.round(pixelSize * MIN_NODE_FLOOR_FRACTION));
+        return Math.max(floor, (int) (pixelSize * zoom));
     }
 
     private int scaledNodeSize() {
         return Math.max(MIN_NODE_PX, (int) (NODE_SIZE * zoom));
+    }
+
+    /**
+     * Border stroke thickness for a node of the given (already zoomed) pixel size - shared by
+     * renderNodeShape (draws the border) and renderNodeDetails (sizes the icon inside it). This
+     * used to be computed independently in both places with the same formula copy-pasted, which
+     * is exactly this session's recurring bug class ("compute bounds once, share them") - it
+     * hadn't drifted apart yet, but the icon side needs more than just the same number: it needs
+     * to size itself off the ACTUAL inset fill area (sz minus this thickness), not off the raw
+     * sz, or the icon-to-border gap grows disproportionately once thickness hits its cap and
+     * stops growing while a flat sz-based icon ratio keeps growing right past it.
+     */
+    private static int nodeBorderThickness(int sz) {
+        return Math.max(1, Math.min(4, sz / 28));
     }
 
     void onNodeClicked(QuestNode node) {
@@ -901,7 +1115,14 @@ public class ChronicleOverviewScreen extends Screen {
             // Must match QuestFileSaver's quests/<category>/<id>.md layout, not the old flat
             // root path - otherwise this always misses and the description shows up blank.
             Path mdPath = QuestFileSaver.getQuestMarkdownPath(effective);
-            FullQuestData fd = loadMarkdownContent(mdPath);
+            // Locale override, if a translated .md exists at quests/<category>/lang/<locale>/<id>.md
+            // (see QuestContentLoader) - this loader previously always read the default-language
+            // file regardless of the player's actual selected game language, so per-language
+            // markdown content was written by pack authors but never actually shown to anyone.
+            net.phoenixvine.chronicles.codec.QuestContentLoader.syncActiveLocaleFromClient();
+            Path resolvedMdPath = net.phoenixvine.chronicles.codec.QuestContentLoader
+                    .resolveLocaleFile(mdPath, effective.getId().getPath());
+            FullQuestData fd = loadMarkdownContent(resolvedMdPath);
             minecraft.setScreen(new QuestTasksScreen(this, effective, fd, playerData));
         }
     }
@@ -1238,7 +1459,10 @@ public class ChronicleOverviewScreen extends Screen {
      * tearing down and recreating every widget. Much cheaper than rebuild().
      */
     private void panCanvas(int dx, int dy) {
-        int cl = sidebarW(), cr = width;
+        // sidebarVisualW(), not sidebarW() - matches the animated scissor bound canvas rendering
+        // now uses, so a node between the animated and logical-target edges isn't wrongly culled
+        // while the sidebar is mid-slide (outside HOVER_TO_EXPAND animation these are equal).
+        int cl = sidebarVisualW(), cr = width;
         int sz = scaledNodeSize();
         for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
             NodeHitbox btn = e.getValue();
@@ -1251,7 +1475,9 @@ public class ChronicleOverviewScreen extends Screen {
                 pos[0] = nx;
                 pos[1] = ny;
             }
-            btn.visible = nx + sz > cl && nx < cr && ny + sz > HEADER_H && ny < height;
+            QuestNode n = QuestTreeRegistry.getQuest(e.getKey());
+            int nsz = n != null ? scaledNodeSize(n) : sz;
+            btn.visible = nx + nsz > cl && nx < cr && ny + nsz > HEADER_H && ny < height;
         }
         // Pure pan doesn't change any quest's state/color/visibility - just shift the cached
         // line endpoints instead of recomputing the whole tree's colors every dragged pixel
@@ -1355,6 +1581,16 @@ public class ChronicleOverviewScreen extends Screen {
                 BackgroundPictureConfig.save();
                 setFeedback("Picture edit finished  (Ctrl+Z to undo the whole edit)");
                 pictureEditMode = null;
+                return true;
+            }
+            if (nodeSizeEditMode != null) {
+                net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(nodeSizeEditMode);
+                setFeedback("Node resize finished  (Ctrl+Z to undo the whole edit)");
+                nodeSizeEditMode = null;
+                // One full rebuild on exit (not per scroll/drag tick, see the lightweight
+                // refreshNodeScreenPos() used during the live edit) so dependency lines connected
+                // to this node pick up its final size/position.
+                softRebuild();
                 return true;
             }
             if (newCatFormOpen) {
@@ -1643,6 +1879,23 @@ public class ChronicleOverviewScreen extends Screen {
                 return true;
             }
         }
+        // Interactive node-size edit mode hijacks the scroll wheel away from canvas zoom entirely
+        // while active - see nodeSizeEditMode's field comment. Continuous pixel-size scaling
+        // (same multiplicative-factor pattern as pictureEditMode below), not the fixed 5-preset
+        // NodeSize enum - real freeform control instead of just picking one of a few sizes.
+        // Shift and Ctrl each progressively finer-grained, stacking when held together.
+        if (nodeSizeEditMode != null) {
+            float step = 1.1f;
+            if (hasShiftDown()) step = 1f + (step - 1f) * 0.3f; // ~1.03
+            if (hasControlDown()) step = 1f + (step - 1f) * 0.3f; // another 0.3x on top - ~1.009 combined
+            float factor = delta > 0 ? step : (1f / step);
+            int newPx = Math.round(nodeSizeEditMode.getNodePixelSize() * factor);
+            nodeSizeEditMode.setSizeOverridePx(newPx);
+            refreshNodeScreenPos(nodeSizeEditMode);
+            setFeedback("Size: " + nodeSizeEditMode.getNodePixelSize() +
+                    "px  (scroll to resize - shift/ctrl for finer steps, drag to move, right-click/Esc to finish)");
+            return true;
+        }
         // Interactive picture resize mode hijacks the scroll wheel away from canvas zoom entirely
         // while active - see pictureEditMode's field comment.
         if (pictureEditMode != null) {
@@ -1667,16 +1920,32 @@ public class ChronicleOverviewScreen extends Screen {
         }
         if (mx <= cl || mx >= cr || my <= HEADER_H) return super.mouseScrolled(mx, my, delta);
 
+        float oldPosZoom = posZoom();
         float oldZoom = zoom;
         zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom + (float) delta * ZOOM_STEP));
         if (zoom == oldZoom) return true;
+        float newPosZoom = posZoom();
 
-        // Anchor zoom to mouse cursor: keep the canvas point under the cursor fixed
-        float ratio = zoom / oldZoom;
-        int canvasMx = (int) mx - cl;
-        int canvasMy = (int) my - HEADER_H;
-        viewOffX = (int) (canvasMx - (canvasMx - viewOffX) * ratio);
-        viewOffY = (int) (canvasMy - (canvasMy - viewOffY) * ratio);
+        // Default anchor is the canvas's own center, not the mouse cursor - this is a quest
+        // map, not a world map, so zooming toward wherever the cursor happens to be sitting
+        // normally just disorients the reader. Holding the (rebindable) CURSOR_ZOOM key opts
+        // back into cursor-anchored zoom for the moment you DO want to zoom in on one specific
+        // spot without having to re-pan back to it afterward.
+        // Anchoring by posZoom() rather than the raw, uncapped `zoom` matters once zoom passes
+        // SPACING_ZOOM_CAP: every node/group/picture position is placed using posZoom(), not
+        // zoom, so anchoring the ratio to raw zoom past that cap computed a viewOff correction
+        // for movement that was never actually happening, and the view visibly drifted
+        // down-and-right the further past the cap you zoomed.
+        if (oldPosZoom != newPosZoom) {
+            int canvasW = cr - cl, canvasH = height - HEADER_H;
+            boolean cursorAnchored = ChronicleKeyBindings.CURSOR_ZOOM.isDown();
+            float anchorX = cursorAnchored ? (float) mx - cl : canvasW / 2f;
+            float anchorY = cursorAnchored ? (float) my - HEADER_H : canvasH / 2f;
+            float worldCx = (anchorX - viewOffX) / oldPosZoom;
+            float worldCy = (anchorY - viewOffY) / oldPosZoom;
+            viewOffX = (int) (anchorX - worldCx * newPosZoom);
+            viewOffY = (int) (anchorY - worldCy * newPosZoom);
+        }
 
         softRebuild();
         return true;
@@ -1684,6 +1953,17 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
+        // Interactive node-size edit mode: left-click/drag repositions the node instead of the
+        // canvas (handled in mouseDragged), right-click confirms and exits the mode.
+        if (nodeSizeEditMode != null) {
+            if (btn == 1) {
+                net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(nodeSizeEditMode);
+                setFeedback("Node resize finished  (Ctrl+Z to undo the whole edit)");
+                nodeSizeEditMode = null;
+                softRebuild();
+            }
+            return true;
+        }
         // Interactive picture resize mode: left-click/drag pans the picture instead of the
         // canvas (handled in mouseDragged), right-click confirms and exits the mode.
         if (pictureEditMode != null) {
@@ -1722,7 +2002,8 @@ public class ChronicleOverviewScreen extends Screen {
                 String zoomStr2 = Math.round(zoom * 100) + "%";
                 int zw2 = font.width(zoomStr2);
                 int zx2 = cr - zw2 - 10;
-                String gridLabel2 = (gridSnap == 1) ? "Grid: free" : "Grid: " + gridSnap;
+                String gridLabel2 = !gridSnapEnabled ? "Grid: off" :
+                        (gridSnap == 1) ? "Grid: free" : "Grid: " + gridSnap;
                 int gw2 = font.width(gridLabel2);
                 int gpx2 = zx2 - gw2 - 18;
                 if (mx >= gpx2 - 3 && mx < gpx2 + gw2 + 5 && my >= 3 && my < 16) {
@@ -1749,53 +2030,33 @@ public class ChronicleOverviewScreen extends Screen {
                 }
             }
 
-            // ── Toolbar right-side button clicks (Settings, Fit) ──────────────────
+            // ── Toolbar right-side button clicks (Settings, Fit, Wiki, Hide-done, Map) ─────
+            // Hitboxes come from toolbarBtnBounds, recorded by drawToolbarBtnR the last time
+            // this toolbar rendered - NOT re-derived here independently. That used to be two
+            // separate copies of the same rx-stepping arithmetic (this handler's own, and
+            // render's), which had both drifted out of sync with each other (wrong order AND a
+            // mismatched gap convention) - clicking "Map" could fire "Hide done"'s toggle and
+            // vice versa. Reading the actual recorded bounds makes that class of bug impossible.
             if (my >= TOOLBAR_Y && my < HEADER_H) {
-                int rx = cr - 4;
-                int fitW = font.width("⊞ Fit") + 10;
-                int settingsW = font.width("⚙") + 10;
-
-                // Fit button
-                rx -= fitW + 2;
-                if (mx >= rx && mx < rx + fitW) {
+                if (hitsToolbarBtn("fit", mx, my)) {
                     fitToCanvas();
                     return true;
                 }
-
-                // Settings button
-                rx -= settingsW + 2;
-                if (mx >= rx && mx < rx + settingsW && minecraft != null) {
+                if (hitsToolbarBtn("settings", mx, my) && minecraft != null) {
                     minecraft.setScreen(new SettingsScreen(this));
                     return true;
                 }
-
-                // Wiki button (dev only)
-                if (isDevMode) {
-                    int wikiW = font.width("?") + 10;
-                    rx -= wikiW + 2;
-                    if (mx >= rx && mx < rx + wikiW && minecraft != null) {
-                        minecraft.setScreen(new DevWikiScreen(this));
-                        return true;
-                    }
+                if (isDevMode && hitsToolbarBtn("wiki", mx, my) && minecraft != null) {
+                    minecraft.setScreen(new DevWikiScreen(this));
+                    return true;
                 }
-
-                // Minimap toggle
-                {
-                    String mmLabel = "⊡ Map";
-                    int mmW = font.width(mmLabel) + 10;
-                    rx -= mmW + 2;
-                    if (mx >= rx && mx < rx + mmW) {
-                        minimapOpen = !minimapOpen;
-                        return true;
-                    }
-                }
-                // Hide-completed toggle
-                String hideLabel = hideCompleted ? "§a✔ Hide done" : "§8✔ Hide done";
-                int hideW = font.width(hideLabel.replaceAll("§.", "")) + 10;
-                rx -= hideW + 2;
-                if (mx >= rx && mx < rx + hideW) {
+                if (hitsToolbarBtn("hideDone", mx, my)) {
                     hideCompleted = !hideCompleted;
                     softRebuild();
+                    return true;
+                }
+                if (hitsToolbarBtn("map", mx, my)) {
+                    minimapOpen = !minimapOpen;
                     return true;
                 }
             }
@@ -1812,15 +2073,16 @@ public class ChronicleOverviewScreen extends Screen {
                 }
             }
 
-            // ── Sidebar collapse/expand toggle - works regardless of collapsed state ──
-            if (sidebarCollapseToggleHovered((int) mx, (int) my)) {
+            // ── Sidebar collapse/expand toggle - COLLAPSIBLE mode only; HOVER_TO_EXPAND has no
+            // manual toggle at all, the sidebar opens/closes purely from mouse position ──
+            if (!isHoverSidebar() && sidebarCollapseToggleHovered((int) mx, (int) my)) {
                 sidebarCollapsed = !sidebarCollapsed;
                 sidebarScrollY = 0;
                 rebuild(); // node placement/canvas bounds depend on sidebarW()
                 return true;
             }
 
-            if (!sidebarCollapsed) {
+            if (!isSidebarNarrow()) {
                 // ── Gear (utilities) click — left=open editor, right=export lang ──
                 if (gearHovered((int) mx, (int) my) && minecraft != null) {
                     minecraft.setScreen(new LangEditorScreen(this));
@@ -1891,7 +2153,7 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         // ── Right-click a sidebar chapter tab: open its icon/color/name editor ──
-        if (btn == 1 && isDevMode && !sidebarCollapsed) {
+        if (btn == 1 && isDevMode && !isSidebarNarrow()) {
             SidebarRow hitRow = sidebarRowAt(buildSidebarRows(), (int) mx, (int) my);
             if (hitRow != null && !hitRow.isFolder() && minecraft != null) {
                 minecraft.setScreen(new CategoryThemeScreen(this, hitRow.id()));
@@ -2103,6 +2365,32 @@ public class ChronicleOverviewScreen extends Screen {
             }
         }
 
+        // ── Middle-click drag = force grid-snap node drag with a visual snap grid (dev mode) ──
+        // Exists specifically so a snapped drop is always one gesture away even when the
+        // Shift+left-click drag's snap has been switched off via the right-click menu.
+        if (btn == 2 && isDevMode) {
+            for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
+                if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
+                    draggedNode = QuestTreeRegistry.getQuest(e.getKey());
+                    if (draggedNode != null) {
+                        final int preX = draggedNode.getCustomX(), preY = draggedNode.getCustomY();
+                        final QuestNode capturedNode = draggedNode;
+                        pushUndo(() -> {
+                            capturedNode.setCustomPosition(preX, preY);
+                            saveNodeToDisk(capturedNode);
+                            rebuild();
+                        });
+                        dragGrabX = (int) mx - e.getValue().getX();
+                        dragGrabY = (int) my - e.getValue().getY();
+                        selectedNode = draggedNode;
+                        dragForceSnap = true;
+                        if (subgraphMode) rebuildSubgraph();
+                    }
+                    return true;
+                }
+            }
+        }
+
         // ── Shift + right-click = open quest directly ─────────────────────────
         if (btn == 1 && hasShiftDown() && mx > cl && mx < cr) {
             for (Map.Entry<ResourceLocation, NodeHitbox> e : nodeButtons.entrySet()) {
@@ -2266,6 +2554,15 @@ public class ChronicleOverviewScreen extends Screen {
             }
             return true;
         }
+        if (nodeSizeEditMode != null) {
+            if (btn == 0) {
+                nodeSizeEditMode.setCustomPosition(
+                        nodeSizeEditMode.getCustomX() + (int) (dx / posZoom()),
+                        nodeSizeEditMode.getCustomY() + (int) (dy / posZoom()));
+                refreshNodeScreenPos(nodeSizeEditMode);
+            }
+            return true;
+        }
         if (pictureEditMode != null) {
             if (btn == 0) {
                 pictureEditMode.x += (float) (dx / posZoom());
@@ -2306,25 +2603,7 @@ public class ChronicleOverviewScreen extends Screen {
                 return true;
             }
             if (draggedNode != null) {
-                int cl = sidebarW();
-                int rawX = (int) mx - dragGrabX;
-                int rawY = (int) my - dragGrabY;
-                // Snap logical position to grid (Shift = free/pixel-perfect)
-                int logX = (int) ((rawX - cl - viewOffX) / posZoom());
-                int logY = (int) ((rawY - HEADER_H - viewOffY) / posZoom());
-                int snap = hasShiftDown() ? 1 : gridSnap;
-                logX = Math.round((float) logX / snap) * snap;
-                logY = Math.round((float) logY / snap) * snap;
-                // Recompute screen position from snapped logical position
-                int nx = (int) (logX * posZoom()) + cl + viewOffX;
-                int ny = (int) (logY * posZoom()) + HEADER_H + viewOffY;
-                NodeHitbox b = nodeButtons.get(draggedNode.getId());
-                if (b != null) {
-                    b.setX(nx);
-                    b.setY(ny);
-                }
-                nodeScreenPos.put(draggedNode.getId(), new int[] { nx, ny });
-                draggedNode.setCustomPosition(logX, logY);
+                updateDraggedNodeScreenPos(mx, my, currentDragSnap());
                 buildLineCache();
                 return true;
             }
@@ -2335,6 +2614,13 @@ public class ChronicleOverviewScreen extends Screen {
                 pendingPanDY += (int) dy;
                 return true;
             }
+        }
+        // Middle-click drag - see the mouseClicked handler that starts it. Node-only; no
+        // panning/group/picture equivalent for this button.
+        if (btn == 2 && draggedNode != null) {
+            updateDraggedNodeScreenPos(mx, my, currentDragSnap());
+            buildLineCache();
+            return true;
         }
         return super.mouseDragged(mx, my, btn, dx, dy);
     }
@@ -2402,10 +2688,18 @@ public class ChronicleOverviewScreen extends Screen {
             if (draggedNode != null) {
                 saveNodeToDisk(draggedNode);
                 draggedNode = null;
+                dragForceSnap = false;
                 softRebuild();
                 return true;
             }
             isPanning = false;
+        }
+        if (btn == 2 && draggedNode != null) {
+            saveNodeToDisk(draggedNode);
+            draggedNode = null;
+            dragForceSnap = false;
+            softRebuild();
+            return true;
         }
         return super.mouseReleased(mx, my, btn);
     }
@@ -2509,6 +2803,13 @@ public class ChronicleOverviewScreen extends Screen {
                         statsOpen = !statsOpen;
                         if (statsOpen) validationOpen = false;
                     }));
+            // Only affects the regular Shift+left-click drag - middle-click drag always snaps
+            // regardless, so there's still a guaranteed way to snap a node with this off.
+            items.add(new CtxItem((gridSnapEnabled ? "⊞ Grid Snap: ON" : "§7⊞ Grid Snap: OFF"), "§7", false, false,
+                    () -> {
+                        ctxOpen = false;
+                        gridSnapEnabled = !gridSnapEnabled;
+                    }));
         }
 
         // Group creation & theme (only when right-clicking empty canvas, not on a node/group)
@@ -2587,11 +2888,6 @@ public class ChronicleOverviewScreen extends Screen {
                             ctxOpen = false;
                             minecraft.setScreen(new QuestCreatorScreen(this, ctxNode));
                         }));
-                items.add(new CtxItem("Edit Tasks & Rewards", "§7", false, false,
-                        () -> {
-                            ctxOpen = false;
-                            minecraft.setScreen(new TaskRewardEditorScreen(this, ctxNode));
-                        }));
                 items.add(new CtxItem("Edit Texts...", "§d", false, false,
                         () -> {
                             final QuestNode target = ctxNode;
@@ -2604,37 +2900,36 @@ public class ChronicleOverviewScreen extends Screen {
                             ctxOpen = false;
                             minecraft.setScreen(new ToastDesignerScreen(this, target));
                         }));
-                items.add(new CtxItem("Set Icon by Item", "§7", false, false,
+                items.add(new CtxItem("Set Icon…", "§7", false, false,
                         () -> {
+                            final QuestNode target = ctxNode;
                             ctxOpen = false;
-                            minecraft.setScreen(new ItemPickerScreen(this, stack -> {
-                                ctxNode.setIconItem(stack.getItem());
-                                ctxNode.setIconTexture("");
-                                saveNodeIconToDisk(ctxNode);
-                                saveNodeIconTextureToDisk(ctxNode);
-                                setFeedback("Icon → " + stack.getHoverName().getString());
-                                rebuild();
-                            }));
+                            minecraft.setScreen(new SetIconScreen(this, target));
                         }));
-                items.add(new CtxItem("Set Icon by Texture", "§7", false, false,
+                items.add(new CtxItem("Resize (scroll + drag)…", "§7", false, false,
                         () -> {
+                            // Pushes ONE undo entry covering the whole edit session (size + position),
+                            // same convention as the background picture's own edit mode - restorable no
+                            // matter how many scroll/drag adjustments happen before exiting.
+                            final QuestNode editedNode = ctxNode;
+                            final QuestNode.NodeSize uSize = ctxNode.getNodeSize();
+                            final int uOverridePx = ctxNode.getSizeOverridePx();
+                            final int uX = ctxNode.getCustomX(), uY = ctxNode.getCustomY();
+                            pushUndo(() -> {
+                                editedNode.setNodeSize(uSize);
+                                if (uOverridePx > 0) editedNode.setSizeOverridePx(uOverridePx);
+                                editedNode.setCustomPosition(uX, uY);
+                                net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(editedNode);
+                                setFeedback("Undo: node resize reverted");
+                            });
+                            // Seed an explicit pixel override from whatever the node's current
+                            // EFFECTIVE size already is (preset or previous override) - freeform
+                            // scroll-resize continues smoothly from there instead of snapping to a
+                            // fresh default the instant you start scrolling.
+                            ctxNode.setSizeOverridePx(ctxNode.getNodePixelSize());
+                            nodeSizeEditMode = ctxNode;
+                            setFeedback("§eScroll to resize, drag to move - right-click or Esc to finish");
                             ctxOpen = false;
-                            minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
-                                ctxNode.setIconTexture(rl);
-                                saveNodeIconTextureToDisk(ctxNode);
-                                setFeedback("Icon texture → " + rl);
-                                rebuild();
-                            }));
-                        }));
-                items.add(new CtxItem("Clear Icon", "§8", false, false,
-                        () -> {
-                            ctxNode.setIconItem(null);
-                            ctxNode.setIconTexture("");
-                            saveNodeIconToDisk(ctxNode);
-                            saveNodeIconTextureToDisk(ctxNode);
-                            setFeedback("Icon cleared");
-                            ctxOpen = false;
-                            rebuild();
                         }));
                 items.add(CtxItem.sep());
                 // Hovering this row (see renderCtxMenu) opens the submenu automatically - no click
@@ -2749,6 +3044,13 @@ public class ChronicleOverviewScreen extends Screen {
         int menuH = menuHeight(items);
         if (ctxY + menuH > height - 4) ctxY = height - menuH - 4;
         if (ctxX + CTX_W > width - 4) ctxX = width - CTX_W - 4;
+        // The above only flips the menu back onto the opposite edge - if the menu itself is
+        // bigger than the available window (a smaller windowed-mode size, or a higher GUI scale
+        // shrinking the logical canvas the same way; fullscreen at a typical resolution always
+        // had room, which is why this went unnoticed) that flip alone can still leave it
+        // negative, pushing it off the OTHER edge instead. Floor it so it always stays visible.
+        ctxX = Math.max(4, ctxX);
+        ctxY = Math.max(4, ctxY);
     }
 
     private int menuHeight(List<CtxItem> items) {
@@ -2772,6 +3074,10 @@ public class ChronicleOverviewScreen extends Screen {
         picCtxY = y;
         if (picCtxY + PIC_CTX_H > height - 4) picCtxY = height - PIC_CTX_H - 4;
         if (picCtxX + CTX_W > width - 4) picCtxX = width - CTX_W - 4;
+        // Same missing floor-clamp fix as openCtx() above - flipping to the opposite edge isn't
+        // enough once the window itself is smaller than the menu.
+        picCtxX = Math.max(4, picCtxX);
+        picCtxY = Math.max(4, picCtxY);
     }
 
     private void closePictureCtx() {
@@ -2999,8 +3305,13 @@ public class ChronicleOverviewScreen extends Screen {
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         FrameProfiler.begin("TOTAL render()");
+        // Re-evaluates animated keyword colors (RAINBOW, MAGMA, ...) every frame - see
+        // refreshPalette()'s doc. Cheap: no allocation, just bitwise blends and a few HSV→RGB
+        // conversions gated behind whichever theme fields actually use an animated keyword.
+        refreshPalette();
         if (feedbackTimer > 0) feedbackTimer--;
         pendingDeferredDraws.clear();
+        updateSidebarHoverPeek(mx, my);
 
         // 1. Flush accumulated viewport panning inputs
         if (pendingPanDX != 0 || pendingPanDY != 0) {
@@ -3012,7 +3323,12 @@ public class ChronicleOverviewScreen extends Screen {
         // 2. Handle interactive transformations (Optimized: No line-cache rebuilding here!)
         handleLiveDragging(mx, my);
 
-        int cl = sidebarW();
+        // sidebarVisualW(), not sidebarW() - this feeds the canvas background/scissor bound, the
+        // title bar/toolbar, and (via the render helpers below) the filter pills and minimap, so
+        // using the logical target here was why all of them used to snap straight to their final
+        // spot the instant hover-peek flipped instead of sliding open with the panel. Node/line
+        // positions themselves are cached and eased separately by updateSidebarHoverPeek above.
+        int cl = sidebarVisualW();
         int cr = width;
         int sz = scaledNodeSize();
         // Freezing this single source feeds through to every consumer (dependency line "marching
@@ -3026,6 +3342,11 @@ public class ChronicleOverviewScreen extends Screen {
         FrameProfiler.end("header");
 
         PhantasiaCompat.tickPreview(phantasiaPreview);
+
+        // 3b. Snap grid overlay - only while a middle-click drag is forcing a snapped position,
+        // so the player can see exactly where the node will land. Drawn above the background but
+        // below everything interactive.
+        if (draggedNode != null && dragForceSnap) renderSnapGridOverlay(g, cl, cr);
 
         // 4. Draw chapters list sidebar
         renderSidebarPanel(g, mx, my);
@@ -3047,11 +3368,31 @@ public class ChronicleOverviewScreen extends Screen {
 
         // 7. Draw individual Node geometries, status rings, text tags
         renderNodesAndDetails(g, mx, my, cl, cr, sz);
+        if (nodeSizeEditMode != null) {
+            int[] pos = nodeScreenPos.get(nodeSizeEditMode.getId());
+            if (pos != null) {
+                int nsz = scaledNodeSize(nodeSizeEditMode);
+                ChroniclesUIKit.drawBorder(g, pos[0] - 2, pos[1] - 2, nsz + 4, nsz + 4, 0xFFFFCC33);
+            }
+        }
 
         // 8. Draw global overlay modifiers, modals, dev diagnostics, and panels
         FrameProfiler.begin("overlays");
         renderScreenOverlays(g, mx, my, cl, cr, sz);
         FrameProfiler.end("overlays");
+
+        // Every g.renderItem() call this frame (node icons, group icons, sidebar/questbook
+        // icons) rendered its 3D geometry with depth test+write fully enabled, same as always -
+        // that's required for the icon's OWN faces to occlude each other correctly (disabling
+        // the depth write per-icon, tried first, broke that and showed up as a stray
+        // "shadow cube" artifact). What those icons don't need is for their depth values to
+        // keep affecting draws that happen LATER in the same frame, which is the actual root
+        // cause behind this whole session's repeated "icon bleeds through/under something drawn
+        // after it" reports (z-pushes and deferred-draw ordering only ever patched individual
+        // occurrences of this). Clearing just the depth buffer here - after every icon this
+        // frame has already rendered correctly, but before the deferred tail draws below run -
+        // wipes that residual depth in one shot without touching how any icon itself looked.
+        com.mojang.blaze3d.systems.RenderSystem.clear(org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, false);
 
         // 9. Deferred utility draws (grid pill, sidebar rows, Quest Stats panel, ...) — drawn
         // dead last so nothing painted in steps 3-8 above can overhang/overpaint them. See
@@ -3066,16 +3407,37 @@ public class ChronicleOverviewScreen extends Screen {
 
     private void handleLiveDragging(int mx, int my) {
         if (draggedNode == null) return;
+        updateDraggedNodeScreenPos(mx, my, currentDragSnap());
+        // PERFORMANCE FIX: Removed buildLineCache() from here.
+        // Line calculation is deferred until mouseReleased() executes.
+    }
 
-        int cl2 = sidebarW();
-        int logX = (int) ((mx - dragGrabX - cl2 - viewOffX) / posZoom());
+    /**
+     * Grid step actually applied to the node currently being dragged. Middle-click drags
+     * (dragForceSnap) always snap regardless of the persistent on/off switch - that gesture's
+     * entire point is a guaranteed-snapped drop, with the grid overlay as visual feedback for it.
+     * Ordinary Shift+left-click drags respect {@link #gridSnapEnabled} instead.
+     */
+    private int currentDragSnap() {
+        if (dragForceSnap) return gridSnap;
+        return gridSnapEnabled ? gridSnap : 1;
+    }
+
+    /**
+     * Recomputes a dragged node's logical + screen position from the current mouse position and
+     * writes it through to the hitbox/position caches. Shared by mouseDragged() and
+     * handleLiveDragging() so the snap/position math has exactly one copy - the class of bug that
+     * previously bit the Toast Designer/Variant editor screens (label and click math silently
+     * drifting apart in two separate copies).
+     */
+    private void updateDraggedNodeScreenPos(double mx, double my, int snap) {
+        int cl = sidebarW();
+        int logX = (int) ((mx - dragGrabX - cl - viewOffX) / posZoom());
         int logY = (int) ((my - dragGrabY - HEADER_H - viewOffY) / posZoom());
-        int snap2 = hasShiftDown() ? 1 : gridSnap;
+        logX = Math.round((float) logX / snap) * snap;
+        logY = Math.round((float) logY / snap) * snap;
 
-        logX = Math.round((float) logX / snap2) * snap2;
-        logY = Math.round((float) logY / snap2) * snap2;
-
-        int nx = (int) (logX * posZoom()) + cl2 + viewOffX;
+        int nx = (int) (logX * posZoom()) + cl + viewOffX;
         int ny = (int) (logY * posZoom()) + HEADER_H + viewOffY;
 
         NodeHitbox b = nodeButtons.get(draggedNode.getId());
@@ -3086,9 +3448,53 @@ public class ChronicleOverviewScreen extends Screen {
 
         nodeScreenPos.put(draggedNode.getId(), new int[] { nx, ny });
         draggedNode.setCustomPosition(logX, logY);
+    }
 
-        // PERFORMANCE FIX: Removed buildLineCache() from here.
-        // Line calculation is deferred until mouseReleased() executes.
+    /**
+     * Cheap single-node refresh for nodeSizeEditMode's live scroll/drag feedback - recomputes just
+     * this one node's screen position and hitbox size directly, same lightweight approach as
+     * updateDraggedNodeScreenPos above, instead of a full softRebuild() on every scroll tick/mouse
+     * move (which re-places every node/line in the category and was the actual cause of resize
+     * mode feeling laggy - dependency lines still get a real refresh, just once on exit instead of
+     * every tick, same tradeoff regular node dragging already makes).
+     */
+    private void refreshNodeScreenPos(QuestNode node) {
+        int cl = sidebarW();
+        int sx = (int) (node.getCustomX() * posZoom()) + viewOffX + cl;
+        int sy = (int) (node.getCustomY() * posZoom()) + viewOffY + HEADER_H;
+        nodeScreenPos.put(node.getId(), new int[] { sx, sy });
+        NodeHitbox b = nodeButtons.get(node.getId());
+        if (b != null) {
+            int sz = scaledNodeSize(node);
+            b.setX(sx);
+            b.setY(sy);
+            b.w = sz;
+            b.h = sz;
+        }
+    }
+
+    /**
+     * Faint grid of lines at the current snap spacing, drawn under the canvas contents while a
+     * middle-click drag is in progress - visual feedback for exactly where the node will land.
+     * Skipped for "free" (gridSnap == 1) since there'd be nothing meaningful to show, and skipped
+     * below a minimum screen spacing so a small snap size at low zoom doesn't paint a solid haze.
+     */
+    private void renderSnapGridOverlay(GuiGraphics g, int cl, int cr) {
+        if (gridSnap <= 1) return;
+        int step = Math.round(gridSnap * posZoom());
+        if (step < 6) return;
+
+        int top = HEADER_H, bottom = height;
+        int color = 0x33FFFFFF;
+
+        int firstX = cl + Math.floorMod(viewOffX, step);
+        for (int x = firstX; x < cr; x += step) {
+            g.fill(x, top, x + 1, bottom, color);
+        }
+        int firstY = top + Math.floorMod(viewOffY, step);
+        for (int y = firstY; y < bottom; y += step) {
+            g.fill(cl, y, cr, y + 1, color);
+        }
     }
 
     private void renderHeaderAndBaseLayout(GuiGraphics g, int mx, int my, int cl, int cr) {
@@ -3112,8 +3518,12 @@ public class ChronicleOverviewScreen extends Screen {
             String hint = "§e🖼 Editing picture — scroll to resize (shift = fine), drag to move, right-click/Esc to finish";
             g.drawCenteredString(font, hint, (cl + cr) / 2, 7, 0xFFFFEEAA);
         }
-
+        // Scissored to the ANIMATED width (not the logical target) - without this, the title
+        // popped in/out the instant the hover-peek state flipped, ignoring the sidebar panel's
+        // own sliding-reveal animation entirely (see renderSidebarPanel/sidebarVisualW).
+        g.enableScissor(0, 0, sidebarVisualW(), TOOLBAR_Y);
         renderQuestbookTitle(g, mx, my);
+        g.disableScissor();
 
         // Zoom information pill
         String zoomStr = Math.round(zoom * 100) + "%";
@@ -3123,7 +3533,8 @@ public class ChronicleOverviewScreen extends Screen {
         g.drawString(font, "§7" + zoomStr, zx, zy + 3, C_TEXT_DIM);
 
         // Snap grid configuration pill
-        String gridLabel = (gridSnap == 1) ? "§8Grid: §afree" : "§8Grid: §7" + gridSnap;
+        String gridLabel = !gridSnapEnabled ? "§8Grid: §c§loff" :
+                (gridSnap == 1) ? "§8Grid: §afree" : "§8Grid: §7" + gridSnap;
         int gw = font.width(net.minecraft.util.StringUtil.stripColor(gridLabel));
         int gpx = zx - gw - 18, gpy = 3;
         boolean gridHov = mx >= gpx - 3 && mx < gpx + gw + 5 && my >= gpy && my < gpy + 13;
@@ -3174,11 +3585,11 @@ public class ChronicleOverviewScreen extends Screen {
 
     /** Book icon + pack-configured name pinned above the category list - click to rename/re-icon it. */
     private boolean questbookTitleHovered(int mx, int my) {
-        return !sidebarCollapsed && mx >= 0 && mx < sidebarW() - 1 && my >= 0 && my < TOOLBAR_Y;
+        return !isSidebarNarrow() && mx >= 0 && mx < sidebarW() - 1 && my >= 0 && my < TOOLBAR_Y;
     }
 
     private void renderQuestbookTitle(GuiGraphics g, int mx, int my) {
-        if (sidebarCollapsed) return;
+        if (isSidebarNarrow()) return;
         boolean hov = questbookTitleHovered(mx, my);
         QuestChroniclesSettings s = QuestChroniclesSettings.get();
         if (hov) g.fill(0, 0, sidebarW() - 1, TOOLBAR_Y - 1, 0x14FFFFFF);
@@ -3194,20 +3605,29 @@ public class ChronicleOverviewScreen extends Screen {
     }
 
     private void renderSidebarPanel(GuiGraphics g, int mx, int my) {
-        g.fill(0, HEADER_H, sidebarW() - 1, HEADER_H + 1, C_BORDER);
+        // Uses the ANIMATED width (sidebarVisualW), not the logical target (sidebarW) - in
+        // HOVER_TO_EXPAND mode the canvas boundary has already snapped to its target the moment
+        // the peek state flips (see updateSidebarHoverPeek), so this panel is the only thing
+        // whose own visual footprint needs to ease toward that target instead of jumping there.
+        g.fill(0, HEADER_H, sidebarVisualW() - 1, HEADER_H + 1, C_BORDER);
 
-        // Collapse/expand toggle - always visible, whether collapsed or not, since it's the only
-        // way back out of the collapsed state.
-        boolean toggleHov = sidebarCollapseToggleHovered(mx, my);
         int toggleY = HEADER_H + 1;
-        g.fill(0, toggleY, sidebarW() - 1, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H, toggleHov ? 0xFF1C1C24 : C_PANEL_DARK);
-        g.fill(0, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H - 1, sidebarW() - 1, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H,
-                C_BORDER);
-        g.drawCenteredString(font, sidebarCollapsed ? "§7▶" : "§7◀", sidebarW() / 2, toggleY + 2,
-                toggleHov ? C_TEXT : C_TEXT_DIM);
+        // Collapse/expand toggle - COLLAPSIBLE mode only; it's the only way back out of the
+        // collapsed state there, so always visible whether collapsed or not. HOVER_TO_EXPAND
+        // has no manual toggle at all (the sidebar opens/closes purely from mouse position, see
+        // updateSidebarHoverPeek) - that vertical space is just left blank in that mode, rather
+        // than reclaimed, so scrollTop below stays identical between modes and never drifts out
+        // of sync with the click handler's own copy of this same math.
+        if (!isHoverSidebar()) {
+            boolean toggleHov = sidebarCollapseToggleHovered(mx, my);
+            g.fill(0, toggleY, sidebarW() - 1, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H,
+                    toggleHov ? 0xFF1C1C24 : C_PANEL_DARK);
+            g.fill(0, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H - 1, sidebarW() - 1, toggleY + SIDEBAR_COLLAPSE_TOGGLE_H,
+                    C_BORDER);
+            g.drawCenteredString(font, sidebarCollapsed ? "§7▶" : "§7◀", sidebarW() / 2, toggleY + 2,
+                    toggleHov ? C_TEXT : C_TEXT_DIM);
 
-        if (sidebarCollapsed) {
-            if (toggleHov) {
+            if (sidebarCollapsed && toggleHov) {
                 g.pose().pushPose();
                 g.pose().translate(0f, 0f, 250f);
                 g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
@@ -3219,13 +3639,21 @@ public class ChronicleOverviewScreen extends Screen {
                 g.drawString(font, tip, ttX + 5, ttY + 3, C_TEXT_DIM, false);
                 g.pose().popPose();
             }
-            g.fill(sidebarW() - 1, 0, sidebarW(), height, C_BORDER);
+        }
+
+        if (isSidebarNarrow()) {
+            g.fill(sidebarVisualW() - 1, 0, sidebarVisualW(), height, C_BORDER);
             return;
         }
 
         int scrollTop = toggleY + SIDEBAR_COLLAPSE_TOGGLE_H;
         int scrollBottom = scrollTop + sidebarScrollAreaHeight();
-        g.enableScissor(0, scrollTop, sidebarW() - 1, scrollBottom);
+        // Scissored to the ANIMATED width, not the logical target - row content below is still
+        // laid out at full (sidebarW()) size regardless of animation progress, so this scissor is
+        // what actually produces the "sliding reveal/hide" look: rows are progressively exposed
+        // as the animated width grows, and progressively clipped away as it shrinks back, with no
+        // extra per-row logic needed.
+        g.enableScissor(0, scrollTop, sidebarVisualW() - 1, scrollBottom);
 
         FrameProfiler.begin("sidebar");
         List<SidebarRow> sidebarRows = buildSidebarRows();
@@ -3252,7 +3680,7 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         g.disableScissor();
-        g.fill(sidebarW() - 1, 0, sidebarW(), height, C_BORDER);
+        g.fill(sidebarVisualW() - 1, 0, sidebarVisualW(), height, C_BORDER);
 
         // Scrollbar hint - a thin indicator on the right edge of the sidebar, only when the list
         // actually overflows, so it's obvious there's more to scroll to instead of the list just
@@ -3264,8 +3692,11 @@ public class ChronicleOverviewScreen extends Screen {
             int thumbH = Math.max(10, trackH * areaH / contentH);
             int maxScroll = contentH - areaH;
             int thumbY = scrollTop + (maxScroll > 0 ? (trackH - thumbH) * sidebarScrollY / maxScroll : 0);
-            g.fill(sidebarW() - 3, scrollTop, sidebarW() - 1, scrollBottom, 0x22FFFFFF);
-            g.fill(sidebarW() - 3, thumbY, sidebarW() - 1, thumbY + thumbH, 0xFF666677);
+            // sidebarVisualW(), not sidebarW() - same animated-width fix as the panel border/
+            // scissor above (see renderSidebarPanel's doc comment): without this the scrollbar sat
+            // at its final x position for the whole slide instead of hugging the panel's right edge.
+            g.fill(sidebarVisualW() - 3, scrollTop, sidebarVisualW() - 1, scrollBottom, 0x22FFFFFF);
+            g.fill(sidebarVisualW() - 3, thumbY, sidebarVisualW() - 1, thumbY + thumbH, 0xFF666677);
         }
 
         // Queued, not drawn immediately: "last, on top of everything" used to be true because
@@ -3390,7 +3821,10 @@ public class ChronicleOverviewScreen extends Screen {
         }
         int ttW = Math.max(font.width(line1), line2 != null ? font.width(line2) : 0) + 10;
         int ttH = line2 != null ? 24 : 14;
-        int ttX = sidebarW() + 3;
+        // sidebarVisualW(), not sidebarW() - same animated-width fix as the panel/scrollbar
+        // above: pinning this to the logical target made the tooltip sit off past the panel's
+        // actual (still-animating) right edge for the whole slide instead of hugging it.
+        int ttX = sidebarVisualW() + 3;
         int ttY = Math.min(height - ttH - 2, my - ttH / 2);
 
         g.pose().pushPose();
@@ -3481,6 +3915,7 @@ public class ChronicleOverviewScreen extends Screen {
         dbgFull3DIconCount = 0;
         dbgCustomIconCount = 0;
         dbgPickedTextureIconCount = 0;
+        dbgFluidIconCount = 0;
         dbgGlyphIconCount = 0;
         dbgShapeCounts.clear();
         int visibleNodeCount = 0;
@@ -3494,7 +3929,8 @@ public class ChronicleOverviewScreen extends Screen {
             if (btn == null || !btn.visible) continue;
             visibleNodeCount++;
             int[] pos = entry.getValue();
-            renderNodeShape(g, node, pos[0], pos[1], sz, btn.isMouseOver(mx, my), node == selectedNode);
+            renderNodeShape(g, node, pos[0], pos[1], scaledNodeSize(node), btn.isMouseOver(mx, my),
+                    node == selectedNode);
         }
         int shapeQuadCount = NodeShapeRenderer.flushFillQueue(g);
         // Quest Stats / Validation panels render fully opaque with the depth test disabled, but
@@ -3517,10 +3953,11 @@ public class ChronicleOverviewScreen extends Screen {
             NodeHitbox btn = nodeButtons.get(node.getId());
             if (btn == null || !btn.visible) continue;
             int[] pos = entry.getValue();
-            if (blockPanelOpen && pos[0] + sz > bpX && pos[0] < bpX + bpW && pos[1] + sz > bpY &&
+            int nsz = scaledNodeSize(node);
+            if (blockPanelOpen && pos[0] + nsz > bpX && pos[0] < bpX + bpW && pos[1] + nsz > bpY &&
                     pos[1] < bpY + bpH)
                 continue;
-            renderNodeDetails(g, node, pos[0], pos[1], sz, btn.isMouseOver(mx, my), node == selectedNode);
+            renderNodeDetails(g, node, pos[0], pos[1], nsz, btn.isMouseOver(mx, my), node == selectedNode);
         }
         // renderNodeDetails() queues each node's state badge (renderStateBadge) instead of
         // drawing it immediately - flush that second batch now that every node's icon (drawn
@@ -3531,6 +3968,7 @@ public class ChronicleOverviewScreen extends Screen {
         FrameProfiler.setCounter("full3DIcons", dbgFull3DIconCount);
         FrameProfiler.setCounter("customIcons", dbgCustomIconCount);
         FrameProfiler.setCounter("pickedTexIcons", dbgPickedTextureIconCount);
+        FrameProfiler.setCounter("fluidIcons", dbgFluidIconCount);
         FrameProfiler.setCounter("glyphIcons", dbgGlyphIconCount);
         for (Map.Entry<String, Integer> e : dbgShapeCounts.entrySet()) {
             FrameProfiler.setCounter("shape:" + e.getKey(), e.getValue());
@@ -3554,7 +3992,9 @@ public class ChronicleOverviewScreen extends Screen {
             for (ResourceLocation id : multiSelection) {
                 int[] pos = nodeScreenPos.get(id);
                 if (pos == null) continue;
-                int x1 = pos[0] - 2, y1 = pos[1] - 2, x2 = pos[0] + sz + 2, y2 = pos[1] + sz + 2;
+                QuestNode selNode = QuestTreeRegistry.getQuest(id);
+                int selSz = selNode != null ? scaledNodeSize(selNode) : sz;
+                int x1 = pos[0] - 2, y1 = pos[1] - 2, x2 = pos[0] + selSz + 2, y2 = pos[1] + selSz + 2;
                 int selCol = 0xFF00DDFF;
                 for (int px = x1; px < x2; px++) {
                     if ((px + dashPhase) % 6 < 3) {
@@ -3641,14 +4081,15 @@ public class ChronicleOverviewScreen extends Screen {
             if (btn == null || !btn.visible) continue;
             int[] pos = entry.getValue();
             QuestState st = getState(node);
+            int nodeSz = scaledNodeSize(node);
 
-            if (st == QuestState.UNLOCKED && sz >= 20) {
-                int badgeX = pos[0] + sz - 2;
+            if (st == QuestState.UNLOCKED && nodeSz >= 20) {
+                int badgeX = pos[0] + nodeSz - 2;
                 int badgeY = pos[1] - 1;
                 g.fill(badgeX, badgeY, badgeX + font.width("NEW") + 4, badgeY + 8, 0xFF1144BB);
                 g.drawString(font, "NEW", badgeX + 2, badgeY + 1, 0xFFAADDFF, false);
             }
-            if (st == QuestState.COMPLETED && sz >= 12 && !node.getRewards().isEmpty()) {
+            if (st == QuestState.COMPLETED && nodeSz >= 12 && !node.getRewards().isEmpty()) {
                 PlayerQuestData pd = testMode ? testModeData : playerData;
                 if (pd != null && !pd.hasClaimedRewards(node.getId())) {
                     float pulse = animPulse(0.7f, 0.3f, 600.0);
@@ -3666,7 +4107,8 @@ public class ChronicleOverviewScreen extends Screen {
                 int lc = st == QuestState.COMPLETED ? C_TEXT_DONE :
                         st == QuestState.ACTIVE ? C_TEXT_ACT : st == QuestState.LOCKED ? C_TEXT_FAINT : C_TEXT_DIM;
                 if (baseAlpha < 0xFF) lc = (lc & 0x00FFFFFF) | (baseAlpha << 24);
-                g.drawCenteredString(font, shortLabel(node), pos[0] + sz / 2, pos[1] + sz + 4, lc);
+                ChroniclesUIKit.drawScaledCenteredString(g, font, shortLabel(node), pos[0] + nodeSz / 2f,
+                        pos[1] + nodeSz + 4, lc, QuestChroniclesSettings.get().getTextScaleMultiplier());
             }
         }
         FrameProfiler.end("badges/labels");
@@ -3681,9 +4123,13 @@ public class ChronicleOverviewScreen extends Screen {
             g.drawString(font, "§7" + feedbackMsg, cl + 6, height - 10, C_TEXT_DIM);
         }
 
-        if (!sidebarCollapsed) {
+        if (!isSidebarNarrow()) {
+            // Same scissor-to-animated-width fix as renderQuestbookTitle's call site above - these
+            // otherwise ignore the sidebar's sliding-reveal animation and just pop in/out instantly.
+            g.enableScissor(0, 0, sidebarVisualW(), height);
             renderSidebarNewCategoryButton(g, mx, my);
             renderSidebarGear(g, mx, my);
+            g.disableScissor();
         }
 
         if (!renderingAsBackdrop) renderTutorialOverlay(g, mx, my);
@@ -3705,7 +4151,12 @@ public class ChronicleOverviewScreen extends Screen {
             }
             if (nowHoverId != null && System.currentTimeMillis() - tooltipHoverStartMs >= TOOLTIP_DELAY_MS) {
                 QuestNode tipNode = QuestTreeRegistry.getQuest(nowHoverId);
-                if (tipNode != null) renderNodeTooltip(g, tipNode, mx, my);
+                // Was drawn immediately here - the only tooltip in this screen NOT deferred to
+                // pendingDeferredDraws (sidebar tooltip/stats/validation panels all already are).
+                // renderNodeTooltip's own z-push+flush is the same trick that's proven
+                // insufficient elsewhere this session against g.renderItem()'s 3D icon geometry -
+                // deferring to the absolute tail of render() is what actually reliably wins.
+                if (tipNode != null) pendingDeferredDraws.add(() -> renderNodeTooltip(g, tipNode, mx, my));
             }
         }
 
@@ -3868,22 +4319,22 @@ public class ChronicleOverviewScreen extends Screen {
 
         // Settings + Fit controls (right side, before inspector edge)
         int rx = cr - 4;
-        rx = drawToolbarBtnR(g, mx, my, rx, ty, "⊞ Fit");
+        rx = drawToolbarBtnR(g, mx, my, rx, ty, "⊞ Fit", "fit");
         rx -= 2;
-        rx = drawToolbarBtnR(g, mx, my, rx, ty, "⚙");
+        rx = drawToolbarBtnR(g, mx, my, rx, ty, "⚙", "settings");
         if (isDevMode) {
             rx -= 2;
-            rx = drawToolbarBtnR(g, mx, my, rx, ty, "?");
+            rx = drawToolbarBtnR(g, mx, my, rx, ty, "?", "wiki");
         }
         rx -= 2;
         // Hide-completed toggle
         String hideLabel = hideCompleted ? "§a✔ Hide done" : "§8✔ Hide done";
-        rx = drawToolbarBtnR(g, mx, my, rx, ty, hideLabel);
+        rx = drawToolbarBtnR(g, mx, my, rx, ty, hideLabel, "hideDone");
         rx -= 2;
 
         // Minimap toggle (always visible)
         String mmLabel = minimapOpen ? "§a⊡ Map" : "§8⊡ Map";
-        rx = drawToolbarBtnR(g, mx, my, rx, ty, mmLabel);
+        rx = drawToolbarBtnR(g, mx, my, rx, ty, mmLabel, "map");
         rx -= 2;
 
         // DEV indicator (right-click canvas for dev options)
@@ -3896,14 +4347,21 @@ public class ChronicleOverviewScreen extends Screen {
         }
     }
 
-    private int drawToolbarBtnR(GuiGraphics g, int mx, int my, int rx, int ty, String label) {
+    private int drawToolbarBtnR(GuiGraphics g, int mx, int my, int rx, int ty, String label, String key) {
         int tw = font.width(label.replaceAll("§.", "")) + 10;
         int th = TOOLBAR_H - 8;
         int bx = rx - tw, by = ty + 4;
         boolean hov = mx >= bx && mx < bx + tw && my >= by && my < by + th;
         if (hov) g.fill(bx, by, bx + tw, by + th, 0x22FFFFFF);
         g.drawString(font, label, bx + 5, by + 3, hov ? C_TEXT : C_TEXT_DIM, false);
+        toolbarBtnBounds.put(key, new int[] { bx, by, bx + tw, by + th });
         return bx - 2;
+    }
+
+    /** True if (mx,my) falls within the bounds drawToolbarBtnR recorded for this key last frame. */
+    private boolean hitsToolbarBtn(String key, double mx, double my) {
+        int[] b = toolbarBtnBounds.get(key);
+        return b != null && mx >= b[0] && mx < b[2] && my >= b[1] && my < b[3];
     }
 
     // ── Inspector removed from overview (shown only in QuestTasksScreen) ───────
@@ -3918,7 +4376,7 @@ public class ChronicleOverviewScreen extends Screen {
     }
 
     private boolean gearHovered(int mx, int my) {
-        if (sidebarCollapsed) return false;
+        if (isSidebarNarrow()) return false;
         int gy = gearY();
         return mx >= sidebarW() - GEAR_SIZE - 4 && mx < sidebarW() - 4 && my >= gy && my < gy + GEAR_SIZE;
     }
@@ -3945,7 +4403,9 @@ public class ChronicleOverviewScreen extends Screen {
         g.drawCenteredString(font, newCatFormOpen ? "§8–" : "§a+", x + w / 2, y + 3, C_TEXT);
         if (hov && !newCatFormOpen) {
             int ttW = font.width("New chapter") + 10;
-            int ttX = sidebarW() + 3, ttY = y - 2;
+            // sidebarVisualW(), not sidebarW() - same animated-width tooltip fix as
+            // renderSidebarTooltip.
+            int ttX = sidebarVisualW() + 3, ttY = y - 2;
             g.fill(ttX, ttY, ttX + ttW, ttY + 14, 0xFF1A1A24);
             ChroniclesUIKit.drawBorder(g, ttX, ttY, ttW, 14, C_BORDER_LIT);
             g.drawString(font, "§7New chapter", ttX + 5, ttY + 3, C_TEXT_DIM, false);
@@ -3970,7 +4430,7 @@ public class ChronicleOverviewScreen extends Screen {
     }
 
     private boolean newCatButtonHovered(int mx, int my) {
-        if (!isDevMode || sidebarCollapsed) return false;
+        if (!isDevMode || isSidebarNarrow()) return false;
         int x = 4, y = newCatBtnY(), w = sidebarW() - 9, h = 14;
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
@@ -4087,9 +4547,15 @@ public class ChronicleOverviewScreen extends Screen {
             // regardless of icon position, jamming a 200px-wide panel into a much narrower strip.
             int ttW = 200;
             int ttH = isDevMode ? 64 : 30;
-            int ttXRaw = sidebarW() + 3;
+            // sidebarVisualW(), not sidebarW() - same animated-width tooltip fix as
+            // renderSidebarTooltip. (gx above stays on sidebarW(): it's ordinary sidebar row
+            // content revealed by the panel's scissor, not something that itself needs to slide.)
+            int ttXRaw = sidebarVisualW() + 3;
             int ttYRaw = gy - ttH - 2;
             if (ttXRaw + ttW > width) ttXRaw = width - ttW - 2;
+            // Same missing floor-clamp bug as openCtx()/renderNodeTooltip() - the flip above
+            // isn't enough once the window itself is narrower than the tooltip.
+            if (ttXRaw < 2) ttXRaw = 2;
             if (ttYRaw < 2) ttYRaw = 2;
             final int ttX = ttXRaw;
             final int ttY = ttYRaw;
@@ -4304,39 +4770,50 @@ public class ChronicleOverviewScreen extends Screen {
         // Outline stroke thickness grows with the node's zoomed pixel size, so borders don't
         // stay a hairline 1px when zoomed way in, or look disproportionately thick relative
         // to a tiny node when zoomed way out.
-        int thickness = Math.max(1, Math.min(4, sz / 28));
+        int thickness = nodeBorderThickness(sz);
+
+        // The fill used to be drawn at the SAME outer radius the outline ring uses, so the
+        // outline's own antialiased edge pixels got blended a SECOND time directly on top of
+        // the fill's already-antialiased edge pixels - two independent partial-alpha blends
+        // stacked at the same physical pixels, which bleeds fill color through underneath the
+        // border's coverage and reads as a visibly different/muddied shade right at the
+        // boundary (worse the more that boundary band dominates the shape, i.e. zoomed out).
+        // Insetting the fill by the border thickness stops it at the outline's inner edge -
+        // the same radius outlineCircle's innerR already computes - so the two never overlap.
+        int fx = x + thickness, fy = y + thickness;
+        int fsz = Math.max(1, sz - 2 * thickness);
 
         switch (shape) {
             case "CIRCLE" -> {
-                NodeShapeRenderer.fillCircle(g, x, y, sz, fill);
+                NodeShapeRenderer.fillCircle(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineCircle(g, x, y, sz, border, thickness);
             }
             case "DIAMOND" -> {
-                NodeShapeRenderer.fillDiamond(g, x, y, sz, fill);
+                NodeShapeRenderer.fillDiamond(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineDiamond(g, x, y, sz, border, thickness);
             }
             case "HEXAGON" -> {
-                NodeShapeRenderer.fillHexagon(g, x, y, sz, fill);
+                NodeShapeRenderer.fillHexagon(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineHexagon(g, x, y, sz, border, thickness);
             }
             case "TRIANGLE" -> {
-                NodeShapeRenderer.fillTriangle(g, x, y, sz, fill);
+                NodeShapeRenderer.fillTriangle(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineTriangle(g, x, y, sz, border, thickness);
             }
             case "STAR" -> {
-                NodeShapeRenderer.fillStar(g, x, y, sz, fill);
+                NodeShapeRenderer.fillStar(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineStar(g, x, y, sz, border, thickness);
             }
             case "PENTAGON" -> {
-                NodeShapeRenderer.fillPentagon(g, x, y, sz, fill);
+                NodeShapeRenderer.fillPentagon(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlinePentagon(g, x, y, sz, border, thickness);
             }
             case "SHIELD" -> {
-                NodeShapeRenderer.fillShield(g, x, y, sz, fill);
+                NodeShapeRenderer.fillShield(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineShield(g, x, y, sz, border, thickness);
             }
             case "CROSS" -> {
-                NodeShapeRenderer.fillCross(g, x, y, sz, fill);
+                NodeShapeRenderer.fillCross(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineCross(g, x, y, sz, border, thickness);
             }
             case "CUSTOM" -> {
@@ -4448,7 +4925,8 @@ public class ChronicleOverviewScreen extends Screen {
 
         FrameProfiler.begin("node:icon");
         FrameProfiler.begin("node:icon:lookup");
-        // Icon: try custom PNG first, then a picked texture, then scaled item, then state glyph
+        // Icon: try custom PNG first, then a picked texture, then a picked fluid, then scaled
+        // item, then state glyph
         String questPath = displaySource.getId().getPath();
         ResourceLocation customIcon = QuestIconCache.get(questPath);
         ResourceLocation pickedTexture = null;
@@ -4457,12 +4935,28 @@ public class ChronicleOverviewScreen extends Screen {
                 pickedTexture = new ResourceLocation(displaySource.getIconTexture());
             } catch (Exception ignored) {}
         }
+        net.minecraft.world.level.material.Fluid pickedFluid = null;
+        if (customIcon == null && pickedTexture == null && !displaySource.getIconFluid().isEmpty()) {
+            try {
+                net.minecraft.world.level.material.Fluid f = net.minecraftforge.registries.ForgeRegistries.FLUIDS
+                        .getValue(new ResourceLocation(displaySource.getIconFluid()));
+                if (f != null && f != net.minecraft.world.level.material.Fluids.EMPTY) pickedFluid = f;
+            } catch (Exception ignored) {}
+        }
         FrameProfiler.end("node:icon:lookup");
+        // Icon sizing is based on the node's actual inset FILL area (sz minus the border's own
+        // thickness), not the raw outer sz - see nodeBorderThickness()'s doc. Using raw sz here
+        // (the old behavior) meant the icon's proportion of the node stayed fixed while the
+        // border's proportion shrank once its thickness hit its pixel cap, so the gap between
+        // icon and border visibly grew the further you zoomed in.
+        int borderThickness = nodeBorderThickness(sz);
+        int fillSz = Math.max(1, sz - borderThickness * 2);
         if (customIcon != null && sz >= 8) {
             int[] dims = QuestIconCache.getDimensions(questPath);
-            int pad = Math.max(2, sz / 8);
-            int iconSz = sz - pad * 2;
-            g.blit(customIcon, x + pad, y + pad, 0, 0, iconSz, iconSz, dims[0], dims[1]);
+            int pad = Math.max(2, fillSz / 8);
+            int iconSz = Math.max(1, fillSz - pad * 2);
+            int off = (sz - iconSz) / 2;
+            g.blit(customIcon, x + off, y + off, 0, 0, iconSz, iconSz, dims[0], dims[1]);
             if (sz >= 20) {
                 FrameProfiler.begin("node:icon:badge");
                 renderStateBadge(g, x, y, sz, st);
@@ -4470,15 +4964,31 @@ public class ChronicleOverviewScreen extends Screen {
             }
             dbgCustomIconCount++;
         } else if (pickedTexture != null && sz >= 8) {
-            int pad = Math.max(2, sz / 8);
-            int iconSz = sz - pad * 2;
-            g.blit(pickedTexture, x + pad, y + pad, 0, 0, iconSz, iconSz, iconSz, iconSz);
+            int pad = Math.max(2, fillSz / 8);
+            int iconSz = Math.max(1, fillSz - pad * 2);
+            int off = (sz - iconSz) / 2;
+            g.blit(pickedTexture, x + off, y + off, 0, 0, iconSz, iconSz, iconSz, iconSz);
             if (sz >= 20) {
                 FrameProfiler.begin("node:icon:badge");
                 renderStateBadge(g, x, y, sz, st);
                 FrameProfiler.end("node:icon:badge");
             }
             dbgPickedTextureIconCount++;
+        } else if (pickedFluid != null && sz >= 8) {
+            // Flat tinted square, same convention QuestToastConfig's own fluid icons already use
+            // - a fluid doesn't have a natural "item render" the way an Item does.
+            int pad = Math.max(2, fillSz / 8);
+            int iconSz = Math.max(1, fillSz - pad * 2);
+            int off = (sz - iconSz) / 2;
+            int col = net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(pickedFluid)
+                    .getTintColor() | 0xFF000000;
+            g.fill(x + off, y + off, x + off + iconSz, y + off + iconSz, col);
+            if (sz >= 20) {
+                FrameProfiler.begin("node:icon:badge");
+                renderStateBadge(g, x, y, sz, st);
+                FrameProfiler.end("node:icon:badge");
+            }
+            dbgFluidIconCount++;
         } else {
             Item icon = displaySource.getIconItem();
             if (icon == null) icon = fallbackTaskIcon(displaySource);
@@ -4493,7 +5003,7 @@ public class ChronicleOverviewScreen extends Screen {
                 // actually running the client, and shipping broken visuals isn't worth the perf
                 // win. Back to the plain, vanilla-proven full 3D render per node for correctness;
                 // the node-visuals cost this brings back is a separate follow-up.
-                float scale = sz / 16f * 0.75f;
+                float scale = fillSz / 16f * 0.75f;
                 float cx = x + sz / 2f, cy = y + sz / 2f;
 
                 // Reverted the texture-filter smoothing toggle (setFilter(true,false) before the
@@ -4646,10 +5156,7 @@ public class ChronicleOverviewScreen extends Screen {
                 case FLUID -> {
                     net.minecraft.world.level.material.Fluid fluid = net.minecraftforge.registries.ForgeRegistries.FLUIDS
                             .getValue(new ResourceLocation(icon.id));
-                    if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY) return;
-                    int col = net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid)
-                            .getTintColor() | 0xFF000000;
-                    g.fill(x, y, x + size, y + size, col);
+                    ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
                     g.fill(x, y, x + size, y + 1, 0xFF444455);
                     g.fill(x, y + size - 1, x + size, y + size, 0xFF444455);
                     g.fill(x, y, x + 1, y + size, 0xFF444455);
@@ -4730,7 +5237,16 @@ public class ChronicleOverviewScreen extends Screen {
         int pcx = (int) Math.round(cx * gs);
         int pcy = (int) Math.round(cy * gs);
 
-        // Draw at two radii for a 2-physical-pixel wide ring
+        // Draw at two radii for a 2-physical-pixel wide ring. Each plotted pixel is QUEUED
+        // (NodeShapeRenderer.queueFillRect), not drawn via an immediate g.fill() - this used to be
+        // one full unbatched GL draw call PER PIXEL, and step count (and so the number of draw
+        // calls) scales with the physical radius, which scales with the node's own size: a single
+        // huge resized node zoomed in could push this well into the thousands of individual draw
+        // calls a frame, dwarfing the cost of every OTHER node on screen combined (confirmed via
+        // FrameProfiler - "node:progress" alone hit 30-40ms with exactly one huge node visible).
+        // queueFillRect bakes in whatever pose is active when called (including this method's own
+        // scale(s,s,1f) above), so this is safe to swap in as-is; the caller's existing
+        // NodeShapeRenderer.flushFillQueue(g) after the node-details pass picks these up for free.
         for (int dr = 0; dr <= 1; dr++) {
             int pr = (int) Math.round((r - dr * 0.5) * gs);
             if (pr <= 0) continue;
@@ -4741,7 +5257,7 @@ public class ChronicleOverviewScreen extends Screen {
                 int py = (int) Math.round(pcy + pr * Math.sin(angle));
                 int col = (i < fraction * steps) ? fillColor : bgColor;
                 if ((col >>> 24) == 0) continue;
-                g.fill(px, py, px + 1, py + 1, col);
+                NodeShapeRenderer.queueFillRect(g, px, py, px + 1, py + 1, col);
             }
         }
 
@@ -5087,7 +5603,7 @@ public class ChronicleOverviewScreen extends Screen {
 
     private String shortLabel(QuestNode node) {
         String t = node.getTitle().getString();
-        int maxW = scaledNodeSize() + 28;
+        int maxW = scaledNodeSize(node) + 28;
         return font.width(t) > maxW ? font.plainSubstrByWidth(t, maxW - 4) + "…" : t;
     }
 
@@ -5099,7 +5615,19 @@ public class ChronicleOverviewScreen extends Screen {
     // ── Fit-to-canvas ─────────────────────────────────────────────────────────
 
     private void fitToCanvas() {
-        if (nodeScreenPos.isEmpty()) return;
+        if (!applyFitView()) return;
+        rebuild();
+    }
+
+    /**
+     * Computes and applies a zoom/pan that fits the current category's content on screen -
+     * shared by the manual "Fit" button/keybind (fitToCanvas(), which also forces a rebuild)
+     * and restoreViewForCategory() (called mid-rebuild(), before nodeScreenPos has been
+     * repopulated for the just-switched-to category, so this can't depend on it - the bounding
+     * box is computed straight from QuestTreeRegistry/getCustomX/Y instead). Returns false
+     * (leaving zoom/viewOff untouched) if the category has no content to fit.
+     */
+    private boolean applyFitView() {
         int cl = sidebarW(), cr = width;
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
@@ -5112,7 +5640,7 @@ public class ChronicleOverviewScreen extends Screen {
             maxX = Math.max(maxX, nx + NODE_SIZE);
             maxY = Math.max(maxY, ny + NODE_SIZE);
         }
-        if (minX == Integer.MAX_VALUE) return;
+        if (minX == Integer.MAX_VALUE) return false;
         int canvasW = cr - cl - 20, canvasH = height - HEADER_H - 20;
         int contentW = maxX - minX, contentH = maxY - minY;
         zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(
@@ -5120,7 +5648,7 @@ public class ChronicleOverviewScreen extends Screen {
                 (float) canvasH / contentH)));
         viewOffX = (int) (canvasW / 2f - (minX + contentW / 2f) * posZoom()) + 10;
         viewOffY = (int) (canvasH / 2f - (minY + contentH / 2f) * posZoom()) + 10;
-        rebuild();
+        return true;
     }
 
     // ── Hover tooltip ─────────────────────────────────────────────────────────
@@ -5137,74 +5665,92 @@ public class ChronicleOverviewScreen extends Screen {
         String title = node.getTitle().getString();
         String sub = node.getSubtitle() != null && !node.getSubtitle().isBlank() ? node.getSubtitle() : null;
 
-        // Task progress summary
-        List<QuestTask> tasks = node.getTasks();
-        int taskDone = 0, taskTotal = 0;
-        List<String> taskLines = new ArrayList<>();
-        if (minecraft != null && minecraft.player != null) {
-            for (QuestTask t : tasks) {
-                if (t.isOptional()) continue;
-                taskTotal++;
-                boolean done = isTaskDone(t);
-                if (done) taskDone++;
-                String prog = t.getProgressString(minecraft.player);
-                String check = done ? "§a✔ " : "§8✗ ";
-                taskLines.add(check + "§7" + t.getDescription().getString() +
-                        (prog != null && !prog.isBlank() ? " §8(" + prog + ")" : ""));
-            }
-        }
-
-        // State line
-        String stateLine = switch (st) {
-            case COMPLETED -> "§a✔ Complete";
-            case ACTIVE -> "§e▶ In progress — " + taskDone + "/" + taskTotal;
-            case UNLOCKED -> "§b○ Ready to start";
-            case LOCKED -> "§8✕ Locked";
-        };
-
-        // Prereqs
-        List<String> prereqLines = new ArrayList<>();
-        if (!node.getPrerequisites().isEmpty()) {
-            for (QuestNode req : node.getPrerequisites()) {
-                QuestState rs = getState(req);
-                String mark = rs == QuestState.COMPLETED ? "§a✔" : "§8○";
-                prereqLines.add("  " + mark + " §8" + req.getTitle().getString());
-            }
-        }
+        // Same convention as vanilla item tooltips (enchanted books, etc.): a quick hover just
+        // shows the name/subtitle, everything else (state, tasks, prereqs, validation) is an
+        // information dump that's only worth paying for by holding Shift - showing it on every
+        // plain hover was reported as an unwanted "massive popup for just swiping your mouse
+        // over a quest."
+        boolean showFull = hasShiftDown();
 
         // Build tooltip lines
         List<String> lines = new ArrayList<>();
         lines.add("§f" + title);
         if (sub != null) lines.add("§8" + sub);
-        lines.add(stateLine);
-        if (!taskLines.isEmpty()) {
-            lines.add("§8─────────────");
-            lines.addAll(taskLines.stream().limit(6).toList());
-            if (taskLines.size() > 6) lines.add("§8  … +" + (taskLines.size() - 6) + " more");
-        }
-        if (!prereqLines.isEmpty() && st == QuestState.LOCKED) {
-            lines.add("§8─────────────");
-            lines.add("§8Requires:");
-            lines.addAll(prereqLines.stream().limit(4).toList());
-        }
-        // Dev-mode validation warnings
-        if (isDevMode) {
-            List<String> issues = getValidationIssues(node);
-            if (!issues.isEmpty()) {
-                lines.add("§8─────────────");
-                lines.add("§6⚠ Validation issues:");
-                issues.forEach(i -> lines.add("  §e• §7" + i));
+
+        if (showFull) {
+            // Task progress summary
+            List<QuestTask> tasks = node.getTasks();
+            int taskDone = 0, taskTotal = 0;
+            List<String> taskLines = new ArrayList<>();
+            if (minecraft != null && minecraft.player != null) {
+                for (QuestTask t : tasks) {
+                    if (t.isOptional()) continue;
+                    taskTotal++;
+                    boolean done = isTaskDone(t);
+                    if (done) taskDone++;
+                    String prog = t.getProgressString(minecraft.player);
+                    String check = done ? "§a✔ " : "§8✗ ";
+                    taskLines.add(check + "§7" + t.getDescription().getString() +
+                            (prog != null && !prog.isBlank() ? " §8(" + prog + ")" : ""));
+                }
             }
+
+            // State line
+            String stateLine = switch (st) {
+                case COMPLETED -> "§a✔ Complete";
+                case ACTIVE -> "§e▶ In progress — " + taskDone + "/" + taskTotal;
+                case UNLOCKED -> "§b○ Ready to start";
+                case LOCKED -> "§8✕ Locked";
+            };
+
+            // Prereqs
+            List<String> prereqLines = new ArrayList<>();
+            if (!node.getPrerequisites().isEmpty()) {
+                for (QuestNode req : node.getPrerequisites()) {
+                    QuestState rs = getState(req);
+                    String mark = rs == QuestState.COMPLETED ? "§a✔" : "§8○";
+                    prereqLines.add("  " + mark + " §8" + req.getTitle().getString());
+                }
+            }
+
+            lines.add(stateLine);
+            if (!taskLines.isEmpty()) {
+                lines.add("§8─────────────");
+                lines.addAll(taskLines.stream().limit(6).toList());
+                if (taskLines.size() > 6) lines.add("§8  … +" + (taskLines.size() - 6) + " more");
+            }
+            if (!prereqLines.isEmpty() && st == QuestState.LOCKED) {
+                lines.add("§8─────────────");
+                lines.add("§8Requires:");
+                lines.addAll(prereqLines.stream().limit(4).toList());
+            }
+            // Dev-mode validation warnings
+            if (isDevMode) {
+                List<String> issues = getValidationIssues(node);
+                if (!issues.isEmpty()) {
+                    lines.add("§8─────────────");
+                    lines.add("§6⚠ Validation issues:");
+                    issues.forEach(i -> lines.add("  §e• §7" + i));
+                }
+            }
+        } else {
+            lines.add("§8Hold Shift for details");
         }
 
-        int lineH = font.lineHeight + 2;
+        float ts = QuestChroniclesSettings.get().getTextScaleMultiplier();
+        int lineH = Math.round((font.lineHeight + 2) * ts);
         int padH = 6, padW = 8;
-        int tipW = lines.stream().mapToInt(font::width).max().orElse(60) + padW * 2;
+        int tipW = Math.round(lines.stream().mapToInt(font::width).max().orElse(60) * ts) + padW * 2;
         int tipH = lines.size() * lineH + padH * 2;
 
         int tx = mx + 10, ty = my + 12;
         if (tx + tipW > width - 4) tx = mx - tipW - 4;
         if (ty + tipH > height - 4) ty = my - tipH - 4;
+        // Same missing floor-clamp fix as openCtx() - flipping to the other side of the cursor
+        // isn't enough once the tooltip itself is bigger than the available window (a smaller
+        // windowed-mode size, or a higher GUI scale shrinking the logical canvas).
+        tx = Math.max(4, tx);
+        ty = Math.max(4, ty);
 
         // Node icons render via g.renderItem() translated to z=100, which persists in the depth
         // buffer - a fill drawn later at the default z=0 can still lose the depth test and let
@@ -5223,7 +5769,7 @@ public class ChronicleOverviewScreen extends Screen {
 
         int lx = tx + padW, ly = ty + padH;
         for (String line : lines) {
-            g.drawString(font, line, lx, ly, 0xFFCCCCDD);
+            ChroniclesUIKit.drawScaledString(g, font, line, lx, ly, 0xFFCCCCDD, ts);
             ly += lineH;
         }
         g.pose().popPose();
@@ -5295,7 +5841,10 @@ public class ChronicleOverviewScreen extends Screen {
         return base + amplitude * (float) Math.sin(System.currentTimeMillis() / periodDivisor);
     }
 
-    private void setFeedback(String msg) {
+    // Package-private (not private) so SetIconScreen - opened as a child of this screen from the
+    // node context menu - can post its own feedback after applying an icon change, same as
+    // rebuild() below already needs to be for the same reason.
+    void setFeedback(String msg) {
         feedbackMsg = msg;
         feedbackTimer = 100;
     }
@@ -5340,14 +5889,6 @@ public class ChronicleOverviewScreen extends Screen {
         QuestFileSaver.updateNodePrerequisites(node);
     }
 
-    private void saveNodeIconToDisk(QuestNode node) {
-        QuestFileSaver.updateNodeIcon(node);
-    }
-
-    private void saveNodeIconTextureToDisk(QuestNode node) {
-        QuestFileSaver.updateNodeIconTexture(node);
-    }
-
     private void saveNodeShapeTextureToDisk(QuestNode node) {
         QuestFileSaver.updateNodeShapeTexture(node);
     }
@@ -5372,6 +5913,18 @@ public class ChronicleOverviewScreen extends Screen {
                 String t = line.trim();
                 if (t.startsWith("# ") && title.getString().isEmpty()) {
                     title = Component.literal(t.substring(2).trim());
+                } else if (t.matches("-{3,}")) {
+                    // Page-break marker (QuestTasksScreen.DESC_PAGE_BREAK) - must stay on its
+                    // own line no matter what surrounds it in the file. Without this branch it
+                    // fell into the plain-text case below, which only inserts a hard "\n\n"
+                    // break when a blank line happens to precede it (soft-wrap joining
+                    // otherwise) - a page break inserted without extra blank-line padding around
+                    // it (the toolbar button just inserts "\n---\n") would get glued into the
+                    // surrounding paragraph with plain spaces on the next reparse, silently
+                    // losing the page break the moment the description is next read from disk.
+                    if (desc.length() > 0) desc.append("\n\n");
+                    desc.append(t);
+                    pendingParagraphBreak = true;
                 } else if (!t.startsWith("#") && !t.isEmpty()) {
                     if (desc.length() > 0) desc.append(pendingParagraphBreak ? "\n\n" : ' ');
                     desc.append(t);
@@ -5700,7 +6253,6 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public void onClose() {
-        saveViewForCategory(viewCategoryTracker);
         PhantasiaCompat.closePreview(phantasiaPreview);
         phantasiaPreview = null;
         super.onClose();
@@ -5786,7 +6338,8 @@ public class ChronicleOverviewScreen extends Screen {
                     ResourceLocation rid = new ResourceLocation(PhoenixChronicles.MOD_ID, nid);
                     int[] pos = nodeScreenPos.get(rid);
                     if (pos != null) {
-                        int sz = scaledNodeSize();
+                        QuestNode hlNode = QuestTreeRegistry.getQuest(rid);
+                        int sz = hlNode != null ? scaledNodeSize(hlNode) : scaledNodeSize();
                         hx = pos[0] - 4;
                         hy = pos[1] - 4;
                         hw = sz + 8;

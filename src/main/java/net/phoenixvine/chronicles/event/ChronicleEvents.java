@@ -94,6 +94,7 @@ public class ChronicleEvents {
         PhoenixQuestFlags.invalidateCaches(); // flush file-backed flag caches before quest load
         CategoryFlagRegistry.load(configDir);
         net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+        net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
         RewardTableRegistry.load(configDir);
         net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
         QuestFileLoader.loadAdditiveFromDisk(configDir);
@@ -195,8 +196,14 @@ public class ChronicleEvents {
         // Populate the per-player energy cache for EnergyStorageTask (BLOCK source).
         // Runs on both sides: client side so the quest UI can read cached values immediately,
         // server side so server-tick progress checks also work.
-        EnergyStorageTask.onBlockRightClicked(
-                player, event.getLevel(), event.getPos());
+        // Guarded - this fires on EVERY right-click on EVERY block, and its BLOCK-source path
+        // reads GTCEu's energy capability internally, so without this check any right-click at
+        // all would throw NoClassDefFoundError the moment GTCEu isn't installed (GTCEu is a soft
+        // dependency now - see GTCEuCompat).
+        if (net.phoenixvine.chronicles.integration.gtceu.GTCEuCompat.isAvailable()) {
+            EnergyStorageTask.onBlockRightClicked(
+                    player, event.getLevel(), event.getPos());
+        }
 
         if (player.level().isClientSide) return;
         handleBlockEvent(player, clicked, "RIGHT_CLICK");
@@ -395,6 +402,7 @@ public class ChronicleEvents {
                             QuestTreeRegistry.clearConfigQuests();
                             CategoryFlagRegistry.load(configDir);
                             net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+                            net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
                             RewardTableRegistry.load(configDir);
                             net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
                             QuestFileLoader.loadAdditiveFromDisk(configDir);
@@ -656,6 +664,7 @@ public class ChronicleEvents {
                 QuestTreeRegistry.clearConfigQuests();
                 net.phoenixvine.chronicles.registry.CategoryFlagRegistry.load(configDir);
                 net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+                net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
                 net.phoenixvine.chronicles.registry.RewardTableRegistry.load(configDir);
                 net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
                 net.phoenixvine.chronicles.codec.QuestFileLoader.loadAdditiveFromDisk(configDir);
@@ -742,6 +751,8 @@ public class ChronicleEvents {
     @SubscribeEvent
     public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         EnergyStorageTask.clearBlockCache(
+                event.getEntity().getUUID());
+        net.phoenixvine.chronicles.tracker.QuestProgressTracker.clearInventoryFingerprint(
                 event.getEntity().getUUID());
     }
 

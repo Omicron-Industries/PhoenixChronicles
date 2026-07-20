@@ -58,6 +58,7 @@ public class LocationOrTerminalTask extends QuestTask {
      * Call this when claiming rewards.
      * If 'consume' is true, it wipes the milestone confirmation flag for repeatable/daily terminal cycles.
      */
+    @Override
     public void tryConsume(Player player) {
         if (!consume) return; // Retain checked milestone flag state if consumption is disabled
 

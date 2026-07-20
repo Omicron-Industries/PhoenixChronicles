@@ -9,6 +9,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 /**
@@ -21,6 +22,8 @@ public class TagItemTask extends QuestTask {
 
     private TagKey<Item> tag;
     private int required = 1;
+    /** See ItemRequirementTask#sticky. */
+    private boolean sticky = true;
 
     public TagItemTask(ResourceLocation taskId, Component description, TagKey<Item> tag, int required) {
         super(taskId, description);
@@ -36,6 +39,14 @@ public class TagItemTask extends QuestTask {
         return required;
     }
 
+    public boolean isSticky() {
+        return sticky;
+    }
+
+    public void setSticky(boolean sticky) {
+        this.sticky = sticky;
+    }
+
     private int countMatching(Player player) {
         if (tag == null) return 0;
         Inventory inv = player.getInventory();
@@ -48,12 +59,25 @@ public class TagItemTask extends QuestTask {
     }
 
     @Override
+    public boolean dependsOnInventory() {
+        return true;
+    }
+
+    @Override
     public boolean isCompletedFor(Player player) {
-        return countMatching(player) >= required;
+        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
+        if (countMatching(player) >= required) {
+            if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
+            return true;
+        }
+        return false;
     }
 
     @Override
     public String getProgressString(Player player) {
+        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
+            return required + "/" + required;
         return countMatching(player) + "/" + required;
     }
 
@@ -71,6 +95,7 @@ public class TagItemTask extends QuestTask {
         t.putString("type", "tag_item");
         t.putString("tag", tag != null ? tag.location().toString() : "");
         t.putInt("required", required);
+        t.putBoolean("sticky", sticky);
         return t;
     }
 
@@ -81,5 +106,6 @@ public class TagItemTask extends QuestTask {
             if (!raw.isBlank()) tag = ItemTags.create(new ResourceLocation(raw));
         }
         if (nbt.contains("required")) required = Math.max(1, nbt.getInt("required"));
+        this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }

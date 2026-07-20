@@ -11,8 +11,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.material.Fluid;
-import net.minecraft.world.level.material.Fluids;
-import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
@@ -413,9 +411,7 @@ public class QuestGroupEditorScreen extends Screen {
                 }
                 case FLUID -> {
                     Fluid fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(icon.id));
-                    if (fluid == null || fluid == Fluids.EMPTY) return;
-                    int col = IClientFluidTypeExtensions.of(fluid).getTintColor() | 0xFF000000;
-                    g.fill(x, y, x + size, y + size, col);
+                    ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
                     ChroniclesUIKit.drawBorder(g, x, y, size, size, 0xFF444455);
                 }
                 case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);

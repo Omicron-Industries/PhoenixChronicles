@@ -1,5 +1,8 @@
 package net.phoenixvine.chronicles.registry;
 
+import net.minecraft.util.Mth;
+import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -20,6 +23,13 @@ public class ChroniclesTheme {
 
         public String hex;
         private transient Integer cached = null;
+        /**
+         * Per-field animation phase offset (ms), so e.g. bg/accent/border all cycling RAINBOW
+         * don't all show the exact same hue at the exact same moment - same trick Phantasia's
+         * PhantasiaTheme uses for its own animated keyword colors. Assigned by the owning
+         * ChroniclesTheme constructor, not persisted.
+         */
+        private transient long animOffset = 0L;
 
         public ThemeColor() {
             this.hex = "FFFFFFFF";
@@ -29,10 +39,31 @@ public class ChroniclesTheme {
             this.hex = hex;
         }
 
+        void setAnimOffset(long offset) {
+            this.animOffset = offset;
+        }
+
         public int getColor() {
             if (hex == null) return 0xFFFFFFFF;
             String clean = hex.trim().toUpperCase(Locale.ROOT);
             if (clean.startsWith("#")) clean = clean.substring(1);
+
+            // Animated keyword colors - evaluated fresh every call (never cached) since the whole
+            // point is that they change over time. Reduce Motion pins the clock at 0 so they still
+            // resolve to a real, stable color instead of flickering.
+            switch (clean) {
+                case "RAINBOW":
+                    return animatedHue(6000L, 0.75f, 0.90f, 0f, 1f);
+                case "PASTEL_RAINBOW":
+                    return animatedHue(12000L, 0.38f, 0.95f, 0f, 1f);
+                case "MAGMA":
+                    return animatedWave(5000.0, 0.95f, 0.50f, 0.45f, 0f, 0.10f);
+                case "AURORA":
+                    return animatedWave(3200.0, 0.90f, 0.85f, 0f, 0.32f, 0.18f);
+                case "GALAXY":
+                    return animatedWave(4000.0, 0.85f, 0.90f, 0f, 0.75f, 0.14f);
+            }
+
             if (cached == null) {
                 try {
                     cached = (int) Long.parseUnsignedLong(clean, 16);
@@ -41,6 +72,67 @@ public class ChroniclesTheme {
                 }
             }
             return cached;
+        }
+
+        private static long animClock() {
+            return QuestChroniclesSettings.get().isReduceMotion() ? 0L : System.currentTimeMillis();
+        }
+
+        /** A hue that cycles linearly through the full color wheel every {@code periodMs}. */
+        private int animatedHue(long periodMs, float sat, float val, float hueMin, float hueMax) {
+            float hue = (float) ((animClock() + animOffset) % periodMs) / periodMs;
+            return hsvToRgb(hueMin + hue * (hueMax - hueMin), sat, val);
+        }
+
+        /** A hue/value that oscillates back and forth (sine wave) rather than cycling linearly. */
+        private int animatedWave(double periodMs, float sat, float valBase, float valAmp, float hueBase,
+                                 float hueAmp) {
+            double t = (animClock() + animOffset) / periodMs;
+            float wave = (float) (Math.sin(t) * 0.5 + 0.5);
+            return hsvToRgb(hueBase + wave * hueAmp, sat, valBase + wave * valAmp);
+        }
+
+        private static int hsvToRgb(float h, float s, float v) {
+            int i = (int) (h * 6);
+            float f = h * 6 - i;
+            float p = v * (1f - s);
+            float q = v * (1f - s * f);
+            float t = v * (1f - s * (1f - f));
+            float r, g, b;
+            switch (((i % 6) + 6) % 6) {
+                case 0 -> {
+                    r = v;
+                    g = t;
+                    b = p;
+                }
+                case 1 -> {
+                    r = q;
+                    g = v;
+                    b = p;
+                }
+                case 2 -> {
+                    r = p;
+                    g = v;
+                    b = t;
+                }
+                case 3 -> {
+                    r = p;
+                    g = q;
+                    b = v;
+                }
+                case 4 -> {
+                    r = t;
+                    g = p;
+                    b = v;
+                }
+                default -> {
+                    r = v;
+                    g = p;
+                    b = q;
+                }
+            }
+            return (0xFF << 24) | (Mth.clamp((int) (r * 255), 0, 255) << 16) |
+                    (Mth.clamp((int) (g * 255), 0, 255) << 8) | Mth.clamp((int) (b * 255), 0, 255);
         }
 
         public void set(String newHex) {
@@ -57,7 +149,8 @@ public class ChroniclesTheme {
     private static ChroniclesTheme active = null;
     private static String activeName = "DARK";
 
-    private static final Set<String> BUILTINS = Set.of("DARK", "LIGHT", "CRIMSON", "OCEAN", "PHANTOM", "EMBER");
+    private static final Set<String> BUILTINS = Set.of("DARK", "LIGHT", "CRIMSON", "OCEAN", "PHANTOM", "EMBER",
+            "RAINBOW", "MAGMA");
 
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
@@ -83,6 +176,27 @@ public class ChroniclesTheme {
         this.done = new ThemeColor(done);
         this.activeColor = new ThemeColor(activeCol);
         this.locked = new ThemeColor(locked);
+        assignAnimOffsets();
+    }
+
+    /**
+     * Staggers each field's animated-keyword phase (see {@link ThemeColor#getColor()}) so a theme
+     * with several RAINBOW/MAGMA fields doesn't have them all showing the identical hue at the
+     * identical instant. Must also run after Gson deserialization, since Gson populates fields via
+     * reflection and never calls this constructor - see {@link #loadThemes()}.
+     */
+    private void assignAnimOffsets() {
+        if (bg != null) bg.setAnimOffset(0);
+        if (panel != null) panel.setAnimOffset(500);
+        if (header != null) header.setAnimOffset(1000);
+        if (border != null) border.setAnimOffset(1500);
+        if (accent != null) accent.setAnimOffset(2000);
+        if (text != null) text.setAnimOffset(2500);
+        if (textDim != null) textDim.setAnimOffset(3000);
+        if (textFaint != null) textFaint.setAnimOffset(3500);
+        if (done != null) done.setAnimOffset(4000);
+        if (activeColor != null) activeColor.setAnimOffset(4500);
+        if (locked != null) locked.setAnimOffset(5000);
     }
 
     /** Returns a deep copy so edits in the theme editor never corrupt the live registry entry. */
@@ -193,6 +307,18 @@ public class ChroniclesTheme {
                 "FF100A06", "FF1C120A", "FF100A04", "FF382210", "FFCC6600",
                 "FFF0E0CC", "FFA0785A", "FF604830", "FF44CC77", "FFFFCC22", "FF806040"));
 
+        // ── Animated presets ───────────────────────────────────────────────────
+        // "RAINBOW"/"MAGMA" etc are keyword hex values (see ThemeColor#getColor()) rather than
+        // static hex - any field, in any theme (including custom ones typed into the Theme
+        // Editor's hex boxes), can use them. These two are just built-in presets that lean on it.
+        REGISTRY.put("RAINBOW", new ChroniclesTheme(
+                "FF09090C", "FF111116", "FF0A0A0E", "RAINBOW", "RAINBOW",
+                "FFEEEEEE", "FF888888", "FF505050", "FF44CC88", "RAINBOW", "FF606070"));
+
+        REGISTRY.put("MAGMA", new ChroniclesTheme(
+                "FF120806", "FF1C0E0A", "FF100604", "MAGMA", "MAGMA",
+                "FFF0E0D0", "FFA07860", "FF604838", "FF44CC77", "MAGMA", "FF705040"));
+
         // ── Load custom themes from disk ──────────────────────────────────────
         String loadedActive = "DARK";
         try {
@@ -201,7 +327,14 @@ public class ChroniclesTheme {
                 Type type = new TypeToken<ThemeSave>() {}.getType();
                 ThemeSave save = GSON.fromJson(json, type);
                 if (save != null) {
-                    if (save.custom != null) REGISTRY.putAll(save.custom);
+                    if (save.custom != null) {
+                        // Gson populates fields via reflection, bypassing the constructor entirely
+                        // - without this, any custom theme saved with an animated keyword color
+                        // would silently animate at animOffset=0 for every field instead of the
+                        // staggered phase assignAnimOffsets() normally assigns.
+                        for (ChroniclesTheme theme : save.custom.values()) theme.assignAnimOffsets();
+                        REGISTRY.putAll(save.custom);
+                    }
                     if (save.active != null) loadedActive = save.active;
                 }
             }

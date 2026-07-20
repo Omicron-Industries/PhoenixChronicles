@@ -51,16 +51,60 @@ public class QuestToastConfig {
     public Element label = defaultLabel();
     public int bgColor = 0xB2170D00;
     public int accentColor = 0xFFFFAA00;
-    /** Background rectangle half-size in GUI pixels around the element bounds, per axis. */
+    /**
+     * Background rectangle half-size in GUI pixels, per axis. When {@link #bgAutoFit} is true
+     * (the default, and always true for any config saved before this field existed) this is a
+     * PADDING beyond the live union of the icon/title/label positions, so the background always
+     * grows/shrinks/shifts to hug wherever those three currently are - simple, but means dragging
+     * any ONE of them can visibly balloon or shift the whole background+accent bar along with it.
+     * When false, this is instead a fixed HALF-WIDTH/HALF-HEIGHT around the background's own
+     * independent anchor ({@link #bgX}, {@link #bgY}), completely decoupled from where the icon/
+     * title/label happen to be - the background stays put no matter what you drag.
+     */
     public float bgPadX = 26f, bgPadY = 14f;
+    /** See {@link #bgPadX} - true (default) reproduces the original auto-fit-to-elements behavior. */
+    public boolean bgAutoFit = true;
+    /**
+     * Independent background anchor, same 0..1-of-screen convention as Element#x/y - only used when {@link #bgAutoFit}
+     * is false.
+     */
+    public float bgX = 0.5f, bgY = 0.5f;
 
     /**
-     * Custom icon set for the toast, overriding the quest's own auto icon when non-empty -
-     * rendered as a small row anchored at {@link #icon}'s position/scale. Reuses
-     * {@link QuestGroup.GroupIcon}/{@link QuestGroup.IconKind} rather than duplicating an
-     * identical item/fluid/texture icon model.
+     * One independently-positioned icon in the toast's custom icon set - each entry drags/scales
+     * on its own in the designer, not locked to the others. Used to just be a plain
+     * {@link QuestGroup.GroupIcon} (kind+id only) with every entry forced into a single row
+     * anchored at {@link #icon}'s position, which meant adding a second icon could only ever be
+     * moved together with the first.
      */
-    public final List<QuestGroup.GroupIcon> icons = new ArrayList<>();
+    public static class IconEntry {
+
+        public QuestGroup.IconKind kind;
+        public String id;
+        /** Same 0..1-of-screen convention as Element#x/y. */
+        public float x = 0.5f, y = 0.42f;
+        public float scale = 1.5f;
+
+        public IconEntry() {}
+
+        public IconEntry(QuestGroup.IconKind kind, String id, float x, float y, float scale) {
+            this.kind = kind;
+            this.id = id;
+            this.x = x;
+            this.y = y;
+            this.scale = scale;
+        }
+
+        public IconEntry copy() {
+            return new IconEntry(kind, id, x, y, scale);
+        }
+    }
+
+    /**
+     * Custom icon set for the toast, overriding the quest's own auto icon when non-empty - each
+     * entry has its own position/scale (see {@link IconEntry}).
+     */
+    public final List<IconEntry> icons = new ArrayList<>();
 
     /**
      * Optional Phantasia machine id - when set, the toast (both the real in-game notification and
@@ -69,7 +113,10 @@ public class QuestToastConfig {
      */
     public String phantasiaMachineId = "";
 
-    private static Element defaultIcon() {
+    /**
+     * Public so ToastDesignerScreen's "Reset element" can restore just one of the three without touching the others.
+     */
+    public static Element defaultIcon() {
         Element e = new Element();
         e.x = 0.5f;
         e.y = 0.42f;
@@ -77,7 +124,7 @@ public class QuestToastConfig {
         return e;
     }
 
-    private static Element defaultTitle() {
+    public static Element defaultTitle() {
         Element e = new Element();
         e.x = 0.5f;
         e.y = 0.53f;
@@ -87,7 +134,7 @@ public class QuestToastConfig {
         return e;
     }
 
-    private static Element defaultLabel() {
+    public static Element defaultLabel() {
         Element e = new Element();
         e.x = 0.5f;
         e.y = 0.47f;
@@ -105,8 +152,11 @@ public class QuestToastConfig {
         c.accentColor = accentColor;
         c.bgPadX = bgPadX;
         c.bgPadY = bgPadY;
+        c.bgAutoFit = bgAutoFit;
+        c.bgX = bgX;
+        c.bgY = bgY;
         c.icons.clear();
-        for (QuestGroup.GroupIcon i : icons) c.icons.add(new QuestGroup.GroupIcon(i.kind, i.id));
+        for (IconEntry i : icons) c.icons.add(i.copy());
         c.phantasiaMachineId = phantasiaMachineId;
         return c;
     }

@@ -102,6 +102,12 @@ public class QuestCreatorScreen extends Screen {
     private boolean cachedRewardChoice = false;
     private int cachedRewardChoiceCount = 1;
     private QuestNode.NodeSize cachedNodeSize = QuestNode.NodeSize.NORMAL;
+    // Must round-trip through this screen's save even though there's no UI control for it here -
+    // set via the canvas's own "Resize (scroll + drag)…" mode, not this editor. Without caching
+    // and re-writing it, editing ANY other field via this screen and saving would silently wipe
+    // out a size set that way (this screen fully re-serializes the quest from its own cached
+    // fields, it doesn't merge onto the existing file).
+    private int cachedSizeOverridePx = 0;
     private String cachedDevNotes = "";
     private String cachedPreviewMachineId = "";
     private int cachedPosX = 40;
@@ -172,6 +178,7 @@ public class QuestCreatorScreen extends Screen {
         cachedRewardChoice = editingNode.isRewardChoice();
         cachedRewardChoiceCount = editingNode.getRewardChoiceCount();
         cachedNodeSize = editingNode.getNodeSize();
+        cachedSizeOverridePx = editingNode.getSizeOverridePx();
         cachedDevNotes = editingNode.getDevNotes();
         cachedPreviewMachineId = editingNode.getPreviewMachineId();
         cachedPosX = editingNode.getCustomX();
@@ -259,7 +266,7 @@ public class QuestCreatorScreen extends Screen {
             addRenderableWidget(descBox);
             addRenderableWidget(Button.builder(Component.literal("§7✎"),
                     b -> Minecraft.getInstance()
-                            .setScreen(new QuestTextInputScreen(this, "Description", cachedDesc, 512,
+                            .setScreen(new QuestTextInputScreen(this, "Description", cachedDesc, 8192,
                                     v -> {
                                         cachedDesc = v;
                                         if (descBox != null) descBox.setValue(v);
@@ -534,21 +541,24 @@ public class QuestCreatorScreen extends Screen {
 
             // Row: Node size
             fieldY[10] = y + LABEL_H + LABEL_GAP;
-            String sizeLabel = switch (cachedNodeSize) {
-                case SMALL -> "§8◦ Size: Small";
-                case LARGE -> "§e● Size: Large";
-                default -> "§7• Size: Normal";
-            };
+            String sizeLabel = cachedSizeOverridePx > 0 ? "§b◆ Size: " + cachedSizeOverridePx + "px (custom)" :
+                    switch (cachedNodeSize) {
+                        case TINY -> "§8◦ Size: Tiny";
+                        case SMALL -> "§8◦ Size: Small";
+                        case LARGE -> "§e● Size: Large";
+                        case HUGE -> "§e● Size: Huge";
+                        default -> "§7• Size: Normal";
+                    };
             addRenderableWidget(Button.builder(Component.literal(sizeLabel), b -> {
-                cachedNodeSize = switch (cachedNodeSize) {
-                    case SMALL -> QuestNode.NodeSize.NORMAL;
-                    case NORMAL -> QuestNode.NodeSize.LARGE;
-                    default -> QuestNode.NodeSize.SMALL;
-                };
+                QuestNode.NodeSize[] vals = QuestNode.NodeSize.values();
+                cachedNodeSize = vals[(cachedNodeSize.ordinal() + 1) % vals.length];
+                cachedSizeOverridePx = 0; // picking a preset here clears any freeform canvas override
                 rebuildWidgets();
             }).bounds(cx, fieldY[10], cw, FIELD_H)
-                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(
-                            Component.literal("Node size on the quest canvas (Small=18px / Normal=32px / Large=48px)")))
+                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(
+                            "Node size on the quest canvas (Tiny=14px / Small=18px / Normal=32px / Large=48px / Huge=64px).\n" +
+                                    "For freeform pixel control, use the canvas's own right-click → \"Resize (scroll + drag)…\" instead - " +
+                                    "clicking this cycles through the 5 presets and clears any custom size.")))
                     .build());
             secPanelBot = Math.min(fieldY[10] + FIELD_H + SEC_PAD, contentBottom);
         }
@@ -1036,6 +1046,7 @@ public class QuestCreatorScreen extends Screen {
                 if (cachedRewardChoiceCount != 1) tag.putInt("reward_choice_count", cachedRewardChoiceCount);
             }
             if (cachedNodeSize != QuestNode.NodeSize.NORMAL) tag.putString("node_size", cachedNodeSize.name());
+            if (cachedSizeOverridePx > 0) tag.putInt("node_size_px", cachedSizeOverridePx);
             if (!cachedDevNotes.isBlank()) tag.putString("dev_notes", cachedDevNotes.trim());
             if (!cachedPreviewMachineId.isBlank())
                 tag.putString("preview_machine_id", cachedPreviewMachineId.trim());
@@ -1102,6 +1113,7 @@ public class QuestCreatorScreen extends Screen {
                 if (cachedRewardChoiceCount != 1) snbt.putInt("reward_choice_count", cachedRewardChoiceCount);
             }
             if (cachedNodeSize != QuestNode.NodeSize.NORMAL) snbt.putString("node_size", cachedNodeSize.name());
+            if (cachedSizeOverridePx > 0) snbt.putInt("node_size_px", cachedSizeOverridePx);
             if (!cachedDevNotes.isBlank()) snbt.putString("dev_notes", cachedDevNotes.trim());
             if (!cachedPreviewMachineId.isBlank())
                 snbt.putString("preview_machine_id", cachedPreviewMachineId.trim());
@@ -1147,6 +1159,7 @@ public class QuestCreatorScreen extends Screen {
             node.setRewardChoice(cachedRewardChoice);
             node.setRewardChoiceCount(cachedRewardChoiceCount);
             node.setNodeSize(cachedNodeSize);
+            if (cachedSizeOverridePx > 0) node.setSizeOverridePx(cachedSizeOverridePx);
             node.setDevNotes(cachedDevNotes.trim());
             node.setPreviewMachineId(cachedPreviewMachineId.trim());
             node.setCustomPosition(cachedPosX, cachedPosY);

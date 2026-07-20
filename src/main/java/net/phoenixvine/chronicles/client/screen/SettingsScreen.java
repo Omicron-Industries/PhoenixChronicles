@@ -87,6 +87,7 @@ public class SettingsScreen extends Screen {
         final Runnable onClick; // LINK rows
         int y;
         int height = ROW_H;
+        String tooltip; // null = no tooltip; set via .tip(...) after construction
 
         Row(RowType type, String label, Supplier<String> valueFn, Runnable onLeft, Runnable onRight,
             Runnable onClick) {
@@ -96,6 +97,12 @@ public class SettingsScreen extends Screen {
             this.onLeft = onLeft;
             this.onRight = onRight;
             this.onClick = onClick;
+        }
+
+        /** Attaches a hover tooltip; chain onto any factory method. Wrap long text with \n. */
+        Row tip(String text) {
+            this.tooltip = text;
+            return this;
         }
 
         static Row toggle(String label, Supplier<Boolean> getter, Consumer<Boolean> setter) {
@@ -175,61 +182,86 @@ public class SettingsScreen extends Screen {
 
         switch (selectedCategory) {
             case GENERAL -> {
-                rows.add(Row.cycle("§fText Scale", TextScale.class, settings::getTextScale, settings::setTextScale));
-                rows.add(Row.cycle("§fTheme", Theme.class, settings::getTheme, settings::setTheme));
-                rows.add(Row.cycle("§fLayout Density", Density.class, settings::getDensity, settings::setDensity));
-                rows.add(Row.toggle("§fReduce Motion", settings::isReduceMotion, settings::setReduceMotion));
-                rows.add(Row.info(
-                        "§8Freezes blinking/pulsing effects and animated dependency lines\n" +
-                                "§8(validation warnings, unclaimed rewards, ACTIVE glow, etc.)",
-                        2));
+                rows.add(Row.cycle("§fText Scale", TextScale.class, settings::getTextScale, settings::setTextScale)
+                        .tip("Scales all quest text and UI labels up or down."));
+                rows.add(Row.cycle("§fTheme", Theme.class, settings::getTheme, settings::setTheme)
+                        .tip("Switches the built-in color theme. Use the Theme Editor below to\ncreate or tweak your own."));
+                rows.add(Row.cycle("§fLayout Density", Density.class, settings::getDensity, settings::setDensity)
+                        .tip("Controls spacing between quest nodes and UI rows -\ntighter for more on screen, looser for readability."));
+                rows.add(Row.toggle("§fReduce Motion", settings::isReduceMotion, settings::setReduceMotion)
+                        .tip("Freezes blinking/pulsing effects and animated dependency lines\n(validation warnings, unclaimed rewards, ACTIVE glow, etc.)."));
+                rows.add(Row.toggle("§fReturn to Quest Book from Recipe Viewer",
+                        settings::isReturnToQuestbookFromRecipeViewer,
+                        settings::setReturnToQuestbookFromRecipeViewer)
+                        .tip("When opening EMI from a task/reward icon, closing EMI brings you\nback to the quest book instead of EMI's own default (a throwaway\ninventory screen, then straight to gameplay)."));
+                rows.add(Row.cycle("§fSidebar Behavior", SidebarBehavior.class, settings::getSidebarBehavior,
+                        settings::setSidebarBehavior)
+                        .tip("COLLAPSIBLE: click the small arrow to pin the sidebar open/closed.\n" +
+                                "HOVER_TO_EXPAND: FTB Quests-style - always collapsed, moving the\n" +
+                                "mouse over it opens it, moving away closes it - no clicking needed."));
                 rows.add(Row.link("§fTheme Editor",
                         () -> {
                             if (minecraft != null) minecraft.setScreen(new ChroniclesThemeEditorScreen(this));
-                        }));
+                        })
+                        .tip("Opens the full color editor - customize every panel, text, and\nstate color, then save it as a named theme."));
                 rows.add(Row.info("§8Keybinds: Minecraft's own Options → Controls → Phoenix Chronicles", 1));
             }
             case HUD -> {
                 rows.add(Row.cycle("§fHUD Position", HUDPosition.class, settings::getHudPosition,
-                        settings::setHudPosition));
+                        settings::setHudPosition)
+                        .tip("Where the persistent quest-tracker HUD sits on screen\nwhile you're out playing, not in the quest book."));
                 rows.add(new Row(RowType.CYCLE, "§fHUD Opacity",
                         () -> String.format("%.0f%%", settings.getHudOpacity() * 100),
                         () -> settings.setHudOpacity(settings.getHudOpacity() - 0.1f),
-                        () -> settings.setHudOpacity(settings.getHudOpacity() + 0.1f), null));
-                rows.add(Row.toggle("§fShow HUD Title", settings::isShowHUDTitle, settings::setShowHUDTitle));
-                rows.add(Row.toggle("§fShow HUD Progress", settings::isShowHUDProgress, settings::setShowHUDProgress));
-                rows.add(Row.toggle("§fShow HUD Rewards", settings::isShowHUDRewards, settings::setShowHUDRewards));
+                        () -> settings.setHudOpacity(settings.getHudOpacity() + 0.1f), null)
+                        .tip("Background transparency of the HUD tracker."));
+                rows.add(Row.toggle("§fShow HUD Title", settings::isShowHUDTitle, settings::setShowHUDTitle)
+                        .tip("Shows the pinned quest's name on the HUD."));
+                rows.add(Row.toggle("§fShow HUD Progress", settings::isShowHUDProgress, settings::setShowHUDProgress)
+                        .tip("Shows task completion progress (e.g. 2/5) on the HUD."));
+                rows.add(Row.toggle("§fShow HUD Rewards", settings::isShowHUDRewards, settings::setShowHUDRewards)
+                        .tip("Shows a preview of unclaimed reward icons on the HUD."));
             }
             case POPUPS -> {
-                rows.add(Row.toggle("§fShow Pop-Ups", settings::isShowToasts, settings::setShowToasts));
+                rows.add(Row.toggle("§fShow Pop-Ups", settings::isShowToasts, settings::setShowToasts)
+                        .tip("Master switch - turn off to silence every quest pop-up,\nregardless of the settings below."));
                 rows.add(Row.cycle("§fPop-Up Style", ToastStyle.class, settings::getToastStyle,
-                        settings::setToastStyle));
+                        settings::setToastStyle).tip("Overall visual style of the quest completion/unlock pop-up."));
                 rows.add(Row.cycle("§fPop-Up Position", HUDPosition.class, settings::getToastPosition,
-                        settings::setToastPosition));
-                rows.add(Row.toggle("§fPlay Pop-Up Sounds", settings::isPlayToastSounds, settings::setPlayToastSounds));
+                        settings::setToastPosition).tip("Corner of the screen pop-ups slide in from."));
+                rows.add(Row.toggle("§fPlay Pop-Up Sounds", settings::isPlayToastSounds, settings::setPlayToastSounds)
+                        .tip("Plays a sound alongside quest unlock/completion pop-ups."));
                 rows.add(Row.info("§8Individual pop-ups: right-click a quest → Design Pop-Up", 1));
             }
             case CANVAS -> {
                 rows.add(Row.toggle("§fHide Completed by Default", settings::isHideCompletedByDefault,
-                        settings::setHideCompletedByDefault));
+                        settings::setHideCompletedByDefault)
+                        .tip("Newly opened quest books start with completed quests\nhidden from the canvas."));
                 rows.add(Row.intCycle("§fDefault Grid Snap", new int[] { 1, 2, 4, 8, 16, 32 },
-                        settings::getDefaultGridSnap, settings::setDefaultGridSnap));
+                        settings::getDefaultGridSnap, settings::setDefaultGridSnap)
+                        .tip("Default grid size new quest editors snap node dragging to."));
                 rows.add(Row.cycle("§fDependency Line Style", LineStyle.class, settings::getLineStyle,
-                        settings::setLineStyle));
+                        settings::setLineStyle)
+                        .tip("Shape of the lines connecting prerequisite quests\n(straight, curved, elbow, etc.)."));
                 rows.add(Row.cycle("§fLine Visual Style", LineVisualStyle.class, settings::getLineVisualStyle,
-                        settings::setLineVisualStyle));
+                        settings::setLineVisualStyle)
+                        .tip("Rendering treatment for dependency lines - solid, dashed,\nhollow rail, etc."));
                 rows.add(Row.cycle("§fLine Animation Speed", LineAnimSpeed.class, settings::getLineAnimSpeed,
-                        settings::setLineAnimSpeed));
-                rows.add(Row.toggle("§fShow Line Arrows", settings::isShowLineArrows, settings::setShowLineArrows));
+                        settings::setLineAnimSpeed)
+                        .tip("How fast the marching-ants/spark animation travels along\nactive dependency lines. Ignored if Reduce Motion is on."));
+                rows.add(Row.toggle("§fShow Line Arrows", settings::isShowLineArrows, settings::setShowLineArrows)
+                        .tip("Draws directional arrowheads on dependency lines."));
                 rows.add(Row.info("§8These can also be changed via right-click on the quest canvas.", 1));
             }
             case PHANTASIA -> rows.add(Row.toggle("§fAuto-Spin Previews", settings::isPhantasiaAutoSpin,
-                    settings::setPhantasiaAutoSpin));
+                    settings::setPhantasiaAutoSpin)
+                    .tip("Slowly rotates embedded Phantasia multiblock/scene previews\n(quest nodes, toasts) instead of holding them still."));
             case INVENTORY -> {
                 rows.add(Row.toggle("§fShow in Inventory", settings::isShowInventoryButton,
-                        settings::setShowInventoryButton));
+                        settings::setShowInventoryButton)
+                        .tip("Adds a button to the player inventory screen for quickly\nopening the quest book."));
                 rows.add(Row.cycle("§fButton Position", InvButtonPos.class, settings::getInvButtonPos,
-                        settings::setInvButtonPos));
+                        settings::setInvButtonPos).tip("Corner of the inventory screen the button is anchored to."));
             }
             case DEV -> {
                 // Saved immediately (not just on the footer Save button) since closing this
@@ -238,9 +270,10 @@ public class SettingsScreen extends Screen {
                 rows.add(Row.toggle("§fDev Mode Enabled", () -> !settings.isDevModeDisabled(), on -> {
                     settings.setDevModeDisabled(!on);
                     settings.save();
-                }));
+                }).tip("Unlocks debug-only canvas tools (Stats/Validation panels,\nSubgraph mode, FTB import, Dev Wiki) for creative/op players."));
                 rows.add(Row.toggle("§fShow Dev Info by Default", settings::isShowDevInfoByDefault,
-                        settings::setShowDevInfoByDefault));
+                        settings::setShowDevInfoByDefault)
+                        .tip("Opens quest editors with dev-only fields expanded by default."));
                 rows.add(Row.info(
                         "§8Off by default - click to opt in. Still only takes effect if you're\n" +
                                 "§8creative or op level 2+; this can't grant dev tools by itself.",
@@ -291,6 +324,7 @@ public class SettingsScreen extends Screen {
         int w = Math.min(PANEL_W, width - x - MARGIN);
         g.enableScissor(x, contentTop, x + w, contentBottom);
 
+        String hoveredTooltip = null;
         for (Row r : rows) {
             int ry = r.y - scrollY;
             if (ry + r.height < contentTop || ry > contentBottom) continue;
@@ -310,6 +344,9 @@ public class SettingsScreen extends Screen {
                     g.drawCenteredString(font, "§7→", x + w - ARROW_W / 2, textY, hov ? C_ACCENT : C_TEXT_DIM);
                 }
                 default -> renderValueRow(g, x, ry, w, r, mx, my);
+            }
+            if (r.tooltip != null && mx >= x && mx < x + w && my >= ry && my < ry + r.height) {
+                hoveredTooltip = r.tooltip;
             }
         }
         g.disableScissor();
@@ -337,6 +374,37 @@ public class SettingsScreen extends Screen {
         if (cancelHov) g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 1, C_CANCEL);
         g.drawCenteredString(font, "§7✕ Cancel", width / 2 + btnW / 2 + btnGap / 2, btnY + 6,
                 cancelHov ? C_CANCEL : C_TEXT);
+
+        // Tooltip is drawn dead last - after the footer too - so it never gets clipped by the
+        // content scissor or buried under anything else on the screen. The explicit flush() forces
+        // every row's batched text (labels, values, and the < > cycle arrows) to actually get
+        // uploaded before the tooltip paints - without it, GuiGraphics can hold those glyphs in its
+        // buffer and flush them after this call, which visually put the arrows on top despite this
+        // being later in draw order.
+        if (hoveredTooltip != null) {
+            g.flush();
+            renderRowTooltip(g, mx, my, hoveredTooltip);
+        }
+    }
+
+    private void renderRowTooltip(GuiGraphics g, int mx, int my, String text) {
+        String[] lines = text.split("\n");
+        int tw = 0;
+        for (String line : lines) tw = Math.max(tw, font.width(line));
+        int th = lines.length * LABEL_LINE_H + 4;
+        int tx = mx + 12;
+        int ty = my - 4;
+        if (tx + tw + 8 > width) tx = mx - tw - 20;
+        if (ty + th > height) ty = height - th;
+        if (ty < 0) ty = 0;
+
+        g.fill(tx - 4, ty - 3, tx + tw + 4, ty + th, 0xEE0A0A0E);
+        g.fill(tx - 4, ty - 3, tx + tw + 4, ty - 2, C_ACCENT);
+        int ly = ty;
+        for (String line : lines) {
+            g.drawString(font, "§7" + line, tx, ly, C_TEXT, false);
+            ly += LABEL_LINE_H;
+        }
     }
 
     private void renderValueRow(GuiGraphics g, int x, int y, int w, Row r, int mx, int my) {
