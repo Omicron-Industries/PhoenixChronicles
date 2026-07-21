@@ -47,19 +47,11 @@ import java.util.Objects;
 
 public class ChronicleOverviewScreen extends Screen {
 
-    // ── Layout ────────────────────────────────────────────────────────────────
-    // FTBQ-style compact list: small icon + accent-colored name per row, back to a wider panel
-    // (was briefly a 48px icon-tile grid; that made a dozen+ categories require heavy scrolling
-    // and buried the name behind a hover tooltip). The selected category's full name still shows
-    // in the canvas title bar too (renderHeaderAndBaseLayout).
+
     private static final int SIDEBAR_W_EXPANDED = 150;
     private static final int SIDEBAR_W_COLLAPSED = 12;
     private boolean sidebarCollapsed = false;
-    /**
-     * Transient "currently peeking open" state for HOVER_TO_EXPAND mode - recomputed once per
-     * frame in render() (see updateSidebarHoverPeek), never persisted. Meaningless in COLLAPSIBLE
-     * mode, where sidebarCollapsed itself is the source of truth instead.
-     */
+
     private boolean sidebarHoverPeek = false;
     private int sidebarScrollY = 0;
 
@@ -77,53 +69,20 @@ public class ChronicleOverviewScreen extends Screen {
         return sidebarCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
     }
 
-    /**
-     * True whenever the sidebar is currently showing its narrow (collapsed/not-peeking) footprint,
-     * regardless of which behavior mode is active - the single check every "hide full sidebar
-     * content while narrow" call site should use instead of the raw sidebarCollapsed field, which
-     * only reflects the truth in COLLAPSIBLE mode.
-     */
+
     private boolean isSidebarNarrow() {
         return isHoverSidebar() ? !sidebarHoverPeek : sidebarCollapsed;
     }
 
-    /**
-     * Current ANIMATED sidebar width for HOVER_TO_EXPAND mode - eases toward sidebarW()'s target
-     * over SIDEBAR_ANIM_MS instead of snapping instantly. sidebarW() itself (used for the canvas
-     * boundary, node placement, and click hit-testing) still changes in one discrete step, same
-     * as before - see updateSidebarHoverPeek's doc for why that discrete flip is delayed until
-     * this animation actually finishes instead of happening the instant the mouse leaves.
-     * COLLAPSIBLE mode's manual toggle is untouched by any of this and still snaps instantly,
-     * since only the hover-peek behavior was reported as feeling too abrupt.
-     */
+
     private float sidebarAnimW = SIDEBAR_W_COLLAPSED;
     private long lastSidebarAnimNanos = 0L;
     private static final long SIDEBAR_ANIM_MS = 1000L;
 
-    /**
-     * Small buffer added on top of the CURRENT animated width to get the "stay open" hover zone
-     * while HOVER_TO_EXPAND is peeking (see updateSidebarHoverPeek's doc). Tracking the animated
-     * width - rather than pinning to the full SIDEBAR_W_EXPANDED target for the whole peek, which
-     * is what an earlier revision did - means the zone always roughly matches whatever's actually
-     * visible: generous while the panel is still opening (so a normal-paced mouse move into it
-     * doesn't immediately re-trigger the narrow check and slam it shut), the true full panel width
-     * once fully open (so hovering real row content near its right edge doesn't start closing it
-     * out from under you), and shrinking right along with it while it's closing - which is the
-     * part that was reported as needing the mouse to travel unreasonably far right to register.
-     * A fixed width less than the full panel would fix the closing case but break the fully-open
-     * one, since sidebar rows really do extend across the whole panel.
-     */
+
     private static final int SIDEBAR_HOVER_MARGIN = 20;
 
-    /**
-     * The sidebar-width x-offset currently baked into nodeScreenPos/nodeButtons/depLineRenderer's
-     * cached positions - i.e. what cl was the last time those caches were placed or shifted.
-     * rebuild() always lays nodes out against the LOGICAL target (sidebarW()), so it resets this
-     * to sidebarW() every time it runs. updateSidebarHoverPeek() then walks this value toward
-     * sidebarVisualW() a little every frame via panCanvas's cheap shift instead of a full rebuild,
-     * which is what makes nodes/lines slide open in step with the panel instead of snapping to
-     * their final spot the instant the hover-peek flag flips.
-     */
+
     private int nodeLayoutAnimBaseX = SIDEBAR_W_COLLAPSED;
 
     private int sidebarVisualW() {
@@ -371,9 +330,6 @@ public class ChronicleOverviewScreen extends Screen {
     private int ctxX, ctxY;
     private QuestNode ctxNode = null;
     private boolean ctxMoveCatOpen = false;
-    // "Move to Category" submenu: capped height + scroll instead of growing to fit every
-    // chapter, which ran off-screen (and became entirely unreachable past that point) on packs
-    // with a lot of categories. Reset whenever the submenu closes so it doesn't reopen scrolled.
     private int ctxMoveCatScroll = 0;
     private static final int CTX_MOVE_CAT_MAX_ROWS = 10;
     @Nullable
@@ -630,7 +586,7 @@ public class ChronicleOverviewScreen extends Screen {
      * Returns the path of the flat file that stores stub category names
      * (categories that exist but have no quests in them yet).
      */
-    private Path categoriesFile() {
+    static Path categoriesFile() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("categories.txt");
     }
@@ -663,6 +619,21 @@ public class ChronicleOverviewScreen extends Screen {
             } catch (IOException ignored) {}
         }
         for (String cat : stubCategoryCache) seen.add(cat);
+
+        // Categories declared by hand-authored config/phoenix_chronicles/chapters/*.yml files
+        // (see ChapterLoader) - these used to be parsed into ChapterRegistry but nothing ever
+        // read that registry back out anywhere, so a chapter file's `category:` never actually
+        // surfaced as a real, selectable category no matter how it was authored. Only the
+        // category name itself is pulled in here; the yml's own per-node position/shape/
+        // depends_on layout data is a separate, much bigger feature (multiple layouts per quest)
+        // that isn't wired up - quests still get their position/shape/tasks the normal way,
+        // through QuestCreatorScreen or their own .snbt.
+        net.phoenixvine.chronicles.codec.ChapterLoader.reloadAllChaptersFromDisk();
+        for (net.phoenixvine.chronicles.model.ChapterDefinition ch :
+                net.phoenixvine.chronicles.registry.ChapterRegistry.getAllChapters()) {
+            String cat = ch.getCategory();
+            if (cat != null && !cat.isBlank()) seen.add(cat.toUpperCase());
+        }
 
         categoryListCache = new ArrayList<>(seen);
         return new ArrayList<>(categoryListCache);
@@ -1490,24 +1461,41 @@ public class ChronicleOverviewScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
+        // ── Consume all keypresses when typing in new chapter/category field ─────
+        if (newCatFormOpen && newCatBox != null && newCatBox.isFocused()) {
+            if (key == 257) { // GLFW_KEY_ENTER
+                commitNewCategory();
+                return true;
+            }
+            if (key == 256) { // GLFW_KEY_ESCAPE
+                newCatFormOpen = false;
+                softRebuild();
+                return true;
+            }
+            // Pass input to the EditBox and return true to prevent keybinds from firing
+            newCatBox.keyPressed(key, scan, mods);
+            return true;
+        }
+
+        // ── Also check searchBox if present ───────────────────────────────────────
+        if (searchBox != null && searchBox.isFocused()) {
+            if (key == 256) { // GLFW_KEY_ESCAPE
+                searchBox.setFocused(false);
+                return true;
+            }
+            searchBox.keyPressed(key, scan, mods);
+            return true;
+        }
+
         boolean ctrl = (mods & 2) != 0;
 
         // ── Open search overlay ───────────────────────────────────────────────
-        // Was a hardcoded Ctrl+F check - now a real, rebindable KeyMapping (see
-        // ChronicleKeyBindings) shown in Minecraft's own Controls menu, same as the rest of the
-        // shortcuts below that got converted this pass. A KeyMapping is a single key with no
-        // modifier baked in, so this and "Fit to Canvas" (which used to share the plain F key,
-        // disambiguated from this one only by the Ctrl modifier) needed distinct default keys -
-        // Fit to Canvas now defaults to Home instead.
         if (ChronicleKeyBindings.SEARCH.matches(key, scan)) {
             openSearchOverlay();
             return true;
         }
 
         // ── Ctrl+P — toggle the render-time profiler panel (dev tool) ─────────
-        // Ctrl+Shift+P — force an immediate detailed log snapshot right now, instead of waiting
-        // out the normal 10s interval - for "that just felt laggy, capture it before the EMA
-        // smooths it away" investigation.
         if (key == 80 && ctrl) {
             if ((mods & 1) != 0) {
                 FrameProfiler.logNow();
@@ -1520,8 +1508,7 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         // ── Pin keybind — toggles the pin on whichever quest is under the mouse ──
-        if (ChronicleKeyBindings.PIN_QUEST.matches(key, scan) &&
-                !(newCatBox != null && newCatBox.isFocused())) {
+        if (ChronicleKeyBindings.PIN_QUEST.matches(key, scan)) {
             if (lastHoveredNodeId != null && playerData != null) {
                 playerData.togglePin(lastHoveredNodeId);
                 net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.sendToServer(
@@ -1536,7 +1523,7 @@ public class ChronicleOverviewScreen extends Screen {
             return true;
         }
 
-        // ── Toggle line style (spline ↔ straight) - rebindable, see ChronicleKeyBindings ─────
+        // ── Toggle line style (spline ↔ straight) ──────────────────────────────
         if (ChronicleKeyBindings.TOGGLE_LINE_STYLE.matches(key, scan)) {
             QuestChroniclesSettings s = QuestChroniclesSettings.get();
             boolean nowSpline = s.isSplineLines();
@@ -1547,10 +1534,6 @@ public class ChronicleOverviewScreen extends Screen {
             return true;
         }
 
-        if (key == 257 && newCatFormOpen && newCatBox != null && newCatBox.isFocused()) {
-            commitNewCategory();
-            return true;
-        }
         if (key == 256) {
             if (depLineRenderer.isContextMenuOpen()) {
                 depLineRenderer.closeContextMenu();
@@ -1587,9 +1570,6 @@ public class ChronicleOverviewScreen extends Screen {
                 net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(nodeSizeEditMode);
                 setFeedback("Node resize finished  (Ctrl+Z to undo the whole edit)");
                 nodeSizeEditMode = null;
-                // One full rebuild on exit (not per scroll/drag tick, see the lightweight
-                // refreshNodeScreenPos() used during the live edit) so dependency lines connected
-                // to this node pick up its final size/position.
                 softRebuild();
                 return true;
             }
@@ -1599,11 +1579,13 @@ public class ChronicleOverviewScreen extends Screen {
                 return true;
             }
         }
+
         if (key == 256 && isDevMode && !multiSelection.isEmpty()) {
             multiSelection.clear();
             bulkMoveCatOpen = false;
             return true;
         }
+
         boolean shift = (mods & 1) != 0;
         if (ctrl && isDevMode) {
             if (key == 90 && !shift) {
@@ -1615,61 +1597,59 @@ public class ChronicleOverviewScreen extends Screen {
                 return true;
             }
         }
+
         if (ChronicleKeyBindings.FIT_TO_CANVAS.matches(key, scan)) {
             fitToCanvas();
             return true;
         }
+
         if (ChronicleKeyBindings.OPEN_DEV_WIKI.matches(key, scan) && isDevMode) {
             if (minecraft != null) minecraft.setScreen(new DevWikiScreen(this));
             return true;
         }
-        // Kept the !ctrl guard - this still defaults to the same physical V key as Ctrl+V paste
-        // below, and unlike Stats (which moved to its own dedicated key), there was no spare
-        // unused key left to give this one instead. Without the guard, pressing Ctrl+V would
-        // toggle validation instead of pasting, since KeyMapping.matches() only checks the
-        // physical key, not modifiers.
+
         if (ChronicleKeyBindings.TOGGLE_VALIDATION.matches(key, scan) && !ctrl && isDevMode) {
             validationOpen = !validationOpen;
             return true;
         }
+
         if (ChronicleKeyBindings.IMPORT_FTB.matches(key, scan) && isDevMode) {
             runFtbImport();
             return true;
         }
-        // Toggle subgraph view (ancestors + descendants of selected node)
+
         if (ChronicleKeyBindings.TOGGLE_SUBGRAPH.matches(key, scan) && isDevMode) {
             subgraphMode = !subgraphMode;
             if (subgraphMode) rebuildSubgraph();
             return true;
         }
-        // Ctrl+C — copy selected quest SNBT to clipboard (left as a raw Ctrl+ combo, matching the
-        // universal OS clipboard convention rather than becoming an independently rebindable key)
+
         if (key == 67 && ctrl && !shift && isDevMode && selectedNode != null) {
             questCopy(selectedNode);
             return true;
         }
-        // Ctrl+V — paste from clipboard as new quest
+
         if (key == 86 && ctrl && !shift && isDevMode) {
             questPaste();
             return true;
         }
-        // Ctrl+D — duplicate selected quest (keyboard shortcut for context menu action)
+
         if (key == 68 && ctrl && !shift && isDevMode && selectedNode != null) {
             duplicateQuest(selectedNode);
             return true;
         }
+
         if (ChronicleKeyBindings.TOGGLE_MINIMAP.matches(key, scan)) {
             minimapOpen = !minimapOpen;
             return true;
         }
-        // Stats dashboard - moved off the shared "Shift+V" combo onto its own dedicated key now
-        // that it's a real rebindable KeyMapping, so it no longer needs the shift modifier to
-        // disambiguate itself from Toggle Validation's default V.
+
         if (ChronicleKeyBindings.TOGGLE_STATS.matches(key, scan) && isDevMode) {
             statsOpen = !statsOpen;
             if (statsOpen) validationOpen = false;
             return true;
         }
+
         return super.keyPressed(key, scan, mods);
     }
 
@@ -2148,6 +2128,13 @@ public class ChronicleOverviewScreen extends Screen {
             Path base = Minecraft.getInstance().gameDirectory.toPath()
                     .resolve("config").resolve("phoenix_chronicles");
             LangEditorScreen.writeEnUsJson(base);
+            // This is the one deliberate, explicit "reload lang" action left - writeEnUsJson()
+            // itself no longer reloads (see its own doc comment), since ordinary quest edits
+            // don't need a resource-pack reload to display correctly anymore. This gear-button
+            // export is specifically for picking up hand-added translation files for OTHER
+            // languages, which genuinely does need a reload, and it's a rare, explicit click
+            // rather than something firing on every save.
+            net.phoenixvine.chronicles.client.ChroniclesLangPack.reload();
             setFeedback("§aExported lang/en_us.json");
             return true;
         }
@@ -2920,6 +2907,12 @@ public class ChronicleOverviewScreen extends Screen {
                                 if (uOverridePx > 0) editedNode.setSizeOverridePx(uOverridePx);
                                 editedNode.setCustomPosition(uX, uY);
                                 net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(editedNode);
+                                // Unlike the plain node-drag undo just above (which already calls
+                                // rebuild()), this one used to leave nodeScreenPos/cached rendering
+                                // stale - the data and file were reverted correctly, but the canvas
+                                // kept showing the pre-undo size/position until something UNRELATED
+                                // (opening and closing a quest editor) forced a rebuild anyway.
+                                rebuild();
                                 setFeedback("Undo: node resize reverted");
                             });
                             // Seed an explicit pixel override from whatever the node's current
@@ -2935,7 +2928,7 @@ public class ChronicleOverviewScreen extends Screen {
                 // Hovering this row (see renderCtxMenu) opens the submenu automatically - no click
                 // action needed, but the row still needs to exist to occupy its place in the list
                 // and report its own bounds for that hover check.
-                items.add(new CtxItem("Move to Category  ▸", "§7", false, false, () -> {}));
+                items.add(new CtxItem("Move to Chapter  ▸", "§7", false, false, () -> {}));
                 items.add(CtxItem.sep());
                 items.add(new CtxItem("Shift + drag to move", "§8", false, false,
                         () -> {
@@ -3120,7 +3113,7 @@ public class ChronicleOverviewScreen extends Screen {
         iy = drawPicCtxRow(g, x, iy, "Move  §8(shift+drag)", "§7", false, mx, my);
         iy = drawPicCtxRow(g, x, iy, "Resize  ▸", "§7", false, mx, my);
         iy = drawPicCtxRow(g, x, iy, "Resize (scroll + drag)…", "§7", false, mx, my);
-        iy = drawPicCtxRow(g, x, iy, "Move to category  ▸", "§7", false, mx, my);
+        iy = drawPicCtxRow(g, x, iy, "Move to Chapter  ▸", "§7", false, mx, my);
         g.fill(x + 6, iy + 2, x + CTX_W - 6, iy + 3, C_CTX_SEP);
         iy += CTX_SEP;
         drawPicCtxRow(g, x, iy, "Delete picture", "§c", true, mx, my);
@@ -3294,7 +3287,7 @@ public class ChronicleOverviewScreen extends Screen {
         int y = ctxY + 2;
         if (ctxNode != null) y += CTX_ROW; // skip title row
         for (CtxItem item : items) {
-            if (!item.isSep && item.label.contains("Move to Category")) return y;
+            if (!item.isSep && item.label.contains("Move to Chapter")) return y;
             y += item.isSep ? CTX_SEP : CTX_ROW;
         }
         return y;
@@ -4638,7 +4631,6 @@ public class ChronicleOverviewScreen extends Screen {
             if (hov) g.fill(sx, slotY, sx + slotW, slotY + 12, 0xFF222233);
             g.drawString(font, "§7" + glyphs[i], sx + 2, slotY + 2, hov ? 0xFFFFFFFF : 0xFF888899);
         }
-        // "Move to cat ▸" and "Delete all" labels
         int actX = startX + glyphs.length * (slotW + 2) + 8;
         boolean catHov = mx >= actX && mx < actX + 58 && my >= slotY && my < slotY + 12;
         if (catHov || bulkMoveCatOpen) g.fill(actX, slotY, actX + 58, slotY + 12, 0xFF222233);
@@ -5322,7 +5314,7 @@ public class ChronicleOverviewScreen extends Screen {
             if (hov) g.fill(x + 1, iy, x + CTX_W - 1, iy + CTX_ROW, C_CTX_HOVER);
             g.drawString(font, (item.isDanger ? "§c" : item.color) + item.label, x + 8, iy + 4,
                     item.isDanger ? C_CTX_DANGER : C_CTX_TEXT);
-            if (hov && item.label.contains("Move to Category")) moveCatRowHov = true;
+            if (hov && item.label.contains("Move to Chapter")) moveCatRowHov = true;
             iy += CTX_ROW;
         }
 
@@ -6169,7 +6161,7 @@ public class ChronicleOverviewScreen extends Screen {
         g.fill(panX, panY, panX + 1, panY + panH, bc);
         g.fill(panX + panW - 1, panY, panX + panW, panY + panH, bc);
         g.fill(panX, panY + panH - 1, panX + panW, panY + panH, bc);
-        g.drawString(font, "§bQuest Stats §8(Shift+V to close)", panX + 6, panY + 4, 0xFF55AAEE, false);
+        g.drawString(font, "§bQuest Stats", panX + 6, panY + 4, 0xFF55AAEE, false);
         g.fill(panX + 4, panY + 14, panX + panW - 4, panY + 15, 0xFF222233);
 
         Collection<QuestNode> all = QuestTreeRegistry.getAllQuests().values();

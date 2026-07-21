@@ -1,0 +1,20 @@
+#
+# Example .properties config for Phoenix Chronicles quest flags.
+#
+# To use this file, rename it to "difficulty.properties" and place it in the
+# 'config/phoenix_chronicles' directory of your Minecraft instance.
+#
+# You can then reference these values in your quests' `enable_if` conditions.
+#
+# -----------------------------------------------------------------------------
+#
+#  - Phoenix Chronicles Quest SNBT -
+#
+#  enable_if: "config:difficulty.properties#level=hard"
+#  enable_if: "config:difficulty.properties#mob_health_multiplier>1.5"
+#
+# -----------------------------------------------------------------------------
+
+level = normal
+mob_health_multiplier = 1.0
+allow_flight = true

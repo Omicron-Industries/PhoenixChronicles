@@ -1,0 +1,19 @@
+#
+# Example TOML config for Phoenix Chronicles quest flags.
+#
+# To use this file, rename it to "packmode.toml" and place it in the
+# 'config/phoenix_chronicles' directory of your Minecraft instance.
+#
+# You can then reference these values in your quests' `enable_if` conditions.
+#
+# -----------------------------------------------------------------------------
+#
+#  - Phoenix Chronicles Quest SNBT -
+#
+#  enable_if: "config:packmode.toml#general.mode=expert"
+#
+# -----------------------------------------------------------------------------
+
+[general]
+# The current pack mode. Can be "normal", "expert", "hardcore", etc.
+mode = "normal"

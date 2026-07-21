@@ -695,7 +695,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.32.label", "Move"),
                 tr("phoenix_chronicles.wiki.customization.32.value", "Shift+drag the picture directly")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.33.label", "Right-click a picture"),
-                "Move / Resize ▸ / Resize (scroll+drag)… / Move to category ▸ / Delete"));
+                "Move / Resize ▸ / Resize (scroll+drag)… / Move to Chapter ▸ / Delete"));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.34.label", "Resize ▸"),
                 tr("phoenix_chronicles.wiki.customization.34.value",
                         "Fixed presets: 32 / 64 / 128 / 256 / 512 / 1024 px")));

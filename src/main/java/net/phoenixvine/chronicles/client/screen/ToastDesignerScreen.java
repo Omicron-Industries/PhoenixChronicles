@@ -648,6 +648,9 @@ public class ToastDesignerScreen extends Screen {
                 g.drawString(font, "§8Icon Set §7(overrides icon)", fx, iconSetY - 9,
                         ChroniclesThemePalette.TEXT_FAINT);
                 renderIconStrip(g, mx, my, fx, iconStripY);
+                if (selectedIconIndex >= 0 && selectedIconIndex < cfg.icons.size()) {
+                    g.drawString(font, "§8Scale (selected icon)", fx, iconScaleY, ChroniclesThemePalette.TEXT_FAINT);
+                }
             }
             case BACKGROUND -> {
                 g.drawString(font, "§8Background size (W × H)", fx, sizeY, ChroniclesThemePalette.TEXT_FAINT);
@@ -817,12 +820,22 @@ public class ToastDesignerScreen extends Screen {
             }
         }
         for (Elem e : Elem.values()) {
+            if (e == Elem.ICON && !cfg.icons.isEmpty()) continue; // not rendered, see mouseClicked's matching skip
             int[] ebox = elementBox(e, previewW);
             boolean ehov = mx >= ebox[0] && mx <= ebox[2] && my >= ebox[1] && my <= ebox[3];
             boolean isSelected = e == selected;
             if (ehov || isSelected || dragging == e) {
                 int col = dragging == e ? 0xFFFFFFFF : (isSelected ? 0xFFFFCC44 : 0x88FFFFFF);
                 ChroniclesUIKit.drawBorder(g, ebox[0], ebox[1], ebox[2] - ebox[0], ebox[3] - ebox[1], col);
+            }
+        }
+        for (int i = 0; i < cfg.icons.size(); i++) {
+            int[] ibox = iconEntryBox(i, previewW);
+            boolean ihov = mx >= ibox[0] && mx <= ibox[2] && my >= ibox[1] && my <= ibox[3];
+            boolean isSelected = i == selectedIconIndex;
+            if (ihov || isSelected || draggingIconIndex == i) {
+                int col = draggingIconIndex == i ? 0xFFFFFFFF : (isSelected ? 0xFFFFCC44 : 0x88FFFFFF);
+                ChroniclesUIKit.drawBorder(g, ibox[0], ibox[1], ibox[2] - ibox[0], ibox[3] - ibox[1], col);
             }
         }
     }
@@ -856,6 +869,14 @@ public class ToastDesignerScreen extends Screen {
         return new int[] { cx - halfW, cy - halfH, cx + halfW, cy + halfH };
     }
 
+    /** Clickable bounds for one independently-positioned custom icon-set entry, in real screen pixels. */
+    private int[] iconEntryBox(int index, int previewW) {
+        QuestToastConfig.IconEntry entry = cfg.icons.get(index);
+        int cx = Math.round(entry.x * previewW), cy = Math.round(entry.y * height);
+        int half = Math.round(8 * entry.scale) + 2;
+        return new int[] { cx - half, cy - half, cx + half, cy + half };
+    }
+
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
         if (presetDropOpen) {
@@ -883,9 +904,17 @@ public class ToastDesignerScreen extends Screen {
             presetDropOpen = false;
             return true;
         }
+        if (btn == 0 && hoveredRemoveIconIndex >= 0 && hoveredRemoveIconIndex < cfg.icons.size()) {
+            cfg.icons.remove(hoveredRemoveIconIndex);
+            if (selectedIconIndex == hoveredRemoveIconIndex) selectedIconIndex = -1;
+            else if (selectedIconIndex > hoveredRemoveIconIndex) selectedIconIndex--;
+            hoveredRemoveIconIndex = -1;
+            rebuildFields();
+            return true;
+        }
         if (btn == 0 && hoveredIconIndex >= 0 && hoveredIconIndex < cfg.icons.size()) {
-            cfg.icons.remove(hoveredIconIndex);
-            hoveredIconIndex = -1;
+            selectedIconIndex = hoveredIconIndex;
+            rebuildFields();
             return true;
         }
         if (btn == 0 && mx < width - PANEL_W) {
@@ -900,11 +929,26 @@ public class ToastDesignerScreen extends Screen {
                 }
             }
             for (Elem e : Elem.values()) {
+                // The base icon slot (cfg.icon) isn't actually rendered once a custom icon set
+                // exists (see QuestToastManager.renderCustom) - each icons[] entry below takes
+                // over as its own independently draggable target instead.
+                if (e == Elem.ICON && !cfg.icons.isEmpty()) continue;
                 int[] box = elementBox(e, previewW);
                 if (mx >= box[0] && mx <= box[2] && my >= box[1] && my <= box[3]) {
                     dragging = e;
                     if (selected != e) {
                         selected = e;
+                        rebuildFields();
+                    }
+                    return true;
+                }
+            }
+            for (int i = 0; i < cfg.icons.size(); i++) {
+                int[] box = iconEntryBox(i, previewW);
+                if (mx >= box[0] && mx <= box[2] && my >= box[1] && my <= box[3]) {
+                    draggingIconIndex = i;
+                    if (selectedIconIndex != i) {
+                        selectedIconIndex = i;
                         rebuildFields();
                     }
                     return true;
@@ -981,6 +1025,42 @@ public class ToastDesignerScreen extends Screen {
             el.y = py;
             return true;
         }
+        if (draggingIconIndex >= 0 && draggingIconIndex < cfg.icons.size()) {
+            QuestToastConfig.IconEntry entry = cfg.icons.get(draggingIconIndex);
+            float px = Math.max(0.02f, Math.min(0.98f, (float) (mx / previewW)));
+            float py = Math.max(0.05f, Math.min(0.95f, (float) (my / height)));
+
+            List<Float> snapXs = new ArrayList<>();
+            List<Float> snapYs = new ArrayList<>();
+            snapXs.add(0.5f);
+            snapYs.add(0.5f);
+            for (int i = 0; i < cfg.icons.size(); i++) {
+                if (i == draggingIconIndex) continue;
+                snapXs.add(cfg.icons.get(i).x);
+                snapYs.add(cfg.icons.get(i).y);
+            }
+            float pxPos = px * previewW;
+            for (float sx : snapXs) {
+                float snapPxPos = sx * previewW;
+                if (Math.abs(pxPos - snapPxPos) <= SNAP_PX) {
+                    px = sx;
+                    snapGuideX = snapPxPos;
+                    break;
+                }
+            }
+            float pyPos = py * height;
+            for (float sy : snapYs) {
+                float snapPyPos = sy * height;
+                if (Math.abs(pyPos - snapPyPos) <= SNAP_PX) {
+                    py = sy;
+                    snapGuideY = snapPyPos;
+                    break;
+                }
+            }
+            entry.x = px;
+            entry.y = py;
+            return true;
+        }
         if (draggingBg) {
             cfg.bgX = Math.max(0.02f, Math.min(0.98f, (float) (mx / previewW)));
             cfg.bgY = Math.max(0.05f, Math.min(0.95f, (float) (my / height)));
@@ -1004,9 +1084,10 @@ public class ToastDesignerScreen extends Screen {
             rebuildFields(); // refresh the numeric bgPadX/Y boxes to match wherever the resize settled
             return true;
         }
-        if (btn == 0 && (dragging != null || draggingBg)) {
+        if (btn == 0 && (dragging != null || draggingBg || draggingIconIndex >= 0)) {
             dragging = null;
             draggingBg = false;
+            draggingIconIndex = -1;
             snapGuideX = null;
             snapGuideY = null;
             rebuildFields(); // refresh the numeric X/Y boxes to match wherever the drag settled

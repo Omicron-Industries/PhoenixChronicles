@@ -17,7 +17,6 @@ import lombok.Setter;
 public abstract class QuestTask {
 
     private final ResourceLocation taskId;
-    @Setter
     private Component description;
     @Setter
     private boolean optional = false;
@@ -39,6 +38,8 @@ public abstract class QuestTask {
      */
     public Component getDescription() {
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
+            String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey());
+            if (override != null) return Component.literal(override);
             Component d = ClientLangLookup.resolve(langKey());
             if (d != null) return d;
         }
@@ -52,6 +53,16 @@ public abstract class QuestTask {
      */
     public Component getDescriptionRaw() {
         return description;
+    }
+
+    /**
+     * See {@link net.phoenixvine.chronicles.client.ClientTextOverrides}'s own doc - makes this
+     * client's own edit visible immediately without any translation-resolution reload.
+     */
+    public void setDescription(Component description) {
+        this.description = description;
+        if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
+            net.phoenixvine.chronicles.client.ClientTextOverrides.put(langKey(), description.getString());
     }
 
     private String langKey() {

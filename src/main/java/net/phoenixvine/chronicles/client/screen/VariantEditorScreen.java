@@ -174,6 +174,16 @@ public class VariantEditorScreen extends Screen {
     private void flushToQuestNode() {
         questNode.clearVariants();
         for (QuestNode.QuestVariant v : variants) questNode.addVariant(v);
+        // Previously this only mutated the in-memory QuestNode and relied on some OTHER save
+        // (world logout, an unrelated edit elsewhere) to actually persist the variant list -
+        // meaning a newly-added variant (and any tasks/rewards added to it afterward) survived
+        // only until the next abnormal exit. Guarded the same way as TaskRewardEditorScreen's own
+        // flush: only write when questNode is the actual live registered instance, since
+        // QuestCreatorScreen opens this screen against a throwaway node while a brand-new quest is
+        // still being filled out.
+        if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
+            net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
+        }
     }
 
     // ── Render ────────────────────────────────────────────────────────────────

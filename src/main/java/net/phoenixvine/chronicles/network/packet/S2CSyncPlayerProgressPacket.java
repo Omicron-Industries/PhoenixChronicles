@@ -50,19 +50,33 @@ public class S2CSyncPlayerProgressPacket {
     private static boolean receivedFirstSync = false;
 
     /**
-     * Wall-clock time the first sync of this session was applied - a fresh join's prereq
-     * cascade (see ChronicleEvents#onPlayerLogin/QuestProgressTracker#processChildCascades)
-     * doesn't necessarily finish within that single first packet; it can keep unlocking and
-     * auto-completing quests across the next several server ticks as the cascade ripples
-     * through the tree, each firing its own follow-up sync. Those still read as genuine
-     * LOCKED→COMPLETED transitions against the (already-applied) baseline, so skipping only
-     * the very first sync isn't enough on its own - toasts for that whole login backlog would
-     * still fire, just in a burst a tick or two later instead of on the first packet. Suppress
-     * any transition within this window of the first sync too, so only completions from the
-     * player actually playing show up.
+     * Wall-clock time the MOST RECENT sync of this session (after the first) was applied - a
+     * fresh join's prereq cascade (see ChronicleEvents#onPlayerLogin/
+     * QuestProgressTracker#processChildCascades) doesn't necessarily finish within that single
+     * first packet; it can keep unlocking and auto-completing quests across the next several
+     * server ticks as the cascade ripples through the tree, each firing its own follow-up sync.
+     * Those still read as genuine LOCKED→COMPLETED transitions against the (already-applied)
+     * baseline, so skipping only the very first sync isn't enough on its own.
+     *
+     * This used to be a FIXED window measured from the first sync alone (3s, then never
+     * extended) - fine for a short pack, but on a large one a long cascade chain (complete A →
+     * unlock/auto-complete B → unlock/auto-complete C → ...) can keep producing genuine
+     * login-cascade syncs well past a fixed cutoff, especially under server lag, which is what
+     * made this "not every relog, but often enough": whether the toast flood happened depended
+     * on how deep this particular player's pending cascade was and how fast the server was
+     * ticking that session. Now a SLIDING window instead: every sync seen while still inside the
+     * grace period pushes the deadline back out, so suppression only ends once syncs actually
+     * stop arriving for a full grace period - i.e. the cascade has genuinely gone quiet - rather
+     * than at a fixed offset from the first packet regardless of whether more are still incoming.
+     *
+     * Capped by MAX_GRACE_MS measured from the FIRST sync (firstSyncTimeMs) so this can't extend
+     * forever - a player who genuinely starts completing quests back-to-back right after joining
+     * still gets real toasts eventually instead of the window sliding indefinitely.
      */
+    private static long graceDeadlineMs = 0;
     private static long firstSyncTimeMs = 0;
     private static final long LOGIN_GRACE_MS = 3000;
+    private static final long MAX_GRACE_MS = 15000;
 
     /**
      * Bumped every time a sync is applied, so screens holding per-category progress caches
@@ -77,6 +91,7 @@ public class S2CSyncPlayerProgressPacket {
 
     public static void resetForNewSession() {
         receivedFirstSync = false;
+        graceDeadlineMs = 0;
         firstSyncTimeMs = 0;
     }
 
@@ -102,12 +117,20 @@ public class S2CSyncPlayerProgressPacket {
             data.deserializeNBT(nbt);
             version++;
 
+            long now = System.currentTimeMillis();
             if (isFirstSync) {
-                firstSyncTimeMs = System.currentTimeMillis();
+                firstSyncTimeMs = now;
+                graceDeadlineMs = now + LOGIN_GRACE_MS;
                 return; // establishing baseline, not new completions - see javadoc above
             }
-            if (System.currentTimeMillis() - firstSyncTimeMs < LOGIN_GRACE_MS) return; // still catching up from login -
-                                                                                       // see firstSyncTimeMs javadoc
+            if (now < graceDeadlineMs) {
+                // Still inside the login-cascade grace window - push the deadline back out since
+                // a sync just landed, meaning the cascade is still actively producing them (see
+                // graceDeadlineMs's javadoc for why this needs to slide instead of being fixed),
+                // but never past MAX_GRACE_MS from the very first sync.
+                graceDeadlineMs = Math.min(now + LOGIN_GRACE_MS, firstSyncTimeMs + MAX_GRACE_MS);
+                return;
+            }
 
             // Fire toasts for any quests that newly became UNLOCKED or COMPLETED
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {

@@ -47,11 +47,8 @@ public class LangEditorScreen extends Screen {
     private static final int SIDEBAR_W = 120;
     private static final int HEADER_H = 36;
     private static final int GROUP_H = 16;   // quest-name header row height
-    private static final int ROW_H = 38;   // label + key hint + edit box (stacked)
-    // Descriptions get a real multi-line editor instead of a single-line EditBox (which has no
-    // concept of Enter-as-newline at all) - tall enough for several wrapped lines/paragraphs so
-    // markdown blank-line spacing is actually visible while typing, not just after saving.
-    private static final int DESC_ROW_H = 132;
+    private static final int ROW_H = 46;
+    private static final int DESC_ROW_H = 148;
     private static final int FIELD_H = 13;
     private static final int FOOTER_H = 20;
 
@@ -106,19 +103,25 @@ public class LangEditorScreen extends Screen {
 
         // Sidebar: computed at render time (manual draw + mouseClicked), not Button widgets
         List<String> cats = buildCategoryList();
-        if (!cats.isEmpty() && !cats.contains(selectedCategory)) selectedCategory = cats.get(0);
+        if (!cats.isEmpty() && !cats.contains(selectedCategory)) {
+            selectedCategory = cats.get(0);
+        }
 
         // Search box
         int listX = SIDEBAR_W + 4;
         searchBox = new EditBox(font, listX, HEADER_H + 11, (width - SIDEBAR_W) / 2 - 8, 13, Component.empty());
-        searchBox.setHint(Component.literal("§8Search text…"));
+        searchBox.setHint(Component.literal("§8Search text… (Regex supported)"));
         searchBox.setMaxLength(128);
         searchBox.setValue(searchQuery);
+
+        // Fixed: Rebuild only entries & row boxes instead of recursively calling init()
         searchBox.setResponder(v -> {
-            searchQuery = v;
-            scrollPx = 0;
-            rebuildEntries();
-            init();
+            if (!v.equals(searchQuery)) {
+                searchQuery = v;
+                scrollPx = 0;
+                rebuildEntries();
+                buildRowBoxes();
+            }
         });
         addRenderableWidget(searchBox);
 
@@ -128,44 +131,68 @@ public class LangEditorScreen extends Screen {
 
         // Back button
         addRenderableWidget(Button.builder(Component.literal("§7‹ Back"),
-                b -> {
-                    if (minecraft != null) minecraft.setScreen(parent);
-                })
+                        b -> {
+                            if (minecraft != null) minecraft.setScreen(parent);
+                        })
                 .bounds(listX, height - 16, 56, 12).build());
 
         rebuildEntries();
         buildRowBoxes();
     }
 
+
+
     private void rebuildEntries() {
         entries.clear();
-        String q = searchQuery.toLowerCase();
+        String q = searchQuery.trim();
+
+        // 1. Compile regex pattern once per search pass (case-insensitive)
+        java.util.regex.Pattern pattern = null;
+        if (!q.isEmpty()) {
+            try {
+                pattern = java.util.regex.Pattern.compile(q, java.util.regex.Pattern.CASE_INSENSITIVE);
+            } catch (java.util.regex.PatternSyntaxException ignored) {
+                // Fall back to simple substring matching if the user enters an incomplete or invalid regex
+            }
+        }
+
+        String lowerQ = q.toLowerCase();
+
+        // 2. Filter entries
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
             if (!selectedCategory.equals(node.getCategory())) continue;
 
-            // Raw (untranslated) text - this screen edits the baked English default stored in
-            // SNBT/.md, so it must show that regardless of whatever locale happens to be
-            // active client-side, or editing here could silently overwrite a live translation.
+            // Fetch raw text strings for matching
             String title = node.getTitleRaw().getString();
             String desc = node.getDescriptionRaw().getString();
             String sub = node.getSubtitleRaw() != null ? node.getSubtitleRaw() : "";
             String p = node.getId().getPath();
 
-            boolean matchesSearch = q.isEmpty() || title.toLowerCase().contains(q) || desc.toLowerCase().contains(q) ||
-                    sub.toLowerCase().contains(q) || p.contains(q);
+            // Check search match against quest fields
+            boolean matchesSearch = q.isEmpty() ||
+                    matchesQuery(title, pattern, lowerQ) ||
+                    matchesQuery(desc, pattern, lowerQ) ||
+                    matchesQuery(sub, pattern, lowerQ) ||
+                    matchesQuery(p, pattern, lowerQ);
+
+            // If quest-level fields didn't match, check task descriptions
             if (!matchesSearch) {
-                for (QuestTask t : node.getTasks())
-                    if (t.getDescriptionRaw().getString().toLowerCase().contains(q)) {
+                for (QuestTask t : node.getTasks()) {
+                    if (matchesQuery(t.getDescriptionRaw().getString(), pattern, lowerQ)) {
                         matchesSearch = true;
                         break;
                     }
+                }
             }
+
             if (!matchesSearch) continue;
 
+            // 3. Add entries to list
             entries.add(new TextEntry(node.getId(), p + ".title", "Title", title, "title"));
             entries.add(new TextEntry(node.getId(), p + ".description", "Description", desc, "description"));
-            if (!sub.isBlank())
+            if (!sub.isBlank()) {
                 entries.add(new TextEntry(node.getId(), p + ".subtitle", "Subtitle", sub, "subtitle"));
+            }
 
             int i = 0;
             for (QuestTask task : node.getTasks()) {
@@ -178,6 +205,17 @@ public class LangEditorScreen extends Screen {
                 i++;
             }
         }
+    }
+
+    /**
+     * Helper to match text against a compiled Regex Pattern, or fall back to case-insensitive substring matching.
+     */
+    private boolean matchesQuery(String target, java.util.regex.Pattern pattern, String lowerQuery) {
+        if (target == null || target.isBlank()) return false;
+        if (pattern != null) {
+            return pattern.matcher(target).find();
+        }
+        return target.toLowerCase().contains(lowerQuery);
     }
 
     private int listTop() {
@@ -245,8 +283,8 @@ public class LangEditorScreen extends Screen {
             String key = entry.key();
             if (entry.fieldType().equals("description")) {
                 // Multi-line editor spans most of the taller row, below label and key hint
-                int boxY = rowY + 16;
-                int boxH = rh - 16 - 4;
+                int boxY = rowY + 26;
+                int boxH = rh - 26 - 6;
                 MultilineTextArea box = new MultilineTextArea(font, fieldX, boxY, fieldW, boxH, 8192);
                 box.setValue(dirty.getOrDefault(key, entry.value()));
                 box.setResponder(v -> dirty.put(key, v));
@@ -254,7 +292,7 @@ public class LangEditorScreen extends Screen {
                 rowBoxes.add(box);
             } else {
                 // Box sits at the bottom of the row, below label and key hint
-                int boxY = rowY + rh - FIELD_H - 3;
+                int boxY = rowY + 26;
                 EditBox box = new EditBox(font, fieldX, boxY, fieldW, FIELD_H, Component.empty());
                 box.setMaxLength(512);
                 box.setValue(dirty.getOrDefault(key, entry.value()));
@@ -277,15 +315,75 @@ public class LangEditorScreen extends Screen {
         renderBackground(g);
         if (statusTimer > 0) statusTimer--;
 
-        // ── Header ────────────────────────────────────────────────────────────
-        g.fill(0, 0, width, HEADER_H, ChroniclesThemePalette.HEADER);
-        g.fill(0, HEADER_H - 1, width, HEADER_H, ChroniclesThemePalette.BORDER);
-        g.drawString(font, "§dText Editor  §8│  §7" + friendly(selectedCategory),
-                SIDEBAR_W + 6, 6, ChroniclesThemePalette.TEXT);
-        g.drawString(font, "§8Ctrl+S saves  ·  primary: quests/*.md  ·  also exports lang/en_us.json",
-                SIDEBAR_W + 6, 16, ChroniclesThemePalette.TEXT_FAINT);
+        int listX = SIDEBAR_W + 4;
+        int listW = width - SIDEBAR_W - 8;
+        int top = listTop();
+        int bott = listBott();
 
-        // ── Sidebar ───────────────────────────────────────────────────────────
+        // ── 1. Content Area Background & Text (Scissored) ─────────────────────
+        g.enableScissor(listX, top, listX + listW, bott);
+
+        // Group headers & alternating row backgrounds
+        ResourceLocation lastGroupRendered = null;
+        for (int ei = 0; ei < entries.size(); ei++) {
+            TextEntry entry = entries.get(ei);
+            int rowY = top + entryY(ei) - scrollPx;
+
+            if (!entry.questId().equals(lastGroupRendered)) {
+                lastGroupRendered = entry.questId();
+                int gy = rowY - GROUP_H;
+                if (gy + GROUP_H > top && gy < bott) {
+                    g.fill(listX, gy, listX + listW, gy + GROUP_H, C_GROUP_BG);
+                    g.fill(listX, gy, listX + 3, gy + GROUP_H, C_ACCENT);
+                    g.drawString(font, "§d▸ §7quests/" + entry.questId().getPath() + ".md",
+                            listX + 8, gy + 3, ChroniclesThemePalette.TEXT);
+                }
+            }
+
+            int rh = rowHeightFor(entry);
+            if (rowY + rh <= top || rowY >= bott) continue;
+
+            g.fill(listX, rowY, listX + listW, rowY + rh, ei % 2 == 0 ? C_ROW_A : C_ROW_B);
+            g.drawString(font, "§7" + entry.label(), listX + 6, rowY + 3, ChroniclesThemePalette.TEXT_DIM);
+
+            String langKey;
+            if (entry.fieldType().startsWith("task_")) {
+                int idx = Integer.parseInt(entry.fieldType().substring(5));
+                QuestNode owner = QuestTreeRegistry.getQuest(entry.questId());
+                langKey = owner != null && idx < owner.getTasks().size() ?
+                        "phoenix_chronicles.task." + owner.getTasks().get(idx).getTaskId().getPath().replace('/', '.') :
+                        "phoenix_chronicles.task.?";
+            } else {
+                langKey = "phoenix_chronicles.quest." + entry.questId().getPath().replace('/', '.') + "." +
+                        entry.fieldType();
+            }
+            int maxKeyW = listW - 16;
+            String langKeyDisplay = font.width(langKey) > maxKeyW ?
+                    font.plainSubstrByWidth(langKey, maxKeyW - font.width("…")) + "…" : langKey;
+            g.drawString(font, langKeyDisplay, listX + 6, rowY + 13, ChroniclesThemePalette.TEXT_FAINT);
+
+            if (dirty.containsKey(entry.key()))
+                g.fill(listX + listW - 3, rowY, listX + listW, rowY + rh, C_DIRTY_DOT);
+        }
+
+        // Render Row Input Widgets inside scissor view
+        for (net.minecraft.client.gui.components.AbstractWidget box : rowBoxes) {
+            box.render(g, mx, my, partial);
+        }
+
+        g.disableScissor();
+
+        // Scrollbar track + thumb
+        if (maxScrollPx() > 0) {
+            int trackX = listX + listW + 1;
+            int trackH = bott - top;
+            g.fill(trackX, top, trackX + 3, bott, 0x22FFFFFF);
+            int thumbH = Math.max(16, trackH * trackH / (trackH + maxScrollPx()));
+            int thumbY = top + (int) ((long) scrollPx * (trackH - thumbH) / maxScrollPx());
+            g.fill(trackX, thumbY, trackX + 3, thumbY + thumbH, 0x88AAAACC);
+        }
+
+        // ── 2. Sidebar ────────────────────────────────────────────────────────
         g.fill(0, 0, SIDEBAR_W, height, C_SIDEBAR);
         g.fill(SIDEBAR_W, 0, SIDEBAR_W + 1, height, ChroniclesThemePalette.BORDER);
         g.drawCenteredString(font, "§8CHAPTERS", SIDEBAR_W / 2, HEADER_H - 10, ChroniclesThemePalette.TEXT_FAINT);
@@ -313,7 +411,6 @@ public class LangEditorScreen extends Screen {
         }
         g.disableScissor();
 
-        // Sidebar scrollbar
         if (maxSidebarScroll > 0) {
             int thumbH = Math.max(12, sidebarViewH * sidebarViewH / (sidebarViewH + maxSidebarScroll));
             int thumbY = HEADER_H + 4 + (int) ((long) sidebarScrollPx * (sidebarViewH - thumbH) / maxSidebarScroll);
@@ -321,78 +418,15 @@ public class LangEditorScreen extends Screen {
             g.fill(SIDEBAR_W - 3, thumbY, SIDEBAR_W - 1, thumbY + thumbH, 0x88AAAACC);
         }
 
-        // ── Content area ──────────────────────────────────────────────────────
-        int listX = SIDEBAR_W + 4;
-        int listW = width - SIDEBAR_W - 8;
-        int top = listTop();
-        int bott = listBott();
+        // ── 3. Header Overlay (Drawn AFTER content so it stays on top) ────────
+        g.fill(0, 0, width, HEADER_H, ChroniclesThemePalette.HEADER);
+        g.fill(0, HEADER_H - 1, width, HEADER_H, ChroniclesThemePalette.BORDER);
+        g.drawString(font, "§dText Editor  §8│  §7" + friendly(selectedCategory),
+                SIDEBAR_W + 6, 6, ChroniclesThemePalette.TEXT);
+        g.drawString(font, "§8Ctrl+S saves  ·  primary: quests/*.md  ·  also exports lang/en_us.json",
+                SIDEBAR_W + 6, 16, ChroniclesThemePalette.TEXT_FAINT);
 
-        g.enableScissor(listX, top, listX + listW, bott);
-
-        // Group headers (computed from same layout as buildRowBoxes)
-        ResourceLocation lastGroupRendered = null;
-        for (int ei = 0; ei < entries.size(); ei++) {
-            TextEntry entry = entries.get(ei);
-            int rowY = top + entryY(ei) - scrollPx;
-
-            // Group header appears just above entry[ei] when it starts a new quest
-            if (!entry.questId().equals(lastGroupRendered)) {
-                lastGroupRendered = entry.questId();
-                int gy = rowY - GROUP_H;
-                if (gy + GROUP_H > top && gy < bott) {
-                    g.fill(listX, gy, listX + listW, gy + GROUP_H, C_GROUP_BG);
-                    g.fill(listX, gy, listX + 3, gy + GROUP_H, C_ACCENT);
-                    g.drawString(font, "§d▸ §7quests/" + entry.questId().getPath() + ".md",
-                            listX + 8, gy + 3, ChroniclesThemePalette.TEXT);
-                }
-            }
-
-            int rh = rowHeightFor(entry);
-            if (rowY + rh <= top || rowY >= bott) continue;
-
-            // Alternating row bg
-            g.fill(listX, rowY, listX + listW, rowY + rh, ei % 2 == 0 ? C_ROW_A : C_ROW_B);
-
-            // Field label (top-left of row)
-            g.drawString(font, "§7" + entry.label(), listX + 6, rowY + 3, ChroniclesThemePalette.TEXT_DIM);
-
-            // Lang key hint — truncated to prevent bleeding into the edit box. Task rows resolve
-            // by the task's own stable task_id (see QuestTask.getDescription()), not by index
-            // within this quest, so their key looks different from title/description/subtitle.
-            String langKey;
-            if (entry.fieldType().startsWith("task_")) {
-                int idx = Integer.parseInt(entry.fieldType().substring(5));
-                QuestNode owner = QuestTreeRegistry.getQuest(entry.questId());
-                langKey = owner != null && idx < owner.getTasks().size() ?
-                        "phoenix_chronicles.task." + owner.getTasks().get(idx).getTaskId().getPath().replace('/', '.') :
-                        "phoenix_chronicles.task.?";
-            } else {
-                langKey = "phoenix_chronicles.quest." + entry.questId().getPath().replace('/', '.') + "." +
-                        entry.fieldType();
-            }
-            int maxKeyW = listW - 16;
-            String langKeyDisplay = font.width(langKey) > maxKeyW ?
-                    font.plainSubstrByWidth(langKey, maxKeyW - font.width("…")) + "…" : langKey;
-            g.drawString(font, langKeyDisplay, listX + 6, rowY + 13, ChroniclesThemePalette.TEXT_FAINT);
-
-            // Dirty indicator strip
-            if (dirty.containsKey(entry.key()))
-                g.fill(listX + listW - 3, rowY, listX + listW, rowY + rh, C_DIRTY_DOT);
-        }
-
-        g.disableScissor();
-
-        // Scrollbar track + thumb
-        if (maxScrollPx() > 0) {
-            int trackX = listX + listW + 1;
-            int trackH = bott - top;
-            g.fill(trackX, top, trackX + 3, bott, 0x22FFFFFF);
-            int thumbH = Math.max(16, trackH * trackH / (trackH + maxScrollPx()));
-            int thumbY = top + (int) ((long) scrollPx * (trackH - thumbH) / maxScrollPx());
-            g.fill(trackX, thumbY, trackX + 3, thumbY + thumbH, 0x88AAAACC);
-        }
-
-        // ── Footer ────────────────────────────────────────────────────────────
+        // ── 4. Footer Overlay ─────────────────────────────────────────────────
         g.fill(SIDEBAR_W, height - 18, width, height, ChroniclesThemePalette.PANEL);
         g.fill(SIDEBAR_W, height - 19, width, height - 18, ChroniclesThemePalette.BORDER);
 
@@ -401,16 +435,19 @@ public class LangEditorScreen extends Screen {
             g.drawString(font, "§6" + dirtyCount + " unsaved change(s)",
                     listX + 64, height - 13, C_DIRTY_DOT);
 
-        // Status message
         if (statusTimer > 0)
             g.drawString(font, statusMsg, listX + 64, height - 13, ChroniclesThemePalette.TEXT);
 
-        // Entry count
         g.drawString(font, "§8" + entries.size() + " fields  ·  " + countQuests() + " quests",
                 width - 140, height - 13, ChroniclesThemePalette.TEXT_FAINT);
 
-        // Widgets (buttons + editboxes)
-        super.render(g, mx, my, partial);
+        // ── 5. Standard Screen Buttons & Controls (Search, Save, Back) ────────
+        searchBox.render(g, mx, my, partial);
+        for (net.minecraft.client.gui.components.events.GuiEventListener child : children()) {
+            if (child instanceof Button btn) {
+                btn.render(g, mx, my, partial);
+            }
+        }
     }
 
     private int countQuests() {
@@ -419,11 +456,22 @@ public class LangEditorScreen extends Screen {
         return seen.size();
     }
 
-    // ── Input ─────────────────────────────────────────────────────────────────
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (searchBox.isFocused()) {
+            return searchBox.charTyped(codePoint, modifiers);
+        }
+        for (net.minecraft.client.gui.components.AbstractWidget w : rowBoxes) {
+            if (w.isFocused()) {
+                return w.charTyped(codePoint, modifiers);
+            }
+        }
+        return super.charTyped(codePoint, modifiers);
+    }
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
-        // Sidebar category click
+        // 1. Sidebar Category Click Handling
         if (mx < SIDEBAR_W && my > HEADER_H) {
             List<String> cats = buildCategoryList();
             int ty = HEADER_H + 4 - sidebarScrollPx;
@@ -433,7 +481,7 @@ public class LangEditorScreen extends Screen {
                         selectedCategory = cat;
                         scrollPx = 0;
                         rebuildEntries();
-                        init();
+                        buildRowBoxes(); // Rebuild row boxes without clearing searchBox widget
                     }
                     return true;
                 }
@@ -441,7 +489,25 @@ public class LangEditorScreen extends Screen {
             }
             return true;
         }
-        return super.mouseClicked(mx, my, btn);
+
+        // 2. Clear focus from row boxes if clicking the search bar
+        if (searchBox.isMouseOver(mx, my)) {
+            setFocused(searchBox);
+            searchBox.setFocused(true);
+            for (net.minecraft.client.gui.components.AbstractWidget box : rowBoxes) {
+                box.setFocused(false);
+            }
+            return true;
+        }
+
+        // 3. Delegate to row widgets cleanly
+        boolean handled = super.mouseClicked(mx, my, btn);
+        if (handled) {
+            if (getFocused() != searchBox) {
+                searchBox.setFocused(false);
+            }
+        }
+        return handled;
     }
 
     @Override
@@ -473,11 +539,7 @@ public class LangEditorScreen extends Screen {
             return true;
         } // Ctrl+S
 
-        // Enter/newline routed explicitly to whichever description box is focused, rather than
-        // trusting vanilla's getFocused()-based dispatch alone - this screen has dozens of
-        // sibling EditBox/MultilineTextArea widgets on screen at once (one pair per visible
-        // row), and container-level focus tracking across that many widgets is exactly the kind
-        // of thing that silently breaks. Doing it here guarantees the newline lands regardless.
+
         if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
             for (net.minecraft.client.gui.components.AbstractWidget w : rowBoxes) {
                 if (w instanceof MultilineTextArea mta && mta.isFocused()) {
@@ -672,11 +734,23 @@ public class LangEditorScreen extends Screen {
 
     /**
      * Writes config/phoenix_chronicles/assets/phoenix_chronicles/lang/en_us.json from the full
-     * registry, then back-fills any missing keys in sibling lang files with the English value,
-     * and reloads the client's resource packs so the change (and any newly-added keys) take
-     * effect immediately. Reads the RAW baked text, not the resolved/translated text - this
-     * function's job is to snapshot the English baseline, and if some other locale happens to
-     * be active client-side, the resolved getters would return THAT text instead of English.
+     * registry, then back-fills any missing keys in sibling lang files with the English value.
+     * Reads the RAW baked text, not the resolved/translated text - this function's job is to
+     * snapshot the English baseline, and if some other locale happens to be active client-side,
+     * the resolved getters would return THAT text instead of English.
+     *
+     * Deliberately does NOT reload resource packs. That used to happen here whenever the lang
+     * content changed, which is almost every real edit - meaning a full, visible
+     * "Reloading Resources" flash on essentially every quest save. It was never actually needed
+     * for THIS client's own display: every editor that changes title/description/task text
+     * already mutates the live QuestNode/QuestTask objects directly (QuestCreatorScreen.save(),
+     * QuestTasksScreen's inline editor, TaskRewardEditorScreen) - which now also populates
+     * ClientTextOverrides, so getTitle()/getDescription() show the new text immediately
+     * regardless of whatever stale translation I18n still has cached - or, for this screen's own
+     * saveAll() below, does a full quest-tree reload from disk that already produces fresh,
+     * correct objects. A resource-pack reload only matters for picking up hand-added translation
+     * files for OTHER languages, which is what the sidebar's own manual "Export lang" gear button
+     * is for - not something that should happen implicitly on every save.
      */
     public static void writeEnUsJson(Path base) {
         Map<String, String> lang = new LinkedHashMap<>();
@@ -699,17 +773,9 @@ public class LangEditorScreen extends Screen {
             net.phoenixvine.chronicles.registry.QuestLangRegistry.ensurePackStructure(base);
             Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
             Path enUsFile = langDir.resolve("en_us.json");
-            // Only reload resource packs (a multi-second stall on a heavily modded pack, same
-            // concern CategoryThemeScreen already guards against for its own lang key) if the
-            // lang content actually changed - this used to fire unconditionally on every save,
-            // which is what made even a pure position/shape/task edit in QuestCreatorScreen pop
-            // the "Reloading Resources" screen.
             String newJson = gson.toJson(lang);
-            boolean changed = !Files.exists(enUsFile) ||
-                    !Files.readString(enUsFile, StandardCharsets.UTF_8).equals(newJson);
             Files.writeString(enUsFile, newJson, StandardCharsets.UTF_8);
             syncOtherLangFiles(langDir, lang, gson);
-            if (changed) net.phoenixvine.chronicles.client.ChroniclesLangPack.reload();
         } catch (IOException e) {
             e.printStackTrace();
         }

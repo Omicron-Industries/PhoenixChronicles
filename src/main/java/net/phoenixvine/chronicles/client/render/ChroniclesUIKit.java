@@ -8,7 +8,7 @@ import java.util.function.Function;
 
 /**
  * Shared chrome for popup/modal-style screens (CategoryThemeScreen, ChroniclesThemeEditorScreen,
- * FluidPickerScreen, ItemPickerScreen, QuestStyleEditorScreen, TaskRewardEditorScreen, etc).
+ * FluidPickerScreen, ItemPickerScreen, TaskRewardEditorScreen, etc).
  *
  * This sits next to ChroniclesThemeRenderer (which owns full-screen header/footer/scrollbar/
  * code-block chrome) and ChroniclesThemePalette (which owns resolved theme colors). ChroniclesUIKit
@@ -93,7 +93,7 @@ public final class ChroniclesUIKit {
     /**
      * Renders a generic hover-highlighted dropdown list under an anchor point.
      * Handles the "elevated z + panel + border + per-row hover highlight + selected marker"
-     * pattern duplicated in CategoryThemeScreen, QuestStyleEditorScreen and others.
+     * pattern duplicated in CategoryThemeScreen and others.
      *
      * @param labelFn       maps an item to its display label (selection marker is prepended automatically)
      * @param selectedIndex index currently selected, or -1 for none

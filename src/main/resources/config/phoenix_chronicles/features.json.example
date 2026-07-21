@@ -1,0 +1,23 @@
+//
+// Example JSON config for Phoenix Chronicles quest flags.
+//
+// To use this file, rename it to "features.json" and place it in the
+// 'config/phoenix_chronicles' directory of your Minecraft instance.
+//
+// You can then reference these values in your quests' `enable_if` conditions.
+//
+// -----------------------------------------------------------------------------
+//
+//  - Phoenix Chronicles Quest SNBT -
+//
+//  enable_if: "config:features.json#expert_quests"
+//  enable_if: "config:features.json#progression.tier>=2"
+//
+// -----------------------------------------------------------------------------
+{
+  "expert_quests": false,
+  "progression": {
+    "tier": 1,
+    "allow_creative": false
+  }
+}

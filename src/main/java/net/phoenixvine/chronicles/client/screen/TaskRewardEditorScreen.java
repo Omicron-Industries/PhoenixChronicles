@@ -970,7 +970,16 @@ public class TaskRewardEditorScreen extends Screen {
         // exit (crash, force-quit), exactly the same "works this session, reverts on restart"
         // bug this session already found and fixed for descriptions. variantTarget edits are
         // covered too since a variant is serialized as part of its owning quest's own SNBT.
-        net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
+        //
+        // Only write to disk if questNode is the actual live registered instance - QuestCreatorScreen
+        // opens this screen against a throwaway QuestNode while a brand-new quest is still being
+        // filled out (it doesn't exist in the registry or on disk yet, and might never be saved at
+        // all), and writing straight to disk here would leave a stray "_preview_.snbt"-style ghost
+        // file behind regardless of whether the user ever clicks that screen's own Save button.
+        if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
+            net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
+            net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
+        }
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -1307,6 +1316,7 @@ public class TaskRewardEditorScreen extends Screen {
     @Override
     public void onClose() {
         flushToQuestNode();
+        net.phoenixvine.chronicles.client.LangSyncScheduler.flushNow();
         if (minecraft != null) minecraft.setScreen(parent);
     }
 

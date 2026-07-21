@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
 /**
- * Reads flag values from config files in the Minecraft config directory.
+ * Reads flag values from config files in the 'config/phoenix_chronicles' directory.
  *
  * Supported formats: .toml, .json, .properties
  * Cache TTL: 15 seconds (re-reads automatically; no restart needed for value changes).
@@ -26,15 +26,14 @@ import javax.annotation.Nullable;
  * ── Quest SNBT ───────────────────────────────────────────────────────────────
  *
  * enable_if: "config:packmode.toml#mode=expert"
- * enable_if: "config:mypack/settings.json#features.expert_quests"
- * enable_if: "config:packmode.properties#pack.mode!=easy"
+ * enable_if: "config:features.json#expert_quests"
+ * enable_if: "config:difficulty.properties#level!=easy"
  *
  * ── Expression format ────────────────────────────────────────────────────────
  *
  * config:FILENAME#KEY[OPERATOR VALUE]
  *
- * FILENAME — relative to the Minecraft config directory.
- * Subdirectories are allowed: "mypack/settings.json"
+ * FILENAME — relative to the 'config/phoenix_chronicles' directory.
  * KEY — dot-separated path within the file:
  * TOML/JSON: "section.subsection.key"
  * Properties: "my.property.key"
@@ -48,19 +47,19 @@ import javax.annotation.Nullable;
  *
  * → enable_if: "config:packmode.toml#general.mode=expert"
  *
- * ── JSON example (mypack/settings.json) ──────────────────────────────────────
+ * ── JSON example (features.json) ──────────────────────────────────────
  *
- * { "features": { "expert_quests": true, "tier": 3 } }
+ * { "expert_quests": true, "tier": 3 }
  *
- * → enable_if: "config:mypack/settings.json#features.expert_quests"
- * → enable_if: "config:mypack/settings.json#features.tier>=2"
+ * → enable_if: "config:features.json#expert_quests"
+ * → enable_if: "config:features.json#tier>=2"
  *
- * ── Properties example (packmode.properties) ─────────────────────────────────
+ * ── Properties example (difficulty.properties) ─────────────────────────────────
  *
- * pack.mode=expert
- * pack.tier=3
+ * level=expert
+ * tier=3
  *
- * → enable_if: "config:packmode.properties#pack.mode=expert"
+ * → enable_if: "config:difficulty.properties#level=expert"
  */
 public class ConfigFileFlagProvider implements QuestFlagProvider {
 
@@ -98,9 +97,18 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
             return cached.flat();
         }
 
-        Path configDir = server != null ? server.getServerDirectory().toPath().resolve("config") :
+        Path baseConfigDir = server != null ? server.getServerDirectory().toPath().resolve("config") :
                 FMLPaths.CONFIGDIR.get();
-        Path file = configDir.resolve(filename);
+        Path chroniclesConfigDir = baseConfigDir.resolve("phoenix_chronicles");
+
+        try {
+            Files.createDirectories(chroniclesConfigDir);
+        } catch (IOException e) {
+            System.err.println("[Phoenix Chronicles] Could not create phoenix_chronicles config directory: " + e.getMessage());
+            return Map.of();
+        }
+
+        Path file = chroniclesConfigDir.resolve(filename);
 
         Map<String, String> flat = readFlat(file);
         cache.put(filename, new CachedFile(flat, System.currentTimeMillis()));

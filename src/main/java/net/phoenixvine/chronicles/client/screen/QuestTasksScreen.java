@@ -1700,6 +1700,7 @@ public class QuestTasksScreen extends Screen {
                         liveDescOverride = v;
                         richSpansPage = -1; // force re-parse - the underlying text just changed
                         net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
+                        net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
                     }));
             return true;
         }
@@ -1806,9 +1807,10 @@ public class QuestTasksScreen extends Screen {
             isFullscreen = false;
             return true;
         }
-        // ✎ style editor
+        // ✎ edit quest — the same consolidated editor used everywhere else (right-click "Edit
+        // Quest" on the canvas), not a separate lesser one.
         if (mx >= editX2 && mx < editX2 + 14 && my >= 6 && my < 22 && btn == 0) {
-            if (minecraft != null) minecraft.setScreen(new QuestStyleEditorScreen(this, node));
+            if (minecraft != null) minecraft.setScreen(new QuestCreatorScreen(this, node));
             return true;
         }
         // Pin — toggles just this quest, leaving any other pinned quests untouched
@@ -1890,6 +1892,7 @@ public class QuestTasksScreen extends Screen {
                         liveDescOverride = v;
                         richSpansPage = -1; // force re-parse - the underlying text just changed
                         net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
+                        net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
                     }));
             return true;
         }
@@ -1991,6 +1994,7 @@ public class QuestTasksScreen extends Screen {
             net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.closePreview(phantasiaPreview);
             phantasiaPreview = null;
         }
+        net.phoenixvine.chronicles.client.LangSyncScheduler.flushNow();
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
