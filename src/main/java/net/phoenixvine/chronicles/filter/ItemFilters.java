@@ -17,20 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.StreamSupport;
 
-/**
- * All built-in {@link IItemFilter} implementations + the static deserializer.
- *
- * Quick-reference:
- *
- * ExactItem — one specific item, optional NBT subset check
- * Tag — any item in an item tag (e.g. "forge:ingots/copper")
- * Mod — any item registered by a given mod id
- * AnyOf — OR: matches if ANY child filter matches (union / "one of these")
- * AllOf — AND: matches only if ALL child filters match (e.g. tag + nbt)
- * Not — NOT: inverts a single child filter
- *
- * Serialization key: {@code "filter_type"} → one of the TYPE_* constants below.
- */
 public final class ItemFilters {
 
     public static final String TYPE_EXACT = "exact";
@@ -39,8 +25,6 @@ public final class ItemFilters {
     public static final String TYPE_ANY_OF = "any_of";
     public static final String TYPE_ALL_OF = "all_of";
     public static final String TYPE_NOT = "not";
-
-    // ── ExactItem ─────────────────────────────────────────────────────────────
 
     public record ExactItem(Item item, @Nullable CompoundTag nbt) implements IItemFilter {
 
@@ -61,7 +45,7 @@ public final class ItemFilters {
         public String describe() {
             ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
             String base = id != null ? id.toString() : "unknown";
-            return nbt != null && !nbt.isEmpty() ? base + " {…}" : base;
+            return nbt != null && !nbt.isEmpty() ? base + " {â€¦}" : base;
         }
 
         @Override
@@ -85,8 +69,6 @@ public final class ItemFilters {
             return new ExactItem(item == null ? net.minecraft.world.item.Items.AIR : item, nbt);
         }
     }
-
-    // ── Tag ───────────────────────────────────────────────────────────────────
 
     public record Tag(TagKey<Item> tag) implements IItemFilter {
 
@@ -118,8 +100,6 @@ public final class ItemFilters {
             return new Tag(ItemTags.create(new ResourceLocation(t.getString("tag"))));
         }
     }
-
-    // ── Mod ───────────────────────────────────────────────────────────────────
 
     public record Mod(String modId) implements IItemFilter {
 
@@ -160,8 +140,6 @@ public final class ItemFilters {
         }
     }
 
-    // ── AnyOf (OR) ────────────────────────────────────────────────────────────
-
     public record AnyOf(List<IItemFilter> children) implements IItemFilter {
 
         @Override
@@ -201,8 +179,6 @@ public final class ItemFilters {
         }
     }
 
-    // ── AllOf (AND) ───────────────────────────────────────────────────────────
-
     public record AllOf(List<IItemFilter> children) implements IItemFilter {
 
         @Override
@@ -241,8 +217,6 @@ public final class ItemFilters {
         }
     }
 
-    // ── Not ───────────────────────────────────────────────────────────────────
-
     public record Not(IItemFilter child) implements IItemFilter {
 
         @Override
@@ -268,12 +242,6 @@ public final class ItemFilters {
         }
     }
 
-    // ── Deserializer ──────────────────────────────────────────────────────────
-
-    /**
-     * Reconstruct any {@link IItemFilter} from its serialized CompoundTag.
-     * Returns an always-false sentinel filter if the type is unrecognized.
-     */
     public static IItemFilter deserialize(CompoundTag tag) {
         String type = tag.getString("filter_type");
         return switch (type) {
@@ -285,7 +253,7 @@ public final class ItemFilters {
             case TYPE_NOT -> Not.deserialize(tag);
             default -> {
                 System.err.println("[Chronicles] Unknown item filter type: " + type);
-                // Fixed: Explicitly implement all abstract methods for the fallback instance
+                
                 yield new IItemFilter() {
 
                     @Override
@@ -306,8 +274,6 @@ public final class ItemFilters {
             }
         };
     }
-
-    // ── Factory helpers (for code/KubeJS use) ────────────────────────────────
 
     public static IItemFilter exact(Item item) {
         return new ExactItem(item, null);
@@ -339,3 +305,4 @@ public final class ItemFilters {
 
     private ItemFilters() {}
 }
+

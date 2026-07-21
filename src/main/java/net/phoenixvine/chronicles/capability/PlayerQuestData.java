@@ -14,21 +14,17 @@ import java.util.Set;
 
 public class PlayerQuestData {
 
-    // Quest state per quest id
     private final Map<ResourceLocation, QuestState> questStates = new HashMap<>();
-    // Task-specific progress blobs
+    
     private final Map<ResourceLocation, CompoundTag> taskProgress = new HashMap<>();
-    // Last-completed epoch-millis per quest (for cooldown / daily repeat logic)
+    
     private final Map<ResourceLocation, Long> lastCompleted = new HashMap<>();
-    // Rewards the player has already claimed (prevents double-granting on reconnect)
+    
     private final Set<ResourceLocation> claimedRewards = new HashSet<>();
-    // Which reward index was chosen in a choice group, keyed by quest id
+    
     private final Map<ResourceLocation, Integer> chosenRewardIndex = new HashMap<>();
-    // Pinned quests shown stacked on the HUD, in pin order (LinkedHashSet keeps that order
-    // stable so the HUD stack doesn't reshuffle every time something else changes).
-    private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
 
-    // ── Quest state ───────────────────────────────────────────────────────────
+    private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
 
     public QuestState getQuestState(ResourceLocation questId, QuestState defaultState) {
         return questStates.getOrDefault(questId, defaultState);
@@ -42,13 +38,9 @@ public class PlayerQuestData {
         questStates.put(questId, state);
     }
 
-    // ── Task progress ─────────────────────────────────────────────────────────
-
     public CompoundTag getOrCreateTaskProgress(ResourceLocation taskId) {
         return taskProgress.computeIfAbsent(taskId, id -> new CompoundTag());
     }
-
-    // ── Repeat / cooldown ─────────────────────────────────────────────────────
 
     public long getLastCompletedTime(ResourceLocation questId) {
         return lastCompleted.getOrDefault(questId, 0L);
@@ -57,8 +49,6 @@ public class PlayerQuestData {
     public void recordCompletion(ResourceLocation questId) {
         lastCompleted.put(questId, System.currentTimeMillis());
     }
-
-    // ── Rewards ───────────────────────────────────────────────────────────────
 
     public boolean hasClaimedRewards(ResourceLocation questId) {
         return claimedRewards.contains(questId);
@@ -84,19 +74,10 @@ public class PlayerQuestData {
         chosenRewardIndex.remove(questId);
     }
 
-    /** Wipes all accumulated task progress for a single task (used on repeat reset). */
     public void clearTaskProgress(ResourceLocation taskId) {
         taskProgress.remove(taskId);
     }
 
-    /**
-     * Fully resets a quest back to never-attempted: state, every one of its tasks' progress
-     * blobs, claimed-rewards flag, chosen-reward-choice index, and completion timestamp. The
-     * quest's own state key is removed entirely (not set to LOCKED) so getQuestState() falls
-     * through to its normal unlock-gate computation instead of being force-pinned locked.
-     * {@code taskIds} should be every task belonging to this quest, since taskProgress is keyed
-     * by task id, not quest id.
-     */
     public void resetQuestProgress(ResourceLocation questId, java.util.Collection<ResourceLocation> taskIds) {
         questStates.remove(questId);
         for (ResourceLocation taskId : taskIds) taskProgress.remove(taskId);
@@ -105,14 +86,10 @@ public class PlayerQuestData {
         chosenRewardIndex.remove(questId);
     }
 
-    // ── Pinned quests ─────────────────────────────────────────────────────────
-
-    /** All currently pinned quest ids, in the order they were pinned. */
     public Set<ResourceLocation> getPinnedQuestIds() {
         return java.util.Collections.unmodifiableSet(pinnedQuestIds);
     }
 
-    /** Pins or unpins a quest without affecting any other pinned quest. */
     public void togglePin(ResourceLocation id) {
         if (!pinnedQuestIds.remove(id)) pinnedQuestIds.add(id);
     }
@@ -121,7 +98,6 @@ public class PlayerQuestData {
         pinnedQuestIds.add(id);
     }
 
-    /** Unpins a single quest (e.g. because its node no longer exists), leaving others untouched. */
     public void unpin(ResourceLocation id) {
         pinnedQuestIds.remove(id);
     }
@@ -130,12 +106,9 @@ public class PlayerQuestData {
         return pinnedQuestIds.contains(questId);
     }
 
-    // ── Serialization ─────────────────────────────────────────────────────────
-
     public CompoundTag serializeNBT() {
         CompoundTag root = new CompoundTag();
 
-        // Quest states
         ListTag questsList = new ListTag();
         questStates.forEach((id, state) -> {
             CompoundTag e = new CompoundTag();
@@ -145,7 +118,6 @@ public class PlayerQuestData {
         });
         root.put("Quests", questsList);
 
-        // Task progress
         ListTag tasksList = new ListTag();
         taskProgress.forEach((id, tag) -> {
             CompoundTag e = new CompoundTag();
@@ -155,7 +127,6 @@ public class PlayerQuestData {
         });
         root.put("Tasks", tasksList);
 
-        // Last completed timestamps
         ListTag completedList = new ListTag();
         lastCompleted.forEach((id, time) -> {
             CompoundTag e = new CompoundTag();
@@ -165,7 +136,6 @@ public class PlayerQuestData {
         });
         root.put("LastCompleted", completedList);
 
-        // Claimed rewards
         ListTag claimedList = new ListTag();
         for (ResourceLocation id : claimedRewards) {
             CompoundTag e = new CompoundTag();
@@ -174,7 +144,6 @@ public class PlayerQuestData {
         }
         root.put("ClaimedRewards", claimedList);
 
-        // Chosen reward indices
         ListTag chosenList = new ListTag();
         chosenRewardIndex.forEach((id, idx) -> {
             CompoundTag e = new CompoundTag();
@@ -184,7 +153,6 @@ public class PlayerQuestData {
         });
         root.put("ChosenRewards", chosenList);
 
-        // Pinned quests
         ListTag pinnedList = new ListTag();
         for (ResourceLocation id : pinnedQuestIds) {
             CompoundTag e = new CompoundTag();
@@ -238,7 +206,7 @@ public class PlayerQuestData {
                 pinnedQuestIds.add(new ResourceLocation(e.getString("id")));
             } catch (Exception ignored) {}
         }
-        // Migrate old single-pin saves (pre-multi-pin) so existing playthroughs don't lose their pin.
+        
         if (root.contains("PinnedQuest")) {
             try {
                 pinnedQuestIds.add(new ResourceLocation(root.getString("PinnedQuest")));
@@ -246,3 +214,4 @@ public class PlayerQuestData {
         }
     }
 }
+

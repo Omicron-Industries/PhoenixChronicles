@@ -11,14 +11,6 @@ import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 
-/**
- * Client → Server: player wants to start tracking (activate) or stop tracking a quest.
- * Server validates the transition before applying it.
- *
- * Wire format:
- * ResourceLocation questId
- * boolean activate (true = UNLOCKED→ACTIVE, false = ACTIVE→UNLOCKED)
- */
 public class C2SSetQuestStatePacket {
 
     private final ResourceLocation questId;
@@ -52,8 +44,9 @@ public class C2SSetQuestStatePacket {
             } else if (!activate && current == QuestState.ACTIVE) {
                 QuestProgressTracker.changeQuestState(player, node, QuestState.UNLOCKED);
             }
-            // changeQuestState sends S2CSyncPlayerProgressPacket automatically
+            
         });
         ctx.get().setPacketHandled(true);
     }
 }
+

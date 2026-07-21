@@ -10,7 +10,7 @@ public class QuestEmiCategory {
 
     public static final ResourceLocation ID = new ResourceLocation("phoenixcore", "quests");
 
-    // Pass an EmiStack of a Book item directly as the renderable icon
     public static final EmiRecipeCategory CATEGORY = new EmiRecipeCategory(ID,
             EmiStack.of(Items.BOOK));
 }
+

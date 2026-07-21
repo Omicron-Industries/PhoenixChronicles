@@ -17,21 +17,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Per-quest custom toast design ("design your own toast" from the node context menu). A quest
- * with no entry here falls back to whichever preset ToastStyle is currently selected in settings.
- *
- * Stored at: config/phoenix_chronicles/quest_toasts.json, keyed by quest resource location string.
- */
 public class QuestToastConfig {
 
-    /** One positioned/styled element of a custom toast (icon, title text, or label text). */
     public static class Element {
 
-        /** Anchor position as a fraction of screen width/height (0..1), element-center anchored. */
         public float x = 0.5f, y = 0.5f;
         public float scale = 1.0f;
-        /** ARGB text color - unused for the icon element. */
+        
         public int color = 0xFFFFFFFF;
         public boolean bold = false;
 
@@ -51,37 +43,18 @@ public class QuestToastConfig {
     public Element label = defaultLabel();
     public int bgColor = 0xB2170D00;
     public int accentColor = 0xFFFFAA00;
-    /**
-     * Background rectangle half-size in GUI pixels, per axis. When {@link #bgAutoFit} is true
-     * (the default, and always true for any config saved before this field existed) this is a
-     * PADDING beyond the live union of the icon/title/label positions, so the background always
-     * grows/shrinks/shifts to hug wherever those three currently are - simple, but means dragging
-     * any ONE of them can visibly balloon or shift the whole background+accent bar along with it.
-     * When false, this is instead a fixed HALF-WIDTH/HALF-HEIGHT around the background's own
-     * independent anchor ({@link #bgX}, {@link #bgY}), completely decoupled from where the icon/
-     * title/label happen to be - the background stays put no matter what you drag.
-     */
+    
     public float bgPadX = 26f, bgPadY = 14f;
-    /** See {@link #bgPadX} - true (default) reproduces the original auto-fit-to-elements behavior. */
+    
     public boolean bgAutoFit = true;
-    /**
-     * Independent background anchor, same 0..1-of-screen convention as Element#x/y - only used when {@link #bgAutoFit}
-     * is false.
-     */
+    
     public float bgX = 0.5f, bgY = 0.5f;
 
-    /**
-     * One independently-positioned icon in the toast's custom icon set - each entry drags/scales
-     * on its own in the designer, not locked to the others. Used to just be a plain
-     * {@link QuestGroup.GroupIcon} (kind+id only) with every entry forced into a single row
-     * anchored at {@link #icon}'s position, which meant adding a second icon could only ever be
-     * moved together with the first.
-     */
     public static class IconEntry {
 
         public QuestGroup.IconKind kind;
         public String id;
-        /** Same 0..1-of-screen convention as Element#x/y. */
+        
         public float x = 0.5f, y = 0.42f;
         public float scale = 1.5f;
 
@@ -100,22 +73,10 @@ public class QuestToastConfig {
         }
     }
 
-    /**
-     * Custom icon set for the toast, overriding the quest's own auto icon when non-empty - each
-     * entry has its own position/scale (see {@link IconEntry}).
-     */
     public final List<IconEntry> icons = new ArrayList<>();
 
-    /**
-     * Optional Phantasia machine id - when set, the toast (both the real in-game notification and
-     * this designer's live preview, which share the same render path) shows a live ticking 3D
-     * preview as its backdrop instead of a flat color fill.
-     */
     public String phantasiaMachineId = "";
 
-    /**
-     * Public so ToastDesignerScreen's "Reset element" can restore just one of the three without touching the others.
-     */
     public static Element defaultIcon() {
         Element e = new Element();
         e.x = 0.5f;
@@ -161,13 +122,10 @@ public class QuestToastConfig {
         return c;
     }
 
-    // ── Disk I/O ──────────────────────────────────────────────────────────────
-
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Map<String, QuestToastConfig> CACHE = new HashMap<>();
     private static boolean loaded = false;
 
-    /** Null if the quest has no custom toast design - caller should fall back to the preset style. */
     public static QuestToastConfig getOrNull(String questId) {
         if (!loaded) load();
         return CACHE.get(questId);
@@ -222,3 +180,4 @@ public class QuestToastConfig {
                 .resolve("config").resolve("phoenix_chronicles").resolve("quest_toasts.json");
     }
 }
+

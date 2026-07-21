@@ -17,10 +17,6 @@ public final class ChronicleRichTextRenderer {
     private static final int HEADING_COLOR = 0xFFF0F0FF;
     private static final Style LINK_STYLE = Style.EMPTY.withUnderlined(true);
 
-    // Extra vertical gap inserted *before* each block type (beyond the normal line advance
-    // already produced by the previous block's last line). Headings get breathing room on both
-    // sides so they read as section breaks; list items and paragraphs get a smaller gap so
-    // consecutive list items don't look like separate paragraphs.
     private static final int GAP_PARAGRAPH = 4;
     private static final int GAP_LIST_ITEM = 2;
     private static final int GAP_HEADING_BEFORE = 8;
@@ -28,10 +24,6 @@ public final class ChronicleRichTextRenderer {
     private static final int GAP_BLANK = 4;
 
     private ChronicleRichTextRenderer() {}
-
-    // ── Flat span-list API (unchanged behavior, still used anywhere that only has a raw
-    // List<RichSpan> with no block structure — e.g. anything still calling ChronicleTextParser
-    // directly) ─────────────────────────────────────────────────────────────────────────────
 
     public static List<RichSpan.Region> render(
                                                GuiGraphics g, Font font,
@@ -41,14 +33,6 @@ public final class ChronicleRichTextRenderer {
         return render(g, font, spans, x, y, maxW, scrollY, clipTop, clipBot, 1.0f);
     }
 
-    /**
-     * Same as {@link #render(GuiGraphics, Font, List, int, int, int, int, int, int)} but with a
-     * text scale multiplier (see QuestChroniclesSettings#getTextScaleMultiplier) - x/y/maxW/
-     * scrollY/clipTop/clipBot all stay in real screen-pixel units regardless of scale (each
-     * token's effective width and the line-advance height are what scale internally), so callers
-     * don't need to pre-divide/multiply anything themselves, and the returned regions are
-     * directly usable for hover/click hit-testing against raw mouse coordinates.
-     */
     public static List<RichSpan.Region> render(
                                                GuiGraphics g, Font font,
                                                List<RichSpan> spans,
@@ -64,20 +48,10 @@ public final class ChronicleRichTextRenderer {
         return measureSpanList(font, spans, maxW, 1.0f);
     }
 
-    /** Same as {@link #measureHeight(Font, List, int)} but at the given text scale multiplier. */
     public static int measureHeight(Font font, List<RichSpan> spans, int maxW, float scale) {
         return measureSpanList(font, spans, maxW, scale);
     }
 
-    // ── Block-level API — the single rendering path both the compact card and fullscreen
-    // panel should use going forward, for both .snbt-sourced and .md-sourced descriptions. ────
-
-    /**
-     * Renders a full list of {@link RichBlock}s (headings, paragraphs, list items, blank
-     * spacers) starting at (x, y), word-wrapped to maxW, clipped to [clipTop, clipBot) and
-     * offset by scrollY. Returns the interactive regions (links/tooltips) for hover/click
-     * handling, same contract as {@link #render}.
-     */
     public static List<RichSpan.Region> renderBlocks(
                                                      GuiGraphics g, Font font,
                                                      List<RichBlock> blocks,
@@ -86,7 +60,6 @@ public final class ChronicleRichTextRenderer {
         return renderBlocks(g, font, blocks, x, y, maxW, scrollY, clipTop, clipBot, 1.0f);
     }
 
-    /** Same as {@link #renderBlocks} but at the given text scale multiplier - see {@link #render}. */
     public static List<RichSpan.Region> renderBlocks(
                                                      GuiGraphics g, Font font,
                                                      List<RichBlock> blocks,
@@ -124,12 +97,10 @@ public final class ChronicleRichTextRenderer {
         return regions;
     }
 
-    /** Total pixel height {@link #renderBlocks} would occupy — needed for scroll clamping. */
     public static int measureBlocksHeight(Font font, List<RichBlock> blocks, int maxW) {
         return measureBlocksHeight(font, blocks, maxW, 1.0f);
     }
 
-    /** Same as {@link #measureBlocksHeight} but at the given text scale multiplier. */
     public static int measureBlocksHeight(Font font, List<RichBlock> blocks, int maxW, float scale) {
         int y = 0;
         boolean first = true;
@@ -167,13 +138,11 @@ public final class ChronicleRichTextRenderer {
                 out.add(new RichSpan.Text(t.text(), t.style().withBold(true).withColor(
                         net.minecraft.network.chat.TextColor.fromRgb(HEADING_COLOR & 0xFFFFFF))));
             } else {
-                out.add(s); // links/tips/images inside a heading keep their own semantics
+                out.add(s); 
             }
         }
         return out;
     }
-
-    // ── Shared span-list engine (used by both the flat and block-level APIs) ──────────────────
 
     private static void renderSpanList(GuiGraphics g, Font font, List<RichSpan> spans,
                                        int x, int[] curY, int originX, int maxW,
@@ -242,8 +211,6 @@ public final class ChronicleRichTextRenderer {
         return curY + (curX > 0 ? lineH : 0);
     }
 
-    // ── Internals ────────────────────────────────────────────────────────────
-
     private static int[] renderWords(
                                      GuiGraphics g, Font font,
                                      String text, Style style, int fallbackColor,
@@ -253,15 +220,8 @@ public final class ChronicleRichTextRenderer {
                                      List<RichSpan.Region> regions, RichSpan source, float scale) {
         if (text == null || text.isEmpty()) return new int[] { curX, curY };
 
-        // Wrap/advance math stays in real screen-pixel units throughout (curX/curY/maxW are never
-        // pre-divided by scale) - only each token's EFFECTIVE width/line-height account for the
-        // scale multiplier, so the returned regions are directly usable for hover/click hit-
-        // testing against raw mouse coordinates with no separate coordinate-space conversion.
         int lineH = Math.round(LINE_H * scale);
 
-        // Still honor any literal "\n" that survives into a single inline text run (e.g. from
-        // raw .snbt descriptions that aren't run through the block parser at all) — same forced
-        // line break the old renderer supported.
         String[] lines = text.split("\n", -1);
         for (int li = 0; li < lines.length; li++) {
             if (li > 0) {
@@ -277,11 +237,7 @@ public final class ChronicleRichTextRenderer {
                     curX = originX;
                     curY += lineH;
                 }
-                // Was `curY < clipBot` alone - only checking the glyph's TOP, so a line landing
-                // right at the clip edge still drew its full ~8px height, bleeding several pixels
-                // past clipBot into whatever's rendered just below (the pager pill, the footer).
-                // Require the WHOLE line to fit, same fix as MultilineTextArea/the inspector
-                // tabs' lineFullyVisible().
+
                 if (curY >= clipTop && curY + 8 <= clipBot) {
                     MutableComponent comp = Component.literal(token).withStyle(style);
                     int color = style.getColor() != null ? (0xFF000000 | style.getColor().getValue()) : fallbackColor;
@@ -341,3 +297,4 @@ public final class ChronicleRichTextRenderer {
         return tokens.toArray(String[]::new);
     }
 }
+

@@ -35,53 +35,34 @@ public class QuestChroniclesSettings {
     }
 
     public enum LineStyle {
-        SPLINE,   // cubic S-curve bezier (default)
-        STRAIGHT  // vertex straight lines
+        SPLINE,   
+        STRAIGHT  
     }
 
-    /**
-     * How the category sidebar's collapsed/expanded state behaves.
-     * COLLAPSIBLE (default) - the existing behavior: a small arrow toggle you click to pin it
-     * collapsed or expanded, staying that way until clicked again.
-     * HOVER_TO_EXPAND - FTB Quests-style: always collapsed to a narrow strip, and moving the
-     * mouse over it temporarily expands it full-width; moving away collapses it back. No manual
-     * toggle needed (or shown) in this mode.
-     */
     public enum SidebarBehavior {
         COLLAPSIBLE,
         HOVER_TO_EXPAND
     }
 
     public enum LineVisualStyle {
-        THIN,    // 1px hairline
-        NORMAL,  // 3px core with soft edge (default)
-        BOLD,    // 5px core with soft edge
-        THICK,   // 7px core with halo
-        WIDE,    // 9px core with strong halo
-        GLOW     // 3px core with luminous halo
+        THIN,    
+        NORMAL,  
+        BOLD,    
+        THICK,   
+        WIDE,    
+        GLOW     
     }
 
-    /**
-     * Where the quest-book button sits in the vanilla inventory screen. LEFT/RIGHT attach a
-     * tab to the outside edge of the panel (FTB Quests' side-tab convention); TOP_LEFT instead
-     * sits as a small button inside the panel's top-left corner (FTB Quests' OTHER convention -
-     * a small in-panel icon rather than a side tab).
-     */
     public enum InvButtonPos {
         LEFT,
         RIGHT,
         TOP_LEFT
     }
 
-    /**
-     * Base toast presentation used by any quest that doesn't have its own custom toast design
-     * (see QuestToastConfig - "design your own" from the node context menu overrides this
-     * per-quest, this is only the fallback).
-     */
     public enum ToastStyle {
-        COMPACT,       // small corner banner (current default), anchored via toastPosition
-        ABOVE_HOTBAR,  // wider banner centered just above the hotbar
-        BIG_CENTER     // large, interruptive center-screen text
+        COMPACT,       
+        ABOVE_HOTBAR,  
+        BIG_CENTER     
     }
 
     public enum LineAnimSpeed {
@@ -114,57 +95,33 @@ public class QuestChroniclesSettings {
     private boolean showInventoryButton = true;
     private InvButtonPos invButtonPos = InvButtonPos.LEFT;
     private boolean showLineArrows = true;
-    /**
-     * Gates dev mode off by default even for creative/op players who'd otherwise auto-qualify
-     * for it - dev tools (edit affordances, validation badges, right-click authoring menus)
-     * should be an explicit opt-in via the Settings screen toggle, not always-on the moment
-     * you're creative/op, with no way to preview the plain player-facing view without leaving
-     * creative or dropping permissions first.
-     */
+    
     private boolean devModeDisabled = true;
-    /**
-     * The category the overview screen was last showing, so reopening the questbook (including
-     * after a full world/game restart) returns to where the player left off instead of always
-     * landing back on the first chapter. Empty = no preference yet (falls back to the first
-     * chapter, same as before this existed).
-     */
+    
     private String lastCategory = "";
-    /**
-     * Where quest-unlocked/completed toast notifications slide in and stack, independent of
-     * the pinned-quest HUD widget's own position.
-     */
+    
     private HUDPosition toastPosition = HUDPosition.TOP_RIGHT;
-    /** Pack-configurable questbook title shown atop the sidebar, "" = falls back to "Quest Book". */
+    
     private String questbookName = "";
-    /** Item resource-location string for the questbook title icon, "" = falls back to a written book. */
+    
     private String questbookIcon = "";
-    /** Fallback toast presentation for quests without their own custom design (see QuestToastConfig). */
+    
     private ToastStyle toastStyle = ToastStyle.COMPACT;
-    /** Whether unlock/complete toasts also play a sound (see S2CSyncPlayerProgressPacket). */
+    
     private boolean playToastSounds = true;
-    /** Whether embedded Phantasia 3D previews auto-rotate (see PhantasiaCompat). */
+    
     private boolean phantasiaAutoSpin = true;
-    /** Starting state of the canvas's "Hide Completed" toggle each time the questbook opens. */
+    
     private boolean hideCompletedByDefault = false;
-    /** Starting canvas grid-snap size each time the questbook opens. */
+    
     private int defaultGridSnap = 8;
-    /** Master toggle - when off, unlock/complete toasts never queue at all (see QuestToastManager.push). */
+    
     private boolean showToasts = true;
-    /**
-     * Freezes/steadies every blinking or pulsing canvas effect (validation warning borders,
-     * unclaimed-reward badges, unlock-path highlight, ACTIVE glow, UNLOCKED ready-dot, dependency
-     * line "marching ants") for players sensitive to constant motion/flicker.
-     */
+    
     private boolean reduceMotion = false;
-    /**
-     * Whether opening EMI's recipe viewer from a task/reward icon in the quest book arranges to
-     * return to the quest book on close instead of EMI's own default (a throwaway inventory
-     * screen, then straight to gameplay - see EmiReturnScreenFix). On by default since that
-     * default is almost universally not what anyone wants, but some players specifically prefer
-     * EMI's normal behavior, so it's an opt-out.
-     */
+    
     private boolean returnToQuestbookFromRecipeViewer = true;
-    /** See {@link SidebarBehavior}. Defaults to the existing click-to-toggle behavior. */
+    
     private SidebarBehavior sidebarBehavior = SidebarBehavior.COLLAPSIBLE;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -206,7 +163,6 @@ public class QuestChroniclesSettings {
         }
     }
 
-    // Getters
     public TextScale getTextScale() {
         return textScale;
     }
@@ -243,7 +199,6 @@ public class QuestChroniclesSettings {
         return showHUDRewards;
     }
 
-    // Setters
     public void setTextScale(TextScale scale) {
         this.textScale = scale;
     }
@@ -380,7 +335,6 @@ public class QuestChroniclesSettings {
         this.questbookIcon = icon != null ? icon : "";
     }
 
-    /** Resolves the configured icon to an Item, falling back to a written book when unset/invalid. */
     public net.minecraft.world.item.Item getQuestbookIconItem() {
         if (questbookIcon != null && !questbookIcon.isEmpty()) {
             try {
@@ -468,3 +422,4 @@ public class QuestChroniclesSettings {
         return density == Density.COMPACT ? 8 : 12;
     }
 }
+

@@ -15,20 +15,12 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Editor for a quest's pack-mode {@link QuestNode.QuestVariant} list — each entry is a
- * condition (same flag-expression syntax as {@code enable_if}) plus optional title/description/
- * visibility/tasks/rewards overrides. First matching condition wins at resolve time; anything
- * left blank/null on a variant falls back to the quest's own base definition.
- */
 public class VariantEditorScreen extends Screen {
 
-    // ── Colours ───────────────────────────────────────────────────────────────
     private int C_BG, C_PANEL, C_HEADER, C_BORDER, C_ACCENT, C_TEXT, C_TEXT_DIM, C_TEXT_FAINT;
     private static final int C_ROW_HOVER = 0x22FFFFFF;
     private static final int C_FORM_BG = 0x33000000;
 
-    // ── Layout ────────────────────────────────────────────────────────────────
     private static final int HEADER_H = 28;
     private static final int FOOTER_H = 28;
     private static final int MARGIN = 10;
@@ -38,7 +30,6 @@ public class VariantEditorScreen extends Screen {
 
     private int listTop, listBottom, formTop;
 
-    // ── State ─────────────────────────────────────────────────────────────────
     private final Screen parent;
     private final QuestNode questNode;
     private final List<QuestNode.QuestVariant> variants = new ArrayList<>();
@@ -46,7 +37,7 @@ public class VariantEditorScreen extends Screen {
 
     private EditBox conditionBox, titleBox, descBox;
 
-    private static final QuestNode.Visibility[] VIS_CYCLE; // null = inherit, then each Visibility value
+    private static final QuestNode.Visibility[] VIS_CYCLE; 
     static {
         QuestNode.Visibility[] v = QuestNode.Visibility.values();
         VIS_CYCLE = new QuestNode.Visibility[v.length + 1];
@@ -75,9 +66,7 @@ public class VariantEditorScreen extends Screen {
         C_TEXT_FAINT = th.textFaint.getColor();
 
         listTop = HEADER_H + 20;
-        // The extra "36" (was 30) buffer leaves room for both the "EDITING VARIANT N" label at
-        // the top of the form panel and the conditional 5th "Clear task/reward override" row at
-        // the bottom - see rebuildWidgets()'s "fy = formTop + 14" for the matching label clearance.
+
         formTop = height - FOOTER_H - 4 * (FIELD_H + FIELD_GAP) - 36;
         listBottom = formTop - 10;
 
@@ -87,7 +76,7 @@ public class VariantEditorScreen extends Screen {
     protected void rebuildWidgets() {
         clearWidgets();
 
-        addRenderableWidget(Button.builder(Component.literal("§7‹ Done"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7â€¹ Done"), b -> {
             flushToQuestNode();
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(width / 2 - 40, height - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
@@ -106,15 +95,13 @@ public class VariantEditorScreen extends Screen {
 
         QuestNode.QuestVariant v = variants.get(selected);
         int fx = MARGIN;
-        // Was "+ 4" - only 4px below the "EDITING VARIANT N" label drawn at formPanelTop + 6
-        // (== formTop), nowhere near enough clearance for that label's own text height, so the
-        // condition box visibly overlapped it.
+
         int fy = formTop + 14;
         int fw = width - MARGIN * 2;
 
         conditionBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         conditionBox.setMaxLength(160);
-        conditionBox.setHint(Component.literal("§8condition — e.g. config:pack_mode=expert"));
+        conditionBox.setHint(Component.literal("§8condition â€” e.g. config:pack_mode=expert"));
         conditionBox.setValue(v.condition);
         conditionBox.setResponder(s -> v.condition = s);
         addRenderableWidget(conditionBox);
@@ -122,7 +109,7 @@ public class VariantEditorScreen extends Screen {
 
         titleBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         titleBox.setMaxLength(128);
-        titleBox.setHint(Component.literal("§8title override — blank = inherit base title"));
+        titleBox.setHint(Component.literal("§8title override â€” blank = inherit base title"));
         titleBox.setValue(v.title != null ? v.title : "");
         titleBox.setResponder(s -> v.title = s.isBlank() ? null : s);
         addRenderableWidget(titleBox);
@@ -130,7 +117,7 @@ public class VariantEditorScreen extends Screen {
 
         descBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         descBox.setMaxLength(512);
-        descBox.setHint(Component.literal("§8description override — blank = inherit base description"));
+        descBox.setHint(Component.literal("§8description override â€” blank = inherit base description"));
         descBox.setValue(v.description != null ? v.description : "");
         descBox.setResponder(s -> v.description = s.isBlank() ? null : s);
         addRenderableWidget(descBox);
@@ -142,11 +129,11 @@ public class VariantEditorScreen extends Screen {
             v.visibility = VIS_CYCLE[(visIdx + 1) % VIS_CYCLE.length];
             rebuildWidgets();
         }).bounds(fx, fy, (fw - FIELD_GAP) / 2, FIELD_H)
-                .tooltip(Tooltip.create(Component.literal("Cycle: Inherit → Normal → Hidden → Mystery → Disabled")))
+                .tooltip(Tooltip.create(Component.literal("Cycle: Inherit â†’ Normal â†’ Hidden â†’ Mystery â†’ Disabled")))
                 .build());
 
         String taskRewardLabel = (v.tasks != null || v.rewards != null) ?
-                "§eEdit Tasks/Rewards… §8(overridden)" : "§7Edit Tasks/Rewards…";
+                "§eEdit Tasks/Rewardsâ€¦ §8(overridden)" : "§7Edit Tasks/Rewardsâ€¦";
         addRenderableWidget(Button.builder(Component.literal(taskRewardLabel), b -> {
             if (minecraft != null) minecraft.setScreen(new TaskRewardEditorScreen(this, questNode, v));
         }).bounds(fx + (fw - FIELD_GAP) / 2 + FIELD_GAP, fy, (fw - FIELD_GAP) / 2, FIELD_H).build());
@@ -169,24 +156,14 @@ public class VariantEditorScreen extends Screen {
         return 0;
     }
 
-    // ── Flush ─────────────────────────────────────────────────────────────────
-
     private void flushToQuestNode() {
         questNode.clearVariants();
         for (QuestNode.QuestVariant v : variants) questNode.addVariant(v);
-        // Previously this only mutated the in-memory QuestNode and relied on some OTHER save
-        // (world logout, an unrelated edit elsewhere) to actually persist the variant list -
-        // meaning a newly-added variant (and any tasks/rewards added to it afterward) survived
-        // only until the next abnormal exit. Guarded the same way as TaskRewardEditorScreen's own
-        // flush: only write when questNode is the actual live registered instance, since
-        // QuestCreatorScreen opens this screen against a throwaway node while a brand-new quest is
-        // still being filled out.
+
         if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
             net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
         }
     }
-
-    // ── Render ────────────────────────────────────────────────────────────────
 
     @Override
     public void renderBackground(@NotNull GuiGraphics g) {}
@@ -196,20 +173,17 @@ public class VariantEditorScreen extends Screen {
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
         g.fill(0, 0, width, height, C_BG);
 
-        // Header - accent stripe matching the rest of the Chronicles UI's signature touch
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
-        g.drawCenteredString(font, "§fQuest Variants  §8— §7" + questNode.getId().getPath(),
+        g.drawCenteredString(font, "§fQuest Variants  §8â€” §7" + questNode.getId().getPath(),
                 width / 2, (HEADER_H - 8) / 2, C_TEXT);
 
-        // List sub-header
         g.fill(0, HEADER_H, width, listTop - 1, C_PANEL);
         g.fill(0, listTop - 1, width, listTop, C_BORDER);
         g.drawString(font, "§8VARIANTS  §7" + variants.size() + "  §8(first matching condition wins)",
                 MARGIN + 120, HEADER_H + 3, C_TEXT_FAINT, false);
 
-        // Form panel background
         int formPanelTop = formTop - 6;
         g.fill(0, formPanelTop, width, height - FOOTER_H, C_PANEL);
         g.fill(0, formPanelTop, width, formPanelTop + 1, C_BORDER);
@@ -224,11 +198,9 @@ public class VariantEditorScreen extends Screen {
                     width / 2, formPanelTop + 20, C_TEXT_FAINT);
         }
 
-        // Footer
         g.fill(0, height - FOOTER_H, width, height, C_HEADER);
         g.fill(0, height - FOOTER_H, width, height - FOOTER_H + 1, C_BORDER);
 
-        // ── Variant list ──────────────────────────────────────────────────────
         g.enableScissor(0, listTop, width, listBottom);
         int ty = listTop;
         for (int i = 0; i < variants.size(); i++) {
@@ -245,20 +217,19 @@ public class VariantEditorScreen extends Screen {
             int textX = MARGIN + 8;
             int maxW = width - MARGIN - textX - 40;
             String condLine = cond;
-            if (font.width(condLine) > maxW) condLine = font.plainSubstrByWidth(condLine, maxW - 4) + "…";
+            if (font.width(condLine) > maxW) condLine = font.plainSubstrByWidth(condLine, maxW - 4) + "â€¦";
             g.drawString(font, condLine, textX, ty + 3, C_TEXT_DIM, false);
             g.drawString(font, "§8" + summary, textX, ty + 12, C_TEXT_FAINT, false);
 
-            // Reorder / delete controls
             int cx = width - MARGIN - 12;
-            g.drawString(font, "§c×", cx, ty + 6, 0xFFFF5555, false);
-            if (i > 0) g.drawString(font, "§7▲", cx - 24, ty + 6, C_TEXT_DIM, false);
-            if (i < variants.size() - 1) g.drawString(font, "§7▼", cx - 12, ty + 6, C_TEXT_DIM, false);
+            g.drawString(font, "§cÃ—", cx, ty + 6, 0xFFFF5555, false);
+            if (i > 0) g.drawString(font, "§7â–²", cx - 24, ty + 6, C_TEXT_DIM, false);
+            if (i < variants.size() - 1) g.drawString(font, "§7â–¼", cx - 12, ty + 6, C_TEXT_DIM, false);
 
             ty += ROW_H;
         }
         if (variants.isEmpty())
-            g.drawString(font, "§8No variants yet — this quest behaves identically in every pack mode.",
+            g.drawString(font, "§8No variants yet â€” this quest behaves identically in every pack mode.",
                     MARGIN + 8, listTop + 4, C_TEXT_FAINT, false);
         g.disableScissor();
 
@@ -272,10 +243,8 @@ public class VariantEditorScreen extends Screen {
         if (v.visibility != null) parts.add("visibility=" + v.visibility.name().toLowerCase());
         if (v.tasks != null) parts.add(v.tasks.size() + " task(s)");
         if (v.rewards != null) parts.add(v.rewards.size() + " reward(s)");
-        return parts.isEmpty() ? "no overrides — condition only gates nothing" : String.join(", ", parts);
+        return parts.isEmpty() ? "no overrides â€” condition only gates nothing" : String.join(", ", parts);
     }
-
-    // ── Input ─────────────────────────────────────────────────────────────────
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
@@ -330,3 +299,4 @@ public class VariantEditorScreen extends Screen {
         ChroniclesUIKit.drawBorder(g, x, y, w, h, color);
     }
 }
+

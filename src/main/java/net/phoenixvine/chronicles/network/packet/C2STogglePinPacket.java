@@ -13,19 +13,6 @@ import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 
-/**
- * Client → Server: player pinned/unpinned a quest on the HUD tracker.
- *
- * Pins used to only be toggled on the client's own (unsaved) capability instance, which is a
- * separate object from the ServerPlayer's - the client capability is what the player SEES, but
- * the server capability is what actually gets written to the player's save data. Since pins were
- * never told to the server, they lived only as long as that client-side object did: gone on
- * disconnect/relogin, and even mid-session any other server-driven progress sync would silently
- * wipe them back out (S2CSyncPlayerProgressPacket overwrites the client's copy wholesale with the
- * server's, which never had the pin either).
- *
- * Wire format: ResourceLocation questId
- */
 public class C2STogglePinPacket {
 
     private final ResourceLocation questId;
@@ -59,3 +46,4 @@ public class C2STogglePinPacket {
         ctx.get().setPacketHandled(true);
     }
 }
+

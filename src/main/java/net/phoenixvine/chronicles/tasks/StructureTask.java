@@ -10,11 +10,6 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Task: enter a specific structure (e.g. "minecraft:village", "minecraft:stronghold").
- * Checks whether the player's current position is inside the named structure on each server tick.
- * SNBT shape: { type: "structure", structure_id: "minecraft:stronghold" }
- */
 public class StructureTask extends QuestTask {
 
     private ResourceLocation structureId;
@@ -69,3 +64,4 @@ public class StructureTask extends QuestTask {
         if (nbt.contains("structure_id")) structureId = new ResourceLocation(nbt.getString("structure_id"));
     }
 }
+

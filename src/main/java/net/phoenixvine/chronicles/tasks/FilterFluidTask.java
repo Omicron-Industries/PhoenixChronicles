@@ -14,45 +14,12 @@ import net.phoenixvine.chronicles.filter.FluidFilters;
 import net.phoenixvine.chronicles.filter.IFluidFilter;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Fluid task backed by a composable {@link IFluidFilter}.
- *
- * Replaces {@code fluid_check} (exact fluid ID only) with a unified task that
- * can express:
- *
- * <pre>
- * // Any water-tagged fluid (including modded variants):
- * filter = tag("minecraft:water")
- *
- * // Exact lava, 1000 mB:
- * filter = exact(new ResourceLocation("minecraft","lava"))
- *
- * // Any thermal fluid:
- * filter = mod("thermal")
- *
- * // Any lava OR any water:
- * filter = anyOf(exact("minecraft:lava"), tag("minecraft:water"))
- * </pre>
- *
- * Quest file NBT shape:
- * 
- * <pre>
- * {
- *   type: "filter_fluid",
- *   amount: 4000,
- *   consume: true,
- *   filter: { filter_type: "tag", tag: "forge:milk" }
- * }
- * </pre>
- *
- * Scans all fluid-handler items in main + offhand inventory.
- */
 public class FilterFluidTask extends QuestTask {
 
     private IFluidFilter filter;
     private int amount;
     private boolean consume;
-    /** See ItemRequirementTask#sticky. */
+    
     private boolean sticky = true;
 
     public FilterFluidTask(ResourceLocation taskId, Component description,
@@ -62,8 +29,6 @@ public class FilterFluidTask extends QuestTask {
         this.amount = Math.max(1, amount);
         this.consume = consume;
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private int getTotalMatchingFluid(Player player) {
         int total = 0;
@@ -80,7 +45,7 @@ public class FilterFluidTask extends QuestTask {
                 }
             }
         }
-        // Also check offhand
+        
         for (ItemStack stack : player.getInventory().offhand) {
             if (stack.isEmpty()) continue;
             var cap = stack.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM);
@@ -97,8 +62,6 @@ public class FilterFluidTask extends QuestTask {
         return total;
     }
 
-    // ── QuestTask ─────────────────────────────────────────────────────────────
-
     @Override
     public boolean dependsOnInventory() {
         return true;
@@ -106,7 +69,7 @@ public class FilterFluidTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (getTotalMatchingFluid(player) >= amount) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
@@ -123,11 +86,6 @@ public class FilterFluidTask extends QuestTask {
         return String.format("%,d / %,d mB", found, amount);
     }
 
-    /**
-     * Fluids have no plain-item icon of their own, so shows that fluid's bucket item instead -
-     * the standard way modded UIs represent a fluid in an item-icon slot. Previously this
-     * returned nothing at all for every fluid task, exact or tag-based.
-     */
     @Override
     public ResourceLocation getDisplayItemId() {
         if (filter == null) return null;
@@ -138,7 +96,6 @@ public class FilterFluidTask extends QuestTask {
         return net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(bucket);
     }
 
-    /** Drain {@code amount} mB of matching fluid from inventory items, respecting consume flag. */
     @Override
     public void tryConsume(Player player) {
         if (!consume) return;
@@ -150,7 +107,7 @@ public class FilterFluidTask extends QuestTask {
             var cap = stack.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM);
             if (!cap.isPresent()) continue;
             IFluidHandlerItem handler = cap.orElseThrow(IllegalStateException::new);
-            // Check the first matching fluid in this handler
+            
             for (int t = 0; t < handler.getTanks() && remaining > 0; t++) {
                 FluidStack fluid = handler.getFluidInTank(t);
                 if (fluid.isEmpty() || !filter.test(fluid)) continue;
@@ -163,8 +120,6 @@ public class FilterFluidTask extends QuestTask {
         }
         player.getInventory().setChanged();
     }
-
-    // ── Serialization ─────────────────────────────────────────────────────────
 
     @Override
     public CompoundTag serializeNBT() {
@@ -184,8 +139,6 @@ public class FilterFluidTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
         if (nbt.contains("filter")) this.filter = FluidFilters.deserialize(nbt.getCompound("filter"));
     }
-
-    // ── Accessors ─────────────────────────────────────────────────────────────
 
     public IFluidFilter getFilter() {
         return filter;
@@ -219,3 +172,4 @@ public class FilterFluidTask extends QuestTask {
         this.sticky = v;
     }
 }
+

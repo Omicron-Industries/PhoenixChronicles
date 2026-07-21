@@ -17,17 +17,10 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * FTB Quests' "item lookup": press {@link ChronicleKeyBindings#ITEM_LOOKUP} while hovering an
- * item slot (in any container screen) or just holding an item, and jump the questbook to
- * whichever quest(s) need it as a task item.
- */
 public final class ItemLookup {
 
     private ItemLookup() {}
 
-    // Vanilla's hoveredSlot field is protected; ObfuscationReflectionHelper resolves the mapped
-    // name to the right field in both the dev (mapped) and production (obfuscated) environment.
     private static final Field HOVERED_SLOT_FIELD = ObfuscationReflectionHelper.findField(AbstractContainerScreen.class,
             "hoveredSlot");
 
@@ -90,3 +83,4 @@ public final class ItemLookup {
         return matches;
     }
 }
+

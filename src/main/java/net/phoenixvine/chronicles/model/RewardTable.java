@@ -12,27 +12,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-/**
- * A named, reusable pool of rewards referenced by ID from quest files.
- *
- * SNBT file format (config/phoenix_chronicles/reward_tables/<id>.snbt):
- * {
- * id: "basic_material_bag",
- * display_name: "Basic Material Bag",
- * pick: 0,
- * rewards: [
- * {type: "item", item_id: "minecraft:diamond", count: 1, weight: 10},
- * {type: "xp", levels: 5, weight: 1}
- * ]
- * }
- *
- * pick: 0 or absent = grant all rewards; >0 = pick N random rewards without replacement,
- * weighted by each entry's optional "weight" (default 1 — higher weight is proportionally
- * more likely to be picked, same idea as an FTB Quests weighted loot table).
- *
- * Reference from a quest SNBT:
- * rewards: [{type: "reward_table", table_id: "basic_material_bag"}]
- */
 public class RewardTable {
 
     private static final Random RANDOM = new Random();
@@ -69,7 +48,6 @@ public class RewardTable {
         return Collections.unmodifiableList(entries);
     }
 
-    /** Grants either all rewards or a weighted random subset to the player. */
     public void grant(ServerPlayer player) {
         if (entries.isEmpty()) return;
         if (pickCount <= 0 || pickCount >= entries.size()) {
@@ -108,3 +86,4 @@ public class RewardTable {
         return new RewardTable(id, displayName, entries, pickCount);
     }
 }
+

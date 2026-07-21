@@ -35,7 +35,6 @@ public class TerminalScreen extends Screen {
     private int cursorPosition = 0;
     private int frameTickCounter = 0;
 
-    // Command history (up/down arrow)
     private final Deque<String> cmdHistory = new ArrayDeque<>();
     private int cmdHistoryIdx = -1;
     private static final int MAX_CMD_HISTORY = 50;
@@ -44,7 +43,6 @@ public class TerminalScreen extends Screen {
         super(Component.literal("PHOENIX SYSTEM TERMINAL"));
         this.parent = parent;
 
-        // Initial system boot logs
         consoleHistory.add("§a[SYS] Initializing Core Terminal Protocol...");
         consoleHistory.add("§e[WARN] Remote connection unencrypted.");
         consoleHistory.add("§b[READY] Enter directives below. Support color tags (& or §).");
@@ -54,33 +52,26 @@ public class TerminalScreen extends Screen {
     protected void init() {
         this.clearWidgets();
 
-        // Return button placed out of the terminal layout boundaries
         this.addRenderableWidget(Button.builder(Component.literal("§c[ DISCONNECT ]"), b -> {
             if (this.minecraft != null) this.minecraft.setScreen(parent);
         }).bounds(this.width - 115, this.height - 30, 100, 20).build());
     }
 
-    /**
-     * Captures raw alphanumeric string typed characters globally from the OS hook loop.
-     */
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        // Only accept standard printable keyboard characters
+        
         if (codePoint >= 32 && codePoint != 127) {
-            // Midline Insertion: Split string at cursor pointer location and stitch the new character in
+            
             String left = inputBuffer.substring(0, cursorPosition);
             String right = inputBuffer.substring(cursorPosition);
 
             inputBuffer = left + codePoint + right;
-            cursorPosition++; // Shift cursor index right
+            cursorPosition++; 
             return true;
         }
         return super.charTyped(codePoint, modifiers);
     }
 
-    /**
-     * Intercepts function keys, escape mechanics, backspaces, and directional navigation vectors.
-     */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == InputConstants.KEY_ESCAPE) {
@@ -88,7 +79,6 @@ public class TerminalScreen extends Screen {
             return true;
         }
 
-        // 1. Cursor Backspace Action (Delete character BEHIND cursor)
         if (keyCode == InputConstants.KEY_BACKSPACE && cursorPosition > 0 && !inputBuffer.isEmpty()) {
             String left = inputBuffer.substring(0, cursorPosition - 1);
             String right = inputBuffer.substring(cursorPosition);
@@ -97,7 +87,6 @@ public class TerminalScreen extends Screen {
             return true;
         }
 
-        // 2. Cursor Delete Action (Delete character In FRONT of cursor)
         if (keyCode == InputConstants.KEY_DELETE && cursorPosition < inputBuffer.length()) {
             String left = inputBuffer.substring(0, cursorPosition);
             String right = inputBuffer.substring(cursorPosition + 1);
@@ -105,7 +94,6 @@ public class TerminalScreen extends Screen {
             return true;
         }
 
-        // 3. Move Cursor Left
         if (keyCode == InputConstants.KEY_LEFT) {
             if (cursorPosition > 0) {
                 cursorPosition--;
@@ -113,7 +101,6 @@ public class TerminalScreen extends Screen {
             return true;
         }
 
-        // 4. Move Cursor Right
         if (keyCode == InputConstants.KEY_RIGHT) {
             if (cursorPosition < inputBuffer.length()) {
                 cursorPosition++;
@@ -121,19 +108,16 @@ public class TerminalScreen extends Screen {
             return true;
         }
 
-        // 5. Jump to Start (HOME Key)
         if (keyCode == InputConstants.KEY_HOME) {
             cursorPosition = 0;
             return true;
         }
 
-        // 6. Jump to End (END Key)
         if (keyCode == InputConstants.KEY_END) {
             cursorPosition = inputBuffer.length();
             return true;
         }
 
-        // 7. Command history navigation (UP/DOWN arrows)
         if (keyCode == InputConstants.KEY_UP) {
             List<String> hist = new ArrayList<>(cmdHistory);
             if (!hist.isEmpty()) {
@@ -156,7 +140,6 @@ public class TerminalScreen extends Screen {
             return true;
         }
 
-        // 8. Execution (ENTER Key Command Processing)
         if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
             if (!inputBuffer.trim().isEmpty()) {
                 executeTerminalDirective(inputBuffer.trim());
@@ -168,7 +151,7 @@ public class TerminalScreen extends Screen {
     }
 
     private void executeTerminalDirective(String raw) {
-        // Push to history
+        
         cmdHistory.addFirst(raw);
         if (cmdHistory.size() > MAX_CMD_HISTORY) cmdHistory.removeLast();
         cmdHistoryIdx = -1;
@@ -192,7 +175,7 @@ public class TerminalScreen extends Screen {
             case "theme" -> cmdTheme(parts);
             case "whoami" -> cmdWhoami();
             case "progress" -> cmdProgress(parts);
-            default -> consoleHistory.add("§cERR: Unknown directive '§f" + cmd + "§c' — type §fhelp§c for commands.");
+            default -> consoleHistory.add("§cERR: Unknown directive '§f" + cmd + "§c' â€” type §fhelp§c for commands.");
         }
 
         inputBuffer = "";
@@ -237,14 +220,14 @@ public class TerminalScreen extends Screen {
             }
         }
         consoleHistory.add("§aAvailable directives:");
-        consoleHistory.add("§f  quests [active|all|done]    §8— list quest nodes");
-        consoleHistory.add("§f  quest <id>                  §8— inspect a quest");
-        consoleHistory.add("§f  progress <id>               §8— per-task progress");
-        consoleHistory.add("§f  activate / deactivate <id>  §8— toggle tracking");
-        consoleHistory.add("§f  claim <id>                  §8— claim rewards");
-        consoleHistory.add("§f  theme <name>                §8— switch UI theme");
-        consoleHistory.add("§f  whoami                      §8— player identity");
-        consoleHistory.add("§f  clear                       §8— clear terminal");
+        consoleHistory.add("§f  quests [active|all|done]    §8â€” list quest nodes");
+        consoleHistory.add("§f  quest <id>                  §8â€” inspect a quest");
+        consoleHistory.add("§f  progress <id>               §8â€” per-task progress");
+        consoleHistory.add("§f  activate / deactivate <id>  §8â€” toggle tracking");
+        consoleHistory.add("§f  claim <id>                  §8â€” claim rewards");
+        consoleHistory.add("§f  theme <name>                §8â€” switch UI theme");
+        consoleHistory.add("§f  whoami                      §8â€” player identity");
+        consoleHistory.add("§f  clear                       §8â€” clear terminal");
         consoleHistory.add("§8Type §fhelp <cmd>§8 for details.");
     }
 
@@ -261,7 +244,7 @@ public class TerminalScreen extends Screen {
             Map<ResourceLocation, QuestState> states = data.getAllStates();
             long active = states.values().stream().filter(s -> s == QuestState.ACTIVE).count();
             long done = states.values().stream().filter(s -> s == QuestState.COMPLETED).count();
-            consoleHistory.add("§8  Quests — §aactive: §f" + active + "  §adone: §f" + done);
+            consoleHistory.add("§8  Quests â€” §aactive: §f" + active + "  §adone: §f" + done);
         }
     }
 
@@ -364,7 +347,7 @@ public class TerminalScreen extends Screen {
             String prog = task.getProgressString(mc.player);
             String desc = task.getDescription().getString();
             consoleHistory
-                    .add("  " + (done ? "§a✔" : "§c✗") + " §f" + desc + (prog != null ? " §8[§7" + prog + "§8]" : ""));
+                    .add("  " + (done ? "§aâœ”" : "§câœ—") + " §f" + desc + (prog != null ? " §8[§7" + prog + "§8]" : ""));
         }
     }
 
@@ -426,8 +409,6 @@ public class TerminalScreen extends Screen {
         consoleHistory.add("§a[OK] Theme set to §f" + name);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private PlayerQuestData getPlayerData() {
         var mc = Minecraft.getInstance();
         if (mc.player == null) return null;
@@ -436,7 +417,7 @@ public class TerminalScreen extends Screen {
 
     private static ResourceLocation safeRL(String s) {
         try {
-            if (!s.contains(":")) s = "minecraft:" + s; // default namespace fallback
+            if (!s.contains(":")) s = "minecraft:" + s; 
             return new ResourceLocation(s);
         } catch (Exception e) {
             return null;
@@ -446,24 +427,21 @@ public class TerminalScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        frameTickCounter++; // Driving variable used to compute blinking cursor visibility updates
+        frameTickCounter++; 
     }
 
     @Override
     public void render(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         this.renderBackground(graphics);
 
-        // Core Layout Positioning Definitions
         int termX = 20;
         int termY = 20;
         int termW = this.width - 40;
         int termH = this.height - 60;
 
-        // Draw solid black retro backing frame
         graphics.fill(termX, termY, termX + termW, termY + termH, 0xFA050805);
         graphics.renderOutline(termX, termY, termW, termH, 0xFF33AA33);
 
-        // --- Render Scrolling Historical Command Output Area ---
         int maxVisibleLines = (termH - 25) / 12;
         int startLineIdx = Math.max(0, consoleHistory.size() - maxVisibleLines);
         int currentLineY = termY + 10;
@@ -474,26 +452,19 @@ public class TerminalScreen extends Screen {
             currentLineY += 12;
         }
 
-        // --- Render Interactive CommandLine Input Area ---
         int inputLineY = termY + termH - 16;
         graphics.fill(termX + 5, inputLineY - 3, termX + termW - 5, inputLineY + 11, 0xFF0D130D);
         graphics.renderOutline(termX + 5, inputLineY - 3, termW - 10, 14, 0xFF225522);
 
-        // Auto-convert color identifiers live while writing
         String renderText = inputBuffer.replace("&", "§");
         String fixedPrompt = "§aroot@phoenix:~# §f" + renderText;
         graphics.drawString(this.font, fixedPrompt, termX + 10, inputLineY, 0xFFFFFF);
 
-        // --- PERFORMANCE TRIUMPH: Custom Midline Blinking Cursor Rendering Engine ---
-        // Calculate the physical offset length of the user input string up to the cursor pointer position index
         String stringUpToCursor = "root@phoenix:~# " + inputBuffer.substring(0, cursorPosition);
 
-        // Strip out formatting characters (§ + code) from the spatial layout tracking calculations,
-        // otherwise the cursor will render shifted far too many pixels to the right!
         String cleanStringForLength = stringUpToCursor.replaceAll("§[0-9a-fk-orA-FK-ORxX]", "");
         int pixelCursorOffset = this.font.width(cleanStringForLength);
 
-        // Blink logic calculation cycle rules (Changes visibility flags every 10 ticks)
         if ((frameTickCounter / 10) % 2 == 0) {
             int cursorRenderX = termX + 10 + pixelCursorOffset;
             graphics.fill(cursorRenderX, inputLineY - 1, cursorRenderX + 2, inputLineY + 9, 0xFF00FF00);
@@ -507,3 +478,4 @@ public class TerminalScreen extends Screen {
         return false;
     }
 }
+

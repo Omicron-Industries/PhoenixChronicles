@@ -11,11 +11,6 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Task: have a specific enchantment at >= required level on any equipped item.
- * Polls each tick via isCompletedFor — no event hook needed.
- * SNBT shape: { type: "enchantment", enchantment_id: "minecraft:sharpness", required_level: 3 }
- */
 public class EnchantmentTask extends QuestTask {
 
     private static final EquipmentSlot[] SLOTS = EquipmentSlot.values();
@@ -70,3 +65,4 @@ public class EnchantmentTask extends QuestTask {
         if (nbt.contains("required_level")) requiredLevel = Math.max(1, nbt.getInt("required_level"));
     }
 }
+

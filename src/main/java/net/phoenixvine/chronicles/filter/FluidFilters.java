@@ -14,18 +14,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * All built-in {@link IFluidFilter} implementations + the static deserializer.
- *
- * Quick-reference:
- *
- * ExactFluid: one specific fluid, optional NBT subset check
- * FluidTag: any fluid in a fluid tag (e.g. "forge:water" / custom modpack tags)
- * Mod: any fluid registered under a given mod namespace
- * AnyOf: OR: passes if ANY child filter matches
- * AllOf: AND: passes only if ALL child filters match
- * Not: NOT: inverts a single child filter
- */
 public final class FluidFilters {
 
     public static final String TYPE_EXACT = "exact";
@@ -34,8 +22,6 @@ public final class FluidFilters {
     public static final String TYPE_ANY_OF = "any_of";
     public static final String TYPE_ALL_OF = "all_of";
     public static final String TYPE_NOT = "not";
-
-    // ── ExactFluid ────────────────────────────────────────────────────────────
 
     public record ExactFluid(ResourceLocation fluidId, @Nullable CompoundTag nbt) implements IFluidFilter {
 
@@ -55,7 +41,7 @@ public final class FluidFilters {
 
         @Override
         public String describe() {
-            return nbt != null && !nbt.isEmpty() ? fluidId + " {…}" : fluidId.toString();
+            return nbt != null && !nbt.isEmpty() ? fluidId + " {â€¦}" : fluidId.toString();
         }
 
         @Override
@@ -78,8 +64,6 @@ public final class FluidFilters {
             return new ExactFluid(id, nbt);
         }
     }
-
-    // ── FluidTag ──────────────────────────────────────────────────────────────
 
     public record FluidTag(TagKey<Fluid> tag) implements IFluidFilter {
 
@@ -111,8 +95,6 @@ public final class FluidFilters {
             return new FluidTag(FluidTags.create(new ResourceLocation(t.getString("tag"))));
         }
     }
-
-    // ── Mod ───────────────────────────────────────────────────────────────────
 
     public record Mod(String modId) implements IFluidFilter {
 
@@ -149,8 +131,6 @@ public final class FluidFilters {
             return new Mod(t.getString("mod"));
         }
     }
-
-    // ── AnyOf (OR) ────────────────────────────────────────────────────────────
 
     public record AnyOf(List<IFluidFilter> children) implements IFluidFilter {
 
@@ -189,8 +169,6 @@ public final class FluidFilters {
         }
     }
 
-    // ── AllOf (AND) ───────────────────────────────────────────────────────────
-
     public record AllOf(List<IFluidFilter> children) implements IFluidFilter {
 
         @Override
@@ -228,8 +206,6 @@ public final class FluidFilters {
         }
     }
 
-    // ── Not ───────────────────────────────────────────────────────────────────
-
     public record Not(IFluidFilter child) implements IFluidFilter {
 
         @Override
@@ -255,10 +231,6 @@ public final class FluidFilters {
         }
     }
 
-    // ── Deserializer ──────────────────────────────────────────────────────────
-
-    // ── Deserializer ──────────────────────────────────────────────────────────
-
     public static IFluidFilter deserialize(CompoundTag tag) {
         String type = tag.getString("filter_type");
         return switch (type) {
@@ -270,7 +242,7 @@ public final class FluidFilters {
             case TYPE_NOT -> Not.deserialize(tag);
             default -> {
                 System.err.println("[Chronicles] Unknown fluid filter type: " + type);
-                // Fixed: Explicitly implement all abstract methods for the fallback instance
+                
                 yield new IFluidFilter() {
 
                     @Override
@@ -291,8 +263,6 @@ public final class FluidFilters {
             }
         };
     }
-
-    // ── Factory helpers ───────────────────────────────────────────────────────
 
     public static IFluidFilter exact(ResourceLocation fluidId) {
         return new ExactFluid(fluidId, null);
@@ -324,3 +294,4 @@ public final class FluidFilters {
 
     private FluidFilters() {}
 }
+

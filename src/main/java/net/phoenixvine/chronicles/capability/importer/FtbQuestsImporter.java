@@ -19,51 +19,27 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-/**
- * Converts FTB Quests chapter SNBT files into organized PhoenixCore configurations.
- * Creates a category subfolder for each chapter under outputDir/quests/,
- * a master category JSON file, and extracts individual quest SNBT files cleanly.
- *
- * IMPORT IS TWO-PASS:
- * Pass 1 (index): parse every chapter file, assign every quest a STABLE category
- * (derived from filename, not from a possibly-unresolved localized
- * title) and a title-based path, and record it in a GLOBAL registry.
- * Pass 2 (write): re-walk each chapter and write files, resolving dependencies
- * against the GLOBAL registry so cross-chapter prerequisites
- * (which are extremely common in FTB Quests "groups") resolve
- * correctly instead of silently vanishing.
- */
 public class FtbQuestsImporter {
 
     private static final float COORD_SCALE = 80f;
-    private static final float COORD_PADDING = 2.0f; // grid units of breathing room before scaling
+    private static final float COORD_PADDING = 2.0f; 
     private static final Pattern LANG_KEY = Pattern.compile("^\\{([A-Za-z0-9_.-]+)}$");
 
     public record ImportResult(int imported, int skipped, String category, List<String> warnings) {}
 
-    /** Where a given FTB quest id ended up living once imported. */
     private record QuestLoc(String category, String path) {}
 
-    /**
-     * A "quest_links" entry - FTB's mechanism for showing a quest defined in one chapter as a
-     * lightweight placeholder node at a different position, often in a different chapter/category.
-     * Resolved against the GLOBAL index in pass 2 since the target may live in a chapter that
-     * hasn't been indexed yet.
-     */
     private record LinkStub(String linkFtbId, String path, String linkedFtbId, double x, double y, String shape) {}
 
-    /** Everything pass 1 figured out about one chapter, cached so pass 2 doesn't re-parse. */
     private record ChapterIndex(
                                 Path file,
                                 CompoundTag chapter,
                                 String categorySlug,
                                 String displayTitle,
-                                Map<String, String> idToPath,   // ftbId -> path, scoped to this chapter's own quests
+                                Map<String, String> idToPath,   
                                 List<LinkStub> linkStubs,
                                 double minX,
                                 double minY) {}
-
-    // ── Main Entry-Point ─────────────────────────────────────────────────────
 
     public static ImportResult importDirectory(Path importDir, Path outputDir) {
         Path cleanImportDir = importDir.toAbsolutePath().normalize();
@@ -92,13 +68,9 @@ public class FtbQuestsImporter {
         }
         System.out.println("[PhoenixCore] Found " + snbtFiles.size() + " chapter file(s).");
 
-        // ── Pass 1: index every chapter and every quest into a GLOBAL registry ──
         List<ChapterIndex> chapters = new ArrayList<>();
         Map<String, QuestLoc> globalIndex = new HashMap<>();
-        // Shared across ALL chapters: the final quest id is "phoenixcore:<path>" with no
-        // chapter/category prefix, so slug uniqueness must be enforced pack-wide - not per
-        // chapter - or two chapters with an identically-named quest (e.g. two "Compressor"
-        // quests in different tiers) silently collide onto the same id and one vanishes.
+
         Set<String> globalUsedPaths = new HashSet<>();
 
         for (Path file : snbtFiles) {
@@ -106,20 +78,14 @@ public class FtbQuestsImporter {
             String fallbackTitle = fileName.substring(0, fileName.length() - 5);
             try {
                 String snbt = Files.readString(file, StandardCharsets.UTF_8);
-                // FTB Quests writes chapter files via NightConfig's comma-optional dialect, which is
-                // NOT legal SNBT by vanilla's grammar. Use the lenient parser instead of TagParser so
-                // a chapter isn't silently dropped whole just because it lacks commas between entries.
+
                 CompoundTag chapter = LenientSnbtParser.parse(snbt);
                 ChapterIndex idx = indexChapter(chapter, file, fallbackTitle, langMap, warnings, globalUsedPaths);
                 chapters.add(idx);
                 for (Map.Entry<String, String> e : idx.idToPath().entrySet()) {
                     globalIndex.put(e.getKey(), new QuestLoc(idx.categorySlug(), e.getValue()));
                 }
-                // A quest_link's own id is a legitimate dependency target too - other quests in
-                // FTB (in this chapter or elsewhere) can list a link's id as one of THEIR
-                // "dependencies" rather than the real quest's id, and that arrow should terminate
-                // at the stub's position (matching FTBQ's own behavior) instead of silently
-                // failing to resolve. Without this, those prerequisite lines just vanish on import.
+
                 for (LinkStub link : idx.linkStubs()) {
                     globalIndex.put(link.linkFtbId(), new QuestLoc(idx.categorySlug(), link.path()));
                 }
@@ -130,14 +96,9 @@ public class FtbQuestsImporter {
             }
         }
 
-        // ── Pass 2: write every chapter now that cross-chapter ids are known ──
         int totalImported = 0, totalSkipped = 0;
         String lastCat = "";
-        // Every imported quest's title/description/subtitle gets a matching lang key here too,
-        // regardless of whether the source pack used translate keys or bare literal text - so
-        // a pack that "translates nothing" still comes out the other end fully re-translatable
-        // via lang/en_us.json instead of only ever showing whatever baked text (or, if a lang
-        // key genuinely couldn't be resolved, the raw key string) ended up in the SNBT.
+
         Map<String, String> langOut = new LinkedHashMap<>();
         for (ChapterIndex idx : chapters) {
             try {
@@ -164,21 +125,13 @@ public class FtbQuestsImporter {
         return new ImportResult(totalImported, totalSkipped, lastCat, warnings);
     }
 
-    // ── Pass 1: Indexing ─────────────────────────────────────────────────────
-
     private static ChapterIndex indexChapter(CompoundTag chapter, Path file, String fallbackTitle,
                                              Map<String, String> langMap, List<String> warnings,
                                              Set<String> globalUsedPaths) {
-        // Category identity is ALWAYS derived from the stable filename, never from a
-        // localized title that might fail to resolve. This is what actually goes on
-        // disk as the folder name / category id.
+
         String categorySlug = slugify(fallbackTitle).toUpperCase(Locale.ROOT);
         if (categorySlug.isEmpty()) categorySlug = "IMPORTED";
 
-        // Display name (what shows up in-game) prefers the resolved lang-key title,
-        // and falls back to a human-readable version of the filename ("the_factory"
-        // -> "The Factory") rather than either raw filename text or a broken "{...}"
-        // lang key literal.
         String rawTitle = chapter.contains("title") ? chapter.get("title").getAsString() : "";
         String resolvedTitle = resolveText(rawTitle, langMap, warnings, false);
         String displayTitle = isUsableTitle(resolvedTitle) ? resolvedTitle : humanize(fallbackTitle);
@@ -213,18 +166,12 @@ public class FtbQuestsImporter {
                     minY = Math.min(minY, y);
                 }
             } catch (Exception e) {
-                // A single malformed quest entry must never sink indexing for the whole chapter -
-                // that would silently drop every OTHER quest in the file too.
+
                 warnings.add("Chapter " + file.getFileName() + ": quest #" + i + " failed to index (" + e.getMessage() +
                         ") - skipped.");
             }
         }
 
-        // "quest_links" - lightweight placeholders showing a quest defined elsewhere (often a
-        // different chapter/category) at a position within THIS chapter. The real quest may not
-        // be indexed yet at this point (chapters are processed in directory order), so only the
-        // stub's own path is assigned here; resolving linked_quest happens in pass 2 against the
-        // now-complete global index.
         List<LinkStub> linkStubs = new ArrayList<>();
         ListTag questLinks = chapter.getList("quest_links", Tag.TAG_COMPOUND);
         for (int i = 0; i < questLinks.size(); i++) {
@@ -247,8 +194,6 @@ public class FtbQuestsImporter {
 
         return new ChapterIndex(file, chapter, categorySlug, displayTitle, idToPath, linkStubs, minX, minY);
     }
-
-    // ── Pass 2: Writing ──────────────────────────────────────────────────────
 
     private static ImportResult writeChapter(ChapterIndex idx, Path outputDir, Map<String, QuestLoc> globalIndex,
                                              Map<String, String> langMap, List<String> warnings,
@@ -281,8 +226,6 @@ public class FtbQuestsImporter {
             }
         }
 
-        // quest_links - write each as a lightweight stub node pointing at the real quest,
-        // now that every chapter has been indexed and the target is guaranteed resolvable.
         for (LinkStub link : idx.linkStubs()) {
             try {
                 QuestLoc target = globalIndex.get(link.linkedFtbId());
@@ -305,12 +248,10 @@ public class FtbQuestsImporter {
         return new ImportResult(imported, skipped, idx.categorySlug(), warnings);
     }
 
-    /** A quest_links entry - a lightweight placeholder node with no tasks, pointing at the real quest. */
     private static String convertLinkStub(LinkStub link, ChapterIndex idx, QuestLoc target) {
         StringBuilder sb = new StringBuilder("{\n");
         append(sb, "id", link.path());
-        // Display info (title/icon/state) is resolved from the target node at render time -
-        // the stub's own title is never actually shown, just needs to be non-empty.
+
         append(sb, "title", "Linked Quest");
         append(sb, "category", idx.categorySlug());
         append(sb, "shape", mapShape(link.shape()));
@@ -324,8 +265,6 @@ public class FtbQuestsImporter {
         sb.append("}");
         return sb.toString();
     }
-
-    // ── Registry Generation ──────────────────────────────────────────────────
 
     private static void writeMasterCategoryJson(Path categoryFolder, String categorySlug, String displayName,
                                                 String iconItem, int orderIndex) throws IOException {
@@ -342,8 +281,6 @@ public class FtbQuestsImporter {
         Files.writeString(jsonPath, master.toString(), StandardCharsets.UTF_8);
     }
 
-    // ── Quest Conversion ──────────────────────────────────────────────────────
-
     private static String convertQuest(CompoundTag q, ChapterIndex idx, Map<String, QuestLoc> globalIndex,
                                        Map<String, String> langMap, List<String> warnings,
                                        Map<String, String> langOut) {
@@ -359,15 +296,6 @@ public class FtbQuestsImporter {
         String rawSubtitle = q.contains("subtitle") ? q.get("subtitle").getAsString() : "";
         String subtitle = resolveText(rawSubtitle, langMap, warnings, false);
 
-        // Never leave a quest unnamed: title -> first item task's item name -> id. Subtitle is
-        // deliberately NOT in this fallback chain - it used to be tried right after title, which
-        // meant every title-less quest (a real, common FTBQ pattern: no "title" key at all, just
-        // an icon + a subtitle, which FTBQ itself renders by deriving a display name from the
-        // icon) had its subtitle text silently consumed as the quest's TITLE instead, and the
-        // "write it as a separate subtitle" check below then always failed since resolvedTitle
-        // WAS that same subtitle text - the subtitle just vanished. A subtitle should never be
-        // asked to stand in for a missing title; it's a fine standalone thing to lose title-less
-        // quests to the item-name fallback for, same as any other title-less quest.
         String resolvedTitle = firstUsable(title, itemBasedFallbackTitle(q, langMap, warnings),
                 "Quest " + shortId(ftbId));
         append(sb, "title", escape(resolvedTitle));
@@ -396,8 +324,7 @@ public class FtbQuestsImporter {
 
         String iconId = q.contains("icon") ? extractItemId(q.get("icon")) : "";
         if (iconId.isEmpty() || iconId.equals("minecraft:air")) {
-            // FTB Quests itself falls back to the first required item's texture when a quest
-            // has no explicit icon set - match that instead of leaving the node with no icon.
+
             iconId = firstTaskItemId(q);
         }
         if (!iconId.isEmpty() && !iconId.equals("minecraft:air")) {
@@ -410,7 +337,7 @@ public class FtbQuestsImporter {
             int depCount = 0;
             for (int i = 0; i < deps.size(); i++) {
                 String depFtbId = deps.getString(i);
-                // Resolve against the GLOBAL registry so cross-chapter prerequisites work.
+                
                 QuestLoc loc = globalIndex.get(depFtbId);
                 if (loc == null) {
                     warnings.add("Quest " + ftbId + ": dependency " + depFtbId +
@@ -466,20 +393,12 @@ public class FtbQuestsImporter {
         return sb.toString();
     }
 
-    /** When a quest has no usable title/subtitle, try naming it after its first concrete item task. */
     private static String itemBasedFallbackTitle(CompoundTag q, Map<String, String> langMap, List<String> warnings) {
         String itemId = firstTaskItemId(q);
         if (itemId.isEmpty()) return "";
         return "Obtain " + itemId.substring(itemId.lastIndexOf(':') + 1).replace('_', ' ');
     }
 
-    /**
-     * First concrete item id among this quest's "item"-type tasks, or "" if none. Falls back to
-     * the first item IN a tag filter when the task has no concrete item (e.g. "any iron ingot")
-     * rather than returning nothing - same fix as TagItemTask/FilterItemTask's own icon
-     * resolution, applied here too since this is what actually picks the QUEST NODE's icon
-     * (not just a task's), and previously left tag-only quests with no icon at all.
-     */
     private static String firstTaskItemId(CompoundTag q) {
         ListTag tasks = q.getList("tasks", Tag.TAG_COMPOUND);
         for (int i = 0; i < tasks.size(); i++) {
@@ -498,8 +417,6 @@ public class FtbQuestsImporter {
         }
         return "";
     }
-
-    // ── Task Conversion ───────────────────────────────────────────────────────
 
     private static String convertTask(CompoundTag t, String questPath, int idx,
                                       Map<String, String> langMap, List<String> warnings,
@@ -567,9 +484,7 @@ public class FtbQuestsImporter {
                         ", description: " + componentJsonSnbt(desc) + "}";
             }
             default -> {
-                // Unknown/unsupported FTB task type (e.g. "observation"). Don't silently drop it -
-                // a quest that loses ALL of its tasks can end up auto-completable or malformed.
-                // Fall back to a checkmark so the quest still requires manual completion.
+
                 warnings.add("Task type '" + type + "' on " + questPath +
                         " has no PhoenixCore equivalent; converted to checkmark.");
                 String desc = taskDesc(taskId, rawTaskTitle,
@@ -579,13 +494,6 @@ public class FtbQuestsImporter {
         };
     }
 
-    /**
-     * Resolves this task's description text (same as {@link #resolveText} would) AND records it
-     * as a lang key keyed by the task's own stable {@code task_id} - not index-within-quest like
-     * the quest-level title/description keys, since task order can be reordered/insert-shifted
-     * by a packdev later, which would silently misattach an existing translation to the wrong
-     * task if the key were index-based.
-     */
     private static String taskDesc(String taskId, String rawTitle, String fallback,
                                    Map<String, String> langMap, List<String> warnings, Map<String, String> langOut) {
         String desc = !rawTitle.isEmpty() ? resolveText(rawTitle, langMap, warnings, false) : fallback;
@@ -609,8 +517,6 @@ public class FtbQuestsImporter {
         Tag itemTag = t.get("item");
         long count = t.contains("count") ? t.getLong("count") : 1L;
 
-        // A pure "itemfilters:tag" (require any item with a given tag) still gets its own
-        // dedicated tag-based task, wherever it appears (top-level OR nested in and/or).
         String tagValue = findTagFilterValue(itemTag, 0);
         if (tagValue != null && !tagValue.isEmpty()) {
             String tagDesc = taskDesc(taskId, rawTaskTitle,
@@ -621,9 +527,6 @@ public class FtbQuestsImporter {
                     componentJsonSnbt(tagDesc) + "}";
         }
 
-        // Otherwise try to find a real, concrete item id anywhere in the filter tree
-        // (handles itemfilters:and/or by recursing into their nested item lists instead
-        // of emitting the literal string "itemfilters:and"/"itemfilters:or" as an item id).
         String itemId = extractItemId(itemTag);
         if (!itemId.isEmpty() && !itemId.equals("minecraft:air")) {
             String desc = taskDesc(taskId, rawTaskTitle,
@@ -633,23 +536,12 @@ public class FtbQuestsImporter {
                     ", description: " + componentJsonSnbt(desc) + "}";
         }
 
-        // Pure regex/negation filter with no resolvable concrete item (e.g. an id_regex
-        // matching "any MV-tier hatch"). We can't faithfully replicate arbitrary regex
-        // matching, so fall back to a checkmark rather than writing an invalid item id
-        // that would fail to resolve at load time.
         warnings.add(
                 "Task " + taskId + ": item filter had no resolvable concrete item or tag; converted to checkmark.");
         String desc = taskDesc(taskId, rawTaskTitle, "Complete Item Requirement", langMap, warnings, langOut);
         return fallbackCheckmark(taskId, desc);
     }
 
-    /**
-     * Converts one FTB reward into zero or more PhoenixCore reward SNBT strings, appended to
-     * {@code out}. Unlike task conversion (which always falls back to a checkmark), a reward
-     * with no equivalent genuinely has nothing sane to fall back to - so instead of silently
-     * dropping it (the old behavior, which made rewards vanish with zero trace), it now always
-     * either converts or logs a warning explaining exactly what got skipped and why.
-     */
     private static void convertReward(CompoundTag r, String questPath, List<String> warnings, List<String> out) {
         String type = r.getString("type");
         switch (type) {
@@ -685,11 +577,7 @@ public class FtbQuestsImporter {
                     warnings.add("Quest " + questPath + ": command reward had an empty command - dropped.");
                     return;
                 }
-                // Was wrapping the command text in an extra pair of literal escaped quotes
-                // (\" ... \"), which SNBT decodes into ACTUAL quote characters baked into the
-                // stored command string itself (e.g. `"give @s diamond"` instead of
-                // `give @s diamond`) - Minecraft's command dispatcher then fails on the leading
-                // `"`, silently breaking every imported command reward.
+
                 out.add("{type: \"command\", command: \"" + escape(cmd.startsWith("/") ? cmd.substring(1) : cmd) +
                         "\"}");
             }
@@ -703,10 +591,7 @@ public class FtbQuestsImporter {
                 out.add("{type: \"loot_table\", loot_table: \"" + mod + ":" + table + "\"}");
             }
             case "choice" -> {
-                // FTB's "pick one of these" reward group. PhoenixCore has no per-reward-group
-                // choice mechanic (only a whole-quest reward_choice_count), so the closest
-                // faithful behavior is to grant every option rather than silently dropping the
-                // whole group - flatten its nested rewards instead of losing them outright.
+
                 ListTag nested = r.getList("rewards", Tag.TAG_COMPOUND);
                 if (nested.isEmpty()) {
                     warnings.add("Quest " + questPath + ": choice reward group had no nested rewards - dropped.");
@@ -721,13 +606,10 @@ public class FtbQuestsImporter {
         }
     }
 
-    // ── Helper API Layers ─────────────────────────────────────────────────────
-
     private static double numeric(Tag tag) {
         return (tag instanceof NumericTag n) ? n.getAsDouble() : 0.0;
     }
 
-    /** Finds the first concrete (non-filter) item id anywhere in an item/itemfilters tree. */
     private static String extractItemId(Tag tag) {
         String id = extractItemIdRecursive(tag, 0);
         return id == null || id.isEmpty() ? "minecraft:air" : id;
@@ -754,8 +636,7 @@ public class FtbQuestsImporter {
                 }
                 return null;
             }
-            // These filter types never point at a single concrete item - the caller
-            // should fall back to a tag-based task or a checkmark instead.
+
             case "itemfilters:tag", "itemfilters:id_regex", "itemfilters:not", "itemfilters:block", "itemfilters:mod", "itemfilters:list" -> {
                 return null;
             }
@@ -765,7 +646,6 @@ public class FtbQuestsImporter {
         }
     }
 
-    /** Resolves a tag id (e.g. "c:ingots/iron") to the first concrete item registered in it. */
     private static String firstItemInTag(String tagId) {
         try {
             var tag = net.minecraft.tags.ItemTags.create(new net.minecraft.resources.ResourceLocation(tagId));
@@ -779,7 +659,6 @@ public class FtbQuestsImporter {
         return null;
     }
 
-    /** Recursively searches an item/itemfilters tree for the first itemfilters:tag value. */
     private static String findTagFilterValue(Tag tag, int depth) {
         if (tag == null || depth > 8 || tag.getId() != Tag.TAG_COMPOUND) return null;
         CompoundTag ct = (CompoundTag) tag;
@@ -803,12 +682,7 @@ public class FtbQuestsImporter {
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.getString(i);
             if (line.startsWith("{@pagebreak}")) {
-                // FTBQ's own "insert a bigger break here" marker. Maps onto Chronicles' own page
-                // break syntax (a lone "---" line - see ChronicleMarkdownParser/QuestTasksScreen's
-                // splitDescPages) instead of just a bigger visual gap within one continuous
-                // scroll: FTBQ authors placed these deliberately to split content into distinct
-                // pages, so an import should actually turn into real pagination, not merely read
-                // as "a bit more spacing than usual" while still being one long scroll.
+
                 if (sb.length() > 0) sb.append("\n\n---\n\n");
                 continue;
             }
@@ -823,8 +697,7 @@ public class FtbQuestsImporter {
             if (sb.length() > 0) sb.append("\n");
             sb.append(line);
         }
-        // Trim leading/trailing blank lines only - blank lines in the middle are the
-        // paragraph-break separators FTBQ authors relied on.
+
         String result = sb.toString();
         return result.replaceAll("^\n+", "").replaceAll("\n+$", "");
     }
@@ -897,14 +770,6 @@ public class FtbQuestsImporter {
                 .replaceAll("\\[([^]]*)]\\([^)]*\\)", "$1").trim();
     }
 
-    /**
-     * Turns "the_factory" / "some-thing" into "The Factory" / "Some Thing" - used only as a
-     * fallback when a chapter has no usable title in the file itself, so this reads a filename.
-     * Words that are ALREADY fully uppercase (2+ letters) are left exactly as-is instead of
-     * being title-cased, so tech-tier acronyms like "UHV"/"LuV" in a filename survive intact
-     * rather than coming out "Uhv"/"Luv" - title-casing every word indiscriminately doesn't know
-     * the difference between an ordinary word and an acronym.
-     */
     private static String humanize(String raw) {
         if (raw == null || raw.isBlank()) return "Imported Chapter";
         String[] words = raw.replace('_', ' ').replace('-', ' ').trim().split("\\s+");
@@ -913,7 +778,7 @@ public class FtbQuestsImporter {
             if (w.isEmpty()) continue;
             if (sb.length() > 0) sb.append(' ');
             if (w.length() > 1 && w.equals(w.toUpperCase())) {
-                sb.append(w); // already an acronym - don't "correct" its casing
+                sb.append(w); 
             } else {
                 sb.append(Character.toUpperCase(w.charAt(0))).append(w.length() > 1 ? w.substring(1) : "");
             }
@@ -921,7 +786,6 @@ public class FtbQuestsImporter {
         return sb.length() == 0 ? "Imported Chapter" : sb.toString();
     }
 
-    /** True if text is non-blank AND isn't just a leftover unresolved "{lang.key}" literal. */
     private static boolean isUsableTitle(String text) {
         if (text == null || text.isBlank()) return false;
         return !LANG_KEY.matcher(text.trim()).matches();
@@ -938,12 +802,6 @@ public class FtbQuestsImporter {
         Map<String, String> map = new HashMap<>();
         if (!Files.exists(importDir)) return map;
 
-        // Lang json (e.g. kubejs/assets/<modid>/lang/en_us.json, or a resourcepack's
-        // assets/<modid>/lang/en_us.json) almost never lives inside the ftbquests chapter
-        // folder itself - it's a sibling tree. Scan importDir directly (unfiltered, shallow),
-        // AND scan a handful of likely pack roots (importDir's ancestors) but restricted to
-        // paths that actually pass through a "lang" directory, so we don't waste time walking
-        // unrelated multi-gigabyte trees like mods/, saves/, logs/, screenshots/.
         loadLangJsonsFrom(importDir, map, false);
 
         Path root = importDir;
@@ -970,10 +828,7 @@ public class FtbQuestsImporter {
                         return true;
                     })
                     .filter(Files::isRegularFile)
-                    // Only en_us.json - many packs bundle multiple locale files (e.g. zh_cn.json)
-                    // right next to it, and matching ANY *.json in a lang/ folder let whichever
-                    // locale happened to be walked last silently clobber English translations for
-                    // any shared key, regardless of the game's actual selected language.
+
                     .filter(p -> p.getFileName().toString().equalsIgnoreCase("en_us.json"))
                     .filter(p -> !requireLangSegment || hasLangSegment(root, p))
                     .toList();
@@ -1070,3 +925,4 @@ public class FtbQuestsImporter {
         sb.append("    ").append(key).append(": \"").append(value).append("\",\n");
     }
 }
+

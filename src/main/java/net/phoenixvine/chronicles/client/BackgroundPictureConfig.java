@@ -16,17 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Arbitrary decorative pictures placed directly on a chapter's canvas background - separate from
- * CategoryConfig's chapter-wide theme (background style/tint/single CUSTOM texture). Added via
- * the canvas right-click menu's "Add picture…", freely positioned (shift+drag) and deleted
- * (right-click) independent of anything the theme system controls.
- *
- * Stored at: config/phoenix_chronicles/background_pictures.json, keyed by category.
- */
 public final class BackgroundPictureConfig {
 
-    /** One placed picture: canvas-space center position, canvas-space size, texture, opacity. */
     public static class Picture {
 
         public String texture = "";
@@ -41,7 +32,6 @@ public final class BackgroundPictureConfig {
 
     private BackgroundPictureConfig() {}
 
-    /** Live, mutable list for this category - never null, empty if none placed yet. */
     public static List<Picture> get(String category) {
         if (!loaded) load();
         return CACHE.computeIfAbsent(category, c -> new ArrayList<>());
@@ -87,3 +77,4 @@ public final class BackgroundPictureConfig {
                 .resolve("config").resolve("phoenix_chronicles").resolve("background_pictures.json");
     }
 }
+

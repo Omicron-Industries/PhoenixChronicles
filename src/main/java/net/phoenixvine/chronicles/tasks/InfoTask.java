@@ -7,13 +7,6 @@ import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * A cosmetic/instructional task — displays a text tip or image URL.
- * The player manually acknowledges it by clicking "Mark as read" in the task screen.
- * Useful for tutorial steps, lore blurbs, and warnings in quest chains.
- *
- * SNBT shape: { type: "info", body: "Some tip text here." }
- */
 public class InfoTask extends QuestTask {
 
     private String body;
@@ -27,7 +20,6 @@ public class InfoTask extends QuestTask {
         return body;
     }
 
-    /** Call from the task screen's "Mark as read" button. */
     public static void acknowledge(Player player, ResourceLocation taskId) {
         TaskProgressAccess.with(player, taskId, nbt -> nbt.putBoolean("acknowledged", true));
     }
@@ -55,3 +47,4 @@ public class InfoTask extends QuestTask {
         if (nbt.contains("body")) body = nbt.getString("body");
     }
 }
+

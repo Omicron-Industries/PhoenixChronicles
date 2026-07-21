@@ -29,8 +29,7 @@ public class ChronicleClientEvents {
         if (Minecraft.getInstance().player != null && event.getEntity() == Minecraft.getInstance().player) {
             QuestFileSaver.saveAllQuestsToDisk();
             LangSyncScheduler.flushNow();
-            // So the next login's initial full-progress sync is correctly treated as "establishing
-            // baseline" again instead of replaying a toast for every already-completed quest.
+
             net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket.resetForNewSession();
         }
     }
@@ -40,6 +39,6 @@ public class ChronicleClientEvents {
         QuestFileSaver.saveAllQuestsToDisk();
         LangSyncScheduler.flushNow();
     }
-    // QuestHudOverlay is a @Mod.EventBusSubscriber itself — it self-registers.
-    // No explicit registration needed here; Forge scans the annotation automatically.
+
 }
+

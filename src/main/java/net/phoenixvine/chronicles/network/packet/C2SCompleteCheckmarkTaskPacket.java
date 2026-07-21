@@ -12,15 +12,6 @@ import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 
-/**
- * Client -> Server: player clicked a checkmark-type task to mark it done.
- *
- * Checkmark tasks have no external condition to poll (no item, no stat, nothing) - clicking
- * IS the completion action, same as FTB Quests' manual "checkmark" task. This was previously
- * dead code: CheckmarkTask.complete(Player, ResourceLocation) existed but nothing ever called
- * it, so clicking a checkmark task just fell through to whatever the click handler did for
- * "a task with no item icon" (expand to fullscreen), with no way to actually complete it.
- */
 public class C2SCompleteCheckmarkTaskPacket {
 
     private final ResourceLocation taskId;
@@ -57,3 +48,4 @@ public class C2SCompleteCheckmarkTaskPacket {
         ctx.get().setPacketHandled(true);
     }
 }
+

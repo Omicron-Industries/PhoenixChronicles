@@ -7,17 +7,6 @@ import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
 
-/**
- * Backs a task type registered from KubeJS via
- * {@code PhoenixTaskRegistry.registerScripted("mypack:my_task").onCompleted(...)...register()}.
- *
- * The script's callbacks (isCompletedFor/tryConsume/progressString/dependsOnInventory) are
- * registered ONCE per task TYPE (see {@link PhoenixTaskRegistry.ScriptTaskHandler}), not per quest
- * instance, so this class only carries the per-quest SNBT fields the script itself defined for
- * this particular task - exposed as raw NBT via {@link #getData()} so the script can read
- * whatever custom fields it declared (e.g. {@code task.getData().getInt("count")}) without this
- * mod needing a dedicated Java field for every possible script-defined task type.
- */
 public class ScriptTask extends QuestTask {
 
     private final String typeId;
@@ -32,7 +21,6 @@ public class ScriptTask extends QuestTask {
         return typeId;
     }
 
-    /** Raw SNBT fields for this task instance - includes type/task_id/description too, harmlessly. */
     public CompoundTag getData() {
         return data;
     }
@@ -79,3 +67,4 @@ public class ScriptTask extends QuestTask {
         this.data = nbt.copy();
     }
 }
+

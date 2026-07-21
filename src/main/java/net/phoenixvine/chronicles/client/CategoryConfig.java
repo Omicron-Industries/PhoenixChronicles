@@ -14,56 +14,28 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Per-chapter background configuration.
- *
- * Stored at: config/phoenix_chronicles/categories.json
- * Example:
- * {
- * "MAIN": { "style": "DOT_GRID" },
- * "CHAPTER_1": { "style": "HEX_GRID", "color": "#0A120A" },
- * "BOSS": { "style": "SOLID", "color": "#0F0808" },
- * "EXPLORE": { "style": "CUSTOM", "texture": "phoenixcore:textures/gui/bg_forest.png" }
- * }
- *
- * Available styles: DOT_GRID, GRID_LINES, HEX_GRID, DIAGONAL_LINES, SOLID, CUSTOM
- */
 public class CategoryConfig {
 
     public enum BgStyle {
-        DOT_GRID,       // default – subtle dot lattice
-        GRID_LINES,     // faint square grid
-        HEX_GRID,       // hex-tile outline pattern
-        DIAGONAL_LINES, // diagonal hatch
-        SOLID,          // plain background color only
-        CUSTOM          // blits a registered texture (see texture field)
+        DOT_GRID,       
+        GRID_LINES,     
+        HEX_GRID,       
+        DIAGONAL_LINES, 
+        SOLID,          
+        CUSTOM          
     }
 
-    // ── Fields ────────────────────────────────────────────────────────────────
-
     private BgStyle style = BgStyle.DOT_GRID;
-    /** ARGB background tint overlaid on top of the default canvas fill. 0 = use default. */
+    
     private int color = 0;
-    /** Minecraft resource-location string for CUSTOM style, e.g. "phoenixcore:textures/gui/bg_forest.png" */
+    
     private String texture = "";
-    /** Raw (English) display name override, "" = derive from the category slug (e.g. THE_FACTORY -> "The Factory"). */
+    
     private String displayName = "";
-    /**
-     * Item resource-location string for the sidebar tab icon, e.g. "minecraft:diamond". "" = no
-     * icon configured yet, sidebar falls back to a generic default.
-     */
+    
     private String icon = "";
-    /**
-     * Parent chapter this one is nested under as a true sub-chapter, "" = top-level (no parent).
-     * Distinct from ChapterFolderRegistry's folders, which just visually group sibling chapters
-     * under a shared label with no parent/child relationship - this makes one specific chapter
-     * genuinely subordinate to another: it inherits the parent's theme (see getEffective()) when
-     * it hasn't set its own, shows breadcrumb navigation, and only unlocks once the parent
-     * chapter has at least one completed quest.
-     */
+    
     private String parentCategory = "";
-
-    // ── Accessors ─────────────────────────────────────────────────────────────
 
     public BgStyle getStyle() {
         return style;
@@ -77,7 +49,6 @@ public class CategoryConfig {
         return texture;
     }
 
-    /** Raw (untranslated) override, "" if the slug-derived name is being used. */
     public String getDisplayName() {
         return displayName;
     }
@@ -86,7 +57,6 @@ public class CategoryConfig {
         return icon;
     }
 
-    /** "" = top-level, no parent. */
     public String getParentCategory() {
         return parentCategory;
     }
@@ -95,11 +65,6 @@ public class CategoryConfig {
         this.parentCategory = parent == null ? "" : parent.trim().toUpperCase();
     }
 
-    /**
-     * Resolves the configured icon to an Item, falling back to a generic default (a book, same
-     * spirit as FTBQ's chapter default) when nothing's been set or the resource location no
-     * longer resolves to a real item.
-     */
     public net.minecraft.world.item.Item getIconItem() {
         if (!icon.isEmpty()) {
             try {
@@ -131,8 +96,6 @@ public class CategoryConfig {
         this.icon = i != null ? i : "";
     }
 
-    // ── Serialization ─────────────────────────────────────────────────────────
-
     public JsonObject toJson() {
         JsonObject o = new JsonObject();
         o.addProperty("style", style.name());
@@ -163,8 +126,6 @@ public class CategoryConfig {
         return cfg;
     }
 
-    // ── Disk I/O ──────────────────────────────────────────────────────────────
-
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Map<String, CategoryConfig> CACHE = new HashMap<>();
     private static boolean loaded = false;
@@ -174,14 +135,6 @@ public class CategoryConfig {
         return CACHE.getOrDefault(category, new CategoryConfig());
     }
 
-    /**
-     * Same as get(), but if this category is a sub-chapter (has a parentCategory) AND hasn't set
-     * its own style/color/texture, walks up to the parent's config instead - so a sub-chapter
-     * inherits its parent's look by default rather than falling back to the DOT_GRID/no-tint
-     * global default the way an ordinary unconfigured top-level chapter would. A sub-chapter
-     * that HAS set its own style/color/texture keeps them regardless of its parent.
-     * Cycle-guarded (a chapter accidentally set as its own ancestor just stops climbing).
-     */
     public static CategoryConfig getEffective(String category) {
         return getEffective(category, new java.util.HashSet<>());
     }
@@ -193,14 +146,6 @@ public class CategoryConfig {
         return getEffective(own.parentCategory, visited);
     }
 
-    /**
-     * Resolved (translatable) display name for this category, or null if there's nothing to
-     * show beyond the slug-derived title (caller should fall back to its own friendly() logic).
-     * Real per-player translation via I18n.exists/Component.translatable, same mechanism as
-     * quest title/description - resolves "phoenix_chronicles.category.<slug>.name" through
-     * whichever language the player has selected, falling back to the raw stored English
-     * display_name (if the packdev set one) when no translation entry exists yet.
-     */
     public static String getResolvedDisplayName(String category) {
         if (category == null) return null;
         String key = "phoenix_chronicles.category." + category.toLowerCase() + ".name";
@@ -216,7 +161,6 @@ public class CategoryConfig {
         CACHE.put(category, cfg);
     }
 
-    /** Force-reload from disk (call after edits). */
     public static void invalidate() {
         loaded = false;
         CACHE.clear();
@@ -258,3 +202,4 @@ public class CategoryConfig {
                 .resolve("config").resolve("phoenix_chronicles").resolve("categories.json");
     }
 }
+

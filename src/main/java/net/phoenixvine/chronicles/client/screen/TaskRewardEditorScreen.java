@@ -32,97 +32,74 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Full-screen task & reward editor — left column tasks, right column rewards.
- */
 public class TaskRewardEditorScreen extends Screen {
 
-    // ── Colours ───────────────────────────────────────────────────────────────
     private int C_BG, C_PANEL, C_HEADER, C_BORDER, C_ACCENT, C_TEXT, C_TEXT_DIM, C_TEXT_FAINT, C_OK;
     private static final int C_ROW_HOVER = 0x22FFFFFF;
     private static final int C_FORM_BG = 0x33000000;
     private static final int C_SPLIT = 0xFF2A2A3A;
     private static final int C_TOOLTIP_BG = 0xFF0E0E16;
 
-    // ── Layout ────────────────────────────────────────────────────────────────
     private static final int HEADER_H = 28;
     private static final int FOOTER_H = 28;
     private static final int MARGIN = 10;
-    private static final int COL_GAP = 6;    // gap between the two columns
-    private static final int ROW_H = 26;   // task/reward list row height (2 lines)
-    private static final int FIELD_H = 15;   // form field height
-    private static final int FIELD_GAP = 5;    // gap between fields
-    // Max stacked form field rows (Type/Description/Target/NBT-or-Secondary) PLUS one extra row's
-    // worth of space for the count/consume/optional/Add row below them, which is positioned
-    // independently from formBottom rather than continuing the same stacking cursor - without
-    // that extra row of budget, task types needing all 4 stacked rows (e.g. item_check: Type +
-    // Description + Target + NBT filter) had their last row overlap that fixed-position bottom row.
+    private static final int COL_GAP = 6;    
+    private static final int ROW_H = 26;   
+    private static final int FIELD_H = 15;   
+    private static final int FIELD_GAP = 5;    
+
     private static final int FORM_ROWS = 5;
 
-    // Derived — set in init()
-    private int splitX;        // x where right column begins
-    private int colW;          // width of each column (they're equal)
-    private int listTop;       // y where list area begins
-    private int listBottom;    // y where list area ends (form starts)
-    private int formTop;       // y where add-form begins
-    private int formBottom;    // y where footer begins (== height - FOOTER_H)
+    private int splitX;        
+    private int colW;          
+    private int listTop;       
+    private int listBottom;    
+    private int formTop;       
+    private int formBottom;    
 
-    // ── State ─────────────────────────────────────────────────────────────────
     private final Screen parent;
     private final QuestNode questNode;
-    /** Non-null when editing a variant's task/reward override instead of the quest's own base lists. */
+    
     @Nullable
     private final QuestNode.QuestVariant variantTarget;
 
     private final List<QuestTask> tasks = new ArrayList<>();
     private final List<QuestReward> rewards = new ArrayList<>();
 
-    // Task form
     private String taskType = "kill_entity";
     private boolean taskConsume = true;
     private boolean taskOptional = false;
-    // "Hold X" style tasks (item/tag/fluid checks) default to sticky - see
-    // ItemRequirementTask#sticky. Energy checks default false since a reading is inherently
-    // transient; showSticky() below only exposes the button for the task types that support it.
+
     private boolean taskSticky = true;
     private boolean taskTypeDropOpen = false;
     private EditBox taskDescBox, taskTargetBox, taskCountBox, taskSecondaryBox, taskNbtBox;
 
-    // Right-click-to-edit — when >= 0, the form is editing that existing task/reward in place
-    // (same id preserved) instead of building a new one; -1 means the form is in "add new" mode.
     private int editingTaskIndex = -1;
     private int editingRewardIndex = -1;
-    // Seed values applied to the freshly-rebuilt form boxes right after entering edit mode (the
-    // boxes themselves get recreated blank by rebuildWidgets(), so there's nothing to read a
-    // value back out of yet) or after a commit clears the form back to blank.
+
     private boolean forcePendingTaskValues = false;
     private String pendingTaskDesc = "", pendingTaskTarget = "", pendingTaskSecondary = "", pendingTaskCount = "",
             pendingTaskNbt = "";
     private boolean forcePendingRewardValues = false;
     private String pendingRewardCount = "", pendingRewardCommand = "", pendingRewardEventData = "";
 
-    // Reward form
     private String rewardType = "item";
     private boolean rewardTypeDropOpen = false;
     private ItemStack rewardPickedItem = null;
     private EditBox rewardCountBox, rewardCommandBox;
 
-    // Hover tracking
     private int hoveredTaskRow = -1;
     private int hoveredRewardRow = -1;
     private int hoveredDropRow = -1;
 
-    // Task clipboard
     private static CompoundTag copiedTaskNBT = null;
 
-    // Undo history — each entry is a snapshot of [tasks, rewards] before a mutation
     private final java.util.Deque<Object[]> undoHistory = new java.util.ArrayDeque<>();
     private static final int MAX_UNDO = 30;
 
     private static final String[] REWARD_TYPES = { "item", "xp", "command", "loot_table", "script_event",
             "reward_table" };
 
-    /** Friendly display label for a reward type id - the ids themselves stay snake_case for NBT compatibility. */
     private static String rewardTypeLabel(String type) {
         return switch (type) {
             case "item" -> "Item";
@@ -137,18 +114,10 @@ public class TaskRewardEditorScreen extends Screen {
 
     private EditBox rewardEventDataBox;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
-
     public TaskRewardEditorScreen(Screen parent, QuestNode questNode) {
         this(parent, questNode, null);
     }
 
-    /**
-     * @param variantTarget when non-null, this screen edits an override list for one quest
-     *                      variant instead of the quest's own base tasks/rewards - starts from
-     *                      the variant's current override (or the quest's base list, if the
-     *                      variant hasn't overridden it yet) and flushes back into the variant.
-     */
     public TaskRewardEditorScreen(Screen parent, QuestNode questNode, @Nullable QuestNode.QuestVariant variantTarget) {
         super(Component.literal(variantTarget != null ? "Tasks & Rewards (variant)" : "Tasks & Rewards"));
         this.parent = parent;
@@ -163,8 +132,6 @@ public class TaskRewardEditorScreen extends Screen {
         }
     }
 
-    // ── Init ──────────────────────────────────────────────────────────────────
-
     @Override
     protected void init() {
         ChroniclesTheme th = ChroniclesTheme.current();
@@ -178,22 +145,18 @@ public class TaskRewardEditorScreen extends Screen {
         C_TEXT_FAINT = th.textFaint.getColor();
         C_OK = th.done.getColor();
 
-        // Geometry
         colW = (width - MARGIN * 2 - COL_GAP) / 2;
         splitX = MARGIN + colW + COL_GAP;
         formBottom = height - FOOTER_H;
         formTop = formBottom - MARGIN - FORM_ROWS * (FIELD_H + FIELD_GAP) - 8;
-        listTop = HEADER_H + 22; // 22px for column sub-header
-        listBottom = formTop - 22; // leave room for the form panel header
+        listTop = HEADER_H + 22; 
+        listBottom = formTop - 22; 
 
         rebuildWidgets();
     }
 
     protected void rebuildWidgets() {
-        // Preserve whatever's already typed across a rebuild (changing the type dropdown or
-        // toggling Consume/Optional just changes which fields are shown, not what was already
-        // entered) - unless startEditingTask/Reward or a commit just asked for fresh seed values,
-        // in which case those win instead.
+
         String descVal = forcePendingTaskValues ? pendingTaskDesc : (taskDescBox != null ? taskDescBox.getValue() : "");
         String targetVal = forcePendingTaskValues ? pendingTaskTarget :
                 (taskTargetBox != null ? taskTargetBox.getValue() : "");
@@ -214,23 +177,20 @@ public class TaskRewardEditorScreen extends Screen {
 
         clearWidgets();
 
-        // ── Done button ───────────────────────────────────────────────────────
-        addRenderableWidget(Button.builder(Component.literal("§7‹ Done"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7â€¹ Done"), b -> {
             flushToQuestNode();
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(width / 2 - 40, height - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
                 .tooltip(Tooltip.create(Component.literal("Save changes and return to quest editor"))).build());
 
-        // ── Task form fields ──────────────────────────────────────────────────
         int tx = MARGIN;
         int fy = formTop + 8;
 
-        // Type selector
         PhoenixTaskRegistry.TaskEntry curMeta = getTaskMeta(taskType);
         String typeTooltip = curMeta != null && curMeta.editorTooltip() != null ?
                 curMeta.editorTooltip().split("\n")[0] : "Choose the type of task to add";
         addRenderableWidget(Button.builder(
-                Component.literal("§8Type: §7" + (curMeta != null ? curMeta.editorLabel() : taskType) + " §8▾"),
+                Component.literal("§8Type: §7" + (curMeta != null ? curMeta.editorLabel() : taskType) + " §8â–¾"),
                 b -> {
                     taskTypeDropOpen = !taskTypeDropOpen;
                     rewardTypeDropOpen = false;
@@ -239,7 +199,6 @@ public class TaskRewardEditorScreen extends Screen {
                 .tooltip(Tooltip.create(Component.literal(typeTooltip))).build());
         fy += FIELD_H + FIELD_GAP;
 
-        // Field visibility logic (unchanged from original)
         boolean isInfo = taskType.equals("info");
         boolean needsTarget = switch (taskType) {
             case "experience", "dimension", "checkmark" -> false;
@@ -266,14 +225,12 @@ public class TaskRewardEditorScreen extends Screen {
             case "kill_entity", "item_check", "craft_item", "fluid_check", "location_terminal", "stat", "block_interact", "filter_item" -> true;
             default -> false;
         };
-        // "Hold X" tasks where placing/using the item before some other requirement is met
-        // shouldn't force re-gathering it - see the sticky field on each of these task classes.
+
         boolean showSticky = switch (taskType) {
             case "item_check", "tag_item", "fluid_check", "energy_check", "filter_item" -> true;
             default -> false;
         };
 
-        // Description
         taskDescBox = new EditBox(font, tx, fy, colW, FIELD_H, Component.empty());
         taskDescBox.setHint(Component.literal("§8Task label shown to player"));
         taskDescBox.setMaxLength(128);
@@ -294,7 +251,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "structure" -> "§8Structure id";
                 case "tag_item" -> "§8Item tag  (e.g. c:ores/iron)";
                 case "energy_check" -> "§8FE / EU / ANY";
-                case "filter_item" -> "§8Item id(s), semicolon-separated — ANY match  (e.g. wire;cable)";
+                case "filter_item" -> "§8Item id(s), semicolon-separated â€” ANY match  (e.g. wire;cable)";
                 case "external_trigger" -> "§8Trigger id";
                 case "view_machine" -> "§8Machine id  (Phantasia multiblock definition id)";
                 case "view_scene" -> "§8Scene id  (Phantasia scene definition id)";
@@ -311,8 +268,7 @@ public class TaskRewardEditorScreen extends Screen {
                 }
             };
             boolean hasItemPicker = taskType.equals("item_check") || taskType.equals("craft_item");
-            // "Any of" list — the picker APPENDS (semicolon-joined) instead of replacing the box,
-            // since the whole point is building up a list of alternatives (e.g. wire OR cable).
+
             boolean hasItemListPicker = taskType.equals("filter_item");
             boolean hasFluidPicker = taskType.equals("fluid_check");
             int tw = (hasItemPicker || hasItemListPicker || hasFluidPicker) ? colW - 18 : colW;
@@ -323,14 +279,14 @@ public class TaskRewardEditorScreen extends Screen {
             taskTargetBox.setValue(targetVal);
             addRenderableWidget(taskTargetBox);
             if (hasItemPicker) {
-                addRenderableWidget(Button.builder(Component.literal("§7⊞"), b -> {
+                addRenderableWidget(Button.builder(Component.literal("§7âŠž"), b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
                         if (id != null && taskTargetBox != null) taskTargetBox.setValue(id.toString());
                     }));
                 }).bounds(tx + tw, fy, 16, FIELD_H).build());
             } else if (hasItemListPicker) {
-                addRenderableWidget(Button.builder(Component.literal("§7⊞"), b -> {
+                addRenderableWidget(Button.builder(Component.literal("§7âŠž"), b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
                         if (id == null || taskTargetBox == null) return;
@@ -341,7 +297,7 @@ public class TaskRewardEditorScreen extends Screen {
                         .tooltip(Tooltip.create(Component.literal("Add another item to the ANY-match list")))
                         .build());
             } else if (hasFluidPicker) {
-                addRenderableWidget(Button.builder(Component.literal("§3⊞"), b -> {
+                addRenderableWidget(Button.builder(Component.literal("§3âŠž"), b -> {
                     if (minecraft != null) minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
                         if (taskTargetBox != null) taskTargetBox.setValue(fluidId);
                     }));
@@ -350,7 +306,6 @@ public class TaskRewardEditorScreen extends Screen {
             fy += FIELD_H + FIELD_GAP;
         }
 
-        // NBT filter — only for item_check
         taskNbtBox = null;
         if (taskType.equals("item_check")) {
             taskNbtBox = new EditBox(font, tx, fy, colW, FIELD_H, Component.empty());
@@ -359,7 +314,7 @@ public class TaskRewardEditorScreen extends Screen {
             taskNbtBox.setMaxLength(512);
             taskNbtBox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
                     Component.literal(
-                            "Subset NBT match — item must contain ALL keys listed here.\nLeave blank to match any stack of the item.")));
+                            "Subset NBT match â€” item must contain ALL keys listed here.\nLeave blank to match any stack of the item.")));
             taskNbtBox.setValue(nbtVal);
             addRenderableWidget(taskNbtBox);
             fy += FIELD_H + FIELD_GAP;
@@ -380,7 +335,6 @@ public class TaskRewardEditorScreen extends Screen {
             fy += FIELD_H + FIELD_GAP;
         }
 
-        // Bottom row: count | consume | optional | add
         int rowY = formBottom - FIELD_H - 4;
         if (needsCount) {
             String countHint = switch (taskType) {
@@ -437,9 +391,9 @@ public class TaskRewardEditorScreen extends Screen {
                     rebuildWidgets();
                 })
                 .bounds(tx + colW - 100, rowY, 50, FIELD_H)
-                .tooltip(Tooltip.create(Component.literal("Task is optional — won't block quest completion"))).build());
+                .tooltip(Tooltip.create(Component.literal("Task is optional â€” won't block quest completion"))).build());
         addRenderableWidget(Button.builder(
-                Component.literal(editingTaskIndex >= 0 ? "§b✎ Update" : "§a✔ Add"),
+                Component.literal(editingTaskIndex >= 0 ? "§bâœŽ Update" : "§aâœ” Add"),
                 b -> commitTaskFromForm())
                 .bounds(tx + colW - 46, rowY, 46, FIELD_H)
                 .tooltip(Tooltip.create(Component.literal(editingTaskIndex >= 0 ?
@@ -447,7 +401,6 @@ public class TaskRewardEditorScreen extends Screen {
                         "Add this task to the quest (Ctrl+Z to undo)")))
                 .build());
 
-        // ── Reward form fields ────────────────────────────────────────────────
         int rx = splitX;
         int rfy = formTop + 8;
 
@@ -461,7 +414,7 @@ public class TaskRewardEditorScreen extends Screen {
             default -> "Choose a reward type";
         };
         addRenderableWidget(Button.builder(
-                Component.literal("§8Type: §7" + rewardTypeLabel(rewardType) + " §8▾"),
+                Component.literal("§8Type: §7" + rewardTypeLabel(rewardType) + " §8â–¾"),
                 b -> {
                     rewardTypeDropOpen = !rewardTypeDropOpen;
                     taskTypeDropOpen = false;
@@ -506,16 +459,16 @@ public class TaskRewardEditorScreen extends Screen {
             String knownTables = net.phoenixvine.chronicles.registry.RewardTableRegistry.getAll().keySet()
                     .stream().reduce("", (a, b) -> a.isEmpty() ? b : a + ", " + b);
             String hint = knownTables.isEmpty() ? "§8Table ID  (no tables loaded yet)" :
-                    "§8Table ID  — known: " + knownTables;
+                    "§8Table ID  â€” known: " + knownTables;
             rewardCommandBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
             rewardCommandBox.setHint(Component.literal(hint));
             rewardCommandBox.setMaxLength(128);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
         } else {
-            // command / loot_table
+            
             String hint = rewardType.equals("loot_table") ? "§8Loot table id  (e.g. minecraft:chests/simple_dungeon)" :
-                    "§8/give %player% …";
+                    "§8/give %player% â€¦";
             rewardCommandBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
             rewardCommandBox.setHint(Component.literal(hint));
             rewardCommandBox.setMaxLength(256);
@@ -524,7 +477,7 @@ public class TaskRewardEditorScreen extends Screen {
         }
 
         addRenderableWidget(Button.builder(
-                Component.literal(editingRewardIndex >= 0 ? "§b✎ Update Reward" : "§a✔ Add Reward"),
+                Component.literal(editingRewardIndex >= 0 ? "§bâœŽ Update Reward" : "§aâœ” Add Reward"),
                 b -> commitRewardFromForm())
                 .bounds(rx + colW - 80, formBottom - FIELD_H - 4, 80, FIELD_H)
                 .tooltip(Tooltip.create(Component.literal(editingRewardIndex >= 0 ?
@@ -532,8 +485,6 @@ public class TaskRewardEditorScreen extends Screen {
                         "Add this reward to the quest (Ctrl+Z to undo)")))
                 .build());
     }
-
-    // ── Undo ─────────────────────────────────────────────────────────────────
 
     private void pushUndo() {
         undoHistory.push(new Object[] { new ArrayList<>(tasks), new ArrayList<>(rewards) });
@@ -553,8 +504,6 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
-    // ── Commit ────────────────────────────────────────────────────────────────
-
     private void commitTaskFromForm() {
         String desc = taskDescBox != null ? taskDescBox.getValue().trim() : "";
         String target = taskTargetBox != null ? taskTargetBox.getValue().trim() : "";
@@ -569,8 +518,6 @@ public class TaskRewardEditorScreen extends Screen {
                 !taskType.equals("checkmark");
         if (desc.isEmpty() || (needsTarget && !taskType.equals("info") && target.isEmpty())) return;
 
-        // Editing an existing task must keep its original id - player progress/completion state
-        // is keyed by task id, so minting a fresh one here would silently reset it.
         ResourceLocation taskId = (editingTaskIndex >= 0 && editingTaskIndex < tasks.size()) ?
                 tasks.get(editingTaskIndex).getTaskId() :
                 new ResourceLocation("phoenixcore", "task_" + taskType + "_" + System.currentTimeMillis());
@@ -588,7 +535,7 @@ public class TaskRewardEditorScreen extends Screen {
                     if (!nbtStr.isEmpty()) {
                         try {
                             irt.setNbtFilter(net.minecraft.nbt.TagParser.parseTag(nbtStr));
-                        } catch (Exception e) { /* invalid NBT — ignore silently */ }
+                        } catch (Exception e) {  }
                     }
                     yield irt;
                 }
@@ -685,7 +632,6 @@ public class TaskRewardEditorScreen extends Screen {
         }
     }
 
-    /** Populates the task form from an existing task and switches it into "edit in place" mode. */
     private void startEditingTask(int idx) {
         if (idx < 0 || idx >= tasks.size()) return;
         QuestTask t = tasks.get(idx);
@@ -781,14 +727,6 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
-    /**
-     * Flattens an item filter back into the semicolon-separated id list the "filter_item" form
-     * field expects, so re-opening an existing task for editing shows its actual item list
-     * instead of a blank box. Only ExactItem/AnyOf-of-ExactItem round-trip cleanly (that's all
-     * this editor ever builds) - anything else (a hand-authored tag/mod/allOf/not filter from
-     * NBT or KubeJS) falls back to its human-readable describe() text, which won't re-parse into
-     * the same filter if saved again, but at least isn't blank.
-     */
     private static String describeItemFilterAsIdList(IItemFilter f) {
         if (f instanceof ItemFilters.ExactItem ex) {
             ResourceLocation id = ForgeRegistries.ITEMS.getKey(ex.item());
@@ -805,7 +743,6 @@ public class TaskRewardEditorScreen extends Screen {
         return f.describe();
     }
 
-    /** Applies the Sticky toggle to whichever task types actually support it (see each class's own sticky field). */
     private static void applyStickyIfSupported(QuestTask t, boolean sticky) {
         if (t instanceof ItemRequirementTask x) x.setSticky(sticky);
         else if (t instanceof TagItemTask x) x.setSticky(sticky);
@@ -815,7 +752,6 @@ public class TaskRewardEditorScreen extends Screen {
         else if (t instanceof EnergyStorageTask x) x.setSticky(sticky);
     }
 
-    /** Reverses the construction switch in {@link #commitTaskFromForm()} to find a task's editor type id. */
     private static String taskTypeIdFor(QuestTask t) {
         if (t instanceof ExternalTriggerTask ext)
             return ext.getKjsTypeId() != null ? ext.getKjsTypeId() : "external_trigger";
@@ -904,7 +840,6 @@ public class TaskRewardEditorScreen extends Screen {
         }
     }
 
-    /** Populates the reward form from an existing reward and switches it into "edit in place" mode. */
     private void startEditingReward(int idx) {
         if (idx < 0 || idx >= rewards.size()) return;
         QuestReward r = rewards.get(idx);
@@ -934,7 +869,7 @@ public class TaskRewardEditorScreen extends Screen {
             pendingRewardCommand = ser.getEventId();
             pendingRewardEventData = ser.getData() != null && !ser.getData().isEmpty() ? ser.getData().toString() : "";
         } else {
-            return; // unsupported reward type (e.g. loot crate) - no form fields exist to edit it with
+            return; 
         }
 
         editingRewardIndex = idx;
@@ -952,8 +887,6 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
-    // ── Flush ─────────────────────────────────────────────────────────────────
-
     private void flushToQuestNode() {
         if (variantTarget != null) {
             variantTarget.tasks = new ArrayList<>(tasks);
@@ -964,62 +897,41 @@ public class TaskRewardEditorScreen extends Screen {
             questNode.clearRewards();
             for (QuestReward r : rewards) questNode.addReward(r);
         }
-        // This used to only mutate the in-memory QuestNode, relying on some OTHER trigger
-        // (logout/shutdown's saveAllQuestsToDisk, or an unrelated edit elsewhere) to actually
-        // persist it - meaning a task/reward edit here survived only until the next abnormal
-        // exit (crash, force-quit), exactly the same "works this session, reverts on restart"
-        // bug this session already found and fixed for descriptions. variantTarget edits are
-        // covered too since a variant is serialized as part of its owning quest's own SNBT.
-        //
-        // Only write to disk if questNode is the actual live registered instance - QuestCreatorScreen
-        // opens this screen against a throwaway QuestNode while a brand-new quest is still being
-        // filled out (it doesn't exist in the registry or on disk yet, and might never be saved at
-        // all), and writing straight to disk here would leave a stray "_preview_.snbt"-style ghost
-        // file behind regardless of whether the user ever clicks that screen's own Save button.
+
         if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
             net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
             net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
         }
     }
 
-    // ── Render ────────────────────────────────────────────────────────────────
-
     @Override
     public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        // This is a full editor screen (its own header/columns spanning the whole window), not a
-        // small floating card - rendering the quest graph behind it at 67% opacity just let it
-        // visibly bleed through behind every panel. Use a solid opaque background like the rest
-        // of this screen's UI, and defensively clear any scissor left active from a previous frame
-        // (the overview screen and its sub-panels push several) so this fill can't get clipped.
+
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
         g.fill(0, 0, width, height, C_BG);
 
-        // Header - accent stripe across the top ties this into the same visual language as the
-        // rest of the Chronicles UI (e.g. QuestTextInputScreen's accent stripe, the group/toast
-        // editors' accent borders), instead of a flat header with no signature touch at all.
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         String repeatBadge = switch (questNode.getRepeatMode()) {
             case DAILY -> "  §b[Daily]";
             case COOLDOWN -> "  §e[Cooldown " + questNode.getRepeatCooldownHours() + "h]";
-            case INFINITE -> "  §a[∞]";
+            case INFINITE -> "  §a[âˆž]";
             default -> "";
         };
         String variantBadge = variantTarget != null ? "  §d[variant: " + variantTarget.condition + "]" : "";
         g.drawCenteredString(font,
-                "§fTasks & Rewards  §8— §7" + questNode.getId().getPath() + repeatBadge + variantBadge,
+                "§fTasks & Rewards  §8â€” §7" + questNode.getId().getPath() + repeatBadge + variantBadge,
                 width / 2, (HEADER_H - 8) / 2, C_TEXT);
 
-        // Column sub-headers
         g.fill(0, HEADER_H, width, listTop - 1, C_PANEL);
         g.fill(0, listTop - 1, width, listTop, C_BORDER);
         String taskSubHeader;
         if (tasks.isEmpty()) {
-            taskSubHeader = "§c⚠ No tasks — quest auto-completes on unlock";
+            taskSubHeader = "§câš  No tasks â€” quest auto-completes on unlock";
         } else {
             long optCount = tasks.stream().filter(QuestTask::isOptional).count();
             long reqCount = tasks.size() - optCount;
@@ -1031,29 +943,25 @@ public class TaskRewardEditorScreen extends Screen {
                     false);
         g.drawString(font, "§8Rewards  §7" + rewards.size(), splitX + 4, HEADER_H + 6, C_TEXT_FAINT, false);
 
-        // Centre column divider
         g.fill(splitX - COL_GAP / 2, HEADER_H, splitX - COL_GAP / 2 + 1, height - FOOTER_H, C_SPLIT);
 
-        // Form zone background + separator
         int formPanelTop = formTop - 20;
         g.fill(0, formPanelTop, width, formBottom, C_PANEL);
         g.fill(0, formPanelTop, width, formPanelTop + 1, C_BORDER);
-        // Column form panels
+        
         g.fill(MARGIN, formPanelTop + 2, MARGIN + colW, formBottom - 2, C_FORM_BG);
         drawBorder(g, MARGIN, formPanelTop + 2, colW, formBottom - 2 - (formPanelTop + 2), C_BORDER);
         g.fill(splitX, formPanelTop + 2, splitX + colW, formBottom - 2, C_FORM_BG);
         drawBorder(g, splitX, formPanelTop + 2, colW, formBottom - 2 - (formPanelTop + 2), C_BORDER);
-        g.drawString(font, editingTaskIndex >= 0 ? "§b✎ Editing Task (right-click to cancel)" : "§8Add Task",
+        g.drawString(font, editingTaskIndex >= 0 ? "§bâœŽ Editing Task (right-click to cancel)" : "§8Add Task",
                 MARGIN + 6, formPanelTop + 6, C_TEXT_FAINT, false);
         g.drawString(font,
-                editingRewardIndex >= 0 ? "§b✎ Editing Reward (right-click to cancel)" : "§8Add Reward",
+                editingRewardIndex >= 0 ? "§bâœŽ Editing Reward (right-click to cancel)" : "§8Add Reward",
                 splitX + 6, formPanelTop + 6, C_TEXT_FAINT, false);
 
-        // Footer
         g.fill(0, height - FOOTER_H, width, height, C_HEADER);
         g.fill(0, height - FOOTER_H, width, height - FOOTER_H + 1, C_BORDER);
 
-        // ── Task list ─────────────────────────────────────────────────────────
         g.enableScissor(0, listTop, splitX - COL_GAP / 2, listBottom);
         hoveredTaskRow = -1;
         int ty = listTop;
@@ -1065,7 +973,7 @@ public class TaskRewardEditorScreen extends Screen {
                 g.fill(MARGIN, ty, splitX - COL_GAP, ty + ROW_H, C_ROW_HOVER);
                 hoveredTaskRow = i;
             }
-            // Accent stripe: green = optional, accent = required
+            
             g.fill(MARGIN, ty + 2, MARGIN + 2, ty + ROW_H - 2,
                     task.isOptional() ? 0xFF22AA55 : C_ACCENT);
             PhoenixTaskRegistry.TaskEntry meta = getTaskMetaByClass(task);
@@ -1086,24 +994,23 @@ public class TaskRewardEditorScreen extends Screen {
             String line1Color = task.isOptional() ? "§8" : "§7";
             g.drawString(font, line1Color + wrapped[0], textX, ty + 4, C_TEXT_DIM, false);
             if (wrapped[1] != null) {
-                // description overflowed — second line continues it; no room for detail
+                
                 g.drawString(font, "§8" + wrapped[1], textX, ty + 15, C_TEXT_FAINT, false);
             } else if (detail != null) {
                 String dl = detail;
-                if (font.width(dl) > maxW) dl = font.plainSubstrByWidth(dl, maxW - 4) + "…";
+                if (font.width(dl) > maxW) dl = font.plainSubstrByWidth(dl, maxW - 4) + "â€¦";
                 g.drawString(font, "§8" + dl, textX, ty + 15, C_TEXT_FAINT, false);
             }
             if (hov) {
-                g.drawString(font, "§b⧉", splitX - COL_GAP - 26, ty + 9, 0xFF55BBFF, false);
-                g.drawString(font, "§c×", splitX - COL_GAP - 12, ty + 9, 0xFFFF5555, false);
+                g.drawString(font, "§bâ§‰", splitX - COL_GAP - 26, ty + 9, 0xFF55BBFF, false);
+                g.drawString(font, "§cÃ—", splitX - COL_GAP - 12, ty + 9, 0xFFFF5555, false);
             }
             ty += ROW_H;
         }
         if (tasks.isEmpty())
-            g.drawString(font, "§8No tasks yet — add one below.", MARGIN + 6, listTop + 5, C_TEXT_FAINT, false);
+            g.drawString(font, "§8No tasks yet â€” add one below.", MARGIN + 6, listTop + 5, C_TEXT_FAINT, false);
         g.disableScissor();
 
-        // ── Reward list ───────────────────────────────────────────────────────
         g.enableScissor(splitX, listTop, width, listBottom);
         hoveredRewardRow = -1;
         int ry = listTop;
@@ -1115,8 +1022,7 @@ public class TaskRewardEditorScreen extends Screen {
                 g.fill(splitX, ry, width - MARGIN, ry + ROW_H, C_ROW_HOVER);
                 hoveredRewardRow = i;
             }
-            // Accent stripe - matches the task list's left-edge accent bar (was only on the task
-            // side, which made the reward list read as a plainer, less finished sibling of it).
+
             g.fill(splitX, ry + 2, splitX + 2, ry + ROW_H - 2, C_ACCENT);
             int rewardTextX = splitX + 5;
             if (reward instanceof QuestReward.ItemReward ir) {
@@ -1125,16 +1031,16 @@ public class TaskRewardEditorScreen extends Screen {
                 rewardTextX += 18;
                 int rmaxW = (width - MARGIN - (hov ? 16 : 6)) - rewardTextX;
                 String rl = "§f" + stack.getHoverName().getString();
-                if (font.width(rl) > rmaxW) rl = font.plainSubstrByWidth(rl, rmaxW - 4) + "…";
+                if (font.width(rl) > rmaxW) rl = font.plainSubstrByWidth(rl, rmaxW - 4) + "â€¦";
                 g.drawString(font, rl, rewardTextX, ry + 4, C_TEXT_DIM, false);
-                g.drawString(font, "§8×" + ir.getCount(), rewardTextX, ry + 15, C_TEXT_FAINT, false);
+                g.drawString(font, "§8Ã—" + ir.getCount(), rewardTextX, ry + 15, C_TEXT_FAINT, false);
             } else {
                 String icon = switch (reward.getType()) {
-                    case XP -> "§a✦";
-                    case COMMAND -> "§b◆";
-                    case LOOT_TABLE -> "§d❋";
-                    case SCRIPT_EVENT -> "§e⚡";
-                    case REWARD_TABLE -> "§6⊞";
+                    case XP -> "§aâœ¦";
+                    case COMMAND -> "§bâ—†";
+                    case LOOT_TABLE -> "§dâ‹";
+                    case SCRIPT_EVENT -> "§eâš¡";
+                    case REWARD_TABLE -> "§6âŠž";
                     default -> "§8?";
                 };
                 String typeLine = switch (reward.getType()) {
@@ -1152,19 +1058,18 @@ public class TaskRewardEditorScreen extends Screen {
                 g.drawString(font, rwrapped[1] != null ? "§8" + rwrapped[1] : typeLine,
                         rewardTextX, ry + 15, C_TEXT_FAINT, false);
             }
-            if (hov) g.drawString(font, "§c×", width - MARGIN - 12, ry + 9, 0xFFFF5555, false);
+            if (hov) g.drawString(font, "§cÃ—", width - MARGIN - 12, ry + 9, 0xFFFF5555, false);
             ry += ROW_H;
         }
         if (rewards.isEmpty())
-            g.drawString(font, "§8No rewards yet — add one below.", splitX + 6, listTop + 5, C_TEXT_FAINT, false);
+            g.drawString(font, "§8No rewards yet â€” add one below.", splitX + 6, listTop + 5, C_TEXT_FAINT, false);
         g.disableScissor();
 
         super.render(g, mx, my, partial);
 
-        // ── Dropdowns ─────────────────────────────────────────────────────────
         g.pose().pushPose();
         g.pose().translate(0, 0, 300);
-        g.flush(); // same missing-flush bleed-through bug fixed elsewhere this session
+        g.flush(); 
 
         if (taskTypeDropOpen) {
             List<PhoenixTaskRegistry.TaskEntry> editorTypes = PhoenixTaskRegistry.getEditorTypes();
@@ -1221,12 +1126,10 @@ public class TaskRewardEditorScreen extends Screen {
         g.pose().popPose();
     }
 
-    // ── Input ─────────────────────────────────────────────────────────────────
-
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
         boolean ctrl = (mods & 2) != 0;
-        if (ctrl && key == 90) { // Ctrl+Z — undo
+        if (ctrl && key == 90) { 
             undoLastChange();
             return true;
         }
@@ -1275,30 +1178,29 @@ public class TaskRewardEditorScreen extends Screen {
                 rewardTypeDropOpen = false;
                 return true;
             }
-            // Copy task
+            
             if (hoveredTaskRow >= 0 && mx >= splitX - COL_GAP - 28 && mx < splitX - COL_GAP - 14) {
                 copiedTaskNBT = tasks.get(hoveredTaskRow).serializeNBT();
                 return true;
             }
-            // Delete task
+            
             if (hoveredTaskRow >= 0 && mx >= splitX - COL_GAP - 14 && mx < splitX - COL_GAP) {
                 pushUndo();
                 tasks.remove(hoveredTaskRow);
                 hoveredTaskRow = -1;
-                if (editingTaskIndex >= 0) cancelTaskEdit(); // stale index — bail out of editing
+                if (editingTaskIndex >= 0) cancelTaskEdit(); 
                 return true;
             }
-            // Delete reward
+            
             if (hoveredRewardRow >= 0 && mx >= width - MARGIN - 14 && mx < width - MARGIN) {
                 pushUndo();
                 rewards.remove(hoveredRewardRow);
                 hoveredRewardRow = -1;
-                if (editingRewardIndex >= 0) cancelRewardEdit(); // stale index — bail out of editing
+                if (editingRewardIndex >= 0) cancelRewardEdit(); 
                 return true;
             }
         } else if (btn == 1) {
-            // Right-click an existing task/reward row to load it into the form for editing in
-            // place - right-clicking the same row again cancels back out to "add new" mode.
+
             if (hoveredTaskRow >= 0) {
                 if (editingTaskIndex == hoveredTaskRow) cancelTaskEdit();
                 else startEditingTask(hoveredTaskRow);
@@ -1324,8 +1226,6 @@ public class TaskRewardEditorScreen extends Screen {
     public boolean isPauseScreen() {
         return false;
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     @Nullable
     private static QuestTask deserializeTask(CompoundTag nbt) {
@@ -1367,22 +1267,21 @@ public class TaskRewardEditorScreen extends Screen {
     private String getTaskDetailString(QuestTask task) {
         if (task instanceof ItemRequirementTask t)
             return t.getItem() != null ?
-                    t.getItem().getDefaultInstance().getHoverName().getString() + " ×" + t.getRequiredCount() : null;
+                    t.getItem().getDefaultInstance().getHoverName().getString() + " Ã—" + t.getRequiredCount() : null;
         if (task instanceof CraftItemTask t) {
             Item item = ForgeRegistries.ITEMS.getValue(t.getItemId());
-            return item != null ? item.getDefaultInstance().getHoverName().getString() + " ×" + t.getRequiredCount() :
+            return item != null ? item.getDefaultInstance().getHoverName().getString() + " Ã—" + t.getRequiredCount() :
                     t.getItemId().toString();
         }
         if (task instanceof KillEntityTask t)
-            return t.getEntityId().getPath().replace('_', ' ') + " ×" + t.getRequiredCount();
+            return t.getEntityId().getPath().replace('_', ' ') + " Ã—" + t.getRequiredCount();
         if (task instanceof FluidRequirementTask t)
             return t.getFluidId().getPath().replace('_', ' ') + "  " + t.getRequiredAmount() + " mB";
         if (task instanceof ExperienceTask t) return "Level " + t.getRequiredLevel();
-        if (task instanceof TagItemTask t) return "#" + t.getTag().location().getPath() + " ×" + t.getRequired();
+        if (task instanceof TagItemTask t) return "#" + t.getTag().location().getPath() + " Ã—" + t.getRequired();
         return null;
     }
 
-    /** Splits text at the last word boundary that fits within maxW pixels. Returns [line1, line2_or_null]. */
     private String[] wordWrap(String text, int maxW) {
         if (font.width(text) <= maxW) return new String[] { text, null };
         String sub = font.plainSubstrByWidth(text, maxW);
@@ -1390,7 +1289,7 @@ public class TaskRewardEditorScreen extends Screen {
         String line1 = lastSpace > 0 ? sub.substring(0, lastSpace) : sub;
         String rest = text.substring(line1.length()).trim();
         if (rest.isEmpty()) return new String[] { line1, null };
-        if (font.width(rest) > maxW) rest = font.plainSubstrByWidth(rest, maxW - 4) + "…";
+        if (font.width(rest) > maxW) rest = font.plainSubstrByWidth(rest, maxW - 4) + "â€¦";
         return new String[] { line1, rest };
     }
 
@@ -1398,3 +1297,4 @@ public class TaskRewardEditorScreen extends Screen {
         ChroniclesUIKit.drawBorder(g, x, y, w, h, color);
     }
 }
+

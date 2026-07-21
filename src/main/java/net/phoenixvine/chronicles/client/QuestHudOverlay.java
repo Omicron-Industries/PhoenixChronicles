@@ -23,41 +23,20 @@ import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
 import java.util.List;
 
-/**
- * Renders the pinned quest as a compact tracker widget in the top-right corner of the HUD.
- *
- * Layout (fixed 160px wide, height grows with task count):
- *
- * ┌────────────────────────┐
- * │ ▶ Quest Title 📌 │ ← title row (state colour)
- * │ ───────────────────── │
- * │ ✔ Task one │ ← completed task (dim green)
- * │ ✗ Task two │ ← pending task
- * │ ✗ Task three │
- * │ ══════════ 1/3 │ ← progress bar
- * └────────────────────────┘
- *
- * The widget is only rendered when:
- * - A quest is pinned (pinnedQuestId != null in PlayerQuestData)
- * - The quest exists in the registry
- * - No screen is open (the HUD is hidden while GUIs are open)
- * - The player is alive
- */
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class QuestHudOverlay {
 
     private static final int WIDGET_W = 148;
-    private static final int MARGIN_R = 6;   // from right edge of screen
-    private static final int MARGIN_T = 6;   // from top edge
+    private static final int MARGIN_R = 6;   
+    private static final int MARGIN_T = 6;   
     private static final int PAD = 5;
     private static final int ROW_H = 11;
     private static final int BAR_H = 4;
 
-    // Colours
     private static final int C_BG = 0xCC0B0B0F;
     private static final int C_BORDER = 0xFF252530;
     private static final int C_TITLE_BG = 0xDD09090D;
-    private static final int C_DONE_ROW = 0x220044FF; // slight tint for completed tasks
+    private static final int C_DONE_ROW = 0x220044FF; 
     private static final int C_PROG_BG = 0xFF141420;
     private static final int C_PROG_FILL = 0xFF00AA55;
     private static final int C_PROG_ACT = 0xFFBB8800;
@@ -69,11 +48,8 @@ public class QuestHudOverlay {
 
     private static final int STACK_GAP = 4;
 
-    // Rendered widget bounds this frame, one per pinned quest — used by the click handler below.
     private static final List<int[]> lastWidgetBounds = new java.util.ArrayList<>();
 
-    // Fade-in: track which pins are new since last frame so each gets its own brief fade-in
-    // instead of one shared timer that only ever matched a single pinned quest.
     private static final java.util.Set<ResourceLocation> lastPinnedIds = new java.util.HashSet<>();
     private static final java.util.Map<ResourceLocation, Long> pinChangeTimes = new java.util.HashMap<>();
     private static final long FADE_MS = 200;
@@ -123,19 +99,9 @@ public class QuestHudOverlay {
 
         renderPinnedWidgets(mc, g, screenW, screenH);
 
-        // Toast notifications (quest unlocked/completed) are independent of whether anything is
-        // pinned - this used to be the last statement inside renderPinnedWidget's body, so every
-        // one of that method's early-returns (no pin, capability missing, etc.) silently skipped
-        // toasts too, meaning they never showed at all unless a quest happened to be pinned.
         QuestToastManager.get().render(g, screenW, screenH);
     }
 
-    /**
-     * Renders one stacked widget per pinned quest instead of a single fixed widget - packs with
-     * multiple simultaneously-pinned quests (a common ask once players realized only one could
-     * be tracked at a time) now get a real stack, not just the last-pinned quest silently
-     * replacing the rest.
-     */
     private static void renderPinnedWidgets(Minecraft mc, GuiGraphics g, int screenW, int screenH) {
         lastWidgetBounds.clear();
         PlayerQuestData data = mc.player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).orElse(null);
@@ -148,7 +114,6 @@ public class QuestHudOverlay {
             return;
         }
 
-        // Fade-in timer per newly-pinned quest, and drop timers for quests no longer pinned.
         for (ResourceLocation id : pinnedIds) {
             if (!lastPinnedIds.contains(id)) pinChangeTimes.put(id, System.currentTimeMillis());
         }
@@ -163,8 +128,6 @@ public class QuestHudOverlay {
                 cfg.getHudPosition() == QuestChroniclesSettings.HUDPosition.BOTTOM_RIGHT;
         int cursorY = stacksUp ? screenH - MARGIN_T : MARGIN_T;
 
-        // Auto-unpin quests whose node no longer exists (e.g. removed from the pack) as we go,
-        // rather than leaving a permanently-broken pin the player can't see or clear.
         List<ResourceLocation> toUnpin = new java.util.ArrayList<>();
 
         for (ResourceLocation pinnedId : pinnedIds) {
@@ -183,10 +146,6 @@ public class QuestHudOverlay {
             boolean showTitle = cfg.isShowHUDTitle();
             boolean showProgress = cfg.isShowHUDProgress();
 
-            // Per-task breakdown used to render here too, making each pinned quest a ~90px+
-            // tall card - stacking even 3-4 pins ate most of the screen edge. That detail
-            // already lives in the full quest screen; the HUD tracker just needs title +
-            // an at-a-glance progress bar, so this is now a compact single-purpose widget.
             int titleH = showTitle ? PAD + ROW_H + 3 : PAD;
             int barSection = (showProgress && !tasks.isEmpty()) ? BAR_H + 4 : 0;
             int widgetH = titleH + barSection + PAD;
@@ -195,7 +154,7 @@ public class QuestHudOverlay {
             int wx = switch (cfg.getHudPosition()) {
                 case TOP_LEFT, BOTTOM_LEFT -> MARGIN_R;
                 case TOP_CENTER, BOTTOM_CENTER -> (screenW - WIDGET_W) / 2;
-                default -> screenW - WIDGET_W - MARGIN_R; // TOP_RIGHT, BOTTOM_RIGHT
+                default -> screenW - WIDGET_W - MARGIN_R; 
             };
             cursorY += stacksUp ? -(widgetH + STACK_GAP) : (widgetH + STACK_GAP);
 
@@ -219,7 +178,6 @@ public class QuestHudOverlay {
         int bgAlpha = (int) (cfg.getHudOpacity() * 0xCC);
         int dynBg = (bgAlpha << 24) | 0x0B0B0F;
 
-        // Background + border
         g.fill(wx, wy, wx + WIDGET_W, wy + widgetH, dynBg);
         g.fill(wx, wy, wx + WIDGET_W, wy + 1, C_BORDER);
         g.fill(wx, wy + widgetH - 1, wx + WIDGET_W, wy + widgetH, C_BORDER);
@@ -229,15 +187,14 @@ public class QuestHudOverlay {
         int ty = wy + PAD;
 
         if (showTitle) {
-            // Title area background
+            
             g.fill(wx + 1, wy + 1, wx + WIDGET_W - 1, wy + PAD + ROW_H + 1, C_TITLE_BG);
 
-            // State icon + title
             String stateGlyph = switch (state) {
-                case COMPLETED -> "§a✔";
-                case ACTIVE -> "§6▶";
-                case LOCKED -> "§8✕";
-                default -> "§7○";
+                case COMPLETED -> "§aâœ”";
+                case ACTIVE -> "§6â–¶";
+                case LOCKED -> "§8âœ•";
+                default -> "§7â—‹";
             };
             int titleColor = switch (state) {
                 case COMPLETED -> C_TEXT_DONE;
@@ -245,7 +202,6 @@ public class QuestHudOverlay {
                 default -> C_TEXT;
             };
 
-            // Item icon if set
             if (node.getIconItem() != null && node.getIconItem() != net.minecraft.world.item.Items.AIR) {
                 g.renderItem(new ItemStack(node.getIconItem()), wx + PAD, wy + PAD - 2);
                 String titleStr = truncate(font, node.getTitle().getString(), WIDGET_W - PAD * 2 - 20);
@@ -255,20 +211,17 @@ public class QuestHudOverlay {
                 g.drawString(font, stateGlyph + " " + titleStr, wx + PAD, wy + PAD + 1, titleColor, false);
             }
 
-            // Pin icon (top-right)
-            g.drawString(font, "§5📌", wx + WIDGET_W - 14, wy + PAD, C_PIN, false);
+            g.drawString(font, "§5ðŸ“Œ", wx + WIDGET_W - 14, wy + PAD, C_PIN, false);
 
-            // Divider
             int divY = wy + PAD + ROW_H + 1;
             g.fill(wx + PAD, divY, wx + WIDGET_W - PAD, divY + 1, C_BORDER);
             ty = divY + 3;
         }
 
-        // Segmented pip bar — one square pip per task, colored by completion
         if (showProgress && !tasks.isEmpty()) {
             ty += 3;
             int n = tasks.size();
-            int maxPips = Math.min(n, 20); // cap at 20 pips so they don't overflow
+            int maxPips = Math.min(n, 20); 
             int pipAreaW = WIDGET_W - PAD * 2 - 2;
             int pipW = Math.max(3, Math.min(9, (pipAreaW - (maxPips - 1)) / maxPips));
             int gap = 1;
@@ -278,15 +231,15 @@ public class QuestHudOverlay {
             for (int pi = 0; pi < maxPips; pi++) {
                 boolean pipDone = pi < done;
                 int px = pipX + pi * (pipW + gap);
-                // Background trough
+                
                 g.fill(px, ty, px + pipW, ty + BAR_H, C_PROG_BG);
-                // Fill for completed pips
+                
                 if (pipDone) g.fill(px, ty, px + pipW, ty + BAR_H, barCol);
-                // Top highlight on filled pips for a slightly 3D look
+                
                 if (pipDone) g.fill(px, ty, px + pipW, ty + 1, 0x33FFFFFF);
             }
             if (n > maxPips) {
-                // Overflow: show "+N" count after pips
+                
                 g.drawString(font, "§8+" + (n - maxPips), pipX + totalPipW + 3, ty - 1, C_TEXT_DIM, false);
             } else {
                 g.drawString(font, "§8" + done + "/" + n, wx + PAD + pipAreaW - font.width(done + "/" + n) + 1, ty - 1,
@@ -294,9 +247,6 @@ public class QuestHudOverlay {
             }
         }
 
-        // Fade-in overlay: dims the widget when first pinned, fades to clear over FADE_MS.
-        // Per-quest timer (not one shared timer) so pinning a second quest doesn't replay the
-        // fade on the first one too.
         Long pinChangeTimeMs = pinChangeTimes.get(pinnedId);
         if (pinChangeTimeMs != null) {
             long elapsed = System.currentTimeMillis() - pinChangeTimeMs;
@@ -310,6 +260,7 @@ public class QuestHudOverlay {
 
     private static String truncate(Font font, String text, int maxW) {
         if (font.width(text) <= maxW) return text;
-        return font.plainSubstrByWidth(text, maxW - 6) + "…";
+        return font.plainSubstrByWidth(text, maxW - 6) + "â€¦";
     }
 }
+

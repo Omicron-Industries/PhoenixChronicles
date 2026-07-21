@@ -2,25 +2,15 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 
-/**
- * Global cache layer hosting evaluated and blended palette colors.
- * Keeps complex bitwise color shifts out of the UI screens and view lifecycle stages.
- */
 public class ChroniclesThemePalette {
 
-    // Core Background / Trays
     public static int BG, PANEL, PANEL_DARK, HEADER, BORDER, BORDER_LIT, SEL_TAB, SEL_ACCENT;
 
-    // Typography Set
     public static int TEXT, TEXT_DIM, TEXT_FAINT, TEXT_DONE, TEXT_ACT, PROG_FILL;
 
-    // Node Interactive Vector States (Calculated Blends)
     public static int NODE_LOCKED, NODE_UNLOCKED, NODE_ACTIVE, NODE_DONE;
     public static int NBORD_LOCKED, NBORD_UNLOCKED, NBORD_ACTIVE, NBORD_DONE, NBORD_DEV;
 
-    /**
-     * Resolves the configured ChroniclesTheme parameters and caches blended results.
-     */
     public static void refresh(ChroniclesTheme t) {
         BG = t.bg.getColor();
         PANEL = t.panel.getColor();
@@ -38,14 +28,12 @@ public class ChroniclesThemePalette {
         TEXT_ACT = t.activeColor.getColor();
         PROG_FILL = t.accent.getColor();
 
-        // Node fills — canvas backgrounds tinted toward each task state color identifier
         int bg = t.bg.getColor();
         NODE_LOCKED = blendColor(bg, t.locked.getColor(), 0.18f);
         NODE_UNLOCKED = blendColor(bg, t.border.getColor(), 0.35f);
         NODE_ACTIVE = blendColor(bg, t.activeColor.getColor(), 0.22f);
         NODE_DONE = blendColor(bg, t.done.getColor(), 0.18f);
 
-        // Node borders — straight from theme palette formulas
         NBORD_LOCKED = blendColor(t.locked.getColor(), 0xFF000000, 0.25f);
         NBORD_UNLOCKED = blendColor(t.border.getColor(), 0xFFFFFFFF, 0.15f);
         NBORD_ACTIVE = t.activeColor.getColor();
@@ -53,9 +41,6 @@ public class ChroniclesThemePalette {
         NBORD_DEV = blendColor(t.accent.getColor(), 0xFFCC44FF, 0.5f);
     }
 
-    /**
-     * Blends two colors together via a factor weight ratio.
-     */
     private static int blendColor(int color1, int color2, float ratio) {
         int a1 = (color1 >> 24) & 0xFF;
         int r1 = (color1 >> 16) & 0xFF;
@@ -75,3 +60,4 @@ public class ChroniclesThemePalette {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 }
+

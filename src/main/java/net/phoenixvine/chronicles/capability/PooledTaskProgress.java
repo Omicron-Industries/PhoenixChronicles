@@ -10,13 +10,6 @@ import net.minecraft.world.level.saveddata.SavedData;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * World-saved storage for task progress that is pooled across a team rather than tracked
- * per-player (see {@link net.phoenixvine.chronicles.model.QuestNode#isPooledProgress()}).
- * Keyed by an opaque team key (see {@link net.phoenixvine.chronicles.tracker.TeamKeyResolver})
- * and then by task id, mirroring the shape of {@link PlayerQuestData}'s per-task progress blobs
- * so every existing task subclass's read/write logic works unchanged against either store.
- */
 public class PooledTaskProgress extends SavedData {
 
     private static final String NAME = "phoenix_chronicles_pooled_progress";
@@ -27,14 +20,12 @@ public class PooledTaskProgress extends SavedData {
         return level.getDataStorage().computeIfAbsent(PooledTaskProgress::load, PooledTaskProgress::new, NAME);
     }
 
-    /** Returns the mutable progress tag for a team+task, creating it if absent. */
     public CompoundTag getOrCreate(String teamKey, ResourceLocation taskId) {
         setDirty();
         return byTeam.computeIfAbsent(teamKey, k -> new HashMap<>())
                 .computeIfAbsent(taskId, id -> new CompoundTag());
     }
 
-    /** Wipes progress for a single task across every team (used on repeat reset). */
     public void clearTaskProgress(ResourceLocation taskId) {
         boolean changed = false;
         for (Map<ResourceLocation, CompoundTag> teamMap : byTeam.values()) {
@@ -82,3 +73,4 @@ public class PooledTaskProgress extends SavedData {
         return root;
     }
 }
+

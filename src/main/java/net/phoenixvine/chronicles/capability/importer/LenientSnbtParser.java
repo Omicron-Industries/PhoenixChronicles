@@ -11,19 +11,6 @@ import net.minecraft.nbt.ShortTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 
-/**
- * FTB Quests (and most FTB mods) persist their SNBT via NightConfig's TOML-ish writer,
- * which separates compound entries and list elements with newlines instead of commas.
- * That is not legal SNBT by vanilla's grammar - {@link net.minecraft.nbt.TagParser} requires
- * a comma between entries and throws on real FTB chapter files, silently discarding the
- * entire chapter in the importer's outer try/catch.
- *
- * This is a hand-rolled recursive-descent parser that accepts the same shape vanilla SNBT
- * does (quoted/unquoted strings, numbers with b/s/l/f/d suffixes, nested lists/compounds)
- * but treats commas as optional whitespace rather than mandatory separators, and tolerates
- * "//" line comments some hand-edited packs sneak in. Produces the same Tag hierarchy
- * TagParser would, so all downstream code is unaffected.
- */
 public final class LenientSnbtParser {
 
     private LenientSnbtParser() {}
@@ -103,7 +90,7 @@ public final class LenientSnbtParser {
                 tag.put(key, value);
                 skipIgnorable();
             }
-            pos++; // consume '}'
+            pos++; 
             return tag;
         }
 
@@ -124,7 +111,7 @@ public final class LenientSnbtParser {
         private Tag parseList() {
             expect('[');
             skipIgnorable();
-            // Typed array prefix: [I; ...], [B; ...], [L; ...] - rare in FTB data but cheap to support.
+            
             char maybeType = peek();
             if (maybeType == 'I' || maybeType == 'B' || maybeType == 'L') {
                 int save = pos;
@@ -143,7 +130,7 @@ public final class LenientSnbtParser {
                 list.add(parseValue());
                 skipIgnorable();
             }
-            pos++; // consume ']'
+            pos++; 
             return list;
         }
 
@@ -177,7 +164,7 @@ public final class LenientSnbtParser {
         }
 
         private String parseQuotedString(char quote) {
-            pos++; // consume opening quote
+            pos++; 
             StringBuilder sb = new StringBuilder();
             while (pos < len) {
                 char c = s.charAt(pos);
@@ -187,7 +174,7 @@ public final class LenientSnbtParser {
                         case 'n' -> '\n';
                         case 't' -> '\t';
                         case 'r' -> '\r';
-                        default -> next; // \\ \" \' and anything else -> literal char
+                        default -> next; 
                     });
                     pos += 2;
                     continue;
@@ -245,10 +232,10 @@ public final class LenientSnbtParser {
                     }
                 }
             } catch (NumberFormatException e) {
-                // Unquoted string value (e.g. a bare resource location or identifier) - preserve as-is
-                // rather than failing the whole parse over FTB's occasional unquoted strings.
+
                 return StringTag.valueOf(tok);
             }
         }
     }
 }
+

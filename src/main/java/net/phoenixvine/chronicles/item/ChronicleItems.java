@@ -11,7 +11,6 @@ public class ChronicleItems {
     public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS,
             PhoenixChronicles.MOD_ID);
 
-    // 2. Register the item definition
     public static final RegistryObject<ChronicleBookItem> CHRONICLE_BOOK = ITEMS.register("chronicle_book",
             () -> new ChronicleBookItem(new Item.Properties().stacksTo(1)));
 
@@ -19,3 +18,4 @@ public class ChronicleItems {
             "chronicle_loot_crate",
             () -> new ChronicleLootCrateItem(new Item.Properties().stacksTo(16)));
 }
+

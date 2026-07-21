@@ -1,12 +1,7 @@
 package net.phoenixvine.chronicles.client;
 
-/**
- * Encapsulates view transformations, zooming constants, and bidirectionally maps
- * screen space pixels to internal logical grid coordinates.
- */
 public class CanvasViewport {
 
-    // Zoom constraints matching your design parameters
     private static final float ZOOM_MIN = 0.3f;
     private static final float ZOOM_MAX = 2.0f;
     private static final float ZOOM_STEP = 0.05f;
@@ -33,32 +28,23 @@ public class CanvasViewport {
         }
     }
 
-    /**
-     * Dynamically adjusts the zoom scaling scale factor while mathematically anchoring
-     * the coordinate frame to the player's active cursor location.
-     */
     public boolean adjustZoomToAnchor(double scrollDelta, double mouseX, double mouseY, int sidebarW, int headerH) {
         float oldZoom = this.zoom;
 
-        // Clamp zoom bounds using standard increments
         this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, this.zoom + (float) scrollDelta * ZOOM_STEP));
 
-        // If we hit hard ceiling/floor limits, avoid recalculating offsets
         if (this.zoom == oldZoom) return false;
 
-        // Anchor math: calculate tracking displacement vectors
         float ratio = this.zoom / oldZoom;
         int canvasMx = (int) mouseX - sidebarW;
         int canvasMy = (int) mouseY - headerH;
 
-        // Shift view offsets so the grid coordinates under the cursor remain stable
         this.offsetX = (int) (canvasMx - (canvasMx - this.offsetX) * ratio);
         this.offsetY = (int) (canvasMy - (canvasMy - this.offsetY) * ratio);
 
         return true;
     }
 
-    // Coordinate Translation Vectors
     public int toCanvasX(double screenX, int sidebarW) {
         return (int) ((screenX - sidebarW - offsetX) / zoom);
     }
@@ -87,3 +73,4 @@ public class CanvasViewport {
         return zoom;
     }
 }
+

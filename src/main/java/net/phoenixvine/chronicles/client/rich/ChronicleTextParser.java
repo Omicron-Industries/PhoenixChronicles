@@ -7,22 +7,6 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Parses Chronicles extended rich-text strings into {@link RichSpan} lists.
- *
- * Syntax handled here (everything else is passed through to Minecraft's §-code renderer):
- *
- * {#RRGGBB} hex color — switches foreground color for subsequent text
- * {reset} resets all inline style overrides
- * [label](url) clickable link (url starts with http/https)
- * [label](tip:msg) hover tooltip
- * [img:rl] inline 48×48 image
- * [img:rl,w,h] inline image at specified pixel size
- *
- * DESIGN INVARIANT — & is never touched.
- * §X codes in the input string are NOT converted; Minecraft's font renders them natively.
- * This means no conflict with any mod that uses & for its own purposes.
- */
 public final class ChronicleTextParser {
 
     private ChronicleTextParser() {}
@@ -39,13 +23,12 @@ public final class ChronicleTextParser {
         while (i < len) {
             char c = input.charAt(i);
 
-            // ── {#RRGGBB} hex color or {reset} ───────────────────────────────
             if (c == '{') {
                 int end = input.indexOf('}', i + 1);
                 if (end > i) {
                     String token = input.substring(i + 1, end);
                     if (token.startsWith("#") && token.length() == 7 && isHex6(token, 1)) {
-                        // flush buffered text first
+                        
                         flush(buf, currentStyle, out);
                         currentStyle = Style.EMPTY.withColor(
                                 TextColor.fromRgb((int) Long.parseLong(token.substring(1), 16)));
@@ -60,7 +43,6 @@ public final class ChronicleTextParser {
                 }
             }
 
-            // ── [label](target) link, tooltip, or [img:rl] ───────────────────
             if (c == '[') {
                 int labelEnd = input.indexOf(']', i + 1);
                 if (labelEnd > i && labelEnd + 1 < len && input.charAt(labelEnd + 1) == '(') {
@@ -69,7 +51,6 @@ public final class ChronicleTextParser {
                         String label = input.substring(i + 1, labelEnd);
                         String target = input.substring(labelEnd + 2, targetEnd);
 
-                        // [img:rl] or [img:rl,w,h]
                         if (label.startsWith("img:")) {
                             flush(buf, currentStyle, out);
                             String rlPart = label.substring(4);
@@ -91,7 +72,6 @@ public final class ChronicleTextParser {
                             continue;
                         }
 
-                        // [label](https://...) link
                         if (target.startsWith("http://") || target.startsWith("https://")) {
                             flush(buf, currentStyle, out);
                             out.add(new RichSpan.Link(label, currentStyle, target));
@@ -99,7 +79,6 @@ public final class ChronicleTextParser {
                             continue;
                         }
 
-                        // [label](tip:hover text) tooltip
                         if (target.startsWith("tip:")) {
                             flush(buf, currentStyle, out);
                             out.add(new RichSpan.Tip(label, currentStyle, target.substring(4)));
@@ -109,7 +88,6 @@ public final class ChronicleTextParser {
                     }
                 }
 
-                // [img:rl] without () — alternate shorthand [img:rl,w,h]
                 int imgEnd = input.indexOf(']', i + 1);
                 if (imgEnd > i) {
                     String inner = input.substring(i + 1, imgEnd);
@@ -136,7 +114,6 @@ public final class ChronicleTextParser {
                 }
             }
 
-            // ── Newline — emit as special char preserved for renderer ─────────
             buf.append(c);
             i++;
         }
@@ -145,7 +122,6 @@ public final class ChronicleTextParser {
         return out;
     }
 
-    /** Strip all Chronicles format tags, returning plain text (§ codes kept for MC renderer). */
     public static String toPlain(String input) {
         if (input == null) return "";
         return input
@@ -154,8 +130,6 @@ public final class ChronicleTextParser {
                 .replaceAll("\\[img:[^]]*](?:\\([^)]*\\))?", "")
                 .replaceAll("\\[([^]]+)]\\([^)]*\\)", "$1");
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static void flush(StringBuilder buf, Style style, List<RichSpan> out) {
         if (buf.isEmpty()) return;
@@ -172,3 +146,4 @@ public final class ChronicleTextParser {
         return true;
     }
 }
+

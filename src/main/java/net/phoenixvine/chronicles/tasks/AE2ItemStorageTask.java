@@ -10,18 +10,12 @@ import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Checks that a player has at least a required amount of an item stored in their Applied
- * Energistics 2 ME network, read through whichever wireless terminal they're currently holding.
- * The AE2 equivalent of {@link ItemRequirementTask}, but reading from network storage instead of
- * physical inventory slots - see {@link AE2Compat} for why this is safe to check every tick.
- */
 public class AE2ItemStorageTask extends QuestTask {
 
     private Item item;
     private long requiredCount;
     private boolean consume;
-    /** See ItemRequirementTask#sticky - same rationale applies to network storage. */
+    
     private boolean sticky = true;
 
     public AE2ItemStorageTask(ResourceLocation taskId, Component description, Item item, long requiredCount,
@@ -105,3 +99,4 @@ public class AE2ItemStorageTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
+

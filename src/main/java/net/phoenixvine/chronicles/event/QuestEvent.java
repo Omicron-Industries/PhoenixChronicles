@@ -8,22 +8,6 @@ import net.phoenixvine.chronicles.QuestAPI;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 
-/**
- * Parent event class for all Chronicle quest-system updates.
- * Registered on the main MinecraftForge.EVENT_BUS.
- *
- * ── Outbound (quest system → world) ──────────────────────────────────────────
- * QuestEvent.StateChanged — quest state transition (LOCKED→UNLOCKED→COMPLETED)
- * QuestEvent.RewardClaimed — player just claimed rewards for a completed quest
- * QuestEvent.PlayerTick — (cancelable) suppress default task evaluation for one quest/player
- * QuestEvent.PinChanged — player pinned/unpinned a quest on the HUD tracker
- * QuestEvent.TreeReloaded — the quest tree was (re)loaded from disk; not player/node-scoped
- *
- * ── Inbound (world → quest system) ───────────────────────────────────────────
- * Use {@link QuestAPI#fireExternalEvent}
- * to signal that a custom event occurred; any ExternalTriggerTask listening for that
- * trigger_id will advance its progress.
- */
 public class QuestEvent extends Event {
 
     private final Player player;
@@ -42,10 +26,6 @@ public class QuestEvent extends Event {
         return node;
     }
 
-    /**
-     * Fired during the ServerPlayer background tick.
-     * Cancel this event to prevent standard task evaluation for this node.
-     */
     @Cancelable
     public static class PlayerTick extends QuestEvent {
 
@@ -54,10 +34,6 @@ public class QuestEvent extends Event {
         }
     }
 
-    /**
-     * Fired immediately AFTER a quest has changed state in the player capability.
-     * Perfect for syncing packets, giving rewards, logging, or sound cues.
-     */
     public static class StateChanged extends QuestEvent {
 
         private final QuestState oldState;
@@ -78,20 +54,6 @@ public class QuestEvent extends Event {
         }
     }
 
-    /**
-     * Fired after all rewards for a completed quest have been granted to the player.
-     * Cancelable — cancel to prevent the reward grant (e.g. inventory full guard).
-     *
-     * <p>
-     * Example (KubeJS server_scripts):
-     * 
-     * <pre>{@code
-     * ForgeEvents.onEvent('net.phoenixvine.chronicles.event.QuestEvent$RewardClaimed',
-     *   event => {
-     *     event.player.tell('You claimed rewards for: ' + event.node.title.string)
-     *   })
-     * }</pre>
-     */
     @Cancelable
     public static class RewardClaimed extends QuestEvent {
 
@@ -107,13 +69,6 @@ public class QuestEvent extends Event {
         }
     }
 
-    /**
-     * Fired when an external event is signalled via {@link QuestAPI#fireExternalEvent}.
-     * Mods can subscribe to inspect or cancel the signal before the quest system processes it.
-     *
-     * <p>
-     * Cancelable — cancel to suppress this external event from reaching any tasks.
-     */
     @Cancelable
     public static class ExternalEvent extends QuestEvent {
 
@@ -126,22 +81,15 @@ public class QuestEvent extends Event {
             this.data = data != null ? data : new net.minecraft.nbt.CompoundTag();
         }
 
-        /** The trigger ID string passed to {@code QuestAPI.fireExternalEvent()}. */
         public String getTriggerId() {
             return triggerId;
         }
 
-        /** Arbitrary data passed alongside the event. Empty tag if none provided. */
         public net.minecraft.nbt.CompoundTag getData() {
             return data;
         }
     }
 
-    /**
-     * Fired right after a player pins or unpins a quest on the HUD tracker (from the overview
-     * screen keybind, the quest detail screen's pin button, or the HUD's own auto-unpin cleanup
-     * for a removed quest). Lets other HUD/overlay mods react to what the player is tracking.
-     */
     public static class PinChanged extends QuestEvent {
 
         private final boolean pinned;
@@ -151,19 +99,11 @@ public class QuestEvent extends Event {
             this.pinned = pinned;
         }
 
-        /** {@code true} if the quest was just pinned, {@code false} if just unpinned. */
         public boolean isPinned() {
             return pinned;
         }
     }
 
-    /**
-     * Fired after the quest tree has been (re)loaded from disk — on server start and after
-     * every live SNBT reload (e.g. {@code QuestFileWatcher} picking up an in-editor change).
-     * Not player/node-scoped: {@link #getPlayer()} and {@link #getNode()} are always
-     * {@code null} on this event. Useful for other mods to invalidate their own caches that
-     * reference quest data instead of going stale after a reload replaces every
-     * {@code QuestNode} instance.
-     */
     public static class TreeReloaded extends net.minecraftforge.eventbus.api.Event {}
 }
+

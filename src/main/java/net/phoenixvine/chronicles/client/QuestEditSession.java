@@ -7,17 +7,11 @@ import lombok.Setter;
 
 import java.util.Stack;
 
-/**
- * Global coordinator for the active quest configuration session.
- * Decouples edit state, tool selections, and historical data from transient UI screens.
- */
 public class QuestEditSession {
 
-    // History Tracking
     private static final Stack<Runnable> undoStack = new Stack<>();
     private static final Stack<Runnable> redoStack = new Stack<>();
 
-    // Core Developer Tool States
     @Setter
     @Getter
     private static boolean devMode = false;
@@ -31,25 +25,22 @@ public class QuestEditSession {
     @Getter
     private static boolean validationOpen = false;
 
-    // Live Working Graph States
     @Getter
     private static PlayerQuestData testModeData = new PlayerQuestData();
     @Setter
     @Getter
     private static String questClipboard = null;
 
-    // --- Undo / Redo Mechanism ---
-
     public static void pushUndo(Runnable undoAction) {
         undoStack.push(undoAction);
-        redoStack.clear(); // Structural actions invalidate forward redo paths
+        redoStack.clear(); 
     }
 
     public static boolean performUndo() {
         if (!undoStack.isEmpty()) {
             Runnable action = undoStack.pop();
             action.run();
-            // Optional: If you track mirror actions, push to redo stack here
+            
             return true;
         }
         return false;
@@ -60,18 +51,16 @@ public class QuestEditSession {
         redoStack.clear();
     }
 
-    // --- Getters & Setters ---
-
     public static void setTestMode(boolean active) {
         testMode = active;
         if (!active) {
-            testModeData = new PlayerQuestData(); // Clear transient profile state on exit
+            testModeData = new PlayerQuestData(); 
         }
     }
 
     public static void setStatsOpen(boolean open) {
         statsOpen = open;
-        if (open) validationOpen = false; // Mutually exclusive panels
+        if (open) validationOpen = false; 
     }
 
     public static void setValidationOpen(boolean open) {
@@ -87,3 +76,4 @@ public class QuestEditSession {
         return questClipboard != null && !questClipboard.isBlank();
     }
 }
+

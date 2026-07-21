@@ -49,7 +49,6 @@ public class QuestEmiRecipe implements EmiRecipe {
         return id;
     }
 
-    // --- Dynamic Inputs (Evaluated live for reliable UI rendering) ---
     @Override
     public List<EmiIngredient> getInputs() {
         List<EmiIngredient> dynamicInputs = new ArrayList<>();
@@ -77,7 +76,6 @@ public class QuestEmiRecipe implements EmiRecipe {
         return dynamicInputs;
     }
 
-    // --- Dynamic Outputs (Evaluated live for reliable UI rendering) ---
     @Override
     public List<EmiStack> getOutputs() {
         List<EmiStack> dynamicOutputs = new ArrayList<>();
@@ -130,10 +128,8 @@ public class QuestEmiRecipe implements EmiRecipe {
     public void addWidgets(WidgetHolder widgets) {
         Font font = Minecraft.getInstance().font;
 
-        // 1. Render Title
         widgets.addText(node.getTitle().getVisualOrderText(), 4, 4, 0x1A1A1A, false);
 
-        // 2. Safe Description Text Wrapping
         Component descComp = node.getDescription();
         if (descComp != null) {
             List<FormattedCharSequence> lines = font.split(descComp, 152);
@@ -153,7 +149,6 @@ public class QuestEmiRecipe implements EmiRecipe {
 
         int slotY = 92;
 
-        // 3. Task Items Panel
         int taskX = 4;
         widgets.addText(Component.literal("Tasks").getVisualOrderText(), taskX, slotY - 11, 0x333333, false);
         List<EmiIngredient> currentInputs = getInputs();
@@ -161,13 +156,11 @@ public class QuestEmiRecipe implements EmiRecipe {
             widgets.addSlot(currentInputs.get(i), taskX + (i * 18), slotY).drawBack(true);
         }
 
-        // 4. Center Directional Arrow
         List<EmiStack> currentOutputs = getOutputs();
         if (!currentInputs.isEmpty() && !currentOutputs.isEmpty()) {
             widgets.addTexture(EmiTexture.EMPTY_ARROW, 68, slotY + 1);
         }
 
-        // 5. Reward Items Panel
         int rewardX = 100;
         widgets.addText(Component.literal("Rewards").getVisualOrderText(), rewardX, slotY - 11, 0x333333, false);
 
@@ -184,3 +177,4 @@ public class QuestEmiRecipe implements EmiRecipe {
         }
     }
 }
+

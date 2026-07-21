@@ -14,45 +14,12 @@ import net.phoenixvine.chronicles.model.QuestTask;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Item task backed by a composable {@link IItemFilter}.
- *
- * Replaces the split between {@code item_check} (exact) and {@code tag_item} (single tag)
- * with a unified task that can express any combination:
- *
- * <pre>
- * // Any copper or gold ingot:
- * filter = anyOf(tag("forge:ingots/copper"), tag("forge:ingots/gold"))
- *
- * // A specific enchanted item (exact item + NBT):
- * filter = exact(Items.DIAMOND_SWORD, nbtWith("Enchantments", ...))
- *
- * // Any Create mod item:
- * filter = mod("create")
- *
- * // Any iron tool that isn't a sword:
- * filter = allOf(tag("forge:tools"), not(exact(Items.IRON_SWORD)))
- * </pre>
- *
- * Quest file NBT shape:
- * 
- * <pre>
- * {
- *   type: "filter_item",
- *   count: 16,
- *   consume: false,
- *   filter: { filter_type: "tag", tag: "forge:ingots/copper" }
- * }
- * </pre>
- *
- * Checks ALL inventory slots: main, offhand, and armor.
- */
 public class FilterItemTask extends QuestTask {
 
     private IItemFilter filter;
     private int count;
     private boolean consume;
-    /** See ItemRequirementTask#sticky. */
+    
     private boolean sticky = true;
 
     public FilterItemTask(ResourceLocation taskId, Component description,
@@ -62,8 +29,6 @@ public class FilterItemTask extends QuestTask {
         this.count = Math.max(1, count);
         this.consume = consume;
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private List<ItemStack> allSlots(Player player) {
         Inventory inv = player.getInventory();
@@ -81,8 +46,6 @@ public class FilterItemTask extends QuestTask {
         return found;
     }
 
-    // ── QuestTask ─────────────────────────────────────────────────────────────
-
     @Override
     public boolean dependsOnInventory() {
         return true;
@@ -90,7 +53,7 @@ public class FilterItemTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (countMatching(player) >= count) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
@@ -114,7 +77,6 @@ public class FilterItemTask extends QuestTask {
         return id;
     }
 
-    /** Consume exactly {@code count} matching items from the player's inventory. */
     @Override
     public void tryConsume(Player player) {
         if (!consume) return;
@@ -128,8 +90,6 @@ public class FilterItemTask extends QuestTask {
         }
         player.getInventory().setChanged();
     }
-
-    // ── Serialization ─────────────────────────────────────────────────────────
 
     @Override
     public CompoundTag serializeNBT() {
@@ -149,8 +109,6 @@ public class FilterItemTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
         if (nbt.contains("filter")) this.filter = ItemFilters.deserialize(nbt.getCompound("filter"));
     }
-
-    // ── Accessors ─────────────────────────────────────────────────────────────
 
     public IItemFilter getFilter() {
         return filter;
@@ -184,3 +142,4 @@ public class FilterItemTask extends QuestTask {
         this.sticky = v;
     }
 }
+

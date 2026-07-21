@@ -29,7 +29,7 @@ public class QuestRegistry {
 
                     while ((line = reader.readLine()) != null) {
                         line = line.trim();
-                        if (line.equals("=== DATA ===")) break; // STOP READING HERE! Save RAM.
+                        if (line.equals("=== DATA ===")) break; 
                         if (line.isEmpty() || line.startsWith("#") || line.equals("=== META ===")) continue;
 
                         String[] parts = line.split(":", 2);
@@ -63,3 +63,4 @@ public class QuestRegistry {
         }
     }
 }
+

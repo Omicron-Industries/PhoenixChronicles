@@ -63,7 +63,6 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                 }
                 node.setCategory(category);
 
-                // FIXED: Matched up coordinates to the explicit layout setters on QuestNode
                 if (json.has("layout_x") && json.has("layout_y")) {
                     node.setCustomX(json.get("layout_x").getAsInt());
                     node.setCustomY(json.get("layout_y").getAsInt());
@@ -109,7 +108,6 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                         String type = taskJson.get("type").getAsString();
                         boolean isOptional = taskJson.has("optional") && taskJson.get("optional").getAsBoolean();
 
-                        // SAFE EXTRACTION: Reads the common JSON parameter if available
                         boolean defaultConsume = !taskJson.has("consume") || taskJson.get("consume").getAsBoolean();
 
                         QuestTask addedTask = null;
@@ -246,13 +244,6 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
 
         LOGGER.info("Successfully loaded {} chronicle branches into memory.", rootNodes.size());
 
-        // Also load editor-created quests from config/*.snbt (additive — won't overwrite datapack
-        // quests). Only for a manually-triggered /reload, though: on the INITIAL world-boot
-        // datapack reload (this apply() call), ChronicleEvents.onServerStarting() is about to run
-        // its own .snbt load moments later - doing it here too meant every world boot walked and
-        // re-parsed the entire quest folder twice for no reason. hasServerFullyStarted() being
-        // true means onServerStarting() already ran for this server instance, so this really is a
-        // later /reload (which never re-fires onServerStarting), not the initial boot sequence.
         MinecraftServer server = ChronicleEvents.getCachedServer();
         if (server != null && ChronicleEvents.hasServerFullyStarted()) {
             java.nio.file.Path configDir = ChronicleEvents.resolveConfigDir(server);
@@ -260,3 +251,4 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
         }
     }
 }
+

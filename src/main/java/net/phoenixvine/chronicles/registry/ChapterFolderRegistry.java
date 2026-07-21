@@ -10,15 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-/**
- * Manages named chapter folders that group sidebar categories into collapsible sections.
- *
- * Persisted as config/phoenix_chronicles/chapter_folders.snbt:
- * [{id:"main", label:"Main Story", categories:["MAIN","SIDE_QUESTS"]}, ...]
- *
- * Categories not listed in any folder appear ungrouped at the top of the sidebar.
- * Collapsed state is purely client-side (never written to disk).
- */
 public final class ChapterFolderRegistry {
 
     public record ChapterFolder(String id, String label, List<String> categories) {}
@@ -27,13 +18,6 @@ public final class ChapterFolderRegistry {
     private static final Set<String> collapsed = new HashSet<>();
     private static Path lastPath = null;
 
-    /**
-     * Custom sidebar order for categories that aren't in any folder - these otherwise had no
-     * persisted order at all (just whatever order QuestTreeRegistry happened to iterate them
-     * in), so there was no way to drag-reorder them relative to each other. Own small file
-     * rather than a new key in chapter_folders.snbt, so this is purely additive and doesn't
-     * touch that file's existing format at all.
-     */
     private static final List<String> standaloneOrder = new ArrayList<>();
     private static Path standaloneOrderPath = null;
 
@@ -51,14 +35,11 @@ public final class ChapterFolderRegistry {
         if (!collapsed.remove(folderId)) collapsed.add(folderId);
     }
 
-    /** Returns the folder that contains the given category, or null if ungrouped. */
     public static ChapterFolder folderFor(String category) {
         for (ChapterFolder f : folders)
             if (f.categories().contains(category.toUpperCase())) return f;
         return null;
     }
-
-    // ── Persistence ───────────────────────────────────────────────────────────
 
     public static void load(Path configDir) {
         loadStandaloneOrder(configDir);
@@ -67,7 +48,7 @@ public final class ChapterFolderRegistry {
         if (!Files.exists(lastPath)) return;
         try {
             String raw = Files.readString(lastPath, StandardCharsets.UTF_8);
-            // Wrap in a compound so TagParser can handle it
+            
             CompoundTag root = TagParser.parseTag("{data:" + raw + "}");
             ListTag list = root.getList("data", Tag.TAG_COMPOUND);
             for (int i = 0; i < list.size(); i++) {
@@ -108,18 +89,10 @@ public final class ChapterFolderRegistry {
         }
     }
 
-    // ── Standalone category order ───────────────────────────────────────────────
-
     public static List<String> getStandaloneOrder() {
         return Collections.unmodifiableList(standaloneOrder);
     }
 
-    /**
-     * Moves `catId` to sit immediately before `targetId` within `currentOrder` (the full,
-     * currently-effective list of standalone category ids, in their current on-screen order -
-     * i.e. already reflecting any previous custom order) and persists the result as the new
-     * authoritative order. `targetId` null means "move to the end".
-     */
     public static void reorderStandaloneCategory(String catId, String targetId, List<String> currentOrder) {
         List<String> order = new ArrayList<>(currentOrder);
         order.remove(catId);
@@ -163,8 +136,6 @@ public final class ChapterFolderRegistry {
         }
     }
 
-    // ── Mutation (called from editor) ─────────────────────────────────────────
-
     public static void addFolder(String id, String label) {
         if (folders.stream().noneMatch(f -> f.id().equals(id)))
             folders.add(new ChapterFolder(id, label, new ArrayList<>()));
@@ -174,7 +145,6 @@ public final class ChapterFolderRegistry {
         folders.removeIf(f -> f.id().equals(id));
     }
 
-    /** Moves a folder to sit immediately before the folder currently at `newIndex`. */
     public static void reorderFolder(String id, int newIndex) {
         int oldIndex = -1;
         for (int i = 0; i < folders.size(); i++) {
@@ -224,3 +194,4 @@ public final class ChapterFolderRegistry {
         }
     }
 }
+

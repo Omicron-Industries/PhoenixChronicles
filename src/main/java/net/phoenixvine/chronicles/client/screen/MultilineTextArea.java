@@ -18,13 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * Real multi-line text editing widget: Enter inserts an actual newline (vanilla EditBox has no
- * concept of one), word-wraps as you type, and preserves blank lines as genuine paragraph breaks
- * instead of collapsing them. Extracted out of QuestTextInputScreen's former private inner class
- * so LangEditorScreen's description fields (previously a single-line EditBox with no way to type
- * a newline at all) can share the exact same behavior instead of a second, divergent copy.
- */
 public class MultilineTextArea extends AbstractWidget {
 
     private static final int C_ACCENT = 0xFF00AA55;
@@ -62,7 +55,6 @@ public class MultilineTextArea extends AbstractWidget {
         return textField.value();
     }
 
-    /** Called with the new value on every edit (insert/delete/newline) - mirrors EditBox's setResponder. */
     public void setResponder(Consumer<String> responder) {
         this.responder = responder;
     }
@@ -71,7 +63,6 @@ public class MultilineTextArea extends AbstractWidget {
         if (responder != null) responder.accept(getValue());
     }
 
-    /** Inserts text at the cursor (or over the current selection), bypassing chat-character filtering. */
     public void forceInsert(String text) {
         String full = textField.value();
         int cursor = textField.cursor();
@@ -123,13 +114,10 @@ public class MultilineTextArea extends AbstractWidget {
                                 lines.add(new LinePos(globalStart, globalEnd, disp.substring(globalStart, globalEnd)));
                             });
                 }
-                currentIndex += rawLine.length() + 1; // +1 accounts for the split \n character
+                currentIndex += rawLine.length() + 1; 
             }
         }
 
-        // -6 accounts for the top padding (textY = getY() + 6) - without it, this claimed one
-        // more line fit than the scissor actually had room for, so the scroll-into-view math
-        // let the cursor sit on a line that was only ever half-visible above the clip edge.
         int visibleLines = Math.max(1, (height - 6) / 9);
         int cursorLine = 0;
         for (int i = 0; i < lines.size(); i++) {
@@ -138,12 +126,7 @@ public class MultilineTextArea extends AbstractWidget {
                 break;
             }
         }
-        // Only snap the view back to the cursor when the cursor itself just moved (typing,
-        // clicking to reposition) - this used to re-run on EVERY render frame regardless of
-        // cause, so scrolling away from wherever the cursor happened to be (e.g. up to the top,
-        // with the cursor still sitting at the end from the last edit) got fought back to the
-        // cursor's line before the very next frame, making manual scroll effectively impossible
-        // once you'd typed anything.
+
         if (cursor != lastCursorForScroll) {
             if (cursorLine < scrollLines) scrollLines = cursorLine;
             if (cursorLine >= scrollLines + visibleLines) scrollLines = cursorLine - visibleLines + 1;
@@ -156,7 +139,6 @@ public class MultilineTextArea extends AbstractWidget {
 
         g.enableScissor(getX(), getY(), getX() + width, getY() + height);
 
-        // Hover Highlight Rendering
         if (!textField.hasSelection() && hoverWordStart >= 0 && hoverWordEnd > hoverWordStart) {
             for (int i = 0; i < lines.size(); i++) {
                 LinePos line = lines.get(i);
@@ -175,7 +157,6 @@ public class MultilineTextArea extends AbstractWidget {
             }
         }
 
-        // Selection Highlight Rendering
         if (textField.hasSelection()) {
             String sel = textField.getSelectedText().replace('§', '&');
             int selStart = disp.indexOf(sel);
@@ -197,14 +178,10 @@ public class MultilineTextArea extends AbstractWidget {
             }
         }
 
-        // Text & Caret Rendering
         for (int i = 0; i < lines.size(); i++) {
             LinePos line = lines.get(i);
             int lineY = textY + (i - scrollLines) * 9;
-            // Skip lines that would only be PARTIALLY visible (bottom edge past the scissor) -
-            // previously this let a half-cut line render at the bottom whenever height wasn't an
-            // exact multiple of the 9px line height, which read as clipped/broken rather than as
-            // "scroll down for more".
+
             if (lineY < getY() || lineY + 9 > getY() + height) continue;
             g.drawString(font, line.text, textX, lineY, 0xFFFFFFFF, false);
             if (isFocused() && cursor >= line.start && cursor <= line.end) {
@@ -218,9 +195,6 @@ public class MultilineTextArea extends AbstractWidget {
         }
         g.disableScissor();
 
-        // Scrollbar - mouse-wheel scrolling already worked with no visual indicator at all, which
-        // reads as "this box doesn't scroll" until you happen to try the wheel over it. Only
-        // drawn once there's actually more content than fits.
         int sbVisLines = Math.max(1, (height - 6) / 9);
         int sbMaxScroll = Math.max(0, lines.size() - sbVisLines);
         if (sbMaxScroll > 0) {
@@ -239,11 +213,6 @@ public class MultilineTextArea extends AbstractWidget {
         return scrollBy(delta);
     }
 
-    /**
-     * Scrolls regardless of mouse position - for host screens (like QuestTextInputScreen) where
-     * this box is the only meaningfully scrollable thing on the whole screen, so the wheel should
-     * work no matter where the cursor happens to be hovering, not just directly over the box.
-     */
     public boolean scrollBy(double delta) {
         int visibleLines = Math.max(1, (height - 6) / 9);
         int maxScroll = Math.max(0, lines.size() - visibleLines);
@@ -302,7 +271,6 @@ public class MultilineTextArea extends AbstractWidget {
     public boolean keyPressed(int kc, int sc, int mod) {
         if (!isFocused()) return false;
 
-        // Bypasses vanilla's chat character filter to successfully insert a newline
         if (kc == GLFW.GLFW_KEY_ENTER || kc == GLFW.GLFW_KEY_KP_ENTER) {
             this.forceInsert("\n");
             return true;
@@ -339,3 +307,4 @@ public class MultilineTextArea extends AbstractWidget {
         }
     }
 }
+

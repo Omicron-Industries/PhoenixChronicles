@@ -16,15 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Named, reusable {@link QuestToastConfig} presets - lets a pack dev design a toast layout once
- * and apply it to any number of quests from ToastDesignerScreen, instead of redoing the same
- * drag-everything-into-place work per quest.
- *
- * Stored at: config/phoenix_chronicles/toast_presets.json, keyed by preset name. Separate from
- * QuestToastConfig's own per-quest storage (quest_toasts.json) - a preset is a template a design
- * is COPIED from, not a live link back to it.
- */
 public final class QuestToastPresetRegistry {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -50,7 +41,6 @@ public final class QuestToastPresetRegistry {
         save();
     }
 
-    /** Preset names in insertion order, for populating a dropdown. */
     public static List<String> names() {
         if (!loaded) load();
         return new ArrayList<>(CACHE.keySet());
@@ -93,3 +83,4 @@ public final class QuestToastPresetRegistry {
                 .resolve("config").resolve("phoenix_chronicles").resolve("toast_presets.json");
     }
 }
+

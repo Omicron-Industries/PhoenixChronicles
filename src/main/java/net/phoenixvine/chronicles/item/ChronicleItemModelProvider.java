@@ -12,8 +12,9 @@ public class ChronicleItemModelProvider extends ItemModelProvider {
 
     @Override
     protected void registerModels() {
-        // Replaces .model((ctx, prov) -> prov.generated(ctx, prov.modLoc("item/chronicle_book")))
+        
         withExistingParent(ChronicleItems.CHRONICLE_BOOK.getId().getPath(), "item/generated")
                 .texture("layer0", modLoc("item/chronicle_book"));
     }
 }
+

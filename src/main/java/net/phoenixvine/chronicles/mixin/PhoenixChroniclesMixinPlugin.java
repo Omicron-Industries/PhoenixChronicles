@@ -9,16 +9,6 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Gates mixins that target an optional dependency's classes, so this mod's mixin config can stay
- * "required": true (catching genuine bugs in the mixins that DO always apply) without that also
- * demanding a mixin like MultiblockFormedMixin succeed against a target class
- * (com.gregtechceu.gtceu.api.pattern.MultiblockWorldSavedData) that may not even exist on the
- * classpath when GTCEu isn't installed (GTCEu is a soft dependency - see GTCEuCompat). Returning
- * false from shouldApplyMixin is Mixin's own sanctioned way to skip a mixin without that counting
- * as a "required" failure - this isn't a workaround, it's the standard mechanism for exactly this
- * situation.
- */
 public class PhoenixChroniclesMixinPlugin implements IMixinConfigPlugin {
 
     private static final String MULTIBLOCK_MIXIN = "net.phoenixvine.chronicles.mixin.MultiblockFormedMixin";
@@ -54,3 +44,4 @@ public class PhoenixChroniclesMixinPlugin implements IMixinConfigPlugin {
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName,
                           IMixinInfo mixinInfo) {}
 }
+

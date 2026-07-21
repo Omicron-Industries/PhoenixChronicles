@@ -26,27 +26,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-/**
- * Writes the full quest registry back to disk.
- *
- * Called:
- * - When the player leaves the world (LoggingOut event)
- * - When Minecraft stops (ClientStopping event)
- * - Explicitly after edits in QuestCreatorScreen and TaskRewardEditorScreen
- *
- * Format per node: one .snbt + one .md (human-readable companion).
- * The .snbt is the source of truth; the .md is for author readability only.
- */
 public class QuestFileSaver {
 
-    /**
-     * Saves just ONE quest node (its .snbt + .md pair), instead of the entire registry. Editing
-     * a single quest's title/description/tasks doesn't need cleanupStaleQuestFiles/
-     * saveCategoryJsons/saveStubCategories to re-run, or every OTHER quest's files rewritten - on
-     * a pack with hundreds of quests, {@link #saveAllQuestsToDisk()} for a one-field text edit
-     * was a very noticeable freeze (800+ quests → 1600+ file writes) that could look like the
-     * confirming screen had hung.
-     */
     public static void saveOneQuestToDisk(QuestNode node) {
         Path base = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
@@ -76,7 +57,6 @@ public class QuestFileSaver {
             return;
         }
 
-        // Determine each node's parent id by scanning the child lists
         java.util.Map<net.minecraft.resources.ResourceLocation, ResourceLocation> childToParent = new java.util.HashMap<>();
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
             for (QuestNode child : node.getChildren()) {
@@ -90,30 +70,17 @@ public class QuestFileSaver {
                 saveNode(base, node, childToParent.get(node.getId()));
                 saved++;
             } catch (Exception e) {
-                // Was IOException-only - one node with bad/unexpected data (malformed task,
-                // null field, anything NOT an IOException) threw straight out of this whole
-                // method instead of just failing that one node, silently skipping every
-                // remaining quest AND aborting whatever caller was waiting on this to finish
-                // (e.g. QuestTextInputScreen's confirm(), which calls setScreen(parent) only
-                // AFTER this returns - an uncaught exception here is exactly why "Confirm"
-                // could look like it hangs and never closes the editor).
+
                 System.err
                         .println("[Phoenix Chronicles] Failed to save quest '" + node.getId() + "': " + e.getMessage());
                 e.printStackTrace();
             }
         }
 
-        // Remove any leftover .snbt/.md for a quest at a STALE location (root, or an old
-        // category folder from before a re-categorize/import) so quests don't end up
-        // duplicated across the flat root AND their proper quests/<category>/ folder.
         cleanupStaleQuestFiles(base);
 
-        // Every category folder gets its own info json (id/name/icon/order), whether the
-        // category came from an FTB import or was hand-authored in the editor - not just
-        // categories that happened to go through the importer.
         saveCategoryJsons(base);
 
-        // Persist stub categories (categories with no quests)
         saveStubCategories(base);
 
         System.out.println("[Phoenix Chronicles] Saved " + saved + " quest(s) to disk.");
@@ -137,23 +104,18 @@ public class QuestFileSaver {
         return saved;
     }
 
-    // ── Single node ───────────────────────────────────────────────────────────
-
     public static void saveNode(Path base, QuestNode node,
                                 net.minecraft.resources.ResourceLocation parentId)
                                                                                    throws IOException {
         String id = node.getId().getPath();
-        // Raw (untranslated) text - re-persisting the lang-registry-RESOLVED text here would
-        // silently bake an active translation over the original-language default the next time
-        // this quest is saved for any unrelated reason (e.g. repositioning it).
+
         String title = node.getTitleRaw().getString();
         String desc = node.getDescriptionRaw().getString();
         String category = node.getCategory() != null ? node.getCategory() : "MAIN";
         String shape = node.getShapeType() != null ? node.getShapeType() : "SQUARE";
-        String iconItem = node.getIconItemId();        // "" if none
+        String iconItem = node.getIconItemId();        
         String parent = parentId != null ? parentId.getPath() : "none";
 
-        // ── .snbt ─────────────────────────────────────────────────────────────
         CompoundTag tag = new CompoundTag();
         tag.putString("id", id);
         tag.putString("title", title);
@@ -170,7 +132,6 @@ public class QuestFileSaver {
         if (!node.getIconFluid().isEmpty()) tag.putString("icon_fluid", node.getIconFluid());
         if (!node.getShapeTexture().isEmpty()) tag.putString("shape_texture", node.getShapeTexture());
 
-        // Extended metadata
         if (!node.getSubtitleRaw().isEmpty()) tag.putString("subtitle", node.getSubtitleRaw());
         tag.putString("visibility", node.getVisibility().name());
         if (node.getEnableIf() != null) tag.putString("enable_if", node.getEnableIf());
@@ -189,12 +150,9 @@ public class QuestFileSaver {
         if (!node.getPreviewMachineId().isEmpty())
             tag.putString("preview_machine_id", node.getPreviewMachineId());
 
-        // Repeat behaviour
         tag.putString("repeat_mode", node.getRepeatMode().name());
         tag.putInt("repeat_cooldown_hours", node.getRepeatCooldownHours());
 
-        // Prerequisite gate + per-prereq flags — only written when explicitly overridden;
-        // absent means "inherit from category default"
         if (node.getRequireAllPrerequisites() != null)
             tag.putBoolean("require_all_prereqs", node.getRequireAllPrerequisites());
         if (!node.getPrerequisites().isEmpty()) {
@@ -224,7 +182,6 @@ public class QuestFileSaver {
         if (node.getOptionalPrereqMinCount() != null)
             tag.putInt("optional_prereq_min_count", node.getOptionalPrereqMinCount());
 
-        // Tasks (fix pre-existing persistence bug: tasks were never saved)
         if (!node.getTasks().isEmpty()) {
             net.minecraft.nbt.ListTag taskList = new net.minecraft.nbt.ListTag();
             for (QuestTask t : node.getTasks()) {
@@ -238,15 +195,12 @@ public class QuestFileSaver {
             tag.put("tasks", taskList);
         }
 
-        // Rewards
         if (!node.getRewards().isEmpty()) {
             net.minecraft.nbt.ListTag rewardList = new net.minecraft.nbt.ListTag();
             for (QuestReward r : node.getRewards()) rewardList.add(r.serializeNBT());
             tag.put("rewards", rewardList);
         }
 
-        // Pack-mode variants — each block reuses the exact same task/reward serialization as the
-        // base quest above (see the loader's mirrored parseTasks/parseRewards helpers).
         if (!node.getVariants().isEmpty()) {
             net.minecraft.nbt.ListTag variantList = new net.minecraft.nbt.ListTag();
             for (QuestNode.QuestVariant v : node.getVariants()) {
@@ -277,44 +231,22 @@ public class QuestFileSaver {
             tag.put("variants", variantList);
         }
 
-        // Emergency items
         if (!node.getEmergencyItems().isEmpty()) {
             tag.put("emergency_items", node.serializeEmergencyItems());
         }
 
-        // Keep every quest under quests/<category>/ (matching the FTB importer's layout)
-        // instead of flattening everything to the config root - a save/logout after import
-        // must not destroy the organized category folders the importer just created.
         Path categoryFolder = base.resolve("quests").resolve(category.toLowerCase(Locale.ROOT));
         Path snbtPath = categoryFolder.resolve(id + ".snbt");
         Files.createDirectories(snbtPath.getParent());
         Files.writeString(snbtPath, tag.toString(), StandardCharsets.UTF_8);
 
-        // ── .md ───────────────────────────────────────────────────────────────
         Path mdPath = categoryFolder.resolve(id + ".md");
-        // Always resync the .md body with the current description. This used to only write
-        // the .md if it didn't already exist yet ("preserve author edits") - but the in-game
-        // description editor's live preview (liveDescOverride) and the .md file are the ONLY
-        // two places a description's current text lives; liveDescOverride is per-screen-instance
-        // and resets the moment that screen closes (reopening the quest, or restarting the
-        // world), at which point the description is re-derived straight from THIS file
-        // (ChronicleOverviewScreen#loadMarkdownContent). Once a quest had ever been saved once
-        // (i.e. this file already existed), every later edit updated the .snbt but silently left
-        // this file on its ORIGINAL text - which is what "edited descriptions revert on reopen/
-        // restart" (most visibly reported for page-break "---" markers, since those are the most
-        // noticeable thing to lose) actually was.
+
         Files.writeString(mdPath,
                 "# " + title + "\n\n" + (desc.isEmpty() ? "" : desc + "\n"),
                 StandardCharsets.UTF_8);
     }
 
-    // ── Stale file cleanup ────────────────────────────────────────────────────
-
-    /**
-     * Deletes any .snbt/.md pair left behind at an old location for a quest that now
-     * lives elsewhere (flat root from before this fix, or a previous category folder
-     * after a re-categorize). Keyed by quest id, since that's the filename stem.
-     */
     private static void cleanupStaleQuestFiles(Path base) {
         Map<String, Path> expected = new HashMap<>();
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
@@ -342,14 +274,6 @@ public class QuestFileSaver {
         }
     }
 
-    // ── Per-category info json ────────────────────────────────────────────────
-
-    /**
-     * Writes/updates quests/<category>/<category>.json for every category that currently
-     * has at least one quest. Existing fields (author-edited name, icon, order, background)
-     * are preserved - only missing fields get sane defaults - so this is safe to call on
-     * every save, whether the category was created by the FTB importer or by hand.
-     */
     private static void saveCategoryJsons(Path base) {
         Map<String, QuestNode> representative = new HashMap<>();
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
@@ -400,7 +324,6 @@ public class QuestFileSaver {
         Files.writeString(jsonPath, json.toString(), StandardCharsets.UTF_8);
     }
 
-    /** Turns "THE_FACTORY" into "The Factory" for a category with no author-set display name. */
     private static String humanizeCategory(String raw) {
         if (raw == null || raw.isBlank()) return "Quests";
         String[] words = raw.replace('_', ' ').replace('-', ' ').trim().toLowerCase(Locale.ROOT).split("\\s+");
@@ -413,18 +336,15 @@ public class QuestFileSaver {
         return sb.length() == 0 ? "Quests" : sb.toString();
     }
 
-    // ── Stub categories ───────────────────────────────────────────────────────
-
     private static void saveStubCategories(Path base) {
         try {
-            // Collect categories that come from quests
+            
             Set<String> questCats = new HashSet<>();
             questCats.add("ALL");
             for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
                 if (n.getCategory() != null) questCats.add(n.getCategory());
             }
 
-            // Read the existing categories.txt to find any stubs
             Path catFile = base.resolve("categories.txt");
             java.util.List<String> stubs = new java.util.ArrayList<>();
             if (Files.exists(catFile)) {
@@ -434,16 +354,12 @@ public class QuestFileSaver {
                 }
             }
 
-            // Persist (overwrite with pruned list)
             Files.writeString(catFile, String.join("\n", stubs), StandardCharsets.UTF_8);
         } catch (IOException e) {
             System.err.println("[Phoenix Chronicles] Failed to save categories.txt: " + e.getMessage());
         }
     }
 
-    // ── Targeted Updates (Refactored from ChronicleOverviewScreen) ────────────
-
-    /** Gets the absolute path to a quest's SNBT file. */
     public static Path getQuestSnbtPath(QuestNode node) {
         String category = node.getCategory() != null ? node.getCategory() : "MAIN";
         return Minecraft.getInstance().gameDirectory.toPath()
@@ -452,7 +368,6 @@ public class QuestFileSaver {
                 .resolve(node.getId().getPath() + ".snbt");
     }
 
-    /** Safely patches an existing SNBT file without overwriting the whole thing. */
     public static void patchNodeTag(QuestNode node, java.util.function.Consumer<CompoundTag> mutator) {
         try {
             Path p = getQuestSnbtPath(node);
@@ -466,8 +381,6 @@ public class QuestFileSaver {
                     "[Phoenix Chronicles] Failed to patch quest file for '" + node.getId() + "': " + e.getMessage());
         }
     }
-
-    // ── Dedicated API for the UI ──────────────────────────────────────────────
 
     public static void updateNodePosition(QuestNode node) {
         patchNodeTag(node, tag -> {
@@ -492,11 +405,6 @@ public class QuestFileSaver {
         patchNodeTag(node, tag -> tag.putString("category", cat));
     }
 
-    /**
-     * All three icon fields together in ONE write - the "Set Icon…" picker (item/fluid/texture
-     * are mutually exclusive) always clears the two NOT being set, so a single patch avoids
-     * doing up to 3 separate disk writes for what's conceptually one change.
-     */
     public static void updateNodeIconAll(QuestNode node) {
         patchNodeTag(node, tag -> {
             String iconId = node.getIconItemId();
@@ -518,7 +426,6 @@ public class QuestFileSaver {
         });
     }
 
-    /** Completely deletes a quest and its markdown companion from the disk. */
     public static void deleteQuestFiles(QuestNode node) {
         try {
             Path snbt = getQuestSnbtPath(node);
@@ -530,10 +437,6 @@ public class QuestFileSaver {
         }
     }
 
-    /**
-     * Updates a node's entire prerequisites registry inside its SNBT file on disk.
-     * Refactored entirely out of ChronicleOverviewScreen.
-     */
     public static void updateNodePrerequisites(QuestNode node) {
         patchNodeTag(node, tag -> {
             net.minecraft.nbt.ListTag prereqList = new net.minecraft.nbt.ListTag();
@@ -571,7 +474,6 @@ public class QuestFileSaver {
         });
     }
 
-    /** Gets the folder path for a quest's category. */
     public static Path getQuestCategoryFolder(QuestNode node) {
         String category = node.getCategory() != null ? node.getCategory() : "MAIN";
         return Minecraft.getInstance().gameDirectory.toPath()
@@ -579,7 +481,6 @@ public class QuestFileSaver {
                 .resolve("quests").resolve(category.toLowerCase(Locale.ROOT));
     }
 
-    /** Reads the raw SNBT string content of a quest file for undo backups. */
     public static String readRawSnbt(QuestNode node) {
         try {
             Path p = getQuestSnbtPath(node);
@@ -589,7 +490,6 @@ public class QuestFileSaver {
         }
     }
 
-    /** Restores a raw SNBT string backup back onto disk. */
     public static void restoreRawSnbt(QuestNode node, String content) {
         if (content == null || content.isEmpty()) return;
         try {
@@ -599,43 +499,29 @@ public class QuestFileSaver {
         } catch (IOException ignored) {}
     }
 
-    /**
-     * Parses a raw quest SNBT string, assigns it a unique ID, offsets its canvas coordinates
-     * slightly to prevent stacking, and writes it directly to disk.
-     * * @param src The source SNBT string content.
-     * 
-     * @return The new unique ID path string if successful.
-     * @throws IOException If disk writes or directory operations fail.
-     */
     public static String pasteQuestFromSnbt(String src) throws IOException {
         Path base = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
 
-        // Extract current id value using regex matching
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("id:\\s*\"([^\"]+)\"").matcher(src);
         String srcPath = m.find() ? m.group(1) : "pasted_quest";
 
-        // Generate a unique file name/ID configuration
         String newPath = srcPath + "_copy";
         for (int i = 2; Files.exists(base.resolve(newPath + ".snbt")); i++) {
             newPath = srcPath + "_copy" + i;
         }
 
-        // Patch the ID key directly inside the SNBT layout
         String content = src.replaceFirst("id:\\s*\"[^\"]*\"", "id: \"" + newPath + "\"");
 
-        // Shift position offsets slightly from original so clones don't stack directly on top
         content = offsetSnbtCoord(content, "positionX", 56);
         content = offsetSnbtCoord(content, "positionY", 56);
 
-        // Write file and trigger the additive registry loader loop
         Files.writeString(base.resolve(newPath + ".snbt"), content, StandardCharsets.UTF_8);
         QuestFileLoader.loadAdditiveFromDisk(base);
 
         return newPath;
     }
 
-    /** Safely increments coordinate values found inside an unparsed SNBT layout string. */
     private static String offsetSnbtCoord(String snbt, String key, int offset) {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile(key + ":\\s*(-?\\d+)").matcher(snbt);
         if (m.find()) {
@@ -645,17 +531,10 @@ public class QuestFileSaver {
         return snbt;
     }
 
-    /**
-     * Resolves the correct markdown (.md) description file path for a quest node
-     * based on its category folder layout.
-     */
     public static Path getQuestMarkdownPath(QuestNode node) {
         return getQuestCategoryFolder(node).resolve(node.getId().getPath() + ".md");
     }
 
-    /**
-     * Updates the "hide_dep_line" state on disk for a quest node.
-     */
     public static void updateNodeHideDepLine(QuestNode node) {
         patchNodeTag(node, tag -> {
             if (node.isHideDepLine()) {
@@ -666,9 +545,6 @@ public class QuestFileSaver {
         });
     }
 
-    /**
-     * المركزي: updates the logical position vectors (X/Y coordinates) on disk for a quest node.
-     */
     public static void saveNodeToDisk(QuestNode node) {
         patchNodeTag(node, tag -> {
             tag.putInt("positionX", node.getCustomX());
@@ -676,14 +552,6 @@ public class QuestFileSaver {
         });
     }
 
-    /**
-     * Reads a source quest node's SNBT file, copies it with a unique ID inside the
-     * same category directory, applies a canvas position offset, and writes it back to disk.
-     *
-     * @param source The source QuestNode to duplicate.
-     * @return The new unique path ID if successful.
-     * @throws IOException If disk operations or directories fail.
-     */
     public static String duplicateQuestOnDisk(QuestNode source) throws IOException {
         Path srcFile = getQuestSnbtPath(source);
         if (!Files.exists(srcFile)) {
@@ -692,25 +560,20 @@ public class QuestFileSaver {
 
         String content = Files.readString(srcFile, StandardCharsets.UTF_8);
 
-        // Generate a unique ID by appending _copy (then _copy2, _copy3…)
         String srcPath = source.getId().getPath();
         String newPath = srcPath + "_copy";
         for (int i = 2; Files.exists(srcFile.resolveSibling(newPath + ".snbt")); i++) {
             newPath = srcPath + "_copy" + i;
         }
 
-        // Replace the id field in the SNBT content
         content = content.replaceFirst("id:\\s*\"[^\"]*\"", "id: \"" + newPath + "\"");
 
-        // Offset position slightly so the duplicate doesn't sit exactly on top
         content = offsetSnbtCoord(content, "positionX", 48);
         content = offsetSnbtCoord(content, "positionY", 48);
 
-        // Write the new file into the same category folder as the source
         Path destFile = srcFile.resolveSibling(newPath + ".snbt");
         Files.writeString(destFile, content, StandardCharsets.UTF_8);
 
-        // Inject into live registry using the base configuration root directory
         Path base = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
         QuestFileLoader.loadAdditiveFromDisk(base);
@@ -718,13 +581,6 @@ public class QuestFileSaver {
         return newPath;
     }
 
-    /**
-     * Checks whether an editable SNBT file corresponding to this quest node
-     * exists within the local configuration folder.
-     *
-     * @param node The quest node to check.
-     * @return true if the file exists on the disk, false otherwise.
-     */
     public static boolean doesQuestFileExist(QuestNode node) {
         try {
             return java.nio.file.Files.exists(getQuestSnbtPath(node));
@@ -733,3 +589,4 @@ public class QuestFileSaver {
         }
     }
 }
+

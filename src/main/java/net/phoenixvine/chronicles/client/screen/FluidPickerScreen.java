@@ -18,13 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * Fluid picker — mirrors ItemPickerScreen but browses ForgeRegistries.FLUIDS.
- * Callback receives the chosen fluid's ResourceLocation id string.
- *
- * Panel/header/text colors now come from ChroniclesThemePalette instead of local
- * copies; only the picker-specific selection accent (blue, vs green for items) stays local.
- */
 public class FluidPickerScreen extends Screen {
 
     private static final int COL_SEL = 0xFF0D1A2E;
@@ -39,7 +32,7 @@ public class FluidPickerScreen extends Screen {
     private static final int ROW_H = 20;
 
     private final Screen parent;
-    private final Consumer<String> onPick; // receives fluid registry id
+    private final Consumer<String> onPick; 
 
     private final List<Fluid> displayFluids = new ArrayList<>();
     private int scrollOffset = 0;
@@ -66,7 +59,7 @@ public class FluidPickerScreen extends Screen {
         int searchY = panelTop + HEADER_H + 2;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
-        searchBox.setHint(Component.literal("§8Search fluids…"));
+        searchBox.setHint(Component.literal("§8Search fluidsâ€¦"));
         searchBox.setValue(searchQuery);
         searchBox.setResponder(q -> {
             searchQuery = q;
@@ -91,7 +84,7 @@ public class FluidPickerScreen extends Screen {
             if (fluid == Fluids.EMPTY) continue;
             ResourceLocation id = ForgeRegistries.FLUIDS.getKey(fluid);
             if (id == null) continue;
-            // Only show "source" fluids, skip flowing variants
+            
             if (id.getPath().contains("flowing")) continue;
             if (!q.isEmpty() && !id.toString().contains(q) &&
                     !fluid.getFluidType().getDescription().getString().toLowerCase().contains(q))
@@ -101,18 +94,14 @@ public class FluidPickerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us instead */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        // Draw the overview screen behind this picker (like CategoryThemeScreen's modal pattern)
-        // instead of leaving whatever the 3D world last rendered showing through - this picker
-        // never rendered any parent at all before, so with a fully transparent/no-op fill it was
-        // the raw game world bleeding through, not the overview screen.
+
         if (parent != null) parent.render(g, -1, -1, partial);
         g.flush();
 
-        // Fully opaque background of its own - see ItemPickerScreen's identical fix for why.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
         g.flush();
@@ -134,7 +123,6 @@ public class FluidPickerScreen extends Screen {
 
         super.render(g, mx, my, partial);
 
-        // Fluid list
         int listTop = panelTop + HEADER_H + SEARCH_H + 4;
         int listBottom = footerY - (selectedFluid != null ? 20 : 2);
         int visRows = Math.max(1, (listBottom - listTop) / ROW_H);
@@ -159,19 +147,15 @@ public class FluidPickerScreen extends Screen {
                 g.fill(panelLeft + 2, ry, panelLeft + PANEL_W - 2, ry + ROW_H, COL_HOVER);
             }
 
-            // Fluid icon (16×16) - the actual still-texture sprite, tinted, not just a flat fill
-            // of the tint color (which reads as plain white for lava and plenty of modded fluids
-            // whose tint is white/no-op since their real color comes from the texture itself).
             ChroniclesUIKit.drawFluidIcon(g, fluid, panelLeft + 4, ry + 2, 16);
             ChroniclesUIKit.drawBorder(g, panelLeft + 4, ry + 2, 16, ROW_H - 4, 0xFF444455);
 
-            // Label: fluid description + registry id
             String name = fluid.getFluidType().getDescription().getString();
             ResourceLocation id = ForgeRegistries.FLUIDS.getKey(fluid);
             String idStr = id != null ? "§8" + id : "";
             int labelX = panelLeft + 24;
             int maxW = PANEL_W - 28;
-            if (font.width(name) > maxW) name = font.plainSubstrByWidth(name, maxW - 4) + "…";
+            if (font.width(name) > maxW) name = font.plainSubstrByWidth(name, maxW - 4) + "â€¦";
             g.drawString(font, (sel ? "§f" : "§7") + name, labelX, ry + 3, ChroniclesThemePalette.TEXT_DIM);
             if (font.width(idStr) <= maxW)
                 g.drawString(font, idStr, labelX, ry + 12, ChroniclesThemePalette.TEXT_FAINT);
@@ -180,7 +164,6 @@ public class FluidPickerScreen extends Screen {
         }
         g.disableScissor();
 
-        // Selection preview strip above footer
         if (selectedFluid != null) {
             int prevY = footerY - 18;
             g.fill(panelLeft, prevY - 1, panelLeft + PANEL_W, prevY, ChroniclesThemePalette.BORDER);
@@ -210,7 +193,7 @@ public class FluidPickerScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { // ESC
+        if (key == 256) { 
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -236,3 +219,4 @@ public class FluidPickerScreen extends Screen {
         if (minecraft != null) minecraft.setScreen(parent);
     }
 }
+

@@ -14,19 +14,14 @@ import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 
 import org.jetbrains.annotations.NotNull;
 
-/**
- * Inline popup for naming and icon-ing the questbook itself.
- * Cleaned up with standard padding, comfortable spacing, and standard component heights.
- */
 public class QuestbookTitleScreen extends Screen {
 
-    // --- Layout Constants ---
-    private static final int PANEL_W = 240;        // Slightly wider for better text flow
-    private static final int PANEL_H = 145;        // Tall enough to comfortably fit elements
-    private static final int MARGIN = 16;          // Generous breathing room from borders
-    private static final int COMPONENT_H = 20;     // Minecraft standard height for buttons/inputs
-    private static final int SPACING = 6;          // Vertical gap between related items
-    private static final int SECTION_GAP = 14;     // Vertical gap between different sections
+    private static final int PANEL_W = 240;        
+    private static final int PANEL_H = 145;        
+    private static final int MARGIN = 16;          
+    private static final int COMPONENT_H = 20;     
+    private static final int SPACING = 6;          
+    private static final int SECTION_GAP = 14;     
     private static final int ACCENT = 0xFF4499CC;
 
     private final Screen parent;
@@ -52,11 +47,8 @@ public class QuestbookTitleScreen extends Screen {
         int fx = panelLeft + MARGIN;
         int fw = PANEL_W - (MARGIN * 2);
 
-        // Start below the header title area
         int currentY = panelTop + 28;
 
-        // --- 1. Name Field Configuration ---
-        // Title label is drawn in render(), field goes right under it
         nameBox = new EditBox(font, fx, currentY + 12, fw, COMPONENT_H, Component.empty());
         nameBox.setMaxLength(48);
         nameBox.setHint(Component.literal("§8Quest Book"));
@@ -64,12 +56,10 @@ public class QuestbookTitleScreen extends Screen {
         nameBox.setResponder(v -> cachedName = v.trim());
         addRenderableWidget(nameBox);
 
-        // Advance past label + text field + section break
         currentY += 12 + COMPONENT_H + SECTION_GAP;
 
-        // --- 2. Icon Field Configuration ---
-        int iconPreviewW = COMPONENT_H; // Keep it perfectly square with standard height
-        addRenderableWidget(Button.builder(Component.literal("§7Change icon…"),
+        int iconPreviewW = COMPONENT_H; 
+        addRenderableWidget(Button.builder(Component.literal("§7Change iconâ€¦"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                         cachedIcon = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem())
@@ -78,7 +68,6 @@ public class QuestbookTitleScreen extends Screen {
                 })
                 .bounds(fx + iconPreviewW + 8, currentY + 12, fw - iconPreviewW - 8, COMPONENT_H).build());
 
-        // --- 3. Bottom Action Buttons ---
         int btnY = panelTop + PANEL_H - MARGIN - COMPONENT_H;
         int halfBtnW = (fw - 6) / 2;
 
@@ -112,7 +101,7 @@ public class QuestbookTitleScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -129,21 +118,16 @@ public class QuestbookTitleScreen extends Screen {
         int fx = panelLeft + MARGIN;
         int currentY = panelTop + 28;
 
-        // Draw Name Label
         g.drawString(font, "§8Name", fx, currentY, ChroniclesThemePalette.TEXT_FAINT);
 
-        // Step down to Icon section matching the init() layout math
         currentY += 12 + COMPONENT_H + SECTION_GAP;
 
-        // Draw Icon Label
         g.drawString(font, "§8Icon", fx, currentY, ChroniclesThemePalette.TEXT_FAINT);
 
-        // Render Icon Preview Slot (Now vertically perfectly aligned with the change button)
         int iconY = currentY + 12;
         g.fill(fx, iconY, fx + COMPONENT_H, iconY + COMPONENT_H, 0xFF0B0B0F);
         ChroniclesUIKit.drawBorder(g, fx, iconY, COMPONENT_H, COMPONENT_H, 0xFF333344);
 
-        // Center item rendering inside the 20x20 slot (Minecraft items are 16x16)
         g.renderItem(new ItemStack(resolveIconPreview()), fx + 2, iconY + 2);
 
         g.flush();
@@ -156,3 +140,4 @@ public class QuestbookTitleScreen extends Screen {
         return false;
     }
 }
+

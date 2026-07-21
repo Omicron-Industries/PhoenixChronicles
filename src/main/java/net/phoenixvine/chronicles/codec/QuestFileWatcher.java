@@ -15,16 +15,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-/**
- * Watches the Phoenix Chronicles config directory for .snbt file changes and
- * automatically reloads quests without requiring /chronicles reload.
- *
- * Uses a single daemon thread with a 600ms debounce to coalesce rapid saves
- * (e.g. a text editor writing multiple temp files before the final save).
- *
- * Start: QuestFileWatcher.start(server, configDir)
- * Stop: QuestFileWatcher.stop()
- */
 public final class QuestFileWatcher {
 
     private static final long DEBOUNCE_MS = 600;
@@ -38,7 +28,7 @@ public final class QuestFileWatcher {
     private QuestFileWatcher() {}
 
     public static void start(MinecraftServer server, Path configDir) {
-        stop(); // stop any previous watcher
+        stop(); 
 
         serverRef = () -> server;
         watchedDir = configDir;
@@ -46,7 +36,7 @@ public final class QuestFileWatcher {
 
         watchThread = new Thread(() -> {
             try (WatchService ws = FileSystems.getDefault().newWatchService()) {
-                // Register the root dir and all subdirs
+                
                 registerRecursive(ws, configDir);
 
                 while (running.get()) {
@@ -64,7 +54,7 @@ public final class QuestFileWatcher {
                         if (name.endsWith(".snbt") || name.endsWith(".txt")) {
                             relevant = true;
                         }
-                        // If a new directory was created, register it too
+                        
                         if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
                             Path full = ((Path) key.watchable()).resolve(changed);
                             if (Files.isDirectory(full)) {
@@ -102,18 +92,15 @@ public final class QuestFileWatcher {
         serverRef = null;
     }
 
-    // ── Internals ─────────────────────────────────────────────────────────────
-
     private static void maybeReload() {
         long last = lastEventMs.get();
         if (last == 0) return;
         if (System.currentTimeMillis() - last < DEBOUNCE_MS) return;
-        lastEventMs.set(0); // consume the event
+        lastEventMs.set(0); 
 
         MinecraftServer server = serverRef != null ? serverRef.get() : null;
         if (server == null || !server.isRunning()) return;
 
-        // Schedule reload on the server thread (WatchService callback is off-thread)
         server.execute(() -> {
             Path configDir = watchedDir;
             if (configDir == null) return;
@@ -127,12 +114,7 @@ public final class QuestFileWatcher {
             QuestFileLoader.loadAdditiveFromDisk(configDir);
 
             int questCount = QuestTreeRegistry.getAllQuests().size();
-            // Same reasoning as the FTB import command: encoding every quest into one
-            // S2CSyncQuestsPacket is heavy enough on its own to risk keepalive timeouts, and this
-            // watcher fires on ANY .snbt change - including a large batch import, which ALSO
-            // triggers its own reload/sync. On an integrated/singleplayer server the client
-            // shares the same config directory, so it's far cheaper to have it re-read the files
-            // itself than to re-serialize and transmit the whole quest tree over the network.
+
             int playerCount = 0;
             if (server.isSingleplayer()) {
                 net.phoenixvine.chronicles.network.packet.S2CReloadQuestsFromDiskPacket reloadPacket = new net.phoenixvine.chronicles.network.packet.S2CReloadQuestsFromDiskPacket();
@@ -168,3 +150,4 @@ public final class QuestFileWatcher {
                 });
     }
 }
+

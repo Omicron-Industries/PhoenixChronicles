@@ -11,26 +11,15 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Manages the on-disk lang files behind Phoenix Chronicles' REAL per-player translation
- * support. Quest title/description/task text is exposed as ordinary Minecraft translation
- * keys ("phoenix_chronicles.quest.<id>.title", "phoenix_chronicles.task.<id>", etc.), and
- * config/phoenix_chronicles is registered as an always-active resource pack (see
- * net.phoenixvine.chronicles.client.ChroniclesLangPack) so each CLIENT's own Language system
- * resolves those keys using THEIR OWN selected game language - the same mechanism vanilla
- * item/block names use. This class only manages the underlying files; resolution itself
- * happens through vanilla I18n/Language, not through any Java-side lookup here.
- */
 public class QuestLangRegistry {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final int PACK_FORMAT = 15; // MC 1.20.1 resource pack format
+    private static final int PACK_FORMAT = 15; 
 
     public static Path langDir(Path configDir) {
         return configDir.resolve("assets").resolve("phoenix_chronicles").resolve("lang");
     }
 
-    /** Ensures configDir is a valid resource-pack root: pack.mcmeta + assets/phoenix_chronicles/lang/. */
     public static void ensurePackStructure(Path configDir) {
         try {
             Files.createDirectories(langDir(configDir));
@@ -45,14 +34,6 @@ public class QuestLangRegistry {
         }
     }
 
-    /**
-     * Merge-writes {@code entries} into
-     * config/phoenix_chronicles/assets/phoenix_chronicles/lang/en_us.json, WITHOUT overwriting
-     * any key that already exists there (so a prior translation or manual edit is never
-     * clobbered by a re-import). Does not itself trigger a resource reload - callers on the
-     * client should follow up with ChroniclesLangPack.reload() so the new keys take effect
-     * immediately.
-     */
     public static void mergeWrite(Path configDir, Map<String, String> entries) {
         if (entries.isEmpty()) return;
         try {
@@ -80,12 +61,6 @@ public class QuestLangRegistry {
         }
     }
 
-    /**
-     * Writes a single key into en_us.json, OVERWRITING any existing value - unlike
-     * {@link #mergeWrite}, this is for when the packdev is directly and deliberately editing
-     * this one English default (e.g. a category display name), not bulk-importing content
-     * that shouldn't clobber prior translations/edits.
-     */
     public static void writeKey(Path configDir, String key, String value) {
         try {
             ensurePackStructure(configDir);
@@ -104,3 +79,4 @@ public class QuestLangRegistry {
         }
     }
 }
+

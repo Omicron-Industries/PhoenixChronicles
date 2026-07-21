@@ -13,11 +13,6 @@ import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 
-/**
- * Client → Server: player opened the detail screen for a quest.
- * Server auto-acknowledges every InfoTask in that quest (marking them
- * "read") and re-checks for completion.
- */
 public class C2SAcknowledgeInfoTasksPacket {
 
     private final ResourceLocation questId;
@@ -42,7 +37,6 @@ public class C2SAcknowledgeInfoTasksPacket {
             QuestNode node = QuestTreeRegistry.getQuest(questId);
             if (node == null) return;
 
-            // Skip only if already fully done — no point re-acknowledging
             if (QuestProgressTracker.getQuestState(player, node) == QuestState.COMPLETED) return;
 
             player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
@@ -64,3 +58,4 @@ public class C2SAcknowledgeInfoTasksPacket {
         ctx.get().setPacketHandled(true);
     }
 }
+

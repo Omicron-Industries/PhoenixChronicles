@@ -12,17 +12,11 @@ import net.minecraft.world.item.ItemStack;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Task: have (or collect) a required count of items matching a given item tag.
- * Counts items currently in the player's inventory — does not consume them.
- *
- * SNBT shape: { type: "tag_item", tag: "c:ores/iron", required: 64 }
- */
 public class TagItemTask extends QuestTask {
 
     private TagKey<Item> tag;
     private int required = 1;
-    /** See ItemRequirementTask#sticky. */
+    
     private boolean sticky = true;
 
     public TagItemTask(ResourceLocation taskId, Component description, TagKey<Item> tag, int required) {
@@ -65,7 +59,7 @@ public class TagItemTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (countMatching(player) >= required) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
@@ -81,7 +75,6 @@ public class TagItemTask extends QuestTask {
         return countMatching(player) + "/" + required;
     }
 
-    /** Shows the first item in the tag as a representative icon instead of nothing. */
     @Override
     public ResourceLocation getDisplayItemId() {
         if (tag == null) return null;
@@ -109,3 +102,4 @@ public class TagItemTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
+

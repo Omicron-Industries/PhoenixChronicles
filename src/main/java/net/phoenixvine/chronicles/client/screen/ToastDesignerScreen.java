@@ -21,21 +21,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Freeform per-quest toast designer, opened via the node context menu's "Design toast…" entry.
- * Drag the icon/title/label directly in the live preview (rendered at real screen scale over the
- * actual overview screen behind it) to reposition; the side panel is organized into tabs (Element,
- * Icons, Background, Presets) - it grew a lot of controls over time and a single flat scroll of
- * everything read as cluttered. Saving writes a QuestToastConfig for this quest alone - every
- * other quest keeps using whichever preset ToastStyle is selected in settings.
- *
- * Row Y-positions within the CURRENTLY ACTIVE tab are computed once in init() and stored in
- * instance fields, then reused as-is for the matching labels in render() - this used to be two
- * independently hand-maintained copies of the same running "y +=" arithmetic, which had already
- * drifted out of sync once (see the old comment this replaced, on the background/accent label).
- * Save/Cancel/hint/feedback are anchored from the BOTTOM of the panel instead, since tab content
- * height varies a lot between tabs and pinning the shared chrome keeps it from jumping around.
- */
 public class ToastDesignerScreen extends Screen {
 
     private enum Elem {
@@ -79,40 +64,27 @@ public class ToastDesignerScreen extends Screen {
     private EditBox bgColorBox;
     private EditBox accentColorBox;
 
-    // Row Y-positions within the active tab, computed once in init() and reused verbatim by
-    // render()'s labels - only the ones for the CURRENTLY active tab are meaningful in any given
-    // frame, so every label draw below is gated on activeTab matching.
     private int tabsY, positionY, scaleY, colorY, boldY, iconSetY, iconStripY, sizeY, phantasiaY, bgColorY,
             accentColorY, presetY;
 
-    // Scroll offset for the CURRENT tab's content, in panel pixels - for high GUI-scale users
-    // where the shrunk logical screen height can't fit a tab's full content between the tab bar
-    // and the bottom Save/Cancel chrome. contentTop/contentBottom are the CURRENT frame's valid
-    // window, recomputed every init() since they depend on `height`.
     private int panelScrollY = 0;
     private int contentTop, contentBottom;
 
-    // Live preview state - which toast type text ("Quest Complete!" vs "Quest Unlocked") is shown,
-    // and any snap-alignment guide line to draw this frame while dragging (see mouseDragged).
     private QuestToastManager.ToastType previewType = QuestToastManager.ToastType.COMPLETED;
-    private Float snapGuideX, snapGuideY; // real screen-pixel coordinates, null = no guide this frame
+    private Float snapGuideX, snapGuideY; 
 
-    /** In-memory clipboard so a design can be copied from one quest's designer to another's - not persisted to disk. */
     private static QuestToastConfig toastClipboard = null;
 
     private boolean presetDropOpen = false;
     private String feedbackMsg = null;
     private long feedbackUntil = 0;
 
-    // Icon strip working state (mirrors QuestGroupEditorScreen's icon list editing).
     private int hoveredIconIndex = -1;
-    /** Which icon strip tile's small corner ✕ badge is hovered - see renderIconStrip. */
+    
     private int hoveredRemoveIconIndex = -1;
-    /**
-     * Which cfg.icons entry the Icons tab's scale box edits, and which one dragging in the preview grabs by default.
-     */
+    
     private int selectedIconIndex = -1;
-    /** Which cfg.icons entry is currently being dragged in the preview - separate from the text/bg drag state. */
+    
     private int draggingIconIndex = -1;
     private EditBox iconScaleBox;
     private int iconScaleY;
@@ -130,12 +102,6 @@ public class ToastDesignerScreen extends Screen {
     protected void init() {
         if (previewToast == null) previewToast = QuestToastManager.makePreviewToast(node, previewType);
 
-        // One-time migration: an auto-fit background (the only kind that ever existed before an
-        // independent one was added) gets baked into a fixed box matching its CURRENT visual
-        // bounds, so opening the designer never causes a jump. From this point on the background
-        // only ever moves via a direct action (drag it, edit its size, or "Fit to elements now"
-        // below) - never as a side effect of moving the icon/title/label, which was the whole
-        // complaint auto-fit caused.
         if (cfg.bgAutoFit) {
             fitBackgroundToElements();
             cfg.bgAutoFit = false;
@@ -146,8 +112,6 @@ public class ToastDesignerScreen extends Screen {
         int fw = PANEL_W - MARGIN * 2;
         int y = 30;
 
-        // Preview toast type - "Quest Complete!" vs "Quest Unlocked" text, so a pack dev can
-        // check both without needing to trigger a real unlock/completion in-game.
         addRenderableWidget(Button.builder(Component.literal(previewType ==
                 QuestToastManager.ToastType.COMPLETED ? "§6Previewing: Complete" : "§bPreviewing: Unlock"),
                 b -> {
@@ -160,7 +124,6 @@ public class ToastDesignerScreen extends Screen {
                 .build());
         y += STRIDE + 6;
 
-        // ── Tab bar ──────────────────────────────────────────────────────────────────────
         tabsY = y;
         PanelTab[] tabs = PanelTab.values();
         int tabW = fw / tabs.length;
@@ -175,9 +138,6 @@ public class ToastDesignerScreen extends Screen {
         }
         y += STRIDE + 8;
 
-        // ── Bottom chrome's Y only depends on `height`/hadExistingConfig, not tab content - safe
-        // to compute now so the scrollable content region between it and the tab bar is known
-        // BEFORE building that content ───────────────────────────────────────────────────────
         int half = (fw - 6) / 2;
         int saveY = height - (hadExistingConfig ? 60 : 38);
         contentTop = y;
@@ -192,12 +152,6 @@ public class ToastDesignerScreen extends Screen {
         }
         int contentEndIdx = renderables.size();
 
-        // Clamp scroll to how far this tab's content actually extends, then hide (not just visibly
-        // clip, but also make un-clickable) whatever widget still falls outside [contentTop,
-        // contentBottom] - a scissor would only affect rendering, not click routing, and vanilla
-        // widgets don't scissor-clip themselves. Widgets built with a stale (pre-clamp)
-        // panelScrollY this ONE call are a rare, self-correcting cosmetic edge case (fixed the next
-        // scroll tick or tab switch), not worth a recursive rebuild to avoid.
         int naturalBottom = contentTop - panelScrollY;
         for (int i = contentStartIdx; i < contentEndIdx; i++) {
             if (renderables.get(i) instanceof net.minecraft.client.gui.components.AbstractWidget w) {
@@ -225,8 +179,7 @@ public class ToastDesignerScreen extends Screen {
     }
 
     private String tabLabel(PanelTab t) {
-        // Kept short on purpose - 4 tabs share PANEL_W, so each button only gets ~40px. "Backdrop"
-        // and "Presets" were long enough to visibly clip against their own button width.
+
         String name = switch (t) {
             case ELEMENT -> "Elem";
             case ICONS -> "Icons";
@@ -235,8 +188,6 @@ public class ToastDesignerScreen extends Screen {
         };
         return (activeTab == t ? "§f" : "§7") + name;
     }
-
-    // ── Tab: Element (icon/title/label position, scale, color, bold) ───────────────────────
 
     private void initElementTab(int fx, int fw, int y) {
         addRenderableWidget(Button.builder(Component.literal(elemLabel(Elem.ICON)),
@@ -259,7 +210,6 @@ public class ToastDesignerScreen extends Screen {
                 .bounds(fx + 2 * fw / 3 + 2, y, fw / 3 - 2, FIELD_H).build());
         y += STRIDE + 6;
 
-        // ── Position (numeric, in addition to dragging in the preview) ─────────────────────
         positionY = y;
         int posHalfW = (fw - 6) / 2;
         xBox = new EditBox(font, fx, y + 11, posHalfW, FIELD_H, Component.empty());
@@ -317,7 +267,7 @@ public class ToastDesignerScreen extends Screen {
                 }).bounds(fx, y, fw, FIELD_H).build());
         y += STRIDE + 10;
 
-        addRenderableWidget(Button.builder(Component.literal("§7↺ Reset " + elemPlainLabel(selected)), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7â†º Reset " + elemPlainLabel(selected)), b -> {
             switch (selected) {
                 case ICON -> cfg.icon = QuestToastConfig.defaultIcon();
                 case TITLE -> cfg.title = QuestToastConfig.defaultTitle();
@@ -333,8 +283,6 @@ public class ToastDesignerScreen extends Screen {
                 .build());
     }
 
-    // ── Tab: Icons (custom icon set override) ───────────────────────────────────────────────
-
     private void initIconsTab(int fx, int fw, int y) {
         int iconBtnW = (fw - 8) / 3;
         addRenderableWidget(Button.builder(Component.literal("§7+ Item"), b -> {
@@ -347,8 +295,7 @@ public class ToastDesignerScreen extends Screen {
             if (minecraft != null) minecraft.setScreen(new FluidPickerScreen(this,
                     fluidId -> addIconEntry(QuestGroup.IconKind.FLUID, fluidId)));
         }).bounds(fx + iconBtnW + 4, y, iconBtnW, FIELD_H).build());
-        // "+ Tex" not "+ Texture" - three buttons split a third of the panel each, and the full
-        // word was long enough to visibly clip against its own button width.
+
         addRenderableWidget(Button.builder(Component.literal("§d+ Tex"), b -> {
             if (minecraft != null) minecraft.setScreen(new TextureBrowserScreen(this,
                     texId -> addIconEntry(QuestGroup.IconKind.TEXTURE, texId)));
@@ -372,7 +319,7 @@ public class ToastDesignerScreen extends Screen {
             });
             addRenderableWidget(iconScaleBox);
             y += STRIDE + 8;
-            addRenderableWidget(Button.builder(Component.literal("§c✕ Remove selected icon"), b -> {
+            addRenderableWidget(Button.builder(Component.literal("§câœ• Remove selected icon"), b -> {
                 cfg.icons.remove(selectedIconIndex);
                 selectedIconIndex = -1;
                 rebuildFields();
@@ -380,18 +327,11 @@ public class ToastDesignerScreen extends Screen {
         }
     }
 
-    /**
-     * New icons seed their position at the base icon slot's own position (cfg.icon) - same visual
-     * starting point as before this feature existed, but now free to drag apart individually
-     * instead of being permanently locked to move together as one strip.
-     */
     private void addIconEntry(QuestGroup.IconKind kind, String id) {
         cfg.icons.add(new QuestToastConfig.IconEntry(kind, id, cfg.icon.x, cfg.icon.y, cfg.icon.scale));
         selectedIconIndex = cfg.icons.size() - 1;
         rebuildFields();
     }
-
-    // ── Tab: Background (size, positioning, colors, Phantasia backdrop) ────────────────────
 
     private void initBackgroundTab(int fx, int fw, int y) {
         sizeY = y;
@@ -416,7 +356,7 @@ public class ToastDesignerScreen extends Screen {
         addRenderableWidget(bgPadYBox);
         y += STRIDE + 8;
 
-        addRenderableWidget(Button.builder(Component.literal("§7⊡ Fit to elements now"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7âŠ¡ Fit to elements now"), b -> {
             fitBackgroundToElements();
             setFeedback("Background fit to current elements");
             rebuildFields();
@@ -456,21 +396,12 @@ public class ToastDesignerScreen extends Screen {
         addRenderableWidget(accentColorBox);
     }
 
-    /**
-     * Snaps the background to snugly wrap the icon/title/label's CURRENT positions - the direct,
-     * deliberate equivalent of what auto-fit used to do continuously as a side effect of moving
-     * them. Also used once, silently, to migrate a legacy auto-fit config on first open (see
-     * init()) so its visual bounds don't jump the moment bgAutoFit gets cleared.
-     */
     private void fitBackgroundToElements() {
         int previewW = width - PANEL_W;
         float tx = cfg.title.x * previewW, ty = cfg.title.y * height;
         float lx = cfg.label.x * previewW, ly = cfg.label.y * height;
         float ix = cfg.icon.x * previewW, iy = cfg.icon.y * height;
 
-        // A long title/label can word-wrap to several lines (see drawCustomElement) - account for
-        // that here too, using the CURRENT bg half-width as the wrap-width guess, so a manual fit
-        // gives the wrapped block enough vertical room instead of assuming a single line.
         float titleHalfH = textBlockHalfHeight(cfg.title, node.getTitle().getString(), previewW);
         float labelHalfH = textBlockHalfHeight(cfg.label, "Quest Complete!", previewW);
 
@@ -484,9 +415,6 @@ public class ToastDesignerScreen extends Screen {
         cfg.bgPadY = (maxY - minY) / 2f;
     }
 
-    /**
-     * Half the vertical space this element's text would occupy once word-wrapped - see elementBox/drawCustomElement.
-     */
     private float textBlockHalfHeight(QuestToastConfig.Element el, String text, int previewW) {
         float x = el.x * previewW;
         float screenRoomHalf = Math.min(x, previewW - x) - 8f;
@@ -496,16 +424,14 @@ public class ToastDesignerScreen extends Screen {
         return font.lineHeight * lines * el.scale / 2f;
     }
 
-    // ── Tab: Presets (reuse/save/load/copy-paste) ───────────────────────────────────────────
-
     private void initPresetsTab(int fx, int fw, int y) {
         int presetHalfW = (fw - 6) / 2;
-        addRenderableWidget(Button.builder(Component.literal("§7⎘ Copy design"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7âŽ˜ Copy design"), b -> {
             toastClipboard = cfg.copy();
             setFeedback("Design copied");
         }).bounds(fx, y, presetHalfW, FIELD_H).build());
         addRenderableWidget(Button.builder(
-                Component.literal(toastClipboard != null ? "§7⎗ Paste design" : "§8⎗ Paste (none copied)"), b -> {
+                Component.literal(toastClipboard != null ? "§7âŽ— Paste design" : "§8âŽ— Paste (none copied)"), b -> {
                     if (toastClipboard != null) {
                         cfg = toastClipboard.copy();
                         setFeedback("Design pasted");
@@ -515,7 +441,7 @@ public class ToastDesignerScreen extends Screen {
         y += STRIDE + 8;
 
         presetY = y;
-        addRenderableWidget(Button.builder(Component.literal("§7Save as preset…"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7Save as presetâ€¦"), b -> {
             if (minecraft != null) minecraft.setScreen(new QuestTextInputScreen(this, "Preset Name", "", 32, name -> {
                 if (name != null && !name.isBlank()) {
                     QuestToastPresetRegistry.put(name.trim(), cfg.copy());
@@ -523,7 +449,7 @@ public class ToastDesignerScreen extends Screen {
                 }
             }));
         }).bounds(fx, y, presetHalfW, FIELD_H).build());
-        addRenderableWidget(Button.builder(Component.literal("§7Load preset ▾"),
+        addRenderableWidget(Button.builder(Component.literal("§7Load preset â–¾"),
                 b -> presetDropOpen = !presetDropOpen).bounds(fx + presetHalfW + 6, y, presetHalfW, FIELD_H).build());
     }
 
@@ -532,13 +458,6 @@ public class ToastDesignerScreen extends Screen {
         init();
     }
 
-    /**
-     * Vanilla Screen.resize() only calls the no-arg init() on FIRST open - every later window
-     * resize/GUI-scale change instead calls this (a no-op unless overridden), which is why the
-     * panel/preview layout used to go stale (buttons at the old width, preview drawn at the old
-     * previewW) the moment you resized after opening. Same fix as ChronicleOverviewScreen's own
-     * repositionElements() override.
-     */
     @Override
     protected void repositionElements() {
         rebuildFields();
@@ -579,34 +498,23 @@ public class ToastDesignerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         if (parent != null) parent.render(g, -1, -1, partial);
 
-        // Force every draw call the parent just queued through GuiGraphics's deferred
-        // bufferSource() to actually submit before we draw anything of our own - without this,
-        // this heavily-modded pack's rendering pipeline can leave the parent's fills/text still
-        // pending when our own z-elevated content gets queued, and depending on how those two
-        // batches get flushed relative to each other the parent visibly bleeds through what
-        // should be an opaque panel over it (same root cause DependencyLineRenderer's raw-
-        // Tesselator path was built to sidestep entirely - see its class-level comment).
         g.flush();
 
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
-        // Same missing-flush bug found (and fixed) elsewhere this session: the translate above
-        // isn't actually "in effect" for the depth test until something flushes, so without this
-        // the parent's quest node icons (z=100) could still win against this panel's own fills.
+
         g.flush();
 
         int previewW = width - PANEL_W;
-        // Solid backing for the preview canvas - this used to be a 33%-alpha scrim, which read
-        // as the designer having no background of its own and the quest tree underneath just
-        // bleeding through almost unobstructed instead of a proper opaque design surface.
+
         g.fill(0, 0, previewW, height, ChroniclesThemePalette.BG);
-        g.fill(0, 0, previewW, height, 0x33000000); // subtle vignette so the canvas reads distinctly from the panel
+        g.fill(0, 0, previewW, height, 0x33000000); 
 
         QuestToastManager.get().renderCustom(g, font, previewW, height, previewToast, cfg);
         drawDragHandles(g, previewW, mx, my);
@@ -619,7 +527,6 @@ public class ToastDesignerScreen extends Screen {
             for (int gx = 0; gx < previewW; gx += 4) g.fill(gx, gy, gx + 2, gy + 1, 0xAA55FFAA);
         }
 
-        // Side panel chrome
         int px = width - PANEL_W;
         g.fill(px, 0, width, height, ChroniclesThemePalette.PANEL);
         g.fill(px, 0, px + 1, height, ChroniclesThemePalette.BORDER);
@@ -629,14 +536,6 @@ public class ToastDesignerScreen extends Screen {
         int fx = px + MARGIN;
         int fw = PANEL_W - MARGIN * 2;
 
-        // Each row's stored Y (scaleY, colorY, ...) is the row's own start position - the box
-        // itself sits 11px below that (see init()'s "new EditBox(font, fx, y + 11, ...)"), so the
-        // label belongs AT that stored Y, not 11px above it. Only draw the labels belonging to
-        // whichever tab is actually active this frame - the others' Y fields are stale leftovers
-        // from a previous tab's layout pass. Scissored to the scrollable content region so a
-        // label doesn't visually leak into the tab bar/bottom chrome when scrolled - the widgets
-        // themselves are separately hidden (not just clipped) via their own .visible flag, see
-        // init(), since a scissor alone wouldn't stop them from still being clickable.
         g.enableScissor(px, contentTop, width, contentBottom);
         switch (activeTab) {
             case ELEMENT -> {
@@ -653,14 +552,14 @@ public class ToastDesignerScreen extends Screen {
                 }
             }
             case BACKGROUND -> {
-                g.drawString(font, "§8Background size (W × H)", fx, sizeY, ChroniclesThemePalette.TEXT_FAINT);
+                g.drawString(font, "§8Background size (W Ã— H)", fx, sizeY, ChroniclesThemePalette.TEXT_FAINT);
                 if (PHANTASIA) {
                     g.drawString(font, "§8Phantasia §7(optional)", fx, phantasiaY, ChroniclesThemePalette.TEXT_FAINT);
                 }
                 g.drawString(font, "§8Background / Accent", fx, bgColorY, ChroniclesThemePalette.TEXT_FAINT);
             }
             case PRESETS -> {
-                // Copy/Save/Load buttons are self-labeled, nothing extra to draw here.
+                
             }
         }
         g.disableScissor();
@@ -672,10 +571,7 @@ public class ToastDesignerScreen extends Screen {
         if (feedbackMsg != null && System.currentTimeMillis() < feedbackUntil) {
             g.drawString(font, "§a" + feedbackMsg, fx, feedbackY, ChroniclesThemePalette.TEXT);
         } else {
-            // Actually wrapped, not a single drawString - the full sentence is wider than PANEL_W,
-            // so an unwrapped draw runs past the actual window edge and reads as truncated
-            // garbage (a real regression from an earlier rewrite of this screen - the wrap call
-            // was accidentally dropped even though this comment describing it survived).
+
             List<net.minecraft.util.FormattedCharSequence> hintLines = font
                     .split(Component.literal("§8Drag elements in the preview to move them"), fw);
             int hy = hintY;
@@ -685,11 +581,6 @@ public class ToastDesignerScreen extends Screen {
             }
         }
 
-        // The tab/element buttons and every other widget below render through vanilla Button code
-        // inside super.render() - a distinct draw pathway from the manual g.fill()/g.renderItem()
-        // calls above it. Flushing the boundary here, same reasoning as the flush at the top of
-        // this method, so the panel background this pathway draws over can't end up submitted out
-        // of order relative to it.
         g.flush();
         super.render(g, mx, my, partial);
 
@@ -712,15 +603,6 @@ public class ToastDesignerScreen extends Screen {
 
         g.pose().popPose();
 
-        // Every g.renderItem() call above (the toast preview's icon, the icon-set strip) writes
-        // REAL depth-buffer values, same as everywhere else in this pack that draws item icons -
-        // a plain g.flush() submits queued draws but does NOT clear that depth buffer. Any picker
-        // screen opened FROM here (ItemPickerScreen/FluidPickerScreen/TextureBrowserScreen for the
-        // icon set) calls this exact render() as its own "draw the parent behind me" backdrop
-        // WITHIN THE SAME FRAME, then draws its own opaque panel fill at z=0-ish afterward - if
-        // that fill's z happens to compare "behind" whatever depth an icon rendered here left
-        // behind, the fill loses the depth test and the icon shows through it. Clearing just the
-        // depth buffer (not color) wipes that residual without touching anything already drawn.
         com.mojang.blaze3d.systems.RenderSystem.clear(org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, false);
         g.flush();
     }
@@ -734,7 +616,7 @@ public class ToastDesignerScreen extends Screen {
         hoveredIconIndex = -1;
         hoveredRemoveIconIndex = -1;
         if (cfg.icons.isEmpty()) {
-            g.drawString(font, "§8(none — auto quest icon used)", x, y + 4, ChroniclesThemePalette.TEXT_FAINT, false);
+            g.drawString(font, "§8(none â€” auto quest icon used)", x, y + 4, ChroniclesThemePalette.TEXT_FAINT, false);
             return;
         }
         int ix = x;
@@ -745,14 +627,12 @@ public class ToastDesignerScreen extends Screen {
             renderIcon(g, new QuestGroup.GroupIcon(entry.kind, entry.id), ix, y, sz);
             if (i == selectedIconIndex) ChroniclesUIKit.drawBorder(g, ix - 1, y - 1, sz + 2, sz + 2, 0xFFFFCC44);
             else if (hov) ChroniclesUIKit.drawBorder(g, ix - 1, y - 1, sz + 2, sz + 2, 0x88FFFFFF);
-            // Small corner badge to remove, so the REST of the tile is free to click-select
-            // instead - click-anywhere-to-remove made it impossible to select a specific icon to
-            // drag/scale once there was more than one.
+
             int rx = ix + sz - ICON_REMOVE_BADGE, ry = y;
             boolean remHov = mx >= rx && mx < rx + ICON_REMOVE_BADGE && my >= ry && my < ry + ICON_REMOVE_BADGE;
             if (remHov) hoveredRemoveIconIndex = i;
             g.fill(rx, ry, rx + ICON_REMOVE_BADGE, ry + ICON_REMOVE_BADGE, remHov ? 0xFFCC2222 : 0xAA661111);
-            g.drawString(font, "§f×", rx - 1, ry - 1, 0xFFFFFFFF, false);
+            g.drawString(font, "§fÃ—", rx - 1, ry - 1, 0xFFFFFFFF, false);
             ix += sz + gap;
         }
     }
@@ -779,32 +659,28 @@ public class ToastDesignerScreen extends Screen {
                 case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
-            // Bad/renamed registry id or texture path — skip this icon rather than crash the frame.
+            
         }
     }
 
     private String shortTitle() {
         String t = node.getTitle().getString();
-        return t.length() > 24 ? t.substring(0, 24) + "…" : t;
+        return t.length() > 24 ? t.substring(0, 24) + "â€¦" : t;
     }
 
     private static final int BG_HANDLE_SZ = 6;
 
-    /**
-     * The 4 corner resize-handle boxes for the background, in real screen pixels, corners in [TL, TR, BL, BR] order.
-     */
     private int[][] bgResizeHandles(int previewW) {
         int[] box = bgBox(previewW);
         int h = BG_HANDLE_SZ / 2;
         return new int[][] {
-                { box[0] - h, box[1] - h, box[0] + h, box[1] + h }, // top-left
-                { box[2] - h, box[1] - h, box[2] + h, box[1] + h }, // top-right
-                { box[0] - h, box[3] - h, box[0] + h, box[3] + h }, // bottom-left
-                { box[2] - h, box[3] - h, box[2] + h, box[3] + h }, // bottom-right
+                { box[0] - h, box[1] - h, box[0] + h, box[1] + h }, 
+                { box[2] - h, box[1] - h, box[2] + h, box[1] + h }, 
+                { box[0] - h, box[3] - h, box[0] + h, box[3] + h }, 
+                { box[2] - h, box[3] - h, box[2] + h, box[3] + h }, 
         };
     }
 
-    /** Small selection outline around whichever element the mouse can currently drag. */
     private void drawDragHandles(GuiGraphics g, int previewW, int mx, int my) {
         int[] box = bgBox(previewW);
         boolean hov = mx >= box[0] && mx <= box[2] && my >= box[1] && my <= box[3];
@@ -820,7 +696,7 @@ public class ToastDesignerScreen extends Screen {
             }
         }
         for (Elem e : Elem.values()) {
-            if (e == Elem.ICON && !cfg.icons.isEmpty()) continue; // not rendered, see mouseClicked's matching skip
+            if (e == Elem.ICON && !cfg.icons.isEmpty()) continue; 
             int[] ebox = elementBox(e, previewW);
             boolean ehov = mx >= ebox[0] && mx <= ebox[2] && my >= ebox[1] && my <= ebox[3];
             boolean isSelected = e == selected;
@@ -840,14 +716,12 @@ public class ToastDesignerScreen extends Screen {
         }
     }
 
-    /** The background's bounds in real screen pixels - always its own independent, directly-set box. */
     private int[] bgBox(int previewW) {
         int bx = Math.round(cfg.bgX * previewW), by = Math.round(cfg.bgY * height);
         int hw = Math.round(cfg.bgPadX), hh = Math.round(cfg.bgPadY);
         return new int[] { bx - hw, by - hh, bx + hw, by + hh };
     }
 
-    /** Approximate clickable bounds for an element at its current position, in real screen pixels. */
     private int[] elementBox(Elem e, int previewW) {
         QuestToastConfig.Element el = elemOf(e);
         int cx = Math.round(el.x * previewW), cy = Math.round(el.y * height);
@@ -855,13 +729,7 @@ public class ToastDesignerScreen extends Screen {
         if (e == Elem.ICON) {
             halfW = halfH = Math.round(8 * el.scale) + 2;
         } else {
-            // Deliberately NOT wrap-aware here. It used to recompute font.split() with the same
-            // formula drawCustomElement uses, but near a screen edge that width estimate can
-            // collapse small enough to wrap into many tiny lines, inflating THIS hitbox tall
-            // enough to overlap a DIFFERENT element's position - clicking there silently grabbed
-            // the wrong element (which then never moved and looked like it "reset" on release,
-            // since it was never actually the one being dragged). A generous fixed 2-line-tall
-            // hitbox is far more predictable and plenty large enough to grab either element.
+
             String sample = e == Elem.TITLE ? shortTitle() : "Quest Complete!";
             halfW = Math.round(font.width(sample) * el.scale / 2f) + 3;
             halfH = Math.round(font.lineHeight * 2 * el.scale / 2f) + 2;
@@ -869,7 +737,6 @@ public class ToastDesignerScreen extends Screen {
         return new int[] { cx - halfW, cy - halfH, cx + halfW, cy + halfH };
     }
 
-    /** Clickable bounds for one independently-positioned custom icon-set entry, in real screen pixels. */
     private int[] iconEntryBox(int index, int previewW) {
         QuestToastConfig.IconEntry entry = cfg.icons.get(index);
         int cx = Math.round(entry.x * previewW), cy = Math.round(entry.y * height);
@@ -919,9 +786,7 @@ public class ToastDesignerScreen extends Screen {
         }
         if (btn == 0 && mx < width - PANEL_W) {
             int previewW = width - PANEL_W;
-            // Corner resize handles take priority over everything else - they're small and sit
-            // right at the background's own corners, so they'd never get a chance to be grabbed
-            // if an element's hitbox or the background's own move-hitbox were checked first.
+
             for (int[] hbox : bgResizeHandles(previewW)) {
                 if (mx >= hbox[0] && mx <= hbox[2] && my >= hbox[1] && my <= hbox[3]) {
                     resizingBg = true;
@@ -929,9 +794,7 @@ public class ToastDesignerScreen extends Screen {
                 }
             }
             for (Elem e : Elem.values()) {
-                // The base icon slot (cfg.icon) isn't actually rendered once a custom icon set
-                // exists (see QuestToastManager.renderCustom) - each icons[] entry below takes
-                // over as its own independently draggable target instead.
+
                 if (e == Elem.ICON && !cfg.icons.isEmpty()) continue;
                 int[] box = elementBox(e, previewW);
                 if (mx >= box[0] && mx <= box[2] && my >= box[1] && my <= box[3]) {
@@ -954,9 +817,7 @@ public class ToastDesignerScreen extends Screen {
                     return true;
                 }
             }
-            // Elements take priority (checked above) since they're small and typically sit inside
-            // the background - only fall back to grabbing the background itself if the click
-            // missed all three.
+
             int[] box = bgBox(previewW);
             if (mx >= box[0] && mx <= box[2] && my >= box[1] && my <= box[3]) {
                 draggingBg = true;
@@ -970,7 +831,7 @@ public class ToastDesignerScreen extends Screen {
     public boolean mouseScrolled(double mx, double my, double delta) {
         if (mx >= width - PANEL_W) {
             panelScrollY = Math.max(0, panelScrollY - (int) Math.round(delta * 12));
-            rebuildFields(); // re-clamps against this tab's actual content height and re-hides widgets
+            rebuildFields(); 
             return true;
         }
         return super.mouseScrolled(mx, my, delta);
@@ -988,11 +849,6 @@ public class ToastDesignerScreen extends Screen {
             float px = Math.max(0.02f, Math.min(0.98f, (float) (mx / previewW)));
             float py = Math.max(0.05f, Math.min(0.95f, (float) (my / height)));
 
-            // Snap to (and draw a guide line at) the canvas center or another element's current
-            // position, on each axis independently - dragging near an existing alignment now
-            // settles onto it instead of leaving things a pixel or two off. The background is
-            // deliberately NOT a snap target here - it's independent and shouldn't visually couple
-            // to wherever an element happens to land.
             List<Float> snapXs = new ArrayList<>();
             List<Float> snapYs = new ArrayList<>();
             snapXs.add(0.5f);
@@ -1067,8 +923,7 @@ public class ToastDesignerScreen extends Screen {
             return true;
         }
         if (resizingBg) {
-            // Symmetric resize about the (unmoved) center - simplest model, and consistent with
-            // the numeric bgPadX/Y boxes already meaning "half-size", not "which corner is anchored".
+
             float bx = cfg.bgX * previewW, by = cfg.bgY * height;
             cfg.bgPadX = (float) Math.max(8.0, Math.abs(mx - bx));
             cfg.bgPadY = (float) Math.max(8.0, Math.abs(my - by));
@@ -1081,7 +936,7 @@ public class ToastDesignerScreen extends Screen {
     public boolean mouseReleased(double mx, double my, int btn) {
         if (btn == 0 && resizingBg) {
             resizingBg = false;
-            rebuildFields(); // refresh the numeric bgPadX/Y boxes to match wherever the resize settled
+            rebuildFields(); 
             return true;
         }
         if (btn == 0 && (dragging != null || draggingBg || draggingIconIndex >= 0)) {
@@ -1090,7 +945,7 @@ public class ToastDesignerScreen extends Screen {
             draggingIconIndex = -1;
             snapGuideX = null;
             snapGuideY = null;
-            rebuildFields(); // refresh the numeric X/Y boxes to match wherever the drag settled
+            rebuildFields(); 
             return true;
         }
         return super.mouseReleased(mx, my, btn);
@@ -1098,23 +953,20 @@ public class ToastDesignerScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { // ESC
+        if (key == 256) { 
             closeDesigner();
             return true;
         }
-        // Arrow-key nudge for the selected element - Shift for a bigger step. Only when no text
-        // field currently has focus, so this doesn't hijack cursor movement while typing/editing
-        // a number in one of the EditBoxes above, and only on the Element tab (nothing to nudge
-        // otherwise).
+
         if (activeTab == PanelTab.ELEMENT && !isAnyEditBoxFocused()) {
-            float step = (mods & 0x1) != 0 ? 0.01f : 0.002f; // GLFW_MOD_SHIFT = 0x1
+            float step = (mods & 0x1) != 0 ? 0.01f : 0.002f; 
             QuestToastConfig.Element el = elemOf(selected);
             boolean moved = true;
             switch (key) {
-                case 263 -> el.x = Math.max(0.02f, el.x - step); // LEFT
-                case 262 -> el.x = Math.min(0.98f, el.x + step); // RIGHT
-                case 265 -> el.y = Math.max(0.05f, el.y - step); // UP
-                case 264 -> el.y = Math.min(0.95f, el.y + step); // DOWN
+                case 263 -> el.x = Math.max(0.02f, el.x - step); 
+                case 262 -> el.x = Math.min(0.98f, el.x + step); 
+                case 265 -> el.y = Math.max(0.05f, el.y - step); 
+                case 264 -> el.y = Math.min(0.95f, el.y + step); 
                 default -> moved = false;
             }
             if (moved) {
@@ -1139,3 +991,4 @@ public class ToastDesignerScreen extends Screen {
         return false;
     }
 }
+

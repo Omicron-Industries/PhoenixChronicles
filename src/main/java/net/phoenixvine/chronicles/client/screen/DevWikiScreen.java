@@ -15,42 +15,29 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
-/**
- * In-game developer wiki / reference panel.
- * Opened via the ? button in the toolbar (dev mode) or pressing ? on the keyboard.
- *
- * Each page is a list of WLine records rendered top-to-bottom. Some pages pull live
- * data from the registries so values are always current.
- */
 public class DevWikiScreen extends Screen {
 
-    // ── Palette ───────────────────────────────────────────────────────────────
     private int C_BG, C_PANEL, C_HEADER, C_BORDER, C_ACCENT, C_TEXT, C_TEXT_DIM, C_TEXT_FAINT, C_DONE, C_ACTIVE;
 
-    // ── Layout ────────────────────────────────────────────────────────────────
     private static final int HEADER_H = 28;
     private static final int FOOTER_H = 28;
     private static final int SIDEBAR_W = 96;
     private static final int MARGIN = 10;
     private static final int LINE_H = 12;
 
-    // ── Pages ─────────────────────────────────────────────────────────────────
     private static final String[] PAGE_NAMES = {
             "Overview", "Getting Started", "Canvas", "Quest Fields", "Tasks", "Rewards", "Variants",
             "Rich Text", "SNBT Format", "Live Stats", "API Reference", "Customization"
     };
 
-    // ── State ─────────────────────────────────────────────────────────────────
     private final Screen parent;
     private int activePage = 0;
     private int scrollY = 0;
-    private int cachedContentH = 0; // updated each render frame for scroll clamping
+    private int cachedContentH = 0; 
 
-    // ── Copy-button tracking (rebuilt each frame) ─────────────────────────────
-    private final List<int[]> copyBtnBounds = new ArrayList<>(); // {x1,y1,x2,y2}
+    private final List<int[]> copyBtnBounds = new ArrayList<>(); 
     private final List<String> copyBtnTexts = new ArrayList<>();
 
-    // ── Content line model ────────────────────────────────────────────────────
     private enum LT {
         HEADING,
         SUBHEADING,
@@ -92,36 +79,20 @@ public class DevWikiScreen extends Screen {
             return new WLine(LT.SPACER, "", "");
         }
 
-        /** Monospace-style code line with a copy button. */
         static WLine code(String s) {
             return new WLine(LT.CODE, s, "");
         }
     }
 
-    /**
-     * Resolves a wiki line's translation key through the player's selected language, falling
-     * back to the baked-in English default (kept alongside the key at every call site, same
-     * convention as QuestTask#getDescription's ClientLangLookup) if no translation exists yet or
-     * the lang file somehow failed to load - a raw untranslated dev wiki is a much smaller
-     * problem than one that silently shows literal key strings like "phoenix_chronicles.wiki.
-     * canvas.7" if something's missing. Every key lives under phoenix_chronicles.wiki.* in
-     * assets/phoenix_chronicles/lang/en_us.json (or a translated locale's own copy) - see that
-     * file for the master list. Code samples (WLine.code) are deliberately NOT translated -
-     * they're literal SNBT/Java/JS syntax, not prose.
-     */
     private static String tr(String key, String fallback) {
         return net.minecraft.client.resources.language.I18n.exists(key) ?
                 net.minecraft.client.resources.language.I18n.get(key) : fallback;
     }
 
-    // ── Constructor ───────────────────────────────────────────────────────────
-
     public DevWikiScreen(Screen parent) {
         super(Component.literal("Dev Wiki"));
         this.parent = parent;
     }
-
-    // ── Init ──────────────────────────────────────────────────────────────────
 
     @Override
     protected void init() {
@@ -139,22 +110,12 @@ public class DevWikiScreen extends Screen {
 
         clearWidgets();
 
-        // Sidebar page list is hand-drawn in render()/sidebarRowAt() now, not vanilla Button
-        // widgets - vanilla's gray 9-slice background plus its own text drop-shadow made the §8
-        // (dark_gray) unselected label color read as barely-legible shadowy text against a
-        // similarly dark, busy background. Hand-drawn rows use this screen's actual theme colors
-        // (C_TEXT_DIM, which is tuned for exactly this "readable but secondary" role elsewhere in
-        // this mod) instead.
-
-        // Close button
-        addRenderableWidget(Button.builder(Component.literal("§7✕ Close"),
+        addRenderableWidget(Button.builder(Component.literal("§7âœ• Close"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })
                 .bounds(width / 2 - 36, height - FOOTER_H + 6, 72, 16).build());
     }
-
-    // ── Render ────────────────────────────────────────────────────────────────
 
     @Override
     public void renderBackground(@NotNull GuiGraphics g) {}
@@ -163,17 +124,15 @@ public class DevWikiScreen extends Screen {
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         g.fill(0, 0, width, height, C_BG);
 
-        // Delegated Design Components via central design framework
         ChroniclesTheme theme = ChroniclesTheme.current();
-        ChroniclesThemeRenderer.drawHeader(g, width, HEADER_H, "§fDev Wiki  §8— §7" + PAGE_NAMES[activePage], theme);
+        ChroniclesThemeRenderer.drawHeader(g, width, HEADER_H, "§fDev Wiki  §8â€” §7" + PAGE_NAMES[activePage], theme);
 
-        // Sidebar rendering configurations
         int sidebarClipBot = height - FOOTER_H;
         g.enableScissor(0, HEADER_H, SIDEBAR_W, sidebarClipBot);
         g.fill(0, HEADER_H, SIDEBAR_W, sidebarClipBot, C_PANEL);
         for (int i = 0; i < PAGE_NAMES.length; i++) {
             int rowY = HEADER_H + 8 + i * 16;
-            if (rowY + 14 > sidebarClipBot) break; // clamp to footer, same as the old button loop
+            if (rowY + 14 > sidebarClipBot) break; 
             boolean sel = i == activePage;
             boolean hov = mx >= 0 && mx < SIDEBAR_W && my >= rowY - 1 && my < rowY + 15;
             if (sel) {
@@ -188,10 +147,8 @@ public class DevWikiScreen extends Screen {
         g.disableScissor();
         g.fill(SIDEBAR_W - 1, HEADER_H, SIDEBAR_W, height, C_BORDER);
 
-        // Delegated Footer Construction
         ChroniclesThemeRenderer.drawFooter(g, width, height, FOOTER_H, C_BORDER, C_HEADER);
 
-        // Scissored Content Workspace
         int cx = SIDEBAR_W + MARGIN;
         int cw = width - cx - MARGIN;
         int contentTop = HEADER_H + MARGIN;
@@ -208,7 +165,6 @@ public class DevWikiScreen extends Screen {
         }
         g.disableScissor();
 
-        // Delegated Scroll Track Painter
         int totalH = lines.stream().mapToInt(this::lineHeight).sum();
         cachedContentH = totalH;
         ChroniclesThemeRenderer.drawScrollbar(g, width - MARGIN / 2, contentTop, contentBot, scrollY, totalH);
@@ -217,7 +173,7 @@ public class DevWikiScreen extends Screen {
     }
 
     private int renderLine(GuiGraphics g, WLine line, int x, int y, int w, int top, int bot, int mx, int my) {
-        // 1. Off-screen structural skipping optimization
+        
         if (y > bot) return y + lineHeight(line);
 
         switch (line.type()) {
@@ -263,17 +219,15 @@ public class DevWikiScreen extends Screen {
             case CODE -> {
                 int lh = LINE_H + 4;
                 if (y + lh >= top) {
-                    int btnW = font.width("⎘") + 8;
+                    int btnW = font.width("âŽ˜") + 8;
                     int btnX = x + w - btnW - 2;
                     int btnY2 = y + 1;
                     int btnH2 = lh - 2;
                     boolean hov = mx >= btnX && mx < btnX + btnW && my >= btnY2 && my < btnY2 + btnH2;
 
-                    // Centralized Monospace Code block painter processing
                     ChroniclesThemeRenderer.drawCodeBlock(g, font, line.a(), x, y, w, lh, mx, my, C_BORDER, C_ACCENT,
                             hov);
 
-                    // Register standard interaction boundary data mirrors back onto screen fields
                     copyBtnBounds.add(new int[] { btnX, btnY2, btnX + btnW, btnY2 + btnH2 });
                     copyBtnTexts.add(line.a());
                 }
@@ -293,8 +247,6 @@ public class DevWikiScreen extends Screen {
             case CODE -> LINE_H + 5;
         };
     }
-
-    // ── Page builders ─────────────────────────────────────────────────────────
 
     private List<WLine> buildPage(int page) {
         return switch (page) {
@@ -318,7 +270,7 @@ public class DevWikiScreen extends Screen {
         int total = QuestTreeRegistry.getAllQuests().size();
         int cats = QuestTreeRegistry.getRootChapters().values().stream()
                 .map(QuestNode::getCategory).distinct().mapToInt(c -> 1).sum();
-        // count more accurately
+        
         Set<String> catSet = new HashSet<>();
         QuestTreeRegistry.getAllQuests().values().forEach(n -> catSet.add(n.getCategory()));
 
@@ -327,7 +279,7 @@ public class DevWikiScreen extends Screen {
         lines.add(
                 WLine.t(tr("phoenix_chronicles.wiki.overview.2", "In-game quest system for Minecraft Forge 1.20.1.")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.overview.3",
-                "Dev mode activates automatically in Creative or at op level ≥ 2.")));
+                "Dev mode activates automatically in Creative or at op level â‰¥ 2.")));
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.overview.4", "Live registry")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.overview.5.label", "Quests loaded:"), String.valueOf(total)));
@@ -353,7 +305,7 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.overview.14.value",
                         "Per-quest overrides for expert mode, seasonal content, etc.")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.overview.15.label", "Rich Text"),
-                tr("phoenix_chronicles.wiki.overview.15.value", "{#RRGGBB} colour, [img:…] inline textures, [links]")));
+                tr("phoenix_chronicles.wiki.overview.15.value", "{#RRGGBB} colour, [img:â€¦] inline textures, [links]")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.overview.16.label", "SNBT Format"),
                 tr("phoenix_chronicles.wiki.overview.16.value", "Full file format reference and folder layout")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.overview.17.label", "Live Stats"),
@@ -394,7 +346,7 @@ public class DevWikiScreen extends Screen {
 
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.getting_started.8", "2. Add your first quest")));
         lines.add(WLine.kv(
-                tr("phoenix_chronicles.wiki.getting_started.9.label", "Right-click empty canvas → \"+ New quest\""),
+                tr("phoenix_chronicles.wiki.getting_started.9.label", "Right-click empty canvas â†’ \"+ New quest\""),
                 tr("phoenix_chronicles.wiki.getting_started.9.value", "Opens the quest creator")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.getting_started.10",
                 "Set a title (required), pick a shape/icon, and place it - see Quest Fields")));
@@ -404,7 +356,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.getting_started.12", "3. Give it something to do")));
         lines.add(WLine.kv(
                 tr("phoenix_chronicles.wiki.getting_started.13.label",
-                        "Right-click the quest → \"Edit Tasks & Rewards\""),
+                        "Right-click the quest â†’ \"Edit Tasks & Rewards\""),
                 tr("phoenix_chronicles.wiki.getting_started.13.value", "Or the button inside the creator")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.getting_started.14",
                 "Add one or more tasks (Tasks page has every type) and whatever rewards")));
@@ -434,7 +386,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.getting_started.24", "6. Test it as a player would")));
         lines.add(WLine.kv(
                 tr("phoenix_chronicles.wiki.getting_started.25.label",
-                        "Right-click empty canvas → \"⏵ Enter Player Mode\""),
+                        "Right-click empty canvas â†’ \"âµ Enter Player Mode\""),
                 tr("phoenix_chronicles.wiki.getting_started.25.value", "Simulates real progress")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.getting_started.26",
                 "Test mode uses its own throwaway progress data (nothing server-side, no")));
@@ -443,19 +395,19 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.getting_started.28",
                 "quest to toggle it COMPLETED/LOCKED and watch prerequisites cascade for")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.getting_started.29",
-                "real. \"↺ Reset Player Mode Data\" clears it; exit the same way you entered.")));
+                "real. \"â†º Reset Player Mode Data\" clears it; exit the same way you entered.")));
         lines.add(WLine.sp());
 
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.getting_started.30", "Optional, once the basics work")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.getting_started.31.label", "Chapter theme"),
                 tr("phoenix_chronicles.wiki.getting_started.31.value",
-                        "Right-click canvas → \"Edit chapter theme…\" - see Customization")));
+                        "Right-click canvas â†’ \"Edit chapter themeâ€¦\" - see Customization")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.getting_started.32.label", "Per-quest text/design"),
                 tr("phoenix_chronicles.wiki.getting_started.32.value",
-                        "Right-click a quest → \"Edit Texts…\", \"Design toast…\"")));
+                        "Right-click a quest â†’ \"Edit Textsâ€¦\", \"Design toastâ€¦\"")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.getting_started.33.label", "Variants"),
                 tr("phoenix_chronicles.wiki.getting_started.33.value",
-                        "\"◈ Variants\" button in the quest creator - see the Variants page")));
+                        "\"â—ˆ Variants\" button in the quest creator - see the Variants page")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.getting_started.34.label", "KubeJS/Java integration"),
                 tr("phoenix_chronicles.wiki.getting_started.34.value",
                         "See API Reference once you need code, not just SNBT")));
@@ -489,13 +441,13 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.canvas.7.value",
                         "Tooltip expands to state, tasks, prereqs, validation warnings (dev)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.8.label", "Right click node"),
-                "Context menu: Edit Quest (has its own Tasks/Rewards button), Texts, Design toast…, Set Icon… (item/fluid/texture), Resize…, Delete, Move category…"));
+                "Context menu: Edit Quest (has its own Tasks/Rewards button), Texts, Design toastâ€¦, Set Iconâ€¦ (item/fluid/texture), Resizeâ€¦, Delete, Move categoryâ€¦"));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.9.label", "Right click canvas"),
-                "Context menu: Add quest, Add group, Chapter theme…, Add picture…, dep-line settings"));
+                "Context menu: Add quest, Add group, Chapter themeâ€¦, Add pictureâ€¦, dep-line settings"));
         lines.add(
                 WLine.kv(tr("phoenix_chronicles.wiki.canvas.10.label", "Right click picture"),
                         tr("phoenix_chronicles.wiki.canvas.10.value",
-                                "Its own menu: Resize, Resize (scroll+drag)…, Move category, Delete")));
+                                "Its own menu: Resize, Resize (scroll+drag)â€¦, Move category, Delete")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.11.label", "Shift + drag"),
                 tr("phoenix_chronicles.wiki.canvas.11.value", "Move a node, group, or background picture (dev mode)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.12.label", "Alt + drag node"),
@@ -504,7 +456,7 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.canvas.13.value", "Reset pan offset")));
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.canvas.14",
-                "Keyboard  (all rebindable via Options → Controls → Phoenix Chronicles")));
+                "Keyboard  (all rebindable via Options â†’ Controls â†’ Phoenix Chronicles")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.15",
                 "unless noted otherwise - these fire while the quest screen has focus, so")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.16",
@@ -516,7 +468,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.19.label", "F"),
                 tr("phoenix_chronicles.wiki.canvas.19.value", "Open quest search overlay (used to require Ctrl+F)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.20.label", "L"),
-                tr("phoenix_chronicles.wiki.canvas.20.value", "Toggle line style (Spline ↔ Straight)")));
+                tr("phoenix_chronicles.wiki.canvas.20.value", "Toggle line style (Spline â†” Straight)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.21.label", "M"),
                 tr("phoenix_chronicles.wiki.canvas.21.value", "Toggle minimap")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.22.label", "K"),
@@ -574,7 +526,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.canvas.45", "Zoom")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.46.label", "Range"),
-                tr("phoenix_chronicles.wiki.canvas.46.value", "12% – 250%  (scroll or pinch)")));
+                tr("phoenix_chronicles.wiki.canvas.46.value", "12% â€“ 250%  (scroll or pinch)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.47.label", "Step"),
                 tr("phoenix_chronicles.wiki.canvas.47.value", "12% per scroll tick")));
         lines.add(WLine.sp());
@@ -582,7 +534,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.49",
                 "A grid-size pill in the title bar (left of the zoom %) controls snap size.")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.50.label", "Click pill"),
-                tr("phoenix_chronicles.wiki.canvas.50.value", "Cycle: 1 → 4 → 8 → 16 → 32 → 1")));
+                tr("phoenix_chronicles.wiki.canvas.50.value", "Cycle: 1 â†’ 4 â†’ 8 â†’ 16 â†’ 32 â†’ 1")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.51.label", "1 (free)"),
                 tr("phoenix_chronicles.wiki.canvas.51.value", "Pixel-perfect: no snapping, any position")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.52.label", "4 / 8 / 16 / 32"),
@@ -597,7 +549,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.56.label", "Test mode"),
                 tr("phoenix_chronicles.wiki.canvas.56.value",
                         "Simulate player state: see quests as a normal player would")));
-        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.57.label", "↺ Reset"),
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.57.label", "â†º Reset"),
                 tr("phoenix_chronicles.wiki.canvas.57.value", "Visible in Test mode only: clears simulated progress")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.58.label", "Subgraph"),
                 tr("phoenix_chronicles.wiki.canvas.58.value",
@@ -625,7 +577,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.customization.4", "Sidebar & Questbook Title")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.5.label", "Category tile"),
                 tr("phoenix_chronicles.wiki.customization.5.value",
-                        "Left-click select, right-click → chapter theme editor")));
+                        "Left-click select, right-click â†’ chapter theme editor")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.6.label", "Collapse toggle"),
                 tr("phoenix_chronicles.wiki.customization.6.value",
                         "Small arrow above the category list - reclaims canvas width")));
@@ -637,7 +589,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sp());
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.9.label", "Sidebar Behavior"),
                 tr("phoenix_chronicles.wiki.customization.9.value",
-                        "Settings → General - COLLAPSIBLE (default, click the arrow")));
+                        "Settings â†’ General - COLLAPSIBLE (default, click the arrow")));
         lines.add(WLine.in(tr("phoenix_chronicles.wiki.customization.10",
                 "above) or HOVER_TO_EXPAND (FTB Quests-style: always collapsed, opens on")));
         lines.add(WLine.in(tr("phoenix_chronicles.wiki.customization.11",
@@ -646,7 +598,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.div());
 
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.customization.12",
-                "Chapter theme  (right-click canvas → Edit chapter theme…)")));
+                "Chapter theme  (right-click canvas â†’ Edit chapter themeâ€¦)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.13.label", "Display name"),
                 tr("phoenix_chronicles.wiki.customization.13.value",
                         "Raw override; empty = derived from the category slug")));
@@ -658,14 +610,14 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.16.label", "Color tint"),
                 tr("phoenix_chronicles.wiki.customization.16.value", "#RRGGBB overlay on the canvas background")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.17",
-                "Picking a texture (Browse…) auto-switches Style to CUSTOM - the two used to")));
+                "Picking a texture (Browseâ€¦) auto-switches Style to CUSTOM - the two used to")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.18",
                 "be independent, so choosing a texture silently did nothing until Style was")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.19",
                 "also changed by hand. That's fixed; a texture pick sets both now.")));
         lines.add(WLine.sp());
         lines.add(WLine.sh(
-                tr("phoenix_chronicles.wiki.customization.20", "Custom textures  (Browse… button, or Add picture…)")));
+                tr("phoenix_chronicles.wiki.customization.20", "Custom textures  (Browseâ€¦ button, or Add pictureâ€¦)")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.21",
                 "Drop PNGs in config/phoenix_chronicles/textures/ - the browser lists them as")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.22",
@@ -684,26 +636,26 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.div());
 
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.customization.28",
-                "Background pictures  (right-click canvas → Add picture…)")));
+                "Background pictures  (right-click canvas â†’ Add pictureâ€¦)")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.29",
                 "Freestanding decorative images, separate from the chapter theme above -")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.30",
                 "positioned in canvas space, so they pan/zoom with the graph like nodes do.")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.31.label", "Add"),
                 tr("phoenix_chronicles.wiki.customization.31.value",
-                        "Right-click empty canvas → Add picture… → pick a texture")));
+                        "Right-click empty canvas â†’ Add pictureâ€¦ â†’ pick a texture")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.32.label", "Move"),
                 tr("phoenix_chronicles.wiki.customization.32.value", "Shift+drag the picture directly")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.33.label", "Right-click a picture"),
-                "Move / Resize ▸ / Resize (scroll+drag)… / Move to Chapter ▸ / Delete"));
-        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.34.label", "Resize ▸"),
+                "Move / Resize â–¸ / Resize (scroll+drag)â€¦ / Move to Chapter â–¸ / Delete"));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.34.label", "Resize â–¸"),
                 tr("phoenix_chronicles.wiki.customization.34.value",
                         "Fixed presets: 32 / 64 / 128 / 256 / 512 / 1024 px")));
-        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.35.label", "Resize (scroll+drag)…"),
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.35.label", "Resize (scroll+drag)â€¦"),
                 tr("phoenix_chronicles.wiki.customization.35.value",
                         "Interactive mode - bypasses canvas zoom/pan entirely")));
         lines.add(WLine.in(tr("phoenix_chronicles.wiki.customization.36",
-                "Scroll = resize (±20%, shift = fine ±5%), drag = move, right-click/Esc = done")));
+                "Scroll = resize (Â±20%, shift = fine Â±5%), drag = move, right-click/Esc = done")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.37",
                 "Every add/move/resize/category-move/delete is one Ctrl+Z-undoable step, even")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.38",
@@ -712,7 +664,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.div());
 
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.customization.39",
-                "Dependency lines  (right-click canvas → Dependency lines…, or per-quest)")));
+                "Dependency lines  (right-click canvas â†’ Dependency linesâ€¦, or per-quest)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.40.label", "Line Style"),
                 tr("phoenix_chronicles.wiki.customization.40.value",
                         "THIN / NORMAL / BOLD / THICK / WIDE / GLOW - controls rail width")));
@@ -734,7 +686,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.div());
 
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.customization.48",
-                "Quest toasts  (Settings screen, or right-click a quest → Design toast…)")));
+                "Quest toasts  (Settings screen, or right-click a quest â†’ Design toastâ€¦)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.49.label", "Toast Style"),
                 tr("phoenix_chronicles.wiki.customization.49.value",
                         "COMPACT (corner banner) / ABOVE_HOTBAR / BIG_CENTER - global default")));
@@ -742,7 +694,7 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.customization.50.value", "Which corner, for the COMPACT style")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.51",
                 "Any quest without its own design uses whichever Toast Style is selected.")));
-        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.52.label", "Design toast…"),
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.52.label", "Design toastâ€¦"),
                 tr("phoenix_chronicles.wiki.customization.52.value",
                         "Per-quest custom layout - freeform icon/title/label position+color")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.customization.53",
@@ -773,7 +725,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.63.label", "Copy / Paste design"),
                 tr("phoenix_chronicles.wiki.customization.63.value",
                         "In-memory clipboard - copy one quest's design, paste it onto another's")));
-        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.64.label", "Save as preset… / Load preset"),
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.64.label", "Save as presetâ€¦ / Load preset"),
                 tr("phoenix_chronicles.wiki.customization.64.value",
                         "Named, reusable templates saved to config/phoenix_chronicles/toast_presets.json")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.55.label", "Reset to default style"),
@@ -793,7 +745,7 @@ public class DevWikiScreen extends Screen {
                 "then straight to gameplay) - this is a client setting, on by default:")));
         lines.add(WLine.kv(
                 tr("phoenix_chronicles.wiki.customization.61.label", "Return to Quest Book from Recipe Viewer"),
-                tr("phoenix_chronicles.wiki.customization.61.value", "Settings → General - opt out here")));
+                tr("phoenix_chronicles.wiki.customization.61.value", "Settings â†’ General - opt out here")));
         lines.add(WLine.sp());
         lines.add(WLine.div());
 
@@ -836,7 +788,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.quest_fields.3", "Identity")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.4.label", "id"),
                 tr("phoenix_chronicles.wiki.quest_fields.4.value",
-                        "Path portion only: e.g. \"my_quest\" → phoenixcore:my_quest")));
+                        "Path portion only: e.g. \"my_quest\" â†’ phoenixcore:my_quest")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.5.label", "title"),
                 tr("phoenix_chronicles.wiki.quest_fields.5.value", "Display name shown in quest headers and search")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.6.label", "description"),
@@ -850,14 +802,14 @@ public class DevWikiScreen extends Screen {
         lines.add(
                 WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.10.label", "shape"),
                         tr("phoenix_chronicles.wiki.quest_fields.10.value",
-                                "SQUARE · CIRCLE · DIAMOND · HEXAGON · TRIANGLE · STAR · PENTAGON · SHIELD · CROSS")));
+                                "SQUARE Â· CIRCLE Â· DIAMOND Â· HEXAGON Â· TRIANGLE Â· STAR Â· PENTAGON Â· SHIELD Â· CROSS")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.11.label", "node_size"),
                 tr("phoenix_chronicles.wiki.quest_fields.11.value",
-                        "TINY(14px) · SMALL(18px) · NORMAL(32px, default) · LARGE(48px) · HUGE(64px)")));
+                        "TINY(14px) Â· SMALL(18px) Â· NORMAL(32px, default) Â· LARGE(48px) Â· HUGE(64px)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.104.label", "node_size_px"),
                 tr("phoenix_chronicles.wiki.quest_fields.104.value",
                         "Optional exact pixel override (8-200), takes priority over node_size - set via the " +
-                                "canvas's right-click → \"Resize (scroll + drag)…\", not hand-edited")));
+                                "canvas's right-click â†’ \"Resize (scroll + drag)â€¦\", not hand-edited")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.12.label", "icon_item"), tr(
                 "phoenix_chronicles.wiki.quest_fields.12.value", "Item id for the node icon: e.g. minecraft:diamond")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.105.label", "icon_fluid"),
@@ -871,19 +823,19 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.quest_fields.15", "Visibility")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.16.label", "visibility"),
-                tr("phoenix_chronicles.wiki.quest_fields.16.value", "NORMAL · HIDDEN · MYSTERY · DISABLED")));
+                tr("phoenix_chronicles.wiki.quest_fields.16.value", "NORMAL Â· HIDDEN Â· MYSTERY Â· DISABLED")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.17.label", "enable_if"), tr(
                 "phoenix_chronicles.wiki.quest_fields.17.value", "Flag expression: quest hidden+disabled when false")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.18.label", "hide_dep_line"), tr(
                 "phoenix_chronicles.wiki.quest_fields.18.value", "true / false: hides all dep lines on the canvas")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.19.label", "disabled_blocks_children"),
-                tr("phoenix_chronicles.wiki.quest_fields.19.value", "true → DISABLED quest still gates children")));
+                tr("phoenix_chronicles.wiki.quest_fields.19.value", "true â†’ DISABLED quest still gates children")));
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.quest_fields.20", "Completion")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.21.label", "task_min_count"), tr(
                 "phoenix_chronicles.wiki.quest_fields.21.value", "0 = all tasks required; N = complete any N tasks")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.22.label", "repeat_mode"),
-                tr("phoenix_chronicles.wiki.quest_fields.22.value", "NONE · DAILY · COOLDOWN · INFINITE")));
+                tr("phoenix_chronicles.wiki.quest_fields.22.value", "NONE Â· DAILY Â· COOLDOWN Â· INFINITE")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.23.label", "repeat_cooldown_hours"),
                 tr("phoenix_chronicles.wiki.quest_fields.23.value", "Hours between repeats (COOLDOWN mode only)")));
         lines.add(WLine.sp());
@@ -901,12 +853,12 @@ public class DevWikiScreen extends Screen {
                 .sh(tr("phoenix_chronicles.wiki.quest_fields.29", "Rewards (on the quest, not inside rewards list)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.30.label", "reward_choice"),
                 tr("phoenix_chronicles.wiki.quest_fields.30.value",
-                        "true → player picks N rewards instead of getting all")));
+                        "true â†’ player picks N rewards instead of getting all")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.31.label", "reward_choice_count"), tr(
                 "phoenix_chronicles.wiki.quest_fields.31.value", "How many rewards the player may pick (default 1)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.32.label", "auto_claim_rewards"),
                 tr("phoenix_chronicles.wiki.quest_fields.32.value",
-                        "true → rewards are automatically given on completion")));
+                        "true â†’ rewards are automatically given on completion")));
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.quest_fields.33", "Developer")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.34.label", "dev_notes"),
@@ -920,7 +872,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.quest_fields.37", "Multiplayer / Teams")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.38.label", "shared"),
                 tr("phoenix_chronicles.wiki.quest_fields.38.value",
-                        "true → completing this quest cascades to all online teammates")));
+                        "true â†’ completing this quest cascades to all online teammates")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.quest_fields.39",
                 "Uses Minecraft's built-in scoreboard teams (/team add, /team join).")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.quest_fields.40",
@@ -932,7 +884,6 @@ public class DevWikiScreen extends Screen {
         var lines = new ArrayList<WLine>();
         lines.add(WLine.h(tr("phoenix_chronicles.wiki.tasks.1", "Task Types")));
 
-        // Built-in types
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.tasks.2", "Built-in")));
         String[][] builtins = {
                 { "kill_entity", "Kill mobs", "target: entity_id, count, consume" },
@@ -963,13 +914,11 @@ public class DevWikiScreen extends Screen {
                         "target: fluid_id, count: mB, consume - read via your held wireless terminal" },
         };
         for (String[] row : builtins) {
-            // row[0] (the type ID) is a machine-readable SNBT key, not prose - left untranslated.
-            // row[1]/row[2] are genuine UI prose, so they get real keys.
+
             lines.add(WLine.kv(row[0], tr("phoenix_chronicles.wiki.tasks.builtin." + row[0] + ".label", row[1])));
             lines.add(WLine.in(tr("phoenix_chronicles.wiki.tasks.builtin." + row[0] + ".detail", row[2])));
         }
 
-        // KubeJS / registry extensions
         int kjsCount = PhoenixTaskRegistry.getEditorTypes().size() - builtins.length;
         if (kjsCount > 0) {
             lines.add(WLine.sp());
@@ -991,7 +940,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.div());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.tasks.3", "SNBT task entry format")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.4",
-                "{type: \"kill_entity\", task_id: \"phoenixcore:task_…\", description: \"…\",")));
+                "{type: \"kill_entity\", task_id: \"phoenixcore:task_â€¦\", description: \"â€¦\",")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.5",
                 " target: \"minecraft:zombie\", count: 5, consume: false, optional: false}")));
         return lines;
@@ -1023,7 +972,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.in(
                 tr("phoenix_chronicles.wiki.rewards.11", "Fields: type, event_id, data (optional CompoundTag NBT)")));
         lines.add(WLine.in(tr("phoenix_chronicles.wiki.rewards.12",
-                "KubeJS: listen with ForgeEvents.onEvent('…ScriptRewardEvent', e => …)")));
+                "KubeJS: listen with ForgeEvents.onEvent('â€¦ScriptRewardEvent', e => â€¦)")));
         lines.add(WLine.sp());
         lines.add(WLine.div());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.rewards.13", "Choice rewards")));
@@ -1097,7 +1046,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.12",
                 "A variant's condition is a plain enable_if-style flag expression (see Quest")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.13",
-                "Fields → Visibility, and the API Reference page's flag section for full")));
+                "Fields â†’ Visibility, and the API Reference page's flag section for full")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.14",
                 "syntax) - evaluated fresh every time the quest is resolved. \"pack_mode\" is")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.15",
@@ -1133,7 +1082,7 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.28",
                 "quest's own value (fields never merge ACROSS variants either - only base")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.29",
-                "↔ single matched variant). If nothing matches, the base quest is used")));
+                "â†” single matched variant). If nothing matches, the base quest is used")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.30",
                 "as-is. Order variants from most to least specific in the list.")));
         lines.add(WLine.sp());
@@ -1158,14 +1107,14 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.div());
 
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.variants.38", "Editing variants in-game")));
-        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.variants.39.label", "\"◈ Variants (N)\" button"), tr(
-                "phoenix_chronicles.wiki.variants.39.value", "In the Quest Creator, next to \"⊞ Tasks & Rewards\"")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.variants.39.label", "\"â—ˆ Variants (N)\" button"), tr(
+                "phoenix_chronicles.wiki.variants.39.value", "In the Quest Creator, next to \"âŠž Tasks & Rewards\"")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.40",
-                "Opens a list of this quest's variants (+ Add Variant / ▲▼ reorder / × delete).")));
+                "Opens a list of this quest's variants (+ Add Variant / â–²â–¼ reorder / Ã— delete).")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.41",
                 "Selecting one shows: a condition text box, title/description override boxes,")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.42",
-                "a visibility cycle button, and \"Edit Tasks/Rewards…\" - the SAME task/reward")));
+                "a visibility cycle button, and \"Edit Tasks/Rewardsâ€¦\" - the SAME task/reward")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.43",
                 "editor screen used for the base quest, just scoped to that variant. A")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.variants.44",
@@ -1407,7 +1356,6 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.live_stats.10.label", "Total:"),
                 tutCount + " quest" + (tutCount == 1 ? "" : "s") + " have tutorial steps"));
 
-        // Load errors
         lines.add(WLine.sp());
         lines.add(WLine.div());
         List<String> errs = QuestFileLoader.LOAD_ERRORS;
@@ -1417,7 +1365,7 @@ public class DevWikiScreen extends Screen {
             lines.add(WLine.sh("§c" + tr("phoenix_chronicles.wiki.live_stats.13", "Load errors:") + " " + errs.size()));
             lines.add(WLine.t(
                     tr("phoenix_chronicles.wiki.live_stats.12", "Run /chronicles validate in-game for full output.")));
-            for (String e : errs) lines.add(WLine.t("✗ " + e));
+            for (String e : errs) lines.add(WLine.t("âœ— " + e));
         }
 
         return lines;
@@ -1426,10 +1374,9 @@ public class DevWikiScreen extends Screen {
     private List<WLine> pageApiReference() {
         var L = new ArrayList<WLine>();
         L.add(WLine.h(tr("phoenix_chronicles.wiki.api_reference.1", "API Reference")));
-        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.2", "Click ⎘ to copy any snippet to clipboard.")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.2", "Click âŽ˜ to copy any snippet to clipboard.")));
         L.add(WLine.sp());
 
-        // ── QuestAPI ──────────────────────────────────────────────────────────
         L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.3",
                 "QuestAPI  (Java: net.phoenixvine.chronicles.QuestAPI)")));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.4",
@@ -1473,7 +1420,6 @@ public class DevWikiScreen extends Screen {
         L.add(WLine.sp());
         L.add(WLine.div());
 
-        // ── Java events ───────────────────────────────────────────────────────
         L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.15",
                 "Forge event hooks  (Java: net.phoenixvine.chronicles.event.QuestEvent)")));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.16",
@@ -1496,7 +1442,7 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.api_reference.19.value",
                         "Cancelable - fired once rewards for a quest are granted")));
         L.add(WLine.code("@SubscribeEvent"));
-        L.add(WLine.code("public void onReward(QuestEvent.RewardClaimed e) { … }  // cancel() to veto the grant"));
+        L.add(WLine.code("public void onReward(QuestEvent.RewardClaimed e) { â€¦ }  // cancel() to veto the grant"));
         L.add(WLine.sp());
         L.add(WLine.kv(tr("phoenix_chronicles.wiki.api_reference.20.label", "QuestEvent.ExternalEvent"),
                 tr("phoenix_chronicles.wiki.api_reference.20.value",
@@ -1529,14 +1475,13 @@ public class DevWikiScreen extends Screen {
         L.add(WLine.sp());
         L.add(WLine.div());
 
-        // ── Task registration ─────────────────────────────────────────────────
         L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.25",
                 "Custom task type  (Java - full QuestTask subclass)")));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.26",
                 "Implement QuestTask, then register a builder in your mod's common setup:")));
         L.add(WLine.code("PhoenixTaskRegistry.register(\"mymod:eat_sun\", tag -> new EatSunTask(tag))"));
         L.add(WLine.code("        .label(\"Eat the Sun\")"));
-        L.add(WLine.code("        .icon(\"§c☀\")"));
+        L.add(WLine.code("        .icon(\"§câ˜€\")"));
         L.add(WLine.code("        .tooltip(\"Eat a star.\\nTarget: star registry id.\")"));
         L.add(WLine.code("        .field(PhoenixTaskRegistry.FieldDef.itemId(\"target\", \"Star\"))"));
         L.add(WLine.code("        .register();"));
@@ -1553,7 +1498,6 @@ public class DevWikiScreen extends Screen {
         L.add(WLine.sp());
         L.add(WLine.div());
 
-        // ── Scripted task registration (real KubeJS plugin, no Java class) ─────
         L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.89",
                 "Custom task type  (KubeJS - real script task, no Java mod needed)")));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.90",
@@ -1581,7 +1525,7 @@ public class DevWikiScreen extends Screen {
         L.add(WLine.code("  })"));
         L.add(WLine.code("  .dependsOnInventory(false)  // default true - set false unless completion"));
         L.add(WLine.code("                              // can ONLY change when the player's items do"));
-        L.add(WLine.code("  .label('Eat the Sun').icon('§c☀').tooltip('Eat a star.')"));
+        L.add(WLine.code("  .label('Eat the Sun').icon('§câ˜€').tooltip('Eat a star.')"));
         L.add(WLine.code("  .field(PhoenixTaskRegistry.FieldDef.integer('count', 'Suns to eat'))"));
         L.add(WLine.code("  .register()"));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.94",
@@ -1595,7 +1539,6 @@ public class DevWikiScreen extends Screen {
         L.add(WLine.sp());
         L.add(WLine.div());
 
-        // ── Flag registration ─────────────────────────────────────────────────
         L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.29", "Custom enable_if flags  (Java)")));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.30",
                 "enable_if expressions: comma = AND, pipe = OR (lower precedence than AND,")));
@@ -1634,7 +1577,6 @@ public class DevWikiScreen extends Screen {
         L.add(WLine.sp());
         L.add(WLine.div());
 
-        // ── KubeJS ────────────────────────────────────────────────────────────
         L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.43",
                 "KubeJS - real plugin (PhoenixChroniclesKubeJSPlugin)")));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.44",
@@ -1715,7 +1657,7 @@ public class DevWikiScreen extends Screen {
                 "dropdown under its OWN name/icon/tooltip/fields, indistinguishable from a")));
         L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.69", "real Java-registered type.")));
         L.add(WLine.code("const taskTypes = [{"));
-        L.add(WLine.code("  type_id: 'mypack:sun_eaten', label: 'Eat the Sun', icon: '§c☀',"));
+        L.add(WLine.code("  type_id: 'mypack:sun_eaten', label: 'Eat the Sun', icon: '§câ˜€',"));
         L.add(WLine.code("  tooltip: 'Complete after eating a star.', default_trigger_id: 'mypack:sun_eaten',"));
         L.add(WLine.code("  fields: [{id: 'required', label: 'Times', type: 'integer'}]"));
         L.add(WLine.code("}]"));
@@ -1769,8 +1711,6 @@ public class DevWikiScreen extends Screen {
 
         return L;
     }
-
-    // ── Input ─────────────────────────────────────────────────────────────────
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
@@ -1826,3 +1766,4 @@ public class DevWikiScreen extends Screen {
         return false;
     }
 }
+

@@ -7,16 +7,11 @@ import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Task: Kill a certain number of a specific entity type.
- * Migrated to player-capability data layers to safely isolate multi-player progress states.
- * SNBT shape: { type: "kill_entity", entity_id: "minecraft:zombie", required: 10, consume: true }
- */
 public class KillEntityTask extends QuestTask {
 
     private ResourceLocation entityId;
     private int requiredCount;
-    private boolean consume; // NEW: Uniform toggle rule (controls progress resetting on reward claim)
+    private boolean consume; 
 
     public KillEntityTask(ResourceLocation taskId, Component description, ResourceLocation entityId, int requiredCount,
                           boolean consume) {
@@ -43,7 +38,6 @@ public class KillEntityTask extends QuestTask {
         return TaskProgressAccess.getOrEmpty(player, this.getTaskId()).getBoolean("completed");
     }
 
-    /** Call this from the LivingDeathEvent subscriber for the owning player. */
     public void onEntityKilled(Player player, ResourceLocation killedEntityId) {
         if (this.entityId == null || this.requiredCount <= 0) return;
 
@@ -62,13 +56,9 @@ public class KillEntityTask extends QuestTask {
         });
     }
 
-    /**
-     * Call this when claiming rewards.
-     * If 'consume' is true, it resets the player's kill count tracking for repeatable/bounty stability.
-     */
     @Override
     public void tryConsume(Player player) {
-        if (!consume) return; // Retain completion progress flags if consume is turned off
+        if (!consume) return; 
 
         TaskProgressAccess.with(player, this.getTaskId(), nbt -> {
             nbt.putInt("current", 0);
@@ -88,7 +78,7 @@ public class KillEntityTask extends QuestTask {
         tag.putString("type", "kill_entity");
         tag.putString("entity_id", entityId != null ? entityId.toString() : "minecraft:pig");
         tag.putInt("required", requiredCount);
-        tag.putBoolean("consume", consume); // Save parameter config
+        tag.putBoolean("consume", consume); 
         return tag;
     }
 
@@ -98,6 +88,7 @@ public class KillEntityTask extends QuestTask {
             this.entityId = new ResourceLocation(nbt.getString("entity_id"));
         }
         this.requiredCount = nbt.getInt("required");
-        this.consume = nbt.getBoolean("consume"); // Load parameter config
+        this.consume = nbt.getBoolean("consume"); 
     }
 }
+

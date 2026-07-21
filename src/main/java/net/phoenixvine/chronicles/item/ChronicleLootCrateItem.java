@@ -23,18 +23,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Random;
 
-/**
- * A consumable crate item that grants a set of serialized QuestRewards when right-clicked.
- *
- * NBT layout:
- * crate_title: String (display name suffix, e.g. "Starter Kit")
- * pick: int (0/absent = grant every reward; >0 = roll that many weighted-random
- * rewards from the pool at open time)
- * rewards: ListTag (CompoundTag entries — same format as quest reward SNBT, each
- * optionally carrying a "weight" int, default 1)
- *
- * Given as a reward via {@link net.phoenixvine.chronicles.model.QuestReward.LootCrateReward}.
- */
 public class ChronicleLootCrateItem extends Item {
 
     public static final String TAG_TITLE = "crate_title";
@@ -96,7 +84,7 @@ public class ChronicleLootCrateItem extends Item {
             granted++;
         }
 
-        sp.sendSystemMessage(Component.literal("§6✦ §eCrate opened! §7(" + granted + " reward(s) granted)"));
+        sp.sendSystemMessage(Component.literal("§6âœ¦ §eCrate opened! §7(" + granted + " reward(s) granted)"));
         level.playSound(null, sp.blockPosition(), SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
                 SoundSource.PLAYERS, 0.5f, 1.2f);
 
@@ -118,14 +106,10 @@ public class ChronicleLootCrateItem extends Item {
         lines.add(Component.literal("§7Right-click to open").withStyle(ChatFormatting.ITALIC));
     }
 
-    // ── Static helpers for building crate stacks ──────────────────────────────
-
-    /** Legacy convenience: builds a crate that grants every listed reward when opened. */
     public static ItemStack build(String crateTitle, List<QuestReward> rewards) {
         return build(crateTitle, rewards.stream().map(r -> new WeightedReward(r, 1)).toList(), 0);
     }
 
-    /** Builds a crate; if {@code pickCount > 0} the crate rolls that many weighted-random rewards on open. */
     public static ItemStack build(String crateTitle, List<WeightedReward> entries, int pickCount) {
         ItemStack stack = new ItemStack(ChronicleItems.CHRONICLE_LOOT_CRATE.get());
         CompoundTag tag = stack.getOrCreateTag();
@@ -141,3 +125,4 @@ public class ChronicleLootCrateItem extends Item {
         return stack;
     }
 }
+

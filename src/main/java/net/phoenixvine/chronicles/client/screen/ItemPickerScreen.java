@@ -19,31 +19,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * FTB-style item picker screen.
- *
- * Three source tabs:
- * REGISTRY — browses every item registered in ForgeRegistries.ITEMS,
- * paginated and filterable by name or registry id.
- * INVENTORY — shows the player's current inventory slots for quick access.
- * EMI / JEI — if EMI or JEI is loaded, delegates to their item list APIs
- * so modded items get proper display names and recipe links.
- * Falls back to REGISTRY mode if neither is present.
- *
- * The caller provides a Consumer<ItemStack> callback. When the player clicks
- * an item the callback fires and this screen closes, returning to the parent.
- */
 public class ItemPickerScreen extends Screen {
 
-    // ── Colours ──────────────────────────────────────────────────────────────
-    // Panel/header/text colours now come from ChroniclesThemePalette. Only picker-specific
-    // selection/hover accents (green, to distinguish from FluidPickerScreen's blue) stay local.
     private static final int COL_SEL = 0xFF1E2A1E;
     private static final int COL_SEL_BORDER = 0xFF00AA55;
     private static final int COL_HOVER = 0xFF1E1E2A;
     private static final int COL_TAB_ACTIVE = 0xFF00AA55;
 
-    // ── Layout ─────────────────────────────────────────────────────────────────
     private static final int PANEL_W = 280;
     private static final int PANEL_H = 220;
     private static final int HEADER_H = 22;
@@ -51,8 +33,6 @@ public class ItemPickerScreen extends Screen {
     private static final int FOOTER_H = 22;
     private static final int SLOT_SIZE = 18;
     private static final int SLOTS_PER_ROW = 12;
-
-    // ── State ──────────────────────────────────────────────────────────────────
 
     public enum SourceTab {
         REGISTRY,
@@ -65,19 +45,16 @@ public class ItemPickerScreen extends Screen {
     private final Screen parent;
     private final Consumer<ItemStack> onPick;
 
-    // Populated based on active tab + search filter
     private final List<ItemStack> displayItems = new ArrayList<>();
-    private int scrollOffset = 0; // in rows
+    private int scrollOffset = 0; 
     private ItemStack hoveredStack = null;
     private ItemStack selectedStack = null;
 
     private EditBox searchBox;
     private String searchQuery = "";
 
-    // Panel geometry (computed in init)
     private int panelLeft, panelTop;
 
-    // EMI/JEI availability — detected once at construction
     private final boolean hasEmi;
     private final boolean hasJei;
 
@@ -89,8 +66,6 @@ public class ItemPickerScreen extends Screen {
         this.hasJei = isModLoaded("jei");
     }
 
-    // ── Init ──────────────────────────────────────────────────────────────────
-
     @Override
     protected void init() {
         clearWidgets();
@@ -100,7 +75,6 @@ public class ItemPickerScreen extends Screen {
         int tabY = panelTop + HEADER_H + 2;
         int tabW = 60;
 
-        // Source tabs
         addRenderableWidget(Button.builder(Component.literal("Registry"), b -> switchTab(SourceTab.REGISTRY))
                 .bounds(panelLeft + 2, tabY, tabW, 12).build());
         addRenderableWidget(Button.builder(Component.literal("Inventory"), b -> switchTab(SourceTab.INVENTORY))
@@ -110,12 +84,10 @@ public class ItemPickerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal(eiLabel), b -> switchTab(SourceTab.EMI_JEI))
                 .bounds(panelLeft + 6 + tabW * 2, tabY, tabW, 12).build());
 
-        // Search bar - shown on every tab, including Inventory, for consistency (it used to be
-        // hidden there specifically, which was the odd one out next to Registry/EMI-JEI).
         int searchY = panelTop + HEADER_H + 16;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
-        searchBox.setHint(Component.literal("§8Search items…"));
+        searchBox.setHint(Component.literal("§8Search itemsâ€¦"));
         searchBox.setValue(searchQuery);
         searchBox.setResponder(q -> {
             searchQuery = q;
@@ -124,11 +96,9 @@ public class ItemPickerScreen extends Screen {
         });
         addRenderableWidget(searchBox);
 
-        // Confirm button
         addRenderableWidget(Button.builder(Component.literal("§aSelect"), b -> confirmSelection())
                 .bounds(panelLeft + PANEL_W - 56, panelTop + PANEL_H - FOOTER_H + 3, 52, 14).build());
 
-        // Cancel
         addRenderableWidget(Button.builder(Component.literal("§7Cancel"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(panelLeft + 4, panelTop + PANEL_H - FOOTER_H + 3, 52, 14).build());
@@ -142,8 +112,6 @@ public class ItemPickerScreen extends Screen {
         selectedStack = null;
         rebuildDisplayList();
     }
-
-    // ── Display list population ────────────────────────────────────────────────
 
     private void rebuildDisplayList() {
         displayItems.clear();
@@ -166,7 +134,7 @@ public class ItemPickerScreen extends Screen {
                 if (!matchesId && !matchesName) continue;
             }
             displayItems.add(stack);
-            if (displayItems.size() >= 2000) break; // safety cap
+            if (displayItems.size() >= 2000) break; 
         }
     }
 
@@ -186,25 +154,16 @@ public class ItemPickerScreen extends Screen {
         } else if (hasJei) {
             populateFromJeiApi();
         } else {
-            // Neither is loaded — fall back to registry with a notice
+            
             populateFromRegistry();
         }
     }
 
-    /**
-     * EMI integration.
-     * EMI exposes its item list via EmiApi.getSearchEntries() which returns
-     * EmiIngredient instances. We unwrap those to ItemStacks here.
-     *
-     * The try/catch means this silently falls back if EMI's API signature
-     * ever changes or if the class isn't present at runtime.
-     */
     private void populateFromEmiApi() {
         try {
             Class<?> emiApi = Class.forName("dev.emi.emi.api.EmiApi");
             Object searchList = emiApi.getMethod("getSearchEntries").invoke(null);
 
-            // searchList is Iterable<EmiIngredient>
             for (Object entry : (Iterable<?>) searchList) {
                 Class<?> ingredientClass = Class.forName("dev.emi.emi.api.stack.EmiIngredient");
                 Object stacks = ingredientClass.getMethod("getEmiStacks").invoke(entry);
@@ -222,20 +181,15 @@ public class ItemPickerScreen extends Screen {
                 }
             }
         } catch (Exception e) {
-            // EMI API unavailable or changed — fall back
+            
             populateFromRegistry();
         }
     }
 
-    /**
-     * JEI integration.
-     * JEI exposes its ingredient list via IJeiRuntime → IIngredientManager.
-     * We access it reflectively so we don't need a hard compile-time dependency.
-     */
     private void populateFromJeiApi() {
         try {
             Class<?> internalClass = Class.forName("mezz.jei.api.runtime.IJeiRuntime");
-            // JEI stores the current runtime in InternalJeiHelpers
+            
             Class<?> helpersClass = Class.forName("mezz.jei.common.Internal");
             Object runtime = helpersClass.getMethod("getJeiRuntime").invoke(null);
             if (runtime == null) {
@@ -264,40 +218,28 @@ public class ItemPickerScreen extends Screen {
         }
     }
 
-    // ── Render ─────────────────────────────────────────────────────────────────
-
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us instead */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        // An earlier pass here dropped the parent-render call because the dimmed overview screen
-        // still read as "bleeding" behind this picker - but that was because
-        // ChroniclesThemePalette.refresh() was never actually being called anywhere, so BG/PANEL
-        // etc. were all transparent/black regardless of what got drawn behind them. Now that the
-        // palette is populated correctly (see ChronicleOverviewScreen.init()), draw the overview
-        // behind this picker like every other modal in this pack (CategoryThemeScreen, etc.)
-        // instead of leaving the raw 3D world showing through a no-op fill.
+
         if (parent != null) parent.render(g, -1, -1, partial);
         g.flush();
 
-        // Fully opaque background of its own on top of that.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
         g.flush();
         g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
 
-        // Panel
         g.fill(panelLeft, panelTop, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL);
         ChroniclesUIKit.drawBorder(g, panelLeft, panelTop, PANEL_W, PANEL_H, ChroniclesThemePalette.BORDER_LIT);
 
-        // Header
         g.fill(panelLeft, panelTop, panelLeft + PANEL_W, panelTop + HEADER_H, ChroniclesThemePalette.HEADER);
         g.fill(panelLeft, panelTop + HEADER_H - 1, panelLeft + PANEL_W, panelTop + HEADER_H,
                 ChroniclesThemePalette.BORDER);
         g.drawCenteredString(font, "§fPick Item", panelLeft + PANEL_W / 2, panelTop + 7, ChroniclesThemePalette.TEXT);
 
-        // Tab underlines
         int tabY = panelTop + HEADER_H + 2;
         int tabW = 60;
         int[] tabXs = { panelLeft + 2, panelLeft + 4 + tabW, panelLeft + 6 + tabW * 2 };
@@ -307,19 +249,15 @@ public class ItemPickerScreen extends Screen {
                 g.fill(tabXs[i], tabY + 12, tabXs[i] + tabW, tabY + 13, COL_TAB_ACTIVE);
         }
 
-        // Footer separator
         int footerY = panelTop + PANEL_H - FOOTER_H;
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, footerY + 1, ChroniclesThemePalette.BORDER);
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL_DARK);
 
-        // Item count hint
         g.drawString(font, "§8" + displayItems.size() + " items", panelLeft + 62, footerY + 7,
                 ChroniclesThemePalette.TEXT_FAINT);
 
-        // Render widgets (tabs, search, buttons)
         super.render(g, mx, my, partial);
 
-        // ── Item grid ─────────────────────────────────────────────────────────
         int gridTop = panelTop + HEADER_H + 34;
         int gridBottom = footerY - (selectedStack != null ? 20 : 2);
         int visibleRows = Math.max(1, (gridBottom - gridTop) / SLOT_SIZE);
@@ -339,7 +277,6 @@ public class ItemPickerScreen extends Screen {
             int sx = panelLeft + 4 + col * SLOT_SIZE;
             int sy = gridTop + row * SLOT_SIZE;
 
-            // Slot background
             boolean isSelected = stack.getItem() == (selectedStack != null ? selectedStack.getItem() : Items.AIR);
             boolean isHovered = mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE;
 
@@ -353,10 +290,8 @@ public class ItemPickerScreen extends Screen {
                 g.fill(sx, sy, sx + SLOT_SIZE, sy + SLOT_SIZE, COL_HOVER);
             }
 
-            // Item icon
             g.renderItem(stack, sx + 1, sy + 1);
 
-            // Count label for stacks > 1
             if (stack.getCount() > 1) {
                 g.renderItemDecorations(font, stack, sx + 1, sy + 1);
             }
@@ -366,12 +301,10 @@ public class ItemPickerScreen extends Screen {
 
         g.disableScissor();
 
-        // ── Tooltip ───────────────────────────────────────────────────────────
         if (hoveredStack != null) {
             g.renderTooltip(font, hoveredStack, mx, my);
         }
 
-        // ── Selection preview (rendered above footer, never overlapping buttons) ──
         if (selectedStack != null) {
             int prevY = footerY - 18;
             g.fill(panelLeft, prevY - 1, panelLeft + PANEL_W, prevY, ChroniclesThemePalette.BORDER);
@@ -379,14 +312,12 @@ public class ItemPickerScreen extends Screen {
             g.renderItem(selectedStack, panelLeft + 4, prevY + 1);
             String selName = selectedStack.getHoverName().getString();
             int maxW = PANEL_W - 30;
-            if (font.width(selName) > maxW) selName = font.plainSubstrByWidth(selName, maxW - 6) + "…";
+            if (font.width(selName) > maxW) selName = font.plainSubstrByWidth(selName, maxW - 6) + "â€¦";
             g.drawString(font, "§f" + selName, panelLeft + 22, prevY + 5, ChroniclesThemePalette.TEXT);
         }
 
         g.pose().popPose();
     }
-
-    // ── Mouse ──────────────────────────────────────────────────────────────────
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
@@ -403,7 +334,7 @@ public class ItemPickerScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { // ESC
+        if (key == 256) { 
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -428,8 +359,6 @@ public class ItemPickerScreen extends Screen {
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
-
     private static boolean isModLoaded(String modId) {
         try {
             return net.minecraftforge.fml.ModList.get().isLoaded(modId);
@@ -438,3 +367,4 @@ public class ItemPickerScreen extends Screen {
         }
     }
 }
+

@@ -15,22 +15,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Resolves "phoenixcore:textures/custom/&lt;relative-path&gt;" resource locations - the RL format
- * TextureBrowserScreen hands out for pack-dev-dropped PNGs under
- * config/phoenix_chronicles/textures/ - into an actually-renderable texture.
- *
- * Those files were never renderable on their own: Minecraft's ResourceManager only loads assets
- * from assets/&lt;namespace&gt;/... inside a jar or resource pack, never from config/. Every caller
- * that blitted one of these resource locations directly (CategoryConfig's CUSTOM background style,
- * quest description [img:] tags) was therefore always drawing the missing-texture checker instead
- * of the picture a pack dev picked in the browser - the picker looked like it worked (its own grid
- * thumbnails go through this same resolve() call) but the choice silently failed everywhere else.
- *
- * Mirrors QuestIconCache's already-working dynamic-texture-registration pattern for per-quest
- * icons, generalized to any RL under the "custom" bucket instead of one fixed quest-icon naming
- * scheme.
- */
 public final class CustomTextureCache {
 
     private static final String CUSTOM_PREFIX = "textures/custom/";
@@ -40,17 +24,10 @@ public final class CustomTextureCache {
 
     private CustomTextureCache() {}
 
-    /**
-     * Registers the on-disk PNG backing this resource location with Minecraft's TextureManager
-     * (once, cached thereafter) and returns the same RL, now actually bindable. Resource
-     * locations outside the "custom" bucket (built-in phoenixcore:textures/gui/... assets, or
-     * anything from another mod/resource pack) pass through unchanged - those are already real
-     * bundled resources and don't need dynamic registration.
-     */
     public static ResourceLocation resolve(ResourceLocation rl) {
         String key = rl.toString();
         if (RESOLVED.containsKey(key)) return rl;
-        if (MISSING.contains(key)) return rl; // let it render as the missing-texture checker, don't retry every frame
+        if (MISSING.contains(key)) return rl; 
 
         if (!"phoenixcore".equals(rl.getNamespace()) || !rl.getPath().startsWith(CUSTOM_PREFIX)) {
             return rl;
@@ -76,14 +53,12 @@ public final class CustomTextureCache {
         return rl;
     }
 
-    /** Force a specific custom texture to be re-read from disk (e.g. after a pack dev overwrites the file). */
     public static void invalidate(ResourceLocation rl) {
         String key = rl.toString();
         if (RESOLVED.remove(key) != null) Minecraft.getInstance().getTextureManager().release(rl);
         MISSING.remove(key);
     }
 
-    /** Release every dynamically-registered custom texture — call on world unload. */
     public static void invalidateAll() {
         Minecraft mc = Minecraft.getInstance();
         for (ResourceLocation loc : RESOLVED.values()) mc.getTextureManager().release(loc);
@@ -91,3 +66,4 @@ public final class CustomTextureCache {
         MISSING.clear();
     }
 }
+

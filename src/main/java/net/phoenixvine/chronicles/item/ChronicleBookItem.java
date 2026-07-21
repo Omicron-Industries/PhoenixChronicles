@@ -10,10 +10,6 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 
-/**
- * Physical in-game item that opens the Phoenix Chronicles quest book GUI.
- * Register via PhoenixItems / GTRegistrate under id "chronicle_book".
- */
 public class ChronicleBookItem extends Item {
 
     public ChronicleBookItem(Properties props) {
@@ -33,3 +29,4 @@ public class ChronicleBookItem extends Item {
         net.minecraft.client.Minecraft.getInstance().setScreen(new ChronicleOverviewScreen());
     }
 }
+

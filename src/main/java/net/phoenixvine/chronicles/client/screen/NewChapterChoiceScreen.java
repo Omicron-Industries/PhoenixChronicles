@@ -9,11 +9,6 @@ import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 
 import org.jetbrains.annotations.NotNull;
 
-/**
- * Tiny chooser opened from the sidebar "+" button: "New Chapter" vs "New Chapter Category"
- * (folder). Previously this was an inline popup anchored right at the "+" button, but the
- * icon-strip sidebar is too narrow to comfortably host it - a real subscreen instead.
- */
 public class NewChapterChoiceScreen extends Screen {
 
     private static final int PANEL_W = 200;
@@ -54,7 +49,7 @@ public class NewChapterChoiceScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -75,7 +70,7 @@ public class NewChapterChoiceScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { // ESC
+        if (key == 256) { 
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -96,3 +91,4 @@ public class NewChapterChoiceScreen extends Screen {
         return false;
     }
 }
+

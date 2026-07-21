@@ -23,12 +23,7 @@ public class ChroniclesTheme {
 
         public String hex;
         private transient Integer cached = null;
-        /**
-         * Per-field animation phase offset (ms), so e.g. bg/accent/border all cycling RAINBOW
-         * don't all show the exact same hue at the exact same moment - same trick Phantasia's
-         * PhantasiaTheme uses for its own animated keyword colors. Assigned by the owning
-         * ChroniclesTheme constructor, not persisted.
-         */
+        
         private transient long animOffset = 0L;
 
         public ThemeColor() {
@@ -48,9 +43,6 @@ public class ChroniclesTheme {
             String clean = hex.trim().toUpperCase(Locale.ROOT);
             if (clean.startsWith("#")) clean = clean.substring(1);
 
-            // Animated keyword colors - evaluated fresh every call (never cached) since the whole
-            // point is that they change over time. Reduce Motion pins the clock at 0 so they still
-            // resolve to a real, stable color instead of flickering.
             switch (clean) {
                 case "RAINBOW":
                     return animatedHue(6000L, 0.75f, 0.90f, 0f, 1f);
@@ -78,13 +70,11 @@ public class ChroniclesTheme {
             return QuestChroniclesSettings.get().isReduceMotion() ? 0L : System.currentTimeMillis();
         }
 
-        /** A hue that cycles linearly through the full color wheel every {@code periodMs}. */
         private int animatedHue(long periodMs, float sat, float val, float hueMin, float hueMax) {
             float hue = (float) ((animClock() + animOffset) % periodMs) / periodMs;
             return hsvToRgb(hueMin + hue * (hueMax - hueMin), sat, val);
         }
 
-        /** A hue/value that oscillates back and forth (sine wave) rather than cycling linearly. */
         private int animatedWave(double periodMs, float sat, float valBase, float valAmp, float hueBase,
                                  float hueAmp) {
             double t = (animClock() + animOffset) / periodMs;
@@ -141,10 +131,8 @@ public class ChroniclesTheme {
         }
     }
 
-    // ── Fields ────────────────────────────────────────────────────────────────
     public ThemeColor bg, panel, header, border, accent, text, textDim, textFaint, done, activeColor, locked;
 
-    // ── Registry ──────────────────────────────────────────────────────────────
     public static final Map<String, ChroniclesTheme> REGISTRY = new LinkedHashMap<>();
     private static ChroniclesTheme active = null;
     private static String activeName = "DARK";
@@ -157,8 +145,6 @@ public class ChroniclesTheme {
             .excludeFieldsWithModifiers(Modifier.TRANSIENT)
             .create();
     private static final Path THEMES_FILE = Paths.get("config", "phoenix_chronicles_themes.json");
-
-    // ── Constructors ──────────────────────────────────────────────────────────
 
     public ChroniclesTheme() {}
 
@@ -179,12 +165,6 @@ public class ChroniclesTheme {
         assignAnimOffsets();
     }
 
-    /**
-     * Staggers each field's animated-keyword phase (see {@link ThemeColor#getColor()}) so a theme
-     * with several RAINBOW/MAGMA fields doesn't have them all showing the identical hue at the
-     * identical instant. Must also run after Gson deserialization, since Gson populates fields via
-     * reflection and never calls this constructor - see {@link #loadThemes()}.
-     */
     private void assignAnimOffsets() {
         if (bg != null) bg.setAnimOffset(0);
         if (panel != null) panel.setAnimOffset(500);
@@ -199,14 +179,11 @@ public class ChroniclesTheme {
         if (locked != null) locked.setAnimOffset(5000);
     }
 
-    /** Returns a deep copy so edits in the theme editor never corrupt the live registry entry. */
     public ChroniclesTheme copy() {
         return new ChroniclesTheme(
                 bg.hex, panel.hex, header.hex, border.hex, accent.hex,
                 text.hex, textDim.hex, textFaint.hex, done.hex, activeColor.hex, locked.hex);
     }
-
-    // ── Static API ────────────────────────────────────────────────────────────
 
     public static ChroniclesTheme current() {
         if (REGISTRY.isEmpty()) loadThemes();
@@ -228,23 +205,16 @@ public class ChroniclesTheme {
         if (t != null) {
             active = t;
             activeName = name;
-            // This used to be purely in-memory - none of the three callers (theme editor's
-            // picker, its "reset to DARK" button, the terminal's `theme` command) ever followed
-            // up with a save, so the selection lived only for the current session and silently
-            // reverted to whatever was last actually written to disk (or DARK, if nothing ever
-            // had been) on every relaunch/rejoin. Persisting here means every caller gets this
-            // for free instead of needing to remember it individually.
+
             saveAll();
         }
     }
 
-    /** Adds or replaces a custom theme, then persists everything to disk. */
     public static void saveCustomTheme(String name, ChroniclesTheme theme) {
         REGISTRY.put(name, theme);
         saveAll();
     }
 
-    /** Deletes a custom theme (no-op for builtins). */
     public static boolean deleteCustom(String name) {
         if (isBuiltin(name)) return false;
         REGISTRY.remove(name);
@@ -255,8 +225,6 @@ public class ChroniclesTheme {
         saveAll();
         return true;
     }
-
-    // ── Persistence ───────────────────────────────────────────────────────────
 
     private static class ThemeSave {
 
@@ -280,8 +248,6 @@ public class ChroniclesTheme {
 
     public static void loadThemes() {
         REGISTRY.clear();
-
-        // ── Prebuilt themes ───────────────────────────────────────────────────
 
         REGISTRY.put("DARK", new ChroniclesTheme(
                 "FF0B0B0F", "FF14141A", "FF0C0C10", "FF353548", "FF00AA55",
@@ -307,10 +273,6 @@ public class ChroniclesTheme {
                 "FF100A06", "FF1C120A", "FF100A04", "FF382210", "FFCC6600",
                 "FFF0E0CC", "FFA0785A", "FF604830", "FF44CC77", "FFFFCC22", "FF806040"));
 
-        // ── Animated presets ───────────────────────────────────────────────────
-        // "RAINBOW"/"MAGMA" etc are keyword hex values (see ThemeColor#getColor()) rather than
-        // static hex - any field, in any theme (including custom ones typed into the Theme
-        // Editor's hex boxes), can use them. These two are just built-in presets that lean on it.
         REGISTRY.put("RAINBOW", new ChroniclesTheme(
                 "FF09090C", "FF111116", "FF0A0A0E", "RAINBOW", "RAINBOW",
                 "FFEEEEEE", "FF888888", "FF505050", "FF44CC88", "RAINBOW", "FF606070"));
@@ -319,7 +281,6 @@ public class ChroniclesTheme {
                 "FF120806", "FF1C0E0A", "FF100604", "MAGMA", "MAGMA",
                 "FFF0E0D0", "FFA07860", "FF604838", "FF44CC77", "MAGMA", "FF705040"));
 
-        // ── Load custom themes from disk ──────────────────────────────────────
         String loadedActive = "DARK";
         try {
             if (Files.exists(THEMES_FILE)) {
@@ -328,10 +289,7 @@ public class ChroniclesTheme {
                 ThemeSave save = GSON.fromJson(json, type);
                 if (save != null) {
                     if (save.custom != null) {
-                        // Gson populates fields via reflection, bypassing the constructor entirely
-                        // - without this, any custom theme saved with an animated keyword color
-                        // would silently animate at animOffset=0 for every field instead of the
-                        // staggered phase assignAnimOffsets() normally assigns.
+
                         for (ChroniclesTheme theme : save.custom.values()) theme.assignAnimOffsets();
                         REGISTRY.putAll(save.custom);
                     }
@@ -342,14 +300,13 @@ public class ChroniclesTheme {
             e.printStackTrace();
         }
 
-        // Apply active — fall back to DARK if the saved name no longer exists
         activeName = loadedActive;
         active = REGISTRY.getOrDefault(activeName, REGISTRY.get("DARK"));
     }
 
-    /** @deprecated Use {@link #saveAll()} for custom themes. */
     @Deprecated
     public static void saveCustom() {
         saveAll();
     }
 }
+

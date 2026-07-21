@@ -13,10 +13,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Stream;
 
-/**
- * Loads and caches {@link RewardTable} definitions from
- * config/phoenix_chronicles/reward_tables/*.snbt on the server.
- */
 public class RewardTableRegistry {
 
     private static final Map<String, RewardTable> TABLES = new LinkedHashMap<>();
@@ -46,7 +42,7 @@ public class RewardTableRegistry {
                         try {
                             String raw = Files.readString(file, StandardCharsets.UTF_8);
                             CompoundTag tag = TagParser.parseTag(raw);
-                            // Fall back to filename as the id if not explicitly set
+                            
                             if (!tag.contains("id") || tag.getString("id").isBlank()) {
                                 String fname = file.getFileName().toString();
                                 tag.putString("id", fname.substring(0, fname.lastIndexOf('.')));
@@ -68,3 +64,4 @@ public class RewardTableRegistry {
         System.out.println("[Phoenix Chronicles] Loaded " + TABLES.size() + " reward table(s).");
     }
 }
+

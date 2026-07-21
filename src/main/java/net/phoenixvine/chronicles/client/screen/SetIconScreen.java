@@ -12,17 +12,6 @@ import net.phoenixvine.chronicles.model.QuestNode;
 
 import org.jetbrains.annotations.NotNull;
 
-/**
- * Single entry point for setting a quest node's icon - opened via the node context menu's one
- * "Set Icon…" row instead of that menu carrying three separate "Set Icon by Item/Fluid/Texture"
- * rows plus a "Clear Icon" row of its own. Keeping the right-click menu to one row per concern
- * (however many choices that concern has) is deliberate - it's the same reasoning as "Resize
- * (scroll + drag)…" replacing what used to be size cycling directly in the menu.
- *
- * Item/fluid/texture are mutually exclusive: picking any one clears the other two (see
- * QuestNode#getIconFluid's doc) and writes all three together in one disk patch
- * (QuestFileSaver#updateNodeIconAll).
- */
 public class SetIconScreen extends Screen {
 
     private static final int PANEL_W = 160;
@@ -50,40 +39,40 @@ public class SetIconScreen extends Screen {
         int fw = PANEL_W - MARGIN * 2;
         int y = panelTop + 26;
 
-        addRenderableWidget(Button.builder(Component.literal("§eItem…"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§eItemâ€¦"), b -> {
             minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                 node.setIconItem(stack.getItem());
                 node.setIconTexture("");
                 node.setIconFluid("");
                 QuestFileSaver.updateNodeIconAll(node);
-                parent.setFeedback("Icon → " + stack.getHoverName().getString());
+                parent.setFeedback("Icon â†’ " + stack.getHoverName().getString());
                 parent.rebuild();
                 close();
             }));
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
-        addRenderableWidget(Button.builder(Component.literal("§bFluid…"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§bFluidâ€¦"), b -> {
             minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
                 node.setIconItem(null);
                 node.setIconTexture("");
                 node.setIconFluid(fluidId);
                 QuestFileSaver.updateNodeIconAll(node);
                 ResourceLocation rl = ResourceLocation.tryParse(fluidId);
-                parent.setFeedback("Icon → " + (rl != null ? rl.getPath() : fluidId) + " (fluid)");
+                parent.setFeedback("Icon â†’ " + (rl != null ? rl.getPath() : fluidId) + " (fluid)");
                 parent.rebuild();
                 close();
             }));
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
-        addRenderableWidget(Button.builder(Component.literal("§dTexture…"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§dTextureâ€¦"), b -> {
             minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
                 node.setIconItem(null);
                 node.setIconFluid("");
                 node.setIconTexture(rl);
                 QuestFileSaver.updateNodeIconAll(node);
-                parent.setFeedback("Icon texture → " + rl);
+                parent.setFeedback("Icon texture â†’ " + rl);
                 parent.rebuild();
                 close();
             }));
@@ -106,15 +95,11 @@ public class SetIconScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        // renderForChildScreen(), not a plain render(g, -1, -1, partial) - the latter still runs
-        // the overview screen's OWN interactive bits (context menu, tooltips, hover states) keyed
-        // off whatever the real mouse position/open-menu state happens to be, which is "the actual
-        // UI" bleeding through behind this modal, not just inert scenery. renderForChildScreen()
-        // is built specifically to skip all of that and already flushes + clears its own scissor.
+
         parent.renderForChildScreen(g);
 
         g.pose().pushPose();
@@ -141,7 +126,7 @@ public class SetIconScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { // ESC
+        if (key == 256) { 
             close();
             return true;
         }
@@ -153,3 +138,4 @@ public class SetIconScreen extends Screen {
         return false;
     }
 }
+

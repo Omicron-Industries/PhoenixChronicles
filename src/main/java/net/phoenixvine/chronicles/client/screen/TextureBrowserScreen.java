@@ -17,28 +17,14 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-/**
- * Scrollable texture-browser overlay.
- *
- * Sources (merged, deduplicated):
- * 1. All ResourceManager textures under textures/gui/ in the phoenixcore namespace.
- * 2. All .png files under config/phoenix_chronicles/textures/ (shown as
- * phoenixcore:textures/custom/<relative-path> — note these must also exist in
- * the mod's resource pack or a loaded pack to actually render).
- *
- * Clicking a texture calls onSelect with the resource location string, then closes.
- * The caller can use the RL directly in CategoryThemeScreen's texture field or
- * in quest description [img:rl] tags.
- */
 public class TextureBrowserScreen extends Screen {
 
-    private static final int THUMB = 48;      // thumbnail size
-    private static final int THUMB_PAD = 6;   // gap between thumbnails
+    private static final int THUMB = 48;      
+    private static final int THUMB_PAD = 6;   
     private static final int HEADER_H = 42;
     private static final int FOOTER_H = 28;
     private static final int COLS = 6;
 
-    // Theming
     private int C_BG, C_PANEL, C_BORDER, C_ACCENT, C_TEXT, C_DIM, C_FAINT;
 
     private final Screen parent;
@@ -75,7 +61,7 @@ public class TextureBrowserScreen extends Screen {
         applyFilter();
 
         searchBox = new EditBox(font, width / 2 - 100, HEADER_H / 2 - 5, 200, 14, Component.empty());
-        searchBox.setHint(Component.literal("§8Search…"));
+        searchBox.setHint(Component.literal("§8Searchâ€¦"));
         searchBox.setResponder(q -> {
             query = q.toLowerCase();
             applyFilter();
@@ -88,20 +74,17 @@ public class TextureBrowserScreen extends Screen {
     public void render(GuiGraphics g, int mx, int my, float partial) {
         g.fill(0, 0, width, height, C_BG);
 
-        // Header
         g.fill(0, 0, width, HEADER_H, C_PANEL);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         g.drawCenteredString(font, "§fTexture Browser", width / 2, 6, C_TEXT);
         g.drawString(font, "§8Search:", width / 2 - 100 - font.width("Search: "), HEADER_H / 2 - 3, C_FAINT, false);
 
-        // Footer
         int fy = height - FOOTER_H;
         g.fill(0, fy, width, height, C_PANEL);
         g.fill(0, fy, width, fy + 1, C_BORDER);
-        g.drawString(font, "§8" + filtered.size() + " Textures  ·  LMB to select  ·  RMB to copy path",
+        g.drawString(font, "§8" + filtered.size() + " Textures  Â·  LMB to select  Â·  RMB to copy path",
                 8, fy + 10, C_FAINT, false);
 
-        // Grid
         g.enableScissor(0, HEADER_H, width, fy);
         int cols = Math.max(1, (width - 16) / (THUMB + THUMB_PAD));
         int startX = 8;
@@ -120,7 +103,6 @@ public class TextureBrowserScreen extends Screen {
 
             ResourceLocation rl = filtered.get(i);
 
-            // Checkerboard background (shows transparency)
             for (int cy = 0; cy < THUMB; cy += 8) {
                 for (int cx = 0; cx < THUMB; cx += 8) {
                     boolean light = ((cx / 8) + (cy / 8)) % 2 == 0;
@@ -128,7 +110,6 @@ public class TextureBrowserScreen extends Screen {
                 }
             }
 
-            // Texture preview
             try {
                 g.blit(net.phoenixvine.chronicles.client.CustomTextureCache.resolve(rl),
                         tx, ty, 0, 0, THUMB, THUMB, THUMB, THUMB);
@@ -137,7 +118,6 @@ public class TextureBrowserScreen extends Screen {
                 g.drawCenteredString(font, "§c?", tx + THUMB / 2, ty + THUMB / 2 - 4, 0xFFFF4444);
             }
 
-            // Hover border
             if (hov) {
                 g.fill(tx - 1, ty - 1, tx + THUMB + 1, ty, C_ACCENT);
                 g.fill(tx - 1, ty + THUMB, tx + THUMB + 1, ty + THUMB + 1, C_ACCENT);
@@ -145,13 +125,11 @@ public class TextureBrowserScreen extends Screen {
                 g.fill(tx + THUMB, ty - 1, tx + THUMB + 1, ty + THUMB + 1, C_ACCENT);
             }
 
-            // Name label
             String name = shortName(rl);
             int nameW = font.width(name);
-            if (nameW > THUMB) name = font.plainSubstrByWidth(name, THUMB - 4) + "…";
+            if (nameW > THUMB) name = font.plainSubstrByWidth(name, THUMB - 4) + "â€¦";
             g.drawString(font, "§8" + name, tx, ty + THUMB + 2, C_FAINT, false);
 
-            // Hover tooltip with full RL
             if (hov) g.renderTooltip(font, Component.literal("§f" + rl), mx, my);
         }
 
@@ -165,15 +143,11 @@ public class TextureBrowserScreen extends Screen {
         if (hoveredIdx >= 0 && hoveredIdx < filtered.size()) {
             String rl = filtered.get(hoveredIdx).toString();
             if (btn == 0) {
-                // Left-click: select and close - every other picker in this mod (ItemPickerScreen,
-                // FluidPickerScreen) uses LMB-to-select, so this used to be backwards: LMB silently
-                // copied to clipboard with zero visible feedback, which is exactly what "I select
-                // one and nothing happens" looks like from the outside.
+
                 onSelect.accept(rl);
                 Minecraft.getInstance().setScreen(parent);
             } else if (btn == 1) {
-                // Right-click: copy the resource location to clipboard instead, for pasting into
-                // an [img:] tag or another field by hand without leaving the browser open.
+
                 Minecraft.getInstance().keyboardHandler.setClipboard(rl);
             }
             return true;
@@ -205,12 +179,9 @@ public class TextureBrowserScreen extends Screen {
         return false;
     }
 
-    // ── Texture gathering ─────────────────────────────────────────────────────
-
     private List<ResourceLocation> gatherTextures() {
         List<ResourceLocation> result = new ArrayList<>();
 
-        // Source 1: ResourceManager — phoenixcore textures/gui/
         try {
             var rm = Minecraft.getInstance().getResourceManager();
             rm.listResources("textures", rl -> rl.getPath().endsWith(".png"))
@@ -219,8 +190,6 @@ public class TextureBrowserScreen extends Screen {
                     .forEach(result::add);
         } catch (Exception ignored) {}
 
-        // Source 2: config/phoenix_chronicles/textures/ — list paths only
-        // (these must be in a resource pack to actually blit; we show them in the list)
         try {
             Path texDir = Minecraft.getInstance().gameDirectory.toPath()
                     .resolve("config").resolve("phoenix_chronicles").resolve("textures");
@@ -239,7 +208,6 @@ public class TextureBrowserScreen extends Screen {
             }
         } catch (IOException ignored) {}
 
-        // Deduplicate
         return result.stream().distinct().collect(java.util.stream.Collectors.toList());
     }
 
@@ -259,3 +227,4 @@ public class TextureBrowserScreen extends Screen {
         return slash >= 0 ? path.substring(slash + 1) : path;
     }
 }
+

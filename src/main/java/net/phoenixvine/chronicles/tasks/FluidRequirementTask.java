@@ -19,8 +19,8 @@ public class FluidRequirementTask extends QuestTask {
 
     private ResourceLocation fluidId;
     private int requiredAmount;
-    private boolean consume; // NEW: Toggle rule variable
-    /** See ItemRequirementTask#sticky. */
+    private boolean consume; 
+    
     private boolean sticky = true;
 
     public FluidRequirementTask(ResourceLocation taskId, Component description, ResourceLocation fluidId,
@@ -51,12 +51,10 @@ public class FluidRequirementTask extends QuestTask {
         this.sticky = sticky;
     }
 
-    /** See ItemRequirementTask#checksAe2Storage - same rationale, no nbtFilter to worry about here. */
     private boolean checksAe2Storage() {
         return QuestEngineConfig.isAe2StorageForItemFluidTasksEnabled() && AE2Compat.isAvailable();
     }
 
-    /** See ItemRequirementTask#dependsOnInventory for the full rationale. */
     @Override
     public boolean dependsOnInventory() {
         return !checksAe2Storage();
@@ -64,7 +62,7 @@ public class FluidRequirementTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        // Sticky by default - see ItemRequirementTask#isCompletedFor for the full rationale.
+        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (fluidId == null || requiredAmount <= 0) return false;
         long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, getFluid()) : 0;
@@ -105,12 +103,9 @@ public class FluidRequirementTask extends QuestTask {
         return totalFound;
     }
 
-    /**
-     * Call this when claiming rewards. It explicitly respects the 'consume' config toggle.
-     */
     @Override
     public void tryConsume(Player player) {
-        if (fluidId == null || !consume || requiredAmount <= 0) return; // Skip completely if consume is false
+        if (fluidId == null || !consume || requiredAmount <= 0) return; 
 
         int remainingToDrain = requiredAmount;
 
@@ -130,13 +125,12 @@ public class FluidRequirementTask extends QuestTask {
                     FluidStack actualDrain = handler.drain(remainingToDrain, IFluidHandler.FluidAction.EXECUTE);
                     remainingToDrain -= actualDrain.getAmount();
 
-                    // Safely preserves container states/mutations (Drums update levels, Buckets empty)
                     player.getInventory().setItem(i, handler.getContainer());
                 }
             }
         }
         player.getInventory().setChanged();
-        // Only reaches into the network for whatever physical inventory couldn't cover.
+        
         if (remainingToDrain > 0 && checksAe2Storage()) {
             AE2Compat.tryConsume(player, getFluid(), remainingToDrain);
         }
@@ -151,7 +145,6 @@ public class FluidRequirementTask extends QuestTask {
         return String.format("%,d / %,d mB", found, requiredAmount);
     }
 
-    /** See FilterFluidTask's equivalent override - shows the fluid's bucket item as its icon. */
     @Override
     public ResourceLocation getDisplayItemId() {
         if (fluidId == null) return null;
@@ -168,7 +161,7 @@ public class FluidRequirementTask extends QuestTask {
         tag.putString("type", "fluid_check");
         tag.putString("fluid_id", fluidId != null ? fluidId.toString() : "minecraft:empty");
         tag.putInt("amount", requiredAmount);
-        tag.putBoolean("consume", consume); // Save parameter config
+        tag.putBoolean("consume", consume); 
         tag.putBoolean("sticky", sticky);
         return tag;
     }
@@ -179,7 +172,8 @@ public class FluidRequirementTask extends QuestTask {
             this.fluidId = new ResourceLocation(nbt.getString("fluid_id"));
         }
         this.requiredAmount = nbt.getInt("amount");
-        this.consume = nbt.getBoolean("consume"); // Load parameter config
+        this.consume = nbt.getBoolean("consume"); 
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
+

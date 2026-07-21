@@ -13,18 +13,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * Settings screen for Quest Chronicles.
- *
- * Categorized (left sidebar) instead of one long flat scroll - as more systems became
- * configurable this session, a single list was heading toward the same unmanageable sprawl this
- * pack's other screens have needed rework for. Each category's rows are built once, into a
- * {@link Row} list with its Y position computed right there - render() and mouseClicked() both
- * read from that same list, instead of (as before) independently re-deriving matching "y += ROW_H"
- * arithmetic in two places, which is exactly the class of bug that bit the Toast Designer and
- * Variant editor screens earlier (a label/row landing behind or overlapping its neighbor because
- * the two copies of the arithmetic drifted out of sync).
- */
 public class SettingsScreen extends Screen {
 
     private int C_BG = 0xFF0B0B0F;
@@ -73,21 +61,16 @@ public class SettingsScreen extends Screen {
         INFO
     }
 
-    /**
-     * One settings row. Built fresh (with its Y already assigned) whenever the category changes
-     * or a value in it is edited, so render() and click-handling always agree on where every row
-     * actually is - there is no second copy of this layout math anywhere else in this class.
-     */
     private static final class Row {
 
         final RowType type;
         final String label;
         final Supplier<String> valueFn;
-        final Runnable onLeft, onRight; // CYCLE/TOGGLE: onLeft/onRight both toggle for TOGGLE rows
-        final Runnable onClick; // LINK rows
+        final Runnable onLeft, onRight; 
+        final Runnable onClick; 
         int y;
         int height = ROW_H;
-        String tooltip; // null = no tooltip; set via .tip(...) after construction
+        String tooltip; 
 
         Row(RowType type, String label, Supplier<String> valueFn, Runnable onLeft, Runnable onRight,
             Runnable onClick) {
@@ -99,7 +82,6 @@ public class SettingsScreen extends Screen {
             this.onClick = onClick;
         }
 
-        /** Attaches a hover tooltip; chain onto any factory method. Wrap long text with \n. */
         Row tip(String text) {
             this.tooltip = text;
             return this;
@@ -130,10 +112,9 @@ public class SettingsScreen extends Screen {
         }
 
         static Row link(String label, Runnable onClick) {
-            return new Row(RowType.LINK, label, () -> "→", null, null, onClick);
+            return new Row(RowType.LINK, label, () -> "â†’", null, null, onClick);
         }
 
-        /** A plain non-interactive info line - may wrap onto more than one visual line. */
         static Row info(String text, int lineCount) {
             Row r = new Row(RowType.INFO, text, null, null, null, null);
             r.height = lineCount * LABEL_LINE_H;
@@ -175,7 +156,6 @@ public class SettingsScreen extends Screen {
         rebuildRows();
     }
 
-    /** Builds the row list (with Y positions assigned) for whichever category is selected. */
     private void rebuildRows() {
         rows = new ArrayList<>();
         int y = HEADER_H + MARGIN;
@@ -204,7 +184,7 @@ public class SettingsScreen extends Screen {
                             if (minecraft != null) minecraft.setScreen(new ChroniclesThemeEditorScreen(this));
                         })
                         .tip("Opens the full color editor - customize every panel, text, and\nstate color, then save it as a named theme."));
-                rows.add(Row.info("§8Keybinds: Minecraft's own Options → Controls → Phoenix Chronicles", 1));
+                rows.add(Row.info("§8Keybinds: Minecraft's own Options â†’ Controls â†’ Phoenix Chronicles", 1));
             }
             case HUD -> {
                 rows.add(Row.cycle("§fHUD Position", HUDPosition.class, settings::getHudPosition,
@@ -231,7 +211,7 @@ public class SettingsScreen extends Screen {
                         settings::setToastPosition).tip("Corner of the screen pop-ups slide in from."));
                 rows.add(Row.toggle("§fPlay Pop-Up Sounds", settings::isPlayToastSounds, settings::setPlayToastSounds)
                         .tip("Plays a sound alongside quest unlock/completion pop-ups."));
-                rows.add(Row.info("§8Individual pop-ups: right-click a quest → Design Pop-Up", 1));
+                rows.add(Row.info("§8Individual pop-ups: right-click a quest â†’ Design Pop-Up", 1));
             }
             case CANVAS -> {
                 rows.add(Row.toggle("§fHide Completed by Default", settings::isHideCompletedByDefault,
@@ -264,9 +244,7 @@ public class SettingsScreen extends Screen {
                         settings::setInvButtonPos).tip("Corner of the inventory screen the button is anchored to."));
             }
             case DEV -> {
-                // Saved immediately (not just on the footer Save button) since closing this
-                // screen any other way (Escape, clicking away) previously discarded the toggle
-                // silently, making it look like the choice didn't persist across restarts.
+
                 rows.add(Row.toggle("§fDev Mode Enabled", () -> !settings.isDevModeDisabled(), on -> {
                     settings.setDevModeDisabled(!on);
                     settings.save();
@@ -291,7 +269,6 @@ public class SettingsScreen extends Screen {
     public void render(GuiGraphics g, int mx, int my, float partial) {
         g.fill(0, 0, width, height, C_BG);
 
-        // Header
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
@@ -300,7 +277,6 @@ public class SettingsScreen extends Screen {
         int contentTop = HEADER_H;
         int contentBottom = height - FOOTER_H;
 
-        // Sidebar
         g.fill(0, contentTop, SIDEBAR_W, contentBottom, C_PANEL);
         g.fill(SIDEBAR_W - 1, contentTop, SIDEBAR_W, contentBottom, C_BORDER);
         int sy = contentTop + MARGIN;
@@ -319,7 +295,6 @@ public class SettingsScreen extends Screen {
             sy += ROW_H;
         }
 
-        // Content area
         int x = SIDEBAR_W + MARGIN;
         int w = Math.min(PANEL_W, width - x - MARGIN);
         g.enableScissor(x, contentTop, x + w, contentBottom);
@@ -341,7 +316,7 @@ public class SettingsScreen extends Screen {
                     if (hov) g.fill(x, ry, x + w, ry + ROW_H, 0x10FFFFFF);
                     int textY = ry + (ROW_H - 8) / 2;
                     g.drawString(font, r.label, x + 4, textY, C_TEXT, false);
-                    g.drawCenteredString(font, "§7→", x + w - ARROW_W / 2, textY, hov ? C_ACCENT : C_TEXT_DIM);
+                    g.drawCenteredString(font, "§7â†’", x + w - ARROW_W / 2, textY, hov ? C_ACCENT : C_TEXT_DIM);
                 }
                 default -> renderValueRow(g, x, ry, w, r, mx, my);
             }
@@ -351,7 +326,6 @@ public class SettingsScreen extends Screen {
         }
         g.disableScissor();
 
-        // Footer
         int footerY = height - FOOTER_H;
         g.fill(0, footerY, width, height, C_HEADER);
         g.fill(0, footerY, width, footerY + 1, C_BORDER);
@@ -365,22 +339,16 @@ public class SettingsScreen extends Screen {
         g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 18,
                 saveHov ? 0xFF2A4A2A : 0xFF1A2A1A);
         if (saveHov) g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 1, C_OK);
-        g.drawCenteredString(font, "§a✓ Save", width / 2 - btnW / 2 - btnGap / 2, btnY + 6, saveHov ? C_OK : C_TEXT);
+        g.drawCenteredString(font, "§aâœ“ Save", width / 2 - btnW / 2 - btnGap / 2, btnY + 6, saveHov ? C_OK : C_TEXT);
 
         boolean cancelHov = mx >= width / 2 + btnGap / 2 && mx < width / 2 + btnW + btnGap / 2 && my >= btnY &&
                 my < btnY + 18;
         g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 18,
                 cancelHov ? 0xFF3A3A3A : 0xFF2A2A2A);
         if (cancelHov) g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 1, C_CANCEL);
-        g.drawCenteredString(font, "§7✕ Cancel", width / 2 + btnW / 2 + btnGap / 2, btnY + 6,
+        g.drawCenteredString(font, "§7âœ• Cancel", width / 2 + btnW / 2 + btnGap / 2, btnY + 6,
                 cancelHov ? C_CANCEL : C_TEXT);
 
-        // Tooltip is drawn dead last - after the footer too - so it never gets clipped by the
-        // content scissor or buried under anything else on the screen. The explicit flush() forces
-        // every row's batched text (labels, values, and the < > cycle arrows) to actually get
-        // uploaded before the tooltip paints - without it, GuiGraphics can hold those glyphs in its
-        // buffer and flush them after this call, which visually put the arrows on top despite this
-        // being later in draw order.
         if (hoveredTooltip != null) {
             g.flush();
             renderRowTooltip(g, mx, my, hoveredTooltip);
@@ -447,7 +415,6 @@ public class SettingsScreen extends Screen {
         int contentTop = HEADER_H;
         int contentBottom = height - FOOTER_H;
 
-        // Sidebar category clicks
         if (mx >= 0 && mx < SIDEBAR_W && my >= contentTop && my < contentBottom) {
             int sy = contentTop + MARGIN;
             for (Category cat : Category.values()) {
@@ -461,7 +428,6 @@ public class SettingsScreen extends Screen {
             return true;
         }
 
-        // Row clicks
         int x = SIDEBAR_W + MARGIN;
         int w = Math.min(PANEL_W, width - x - MARGIN);
         for (Row r : rows) {
@@ -480,7 +446,7 @@ public class SettingsScreen extends Screen {
                 case CYCLE -> {
                     int rArrowX = x + w - ARROW_W;
                     int lArrowX = rArrowX - ARROW_GAP - ARROW_W;
-                    if (mx < lArrowX) break; // clicked the label/value area, not an arrow - no-op
+                    if (mx < lArrowX) break; 
                     (mx >= rArrowX ? r.onRight : r.onLeft).run();
                     rebuildRows();
                     return true;
@@ -508,3 +474,4 @@ public class SettingsScreen extends Screen {
         return false;
     }
 }
+

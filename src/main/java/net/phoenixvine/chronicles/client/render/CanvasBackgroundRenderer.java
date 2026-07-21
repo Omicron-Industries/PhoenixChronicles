@@ -5,11 +5,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.CategoryConfig;
 import net.phoenixvine.chronicles.client.FrameProfiler;
 
-/**
- * Draws the canvas background tint + pattern (dot grid / grid lines / hex grid / diagonal lines
- * / custom texture) for the currently selected category. Extracted out of ChronicleOverviewScreen
- * - stateless, only needs the current viewport (zoom/pan) and category threaded through.
- */
 public final class CanvasBackgroundRenderer {
 
     private static final int C_DOT = 0x14FFFFFF;
@@ -30,24 +25,17 @@ public final class CanvasBackgroundRenderer {
             case GRID_LINES -> drawGridLines(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY);
             case HEX_GRID -> drawHexGrid(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY);
             case DIAGONAL_LINES -> drawDiagonalLines(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY);
-            case SOLID -> {} // tint fill above is sufficient
+            case SOLID -> {} 
             case CUSTOM -> drawCustomBg(g, x1, y1, x2, y2, cfg.getTexture());
         }
-        // drawDotGrid queues into NodeShapeRenderer's shared batch instead of drawing each dot
-        // immediately (same fix as the node shapes) - flush right here, before anything else
-        // queues into it this frame, so the background stays correctly behind everything drawn
-        // after it (a no-op if this category isn't using DOT_GRID).
+
         NodeShapeRenderer.flushFillQueue(g);
         FrameProfiler.end("background:pattern");
     }
 
     private static void drawDotGrid(GuiGraphics g, int x1, int y1, int x2, int y2,
                                     float zoom, int viewOffX, int viewOffY) {
-        // Floor raised from 12 to 22 - each dot is its own g.fill() call, and the floor caps how
-        // dense the pattern gets at low zoom (spacing can't shrink below it), not how sparse. At
-        // the old floor a full-screen canvas at low zoom was ~11,700 individual fill calls every
-        // frame just for the background texture; this cuts that by roughly (22/12)^2 ≈ 3.4x with
-        // a barely-perceptible difference in the dot pattern itself.
+
         int sp = Math.max(22, (int) (18 * zoom));
         int sx = x1 + ((viewOffX % sp + sp) % sp);
         int sy = y1 + ((viewOffY % sp + sp) % sp);
@@ -73,7 +61,7 @@ public final class CanvasBackgroundRenderer {
     private static void drawHexGrid(GuiGraphics g, int x1, int y1, int x2, int y2,
                                     float zoom, int viewOffX, int viewOffY) {
         float r = Math.max(10f, 28f * zoom);
-        float w = r * 1.732f; // sqrt(3) * r
+        float w = r * 1.732f; 
         float h = r * 2f;
         float offX = viewOffX % (int) w;
         float offY = viewOffY % (int) (h * 0.75f);
@@ -107,7 +95,7 @@ public final class CanvasBackgroundRenderer {
         for (int d = -sp + startOff; d < total + sp; d += sp) {
             int ax = x1 + d, ay = y1;
             int bx = x1, by = y1 + d;
-            // Clamp to canvas rect
+            
             int cx0 = Math.max(x1, Math.min(x2, ax));
             int cy0 = ay + (cx0 - ax);
             int cx1 = Math.max(x1, Math.min(x2, bx));
@@ -140,6 +128,7 @@ public final class CanvasBackgroundRenderer {
                     new ResourceLocation(textureLoc));
             int w = x2 - x1, h = y2 - y1;
             g.blit(loc, x1, y1, 0, 0, w, h, w, h);
-        } catch (Exception ignored) {} // malformed RL or missing texture
+        } catch (Exception ignored) {} 
     }
 }
+

@@ -25,33 +25,19 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Popup screen for creating or editing a {@link QuestGroup}.
- *
- * <ul>
- * <li>If {@code existing} is {@code null}, a new group is created at the given canvas position.</li>
- * <li>If {@code existing} is provided, that group is edited in-place.</li>
- * </ul>
- */
 public class QuestGroupEditorScreen extends Screen {
 
-    // ── Layout ────────────────────────────────────────────────────────────────
     private static final int DIALOG_W = 250;
     private static final int ROW_H = 22;
     private static final int FIELD_H = 14;
     private static final boolean PHANTASIA = PhantasiaCompat.isAvailable();
     private static final int PREVIEW_H = 70;
 
-    // Computed in init() since dialog height depends on whether Phantasia is installed
     private int dialogH;
     private int dx, dy;
 
-    // ── Palette ───────────────────────────────────────────────────────────────
-    // Panel/header/text now come from ChroniclesThemePalette. The purple border is a
-    // deliberate accent for this dialog (matches CategoryThemeScreen's group-editing accent).
     private static final int C_BORDER = 0xFF8844AA;
 
-    // ── State ─────────────────────────────────────────────────────────────────
     private final Screen parent;
     private final String category;
     @Nullable
@@ -67,15 +53,10 @@ public class QuestGroupEditorScreen extends Screen {
     private EditBox phantasiaIdBox;
     private String errorMsg = "";
 
-    // Working copy of the icon strip — committed onto the group only on Save, mirroring how
-    // TaskRewardEditorScreen stages tasks/rewards locally before flushing.
     private final List<QuestGroup.GroupIcon> icons = new ArrayList<>();
     private int hoveredIconIndex = -1;
     private int iconStripY;
 
-    // Embedded live Phantasia preview — same widget the overview screen's node inspector uses.
-    // Stored as Object (see PhantasiaCompat) so this screen doesn't need a hard compile-time
-    // dependency on Phantasia's own preview class.
     @Nullable
     private Object phantasiaPreview = null;
     private int previewX, previewY, previewW;
@@ -93,8 +74,7 @@ public class QuestGroupEditorScreen extends Screen {
 
     @Override
     protected void init() {
-        // 8 rows (label/fill/border/size/icon-buttons/icon-strip/[phantasia id]/category) + header
-        // + button row, plus the live preview block when Phantasia is installed.
+
         dialogH = 30 + ROW_H * 4 + 20 + 16 + 24 + 30;
         if (PHANTASIA) dialogH += ROW_H + PREVIEW_H + 6;
 
@@ -105,15 +85,13 @@ public class QuestGroupEditorScreen extends Screen {
         int fieldW = DIALOG_W - 20;
         int row = dy + 30;
 
-        // Label field
         labelBox = new EditBox(font, fieldX, row, fieldW, FIELD_H, Component.empty());
-        labelBox.setHint(Component.literal("§8Group label…"));
+        labelBox.setHint(Component.literal("§8Group labelâ€¦"));
         labelBox.setMaxLength(48);
         if (existing != null) labelBox.setValue(existing.getLabel());
         addRenderableWidget(labelBox);
         row += ROW_H;
 
-        // Color (fill) field
         colorBox = new EditBox(font, fieldX, row, fieldW, FIELD_H, Component.empty());
         colorBox.setHint(Component.literal("§8#AARRGGBB fill color"));
         colorBox.setMaxLength(10);
@@ -121,7 +99,6 @@ public class QuestGroupEditorScreen extends Screen {
         addRenderableWidget(colorBox);
         row += ROW_H;
 
-        // Border color field
         borderColorBox = new EditBox(font, fieldX, row, fieldW, FIELD_H, Component.empty());
         borderColorBox.setHint(Component.literal("§8#AARRGGBB border color"));
         borderColorBox.setMaxLength(10);
@@ -130,8 +107,6 @@ public class QuestGroupEditorScreen extends Screen {
         addRenderableWidget(borderColorBox);
         row += ROW_H;
 
-        // Size (width/height) — previously only changeable by dragging a resize handle on the
-        // canvas; these give it its own independent numeric edit here too.
         int halfW = (fieldW - 6) / 2;
         widthBox = new EditBox(font, fieldX, row, halfW, FIELD_H, Component.empty());
         widthBox.setHint(Component.literal("§8Width"));
@@ -145,8 +120,6 @@ public class QuestGroupEditorScreen extends Screen {
         addRenderableWidget(heightBox);
         row += ROW_H;
 
-        // Icon strip — add any mix of item/fluid/texture icons; click one in the strip below to
-        // remove it.
         int iconBtnW = (fieldW - 8) / 3;
         addRenderableWidget(Button.builder(Component.literal("§7+ Item"), b -> {
             if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
@@ -168,15 +141,13 @@ public class QuestGroupEditorScreen extends Screen {
         iconStripY = row;
         row += 20;
 
-        // Phantasia section — optional embedded live preview, editor convenience only (doesn't
-        // render on the actual canvas).
         if (PHANTASIA) {
             phantasiaIdBox = new EditBox(font, fieldX, row, fieldW - 60, FIELD_H, Component.empty());
             phantasiaIdBox.setHint(Component.literal("§8Phantasia machine id (optional)"));
             phantasiaIdBox.setMaxLength(128);
             if (existing != null) phantasiaIdBox.setValue(existing.getPhantasiaMachineId());
             addRenderableWidget(phantasiaIdBox);
-            addRenderableWidget(Button.builder(Component.literal("§7▶ Preview"), b -> refreshPhantasiaPreview())
+            addRenderableWidget(Button.builder(Component.literal("§7â–¶ Preview"), b -> refreshPhantasiaPreview())
                     .bounds(fieldX + fieldW - 56, row, 56, FIELD_H).build());
             row += ROW_H;
 
@@ -188,18 +159,14 @@ public class QuestGroupEditorScreen extends Screen {
             if (existing != null && !existing.getPhantasiaMachineId().isEmpty()) refreshPhantasiaPreview();
         }
 
-        // Category label (read-only info row — no editable field)
-        row += 6; // a little spacer
+        row += 6; 
 
-        // Buttons
         int btnY = dy + dialogH - 24;
         int btnW = existing != null ? (DIALOG_W - 30) / 3 : (DIALOG_W - 20) / 2;
 
-        // Save
         addRenderableWidget(Button.builder(Component.literal("§aSave"), b -> onSave())
                 .bounds(dx + 10, btnY, btnW, 14).build());
 
-        // Delete (only when editing an existing group)
         if (existing != null) {
             addRenderableWidget(Button.builder(Component.literal("§cDelete"), b -> onDelete())
                     .bounds(dx + 10 + btnW + 5, btnY, btnW, 14).build());
@@ -306,46 +273,35 @@ public class QuestGroupEditorScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         if (parent != null) parent.render(g, -1, -1, partial);
 
-        // Force the parent's deferred draws through before we paint our own opaque panel over
-        // it - without this flush boundary the parent's fills/text can still be pending when
-        // this dialog's content gets queued, and the parent bleeds through the panel underneath
-        // (same fix CategoryThemeScreen/ToastDesignerScreen needed).
         g.flush();
 
-        // Quest node icons in the parent screen render via g.renderItem() at z=100, which
-        // persists in the depth buffer - this dialog's own flat z=0 fills/text could still lose
-        // the depth test against that and show the parent bleeding through underneath. Push
-        // above it for the whole dialog, buttons included.
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
 
-        // Dialog background
         g.fill(dx, dy, dx + DIALOG_W, dy + dialogH, ChroniclesThemePalette.PANEL);
         ChroniclesUIKit.drawBorder(g, dx, dy, DIALOG_W, dialogH, C_BORDER);
-        // Header bar
+        
         g.fill(dx + 1, dy + 1, dx + DIALOG_W - 1, dy + 16, ChroniclesThemePalette.HEADER);
         g.drawCenteredString(font, "§d" + this.title.getString(), dx + DIALOG_W / 2, dy + 4,
                 ChroniclesThemePalette.TEXT);
 
         int row = dy + 30;
 
-        // Field labels
         g.drawString(font, "§8Label", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
         row += ROW_H;
         g.drawString(font, "§8Fill color  §7(#AARRGGBB)", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
         row += ROW_H;
         g.drawString(font, "§8Border color  §7(#AARRGGBB)", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
         row += ROW_H;
-        g.drawString(font, "§8Size (W × H)", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Size (W Ã— H)", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
         row += ROW_H;
 
-        // Icon strip
         g.drawString(font, "§8Icons  §7(click to remove)", dx + 10, row - 8, ChroniclesThemePalette.TEXT_FAINT);
         row += FIELD_H + 6;
         renderIconStrip(g, mx, my, dx + 10, iconStripY);
@@ -361,10 +317,8 @@ public class QuestGroupEditorScreen extends Screen {
 
         row += 6;
 
-        // Category display
         g.drawString(font, "§8Chapter: §7" + friendlyCategory(), dx + 10, row + 2, ChroniclesThemePalette.TEXT_DIM);
 
-        // Error message
         if (!errorMsg.isEmpty()) {
             g.drawCenteredString(font, "§c" + errorMsg, dx + DIALOG_W / 2, dy + dialogH - 36, 0xFFCC4444);
         }
@@ -390,7 +344,7 @@ public class QuestGroupEditorScreen extends Screen {
             renderIcon(g, icons.get(i), ix, y, sz);
             if (hov) {
                 g.fill(ix, y, ix + sz, y + sz, 0x66CC2222);
-                g.drawCenteredString(font, "§c✕", ix + sz / 2, y + sz / 2 - 4, 0xFFFFFFFF);
+                g.drawCenteredString(font, "§câœ•", ix + sz / 2, y + sz / 2 - 4, 0xFFFFFFFF);
             }
             ix += sz + gap;
         }
@@ -417,7 +371,7 @@ public class QuestGroupEditorScreen extends Screen {
                 case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
-            // Bad/renamed registry id or texture path — skip this icon rather than crash the frame.
+            
         }
     }
 
@@ -462,3 +416,4 @@ public class QuestGroupEditorScreen extends Screen {
         return false;
     }
 }
+

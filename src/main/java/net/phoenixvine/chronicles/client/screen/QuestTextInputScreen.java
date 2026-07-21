@@ -17,13 +17,11 @@ import java.util.function.Consumer;
 @OnlyIn(Dist.CLIENT)
 public class QuestTextInputScreen extends Screen {
 
-    // Panel/border/text come from ChroniclesThemePalette; widget-local accents stay here.
     private static final int C_ACCENT = 0xFF00AA55;
     private static final int C_BTN = 0xFF1A1A24;
     private static final int C_BTN_HOV = 0xFF22222E;
     private static final int C_GREEN = 0xFF1A2A1A;
 
-    // ── Standard Minecraft color codes ────────────────────────────────────────
     private static final char[] COLOR_CODES = {
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'r'
     };
@@ -33,7 +31,6 @@ public class QuestTextInputScreen extends Screen {
             0xFFFFFFFF
     };
 
-    // ── Markdown format button arrays ─────────────────────────────────────────
     private static final String[] MD_LABELS = { "B", "I", "H", "-", "[]", "T", "R", "PB" };
     private static final String[] MD_INSERTS = {
             "**", "*", "# ", "- ", "[](url)", "[](tip:msg)", "{reset}", "\n---\n"
@@ -56,7 +53,7 @@ public class QuestTextInputScreen extends Screen {
     private final String initial;
 
     private MultilineTextArea inputBox;
-    private EditBox hexBox;  // for {#RRGGBB} hex color input
+    private EditBox hexBox;  
 
     private int pw, ph, px, py, btnY;
 
@@ -73,10 +70,7 @@ public class QuestTextInputScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        // Was a small fixed 460x190 box regardless of actual window size - way too cramped for
-        // multi-paragraph quest descriptions. Scale with the available screen instead, leaving a
-        // comfortable margin, so the text area (which eats whatever's left after the fixed-height
-        // hex/color/format rows and Confirm/Cancel footer) actually gets real room to work with.
+
         this.pw = Math.min(900, width - 80);
         this.ph = Math.min(700, height - 80);
         this.px = (width - pw) / 2;
@@ -87,7 +81,6 @@ public class QuestTextInputScreen extends Screen {
         inputBox.setValue(initial);
         setInitialFocus(inputBox);
 
-        // Hex color box (sits above the color picker row)
         int hexY = btnY - 36;
         hexBox = new EditBox(font, px + 8 + font.width("Hex: "), hexY, 58, 12, Component.empty());
         hexBox.setMaxLength(7);
@@ -99,18 +92,13 @@ public class QuestTextInputScreen extends Screen {
     public void render(GuiGraphics g, int mx, int my, float partial) {
         g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
 
-        // Panel
         g.fill(px, py, px + pw, py + ph, ChroniclesThemePalette.PANEL);
         ChroniclesUIKit.drawBorder(g, px, py, pw, ph, ChroniclesThemePalette.BORDER);
-        // Accent top stripe
+        
         g.fill(px + 1, py, px + pw - 1, py + 2, C_ACCENT);
 
-        // Title
         g.drawCenteredString(font, "§f" + fieldLabel, px + pw / 2, py + 7, ChroniclesThemePalette.TEXT);
 
-        // Character count — at the cap, EVERY further keystroke (including Enter) is silently
-        // rejected by the field's character limit, which previously read as "typing/newlines just
-        // don't work" with no visible explanation. Flips red once there's no room left to type.
         int used = inputBox != null ? inputBox.getValue().length() : 0;
         boolean atCap = used >= maxLength;
         g.drawString(font, (atCap ? "§c" : "§8") + used + " / " + maxLength,
@@ -123,17 +111,17 @@ public class QuestTextInputScreen extends Screen {
         renderFormatButtons(g, mx, my);
 
         int half = pw / 2 - 6;
-        drawBtn(g, mx, my, px + 6, btnY, half, 16, "§a✓ Confirm", C_GREEN);
-        drawBtn(g, mx, my, px + pw / 2 + 3, btnY, half, 16, "§c✕ Cancel", C_BTN);
+        drawBtn(g, mx, my, px + 6, btnY, half, 16, "§aâœ“ Confirm", C_GREEN);
+        drawBtn(g, mx, my, px + pw / 2 + 3, btnY, half, 16, "§câœ• Cancel", C_BTN);
     }
 
     private void renderHexRow(GuiGraphics g, int mx, int my) {
         int rowY = btnY - 36;
         g.drawString(font, "§8Hex: ", px + 8, rowY + 2, ChroniclesThemePalette.TEXT_DIM, false);
-        // Insert button
+        
         int insX = px + 8 + font.width("Hex: ") + 60;
         drawBtn(g, mx, my, insX, rowY - 1, 40, 14, "§7insert", C_BTN);
-        // Live preview swatch
+        
         String hexVal = hexBox != null ? hexBox.getValue().trim() : "";
         if (hexVal.startsWith("#") && hexVal.length() == 7) {
             try {
@@ -141,7 +129,7 @@ public class QuestTextInputScreen extends Screen {
                 g.fill(insX + 44, rowY, insX + 58, rowY + 12, col);
             } catch (NumberFormatException ignored) {}
         }
-        g.drawString(font, "§8{#RRGGBB} syntax — no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
+        g.drawString(font, "§8{#RRGGBB} syntax â€” no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
                 false);
     }
 
@@ -160,8 +148,8 @@ public class QuestTextInputScreen extends Screen {
             }
 
             String displayLabel = MD_LABELS[i];
-            if (i == 0) displayLabel = "§l" + displayLabel;      // Make 'B' look bold
-            else if (i == 1) displayLabel = "§o" + displayLabel; // Make 'I' look italic
+            if (i == 0) displayLabel = "§l" + displayLabel;      
+            else if (i == 1) displayLabel = "§o" + displayLabel; 
 
             g.drawCenteredString(font, displayLabel, bx + btnW / 2, rowY + 2, hov ? 0xFFFFFFFF : 0xFFAAAAAA);
         }
@@ -205,18 +193,17 @@ public class QuestTextInputScreen extends Screen {
         if (super.mouseClicked(mx, my, btn)) return true;
 
         int half = pw / 2 - 6;
-        // Confirm
+        
         if (mx >= px + 6 && mx < px + 6 + half && my >= btnY && my < btnY + 16) {
             confirm();
             return true;
         }
-        // Cancel
+        
         if (mx >= px + pw / 2 + 3 && mx < px + pw - 3 && my >= btnY && my < btnY + 16) {
             Minecraft.getInstance().setScreen(parent);
             return true;
         }
 
-        // Hex insert button
         int hexRowY = btnY - 36;
         int insX = px + 8 + font.width("Hex: ") + 60;
         if (mx >= insX && mx < insX + 40 && my >= hexRowY - 1 && my < hexRowY + 13) {
@@ -229,7 +216,6 @@ public class QuestTextInputScreen extends Screen {
             return true;
         }
 
-        // Color picker
         String label = "Colors: ";
         int labelW = font.width(label);
         int boxX = px + 8 + labelW;
@@ -244,7 +230,6 @@ public class QuestTextInputScreen extends Screen {
             }
         }
 
-        // Markdown format buttons interaction
         int fBtnW = 18, fGap = 2;
         int totalW = MD_LABELS.length * (fBtnW + fGap) - fGap;
         int fStartX = px + pw - 8 - totalW;
@@ -258,7 +243,6 @@ public class QuestTextInputScreen extends Screen {
             }
         }
 
-        // Click outside the panel → cancel, same as Escape (discards unsaved edits)
         if (mx < px || mx >= px + pw || my < py || my >= py + ph) {
             Minecraft.getInstance().setScreen(parent);
             return true;
@@ -278,19 +262,13 @@ public class QuestTextInputScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        // The description box is the only meaningfully scrollable thing on this whole screen -
-        // route the wheel to it regardless of exact cursor position instead of requiring a
-        // pixel-precise hover over the box itself.
+
         if (inputBox != null && inputBox.scrollBy(delta)) return true;
         return super.mouseScrolled(mx, my, delta);
     }
 
     private void confirm() {
-        // onConfirm often triggers a full quest-registry disk save (hundreds of files) - if that
-        // throws partway through for any reason, this used to leave the editor open with no
-        // feedback at all ("lags, then just keeps editing") since setScreen(parent) below never
-        // ran. Guarantee the screen closes either way and print whatever went wrong instead of
-        // silently swallowing it.
+
         try {
             onConfirm.accept(inputBox != null ? inputBox.getValue() : initial);
         } catch (Exception e) {
@@ -306,3 +284,4 @@ public class QuestTextInputScreen extends Screen {
         return false;
     }
 }
+

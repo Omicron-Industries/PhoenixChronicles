@@ -7,15 +7,10 @@ import java.io.IOException;
 
 import javax.imageio.ImageIO;
 
-/**
- * Standalone asset generator utility for Phoenix Chronicles.
- * Generates vanilla-accurate 16x16 pixel-snapped GUI sprites with anti-aliasing disabled.
- * Outputs white textures to allow live color tinting at runtime using GuiGraphics.
- */
 public class QuestSpriteGenerator {
 
     private static final int SPRITE_SIZE = 64;
-    // Points directly to the standard mod resources folder
+    
     private static final String OUTPUT_DIR = "src/main/resources/assets/phoenix_chronicles/textures/gui/sprites/";
 
     public static void main(String[] args) {
@@ -34,64 +29,52 @@ public class QuestSpriteGenerator {
             System.out.println("Target: " + dir.getAbsolutePath());
             System.out.println("=================================================");
 
-            // 1. SQUARE
             generateShape("square.png", false, new int[] { 1, 14, 14, 1 }, new int[] { 1, 1, 14, 14 });
             generateShape("square_outline.png", true, new int[] { 1, 14, 14, 1 }, new int[] { 1, 1, 14, 14 });
 
-            // 2. CIRCLE
             generateShape("circle.png", false, new int[] { 4, 11, 14, 14, 11, 4, 1, 1 },
                     new int[] { 1, 1, 4, 11, 14, 14, 11, 4 });
             generateShape("circle_outline.png", true, new int[] { 4, 11, 14, 14, 11, 4, 1, 1 },
                     new int[] { 1, 1, 4, 11, 14, 14, 11, 4 });
 
-            // 3. DIAMOND
             generateShape("diamond.png", false, new int[] { 8, 14, 8, 1 }, new int[] { 1, 8, 14, 8 });
             generateShape("diamond_outline.png", true, new int[] { 8, 14, 8, 1 }, new int[] { 1, 8, 14, 8 });
 
-            // 4. HEXAGON
             generateShape("hexagon.png", false, new int[] { 4, 11, 14, 11, 4, 1 }, new int[] { 1, 1, 8, 14, 14, 8 });
             generateShape("hexagon_outline.png", true, new int[] { 4, 11, 14, 11, 4, 1 },
                     new int[] { 1, 1, 8, 14, 14, 8 });
 
-            // 5. TRIANGLE
             generateShape("triangle.png", false, new int[] { 8, 14, 1 }, new int[] { 1, 14, 14 });
             generateShape("triangle_outline.png", true, new int[] { 8, 14, 1 }, new int[] { 1, 14, 14 });
 
-            // 6. STAR
             generateShape("star.png", false, new int[] { 8, 10, 15, 11, 13, 8, 3, 5, 1, 6 },
                     new int[] { 1, 6, 6, 9, 14, 11, 14, 9, 6, 6 });
             generateShape("star_outline.png", true, new int[] { 8, 10, 15, 11, 13, 8, 3, 5, 1, 6 },
                     new int[] { 1, 6, 6, 9, 14, 11, 14, 9, 6, 6 });
 
-            // 7. PENTAGON
             generateShape("pentagon.png", false, new int[] { 8, 14, 12, 4, 2 }, new int[] { 1, 5, 14, 14, 5 });
             generateShape("pentagon_outline.png", true, new int[] { 8, 14, 12, 4, 2 }, new int[] { 1, 5, 14, 14, 5 });
 
-            // 8. SHIELD
             generateShape("shield.png", false, new int[] { 1, 14, 14, 8, 1 }, new int[] { 1, 1, 9, 14, 9 });
             generateShape("shield_outline.png", true, new int[] { 1, 14, 14, 8, 1 }, new int[] { 1, 1, 9, 14, 9 });
 
-            // 9. CROSS
             generateCross("cross.png", false);
             generateCross("cross_outline.png", true);
 
-            // 10. DEPENDENCY MAP DECORATIONS
             generateArrowhead("line_arrow.png");
             generateGridPattern("bg_dot_grid.png");
 
-            // 11. EXTRA REPEATING LINE PATTERNS & MODIFIERS
-            generateLinePattern("dep_line_dotted.png", new boolean[] { true, false });               // Alternating
-                                                                                                     // single pixels
-            generateLinePattern("dep_line_dashed.png", new boolean[] { true, true, true, false, false }); // 3px dash,
-                                                                                                          // 2px blank
-            generateLineBadge("line_badge_forbidden.png", true);                                  // Structural Block
-                                                                                                  // 'X' emblem
-            generateLineBadge("line_badge_cosmetic.png", false);                                 // Structural Guide Eye
-                                                                                                 // emblem
-            generateLineCurve("line_curve_in.png", true);                                        // Bottom-left curve
-                                                                                                 // connection
-            generateLineCurve("line_curve_out.png", false);                                      // Top-right curve
-                                                                                                 // connection
+            generateLinePattern("dep_line_dotted.png", new boolean[] { true, false });               
+                                                                                                     
+            generateLinePattern("dep_line_dashed.png", new boolean[] { true, true, true, false, false }); 
+                                                                                                          
+            generateLineBadge("line_badge_forbidden.png", true);                                  
+                                                                                                  
+            generateLineBadge("line_badge_cosmetic.png", false);                                 
+                                                                                                 
+            generateLineCurve("line_curve_in.png", true);                                        
+                                                                                                 
+            generateLineCurve("line_curve_out.png", false);                                      
 
             System.out.println("=================================================");
             System.out.println("SUCCESS: All 20 UI assets baked completely!");
@@ -152,8 +135,6 @@ public class QuestSpriteGenerator {
         BufferedImage img = new BufferedImage(SPRITE_SIZE, SPRITE_SIZE, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
 
-        // Emits a single point at (0,0) with partial opacity
-        // When tiled infinitely across a canvas, this produces a clean mesh field
         g.setColor(new Color(255, 255, 255, 45));
         g.fillRect(0, 0, 1, 1);
 
@@ -162,7 +143,7 @@ public class QuestSpriteGenerator {
     }
 
     private static void generateLinePattern(String filename, boolean[] pattern) throws IOException {
-        // Creates a micro-texture matching the pattern length horizontally
+        
         BufferedImage img = new BufferedImage(pattern.length, 1, BufferedImage.TYPE_INT_ARGB);
         for (int x = 0; x < pattern.length; x++) {
             img.setRGB(x, 0, pattern[x] ? Color.WHITE.getRGB() : 0x00000000);
@@ -203,9 +184,10 @@ public class QuestSpriteGenerator {
     }
 
     private static void setupGraphics(Graphics2D g) {
-        // Enforces sharp, jagged pixel edges ideal for 16x16 assets
+        
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
         g.setColor(Color.WHITE);
     }
 }
+

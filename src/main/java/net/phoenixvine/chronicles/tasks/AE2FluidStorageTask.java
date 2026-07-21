@@ -11,18 +11,12 @@ import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Checks that a player has at least a required amount (in mB) of a fluid stored in their Applied
- * Energistics 2 ME network, read through whichever wireless terminal they're currently holding.
- * The AE2 equivalent of {@link FluidRequirementTask}, but reading from network storage instead of
- * fluid-handler capability items - see {@link AE2Compat} for why this is safe to check every tick.
- */
 public class AE2FluidStorageTask extends QuestTask {
 
     private ResourceLocation fluidId;
     private long requiredAmount;
     private boolean consume;
-    /** See ItemRequirementTask#sticky - same rationale applies to network storage. */
+    
     private boolean sticky = true;
 
     public AE2FluidStorageTask(ResourceLocation taskId, Component description, ResourceLocation fluidId,
@@ -86,7 +80,6 @@ public class AE2FluidStorageTask extends QuestTask {
         return String.format("%,d / %,d mB", found, requiredAmount);
     }
 
-    /** Shows the fluid's bucket item as its icon, same convention as FluidRequirementTask. */
     @Override
     public ResourceLocation getDisplayItemId() {
         Fluid fluid = resolveFluid();
@@ -117,3 +110,4 @@ public class AE2FluidStorageTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
+

@@ -10,10 +10,6 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Task: Break a specific block N times.
- * SNBT shape: { type: "block_break", block_id: "minecraft:stone", required: 64 }
- */
 public class BlockBreakTask extends QuestTask {
 
     private Block targetBlock;
@@ -38,7 +34,6 @@ public class BlockBreakTask extends QuestTask {
         return TaskProgressAccess.getOrEmpty(player, getTaskId()).getInt("count") >= required;
     }
 
-    /** Called from BlockEvent.BreakEvent handler in ChronicleEvents. */
     public void onBlockBroken(Player player, Block broken) {
         if (targetBlock == null || broken != targetBlock) return;
         TaskProgressAccess.with(player, getTaskId(), prog -> {
@@ -72,3 +67,4 @@ public class BlockBreakTask extends QuestTask {
         if (nbt.contains("required")) this.required = Math.max(1, nbt.getInt("required"));
     }
 }
+

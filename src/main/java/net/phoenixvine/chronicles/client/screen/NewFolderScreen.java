@@ -13,16 +13,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Consumer;
 
-/**
- * Tiny popup for naming a new chapter folder (FTBQ-style grouping of sidebar categories into a
- * collapsible section, e.g. "Progression" containing several chapters). Opened from
- * CategoryThemeScreen's Folder dropdown's "+ New folder…" entry.
- *
- * ChapterFolderRegistry already had a full mutation API (addFolder/addCategoryToFolder/etc.) with
- * zero callers anywhere in the codebase - this and the Folder dropdown in CategoryThemeScreen are
- * the first UI wired up to it. Before this, the only way to group chapters was hand-editing
- * config/phoenix_chronicles/chapter_folders.snbt directly.
- */
 public class NewFolderScreen extends Screen {
 
     private static final int PANEL_W = 200;
@@ -81,7 +71,7 @@ public class NewFolderScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) { /* parent renders behind us */ }
+    public void renderBackground(@NotNull GuiGraphics g) {  }
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -105,11 +95,11 @@ public class NewFolderScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 257 || key == 335) { // Enter / numpad Enter
+        if (key == 257 || key == 335) { 
             create();
             return true;
         }
-        if (key == 256) { // ESC
+        if (key == 256) { 
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -130,3 +120,4 @@ public class NewFolderScreen extends Screen {
         return false;
     }
 }
+

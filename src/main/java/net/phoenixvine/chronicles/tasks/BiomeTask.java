@@ -7,11 +7,6 @@ import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
-/**
- * Task: visit (stand in) a specific biome.
- * Completes the first time the player is detected inside the target biome on a server tick.
- * SNBT shape: { type: "biome", biome_id: "minecraft:jungle" }
- */
 public class BiomeTask extends QuestTask {
 
     private ResourceLocation biomeId;
@@ -55,3 +50,4 @@ public class BiomeTask extends QuestTask {
         if (nbt.contains("biome_id")) biomeId = new ResourceLocation(nbt.getString("biome_id"));
     }
 }
+

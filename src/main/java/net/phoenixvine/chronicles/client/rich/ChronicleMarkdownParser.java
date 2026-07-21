@@ -9,34 +9,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Parses Chronicles description text (from either the .snbt "description" field or a .md
- * companion file) into a list of {@link RichBlock}s — proper block-level Markdown structure,
- * not just a flat list of styled spans.
- *
- * This exists because two different render paths (the compact card and the fullscreen panel)
- * used to disagree about what a description even *was*: one called vanilla Font.split() on the
- * raw string (which doesn't treat "\n" as a forced break), the other manually pre-split on "\n"
- * before word-wrapping. Both approaches only ever supported one flat run of inline styling with
- * no real headings/lists. This parser is now the single source of truth for structure; both
- * render paths should go through {@link ChronicleRichTextRenderer#renderBlocks} instead.
- *
- * BLOCK SYNTAX:
- * - Blank line(s) → paragraph break (collapsed to one {@link RichBlock.Blank})
- * - "# " .. "###### " → {@link RichBlock.Heading}, level = number of leading #'s
- * - "- ", "* ", "+ " → unordered {@link RichBlock.ListItem}
- * - "1. ", "2. ", ... → ordered {@link RichBlock.ListItem}
- * - anything else → {@link RichBlock.Paragraph}; consecutive non-blank,
- * non-heading, non-list lines are joined with a single space
- * (Markdown "soft break" — matches standard MD semantics)
- *
- * INLINE SYNTAX (within any block's text, same as {@link ChronicleTextParser} plus emphasis):
- * {#RRGGBB} hex color, {reset} reset, **bold**, *italic* / _italic_,
- * [label](url) link, [label](tip:msg) tooltip, [img:rl] / [img:rl,w,h] inline image.
- *
- * DESIGN INVARIANT — & is never touched; § codes pass straight through to Minecraft's renderer,
- * same as {@link ChronicleTextParser}.
- */
 public final class ChronicleMarkdownParser {
 
     private ChronicleMarkdownParser() {}
@@ -51,7 +23,7 @@ public final class ChronicleMarkdownParser {
 
         String[] lines = input.replace("\r\n", "\n").replace("\r", "\n").split("\n", -1);
         int i = 0;
-        boolean lastWasBlank = true; // suppress a leading Blank block
+        boolean lastWasBlank = true; 
 
         while (i < lines.length) {
             String raw = lines[i];
@@ -75,7 +47,7 @@ public final class ChronicleMarkdownParser {
 
             Matcher um = UNORDERED.matcher(trimmed);
             if (um.matches()) {
-                blocks.add(new RichBlock.ListItem("•", 10, parseInline(um.group(1))));
+                blocks.add(new RichBlock.ListItem("â€¢", 10, parseInline(um.group(1))));
                 lastWasBlank = false;
                 i++;
                 continue;
@@ -90,7 +62,6 @@ public final class ChronicleMarkdownParser {
                 continue;
             }
 
-            // Paragraph: gobble consecutive plain lines, joined with a single space.
             StringBuilder para = new StringBuilder();
             while (i < lines.length) {
                 String t = lines[i].trim();
@@ -109,12 +80,9 @@ public final class ChronicleMarkdownParser {
         return blocks;
     }
 
-    /** Rough indent width estimate for ordered-list markers without needing a Font reference here. */
     private static int font_est(String marker) {
         return 6 * marker.length() + 6;
     }
-
-    // ── Inline parser (ChronicleTextParser's syntax, plus **bold** / *italic* / _italic_) ─────
 
     private static List<RichSpan> parseInline(String input) {
         List<RichSpan> out = new ArrayList<>();
@@ -128,7 +96,6 @@ public final class ChronicleMarkdownParser {
         while (i < len) {
             char c = input.charAt(i);
 
-            // ── {#RRGGBB} hex color or {reset} ───────────────────────────────
             if (c == '{') {
                 int end = input.indexOf('}', i + 1);
                 if (end > i) {
@@ -148,7 +115,6 @@ public final class ChronicleMarkdownParser {
                 }
             }
 
-            // ── [label](target) link, tooltip, or [img:rl] ───────────────────
             if (c == '[') {
                 int labelEnd = input.indexOf(']', i + 1);
                 if (labelEnd > i && labelEnd + 1 < len && input.charAt(labelEnd + 1) == '(') {
@@ -190,7 +156,6 @@ public final class ChronicleMarkdownParser {
                 }
             }
 
-            // ── **bold** ──────────────────────────────────────────────────────
             if (c == '*' && i + 1 < len && input.charAt(i + 1) == '*') {
                 flush(buf, currentStyle, out);
                 currentStyle = currentStyle.withBold(!currentStyle.isBold());
@@ -198,7 +163,6 @@ public final class ChronicleMarkdownParser {
                 continue;
             }
 
-            // ── *italic* / _italic_ ─────────────────────────────────────────
             if (c == '*' || c == '_') {
                 flush(buf, currentStyle, out);
                 currentStyle = currentStyle.withItalic(!currentStyle.isItalic());
@@ -246,3 +210,4 @@ public final class ChronicleMarkdownParser {
         return true;
     }
 }
+

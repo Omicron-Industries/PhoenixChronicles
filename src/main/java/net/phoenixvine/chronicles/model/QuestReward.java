@@ -17,28 +17,6 @@ import net.phoenixvine.chronicles.registry.RewardTableRegistry;
 
 import java.util.List;
 
-/**
- * A reward that can be granted to a player when they complete a quest.
- *
- * Subclasses cover items, XP, and arbitrary server commands.
- * Each type knows how to serialize itself to/from SNBT for disk persistence.
- *
- * SNBT shape inside a quest file:
- * 
- * <pre>
- * rewards: [{
- *   type: "item",
- *   item_id: "minecraft:diamond",
- *   count: 3
- * }, {
- *   type: "xp",
- *   levels: 5
- * }, {
- *   type: "command",
- *   command: "give %player% minecraft:netherite_ingot 1"
- * }]
- * </pre>
- */
 public abstract class QuestReward {
 
     public enum RewardType {
@@ -53,17 +31,12 @@ public abstract class QuestReward {
 
     public abstract RewardType getType();
 
-    /** Human-readable one-line summary shown in the UI. */
     public abstract Component getSummary();
 
-    /** Grants the reward to a player. Called server-side only. */
     public abstract void grant(ServerPlayer player);
 
     public abstract CompoundTag serializeNBT();
 
-    // ── Weighted pooling (reward tables, loot crates) ───────────────────────────
-
-    /** Pairs a reward with its relative weight inside a weighted pool. */
     public record WeightedReward(QuestReward reward, int weight) {
 
         public WeightedReward {
@@ -71,11 +44,6 @@ public abstract class QuestReward {
         }
     }
 
-    /**
-     * Picks {@code n} entries from {@code pool} without replacement, weighted by
-     * {@link WeightedReward#weight()} (higher weight = proportionally more likely).
-     * If {@code n >= pool.size()}, every entry is returned (order randomized).
-     */
     public static List<QuestReward> pickWeighted(List<WeightedReward> pool, int n, java.util.Random random) {
         if (pool.isEmpty() || n <= 0) return java.util.List.of();
         List<WeightedReward> remaining = new java.util.ArrayList<>(pool);
@@ -96,12 +64,6 @@ public abstract class QuestReward {
         return picked;
     }
 
-    // ── Factory ───────────────────────────────────────────────────────────────
-
-    /**
-     * Deserializes a reward from a CompoundTag read out of the quest SNBT.
-     * Returns null and logs a warning if the type is unknown or data is malformed.
-     */
     public static QuestReward deserializeNBT(CompoundTag tag) {
         String type = tag.getString("type");
         return switch (type) {
@@ -115,10 +77,6 @@ public abstract class QuestReward {
             default -> null;
         };
     }
-
-    // =========================================================================
-    // Item reward
-    // =========================================================================
 
     public static class ItemReward extends QuestReward {
 
@@ -152,7 +110,7 @@ public abstract class QuestReward {
         public void grant(ServerPlayer player) {
             ItemStack stack = new ItemStack(item, count);
             if (!player.addItem(stack)) {
-                // Drop at feet if inventory is full
+                
                 player.drop(stack, false);
             }
         }
@@ -177,10 +135,6 @@ public abstract class QuestReward {
             return new ItemReward(item, count);
         }
     }
-
-    // =========================================================================
-    // XP reward
-    // =========================================================================
 
     public static class XPReward extends QuestReward {
 
@@ -222,13 +176,8 @@ public abstract class QuestReward {
         }
     }
 
-    // =========================================================================
-    // Command reward
-    // =========================================================================
-
     public static class CommandReward extends QuestReward {
 
-        /** %player% is replaced with the player's username at grant time. */
         private final String command;
 
         public CommandReward(String command) {
@@ -246,7 +195,7 @@ public abstract class QuestReward {
 
         @Override
         public Component getSummary() {
-            String preview = command.length() > 32 ? command.substring(0, 29) + "…" : command;
+            String preview = command.length() > 32 ? command.substring(0, 29) + "â€¦" : command;
             return Component.literal("/" + preview);
         }
 
@@ -271,16 +220,6 @@ public abstract class QuestReward {
         }
     }
 
-    // =========================================================================
-    // Loot table reward
-    // =========================================================================
-
-    /**
-     * Rolls a named loot table and gives every resulting ItemStack to the player.
-     * Overflowing items are dropped at the player's feet.
-     *
-     * SNBT shape: { type: "loot_table", loot_table: "minecraft:chests/simple_dungeon" }
-     */
     public static class LootTableReward extends QuestReward {
 
         private final ResourceLocation lootTableId;
@@ -329,35 +268,6 @@ public abstract class QuestReward {
         }
     }
 
-    // =========================================================================
-    // Script event reward
-    // =========================================================================
-
-    /**
-     * Fires a {@link PhoenixQuestScriptRewardEvent} on the Forge event bus.
-     *
-     * Subscribe from KubeJS or Java to run arbitrary code when the quest is completed.
-     *
-     * SNBT shape:
-     * 
-     * <pre>
-     * {type: "script_event", event_id: "unlock_end"}
-     * {type: "script_event", event_id: "give_reward", data: {item: "minecraft:diamond", count: 5}}
-     * </pre>
-     *
-     * KubeJS subscription (server_scripts/quest_rewards.js):
-     * 
-     * <pre>
-     * ForgeEvents.onEvent(
-     *   'net.phoenix.core.integration.phoenix_chronicles.event.PhoenixQuestScriptRewardEvent',
-     *   event => {
-     *     if (event.eventId === 'unlock_end') {
-     *       event.player.stages.add('end_unlocked')
-     *     }
-     *   }
-     * )
-     * </pre>
-     */
     public static class ScriptEventReward extends QuestReward {
 
         private final String eventId;
@@ -409,17 +319,6 @@ public abstract class QuestReward {
         }
     }
 
-    // =========================================================================
-    // Reward table reward
-    // =========================================================================
-
-    /**
-     * References a named {@link net.phoenixvine.chronicles.model.RewardTable} by ID.
-     * At grant time the table is resolved from {@link RewardTableRegistry} and its
-     * rewards (all or a random pick subset) are granted to the player.
-     *
-     * SNBT shape: { type: "reward_table", table_id: "basic_material_bag" }
-     */
     public static class RewardTableReward extends QuestReward {
 
         private final String tableId;
@@ -450,7 +349,7 @@ public abstract class QuestReward {
                 table.grant(player);
             } else {
                 com.mojang.logging.LogUtils.getLogger().warn(
-                        "[Phoenix Chronicles] Reward table '{}' not found — skipping reward for {}",
+                        "[Phoenix Chronicles] Reward table '{}' not found â€” skipping reward for {}",
                         tableId, player.getName().getString());
             }
         }
@@ -469,20 +368,6 @@ public abstract class QuestReward {
         }
     }
 
-    /**
-     * Gives the player a {@link net.phoenixvine.chronicles.item.ChronicleLootCrateItem}
-     * with the specified inner reward pool baked into its NBT.
-     *
-     * SNBT shape:
-     * {
-     * type: "loot_crate", crate_title: "Starter Kit", pick: 2,
-     * rewards: [{..., weight: 5}, {..., weight: 1}, ...]
-     * }
-     *
-     * pick: 0 or absent = grant every reward when opened (legacy behavior); >0 = roll
-     * that many weighted-random rewards from the pool at open time (real per-open
-     * randomness, unlike a table reward which resolves once at grant time).
-     */
     public static class LootCrateReward extends QuestReward {
 
         private final String crateTitle;
@@ -495,7 +380,6 @@ public abstract class QuestReward {
             this.pickCount = Math.max(0, pickCount);
         }
 
-        /** Convenience constructor for an unweighted, grant-all crate (legacy behavior). */
         public LootCrateReward(String crateTitle, java.util.List<QuestReward> innerRewards) {
             this(crateTitle, innerRewards == null ? java.util.List.of() :
                     innerRewards.stream().map(r -> new WeightedReward(r, 1)).toList(), 0);
@@ -573,3 +457,4 @@ public abstract class QuestReward {
         }
     }
 }
+

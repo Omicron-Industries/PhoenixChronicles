@@ -19,50 +19,18 @@ import net.phoenixvine.phantasia.api.PhantasiaEvents;
 import net.phoenixvine.phantasia.api.PhantasiaMachinePreview;
 import net.phoenixvine.phantasia.api.PhantasiaScenePreview;
 
-/**
- * Phantasia mod integration for Phoenix Chronicles.
- *
- * Backed by {@code curse.maven:phantasia-1589286:8326565} (see build.gradle). All calls are safe
- * no-ops when Phantasia isn't installed on the running client/server — check {@link #isAvailable()}
- * where it matters, but the individual helpers below already guard themselves.
- *
- * ── WHAT THIS GIVES YOU ──────────────────────────────────────────────────────
- *
- * • view_machine / view_scene quest tasks (see ViewMachineTask / ViewSceneTask) — complete when
- * the player views a Phantasia build guide/scene for at least a configurable time floor.
- * Registered in PhoenixTaskRegistry and selectable from TaskRewardEditorScreen's task dropdown.
- *
- * • "View in Phantasia ▶" button — QuestTasksScreen opens the viewer for any task where
- * {@link #canOpenForTask(Object)} returns true.
- *
- * • Embedded 3D preview widget — see the preview helpers below, used by ChronicleOverviewScreen's
- * node inspector for quests carrying a ViewMachineTask.
- */
 public class PhantasiaCompat {
 
     public static final String PHANTASIA_MOD_ID = "phantasia";
 
-    /** Guard for all compat calls — check this before calling init(). */
     public static boolean isAvailable() {
         return ModList.get().isLoaded(PHANTASIA_MOD_ID);
     }
 
-    /**
-     * Call from your mod constructor or FMLCommonSetupEvent, guarded by isAvailable(). Registers
-     * {@link ClientEvents} explicitly, on the client only, instead of via {@code
-     * @Mod.EventBusSubscriber} — that annotation makes Forge reflect over every declared method
-     * of the class at mod-construction time regardless of whether Phantasia is present, which
-     * throws {@code NoClassDefFoundError} on {@code PhantasiaEvents.SceneViewerClose} (a method
-     * parameter type) and crashes ALL mod loading whenever Phantasia isn't installed. Deferring
-     * registration to here — reached only after {@link #isAvailable()} has already confirmed
-     * Phantasia is present — avoids that entirely.
-     */
     public static void init() {
         DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
                 () -> () -> MinecraftForge.EVENT_BUS.register(ClientEvents.class));
     }
-
-    // ── Client-side Phantasia event subscribers ───────────────────────────────
 
     public static class ClientEvents {
 
@@ -81,10 +49,8 @@ public class PhantasiaCompat {
                     if (!vmt.getMachineId().equals(closedMachineId)) continue;
                     if (secondsViewed < vmt.getMinSeconds()) continue;
 
-                    // Mark locally so the UI updates immediately without waiting for a server round-trip
                     vmt.markCompletedClient(player);
 
-                    // Notify the server so it persists and triggers quest completion checks
                     ChronicleNetwork.CHANNEL.sendToServer(
                             new C2SPhantasiaTaskCompletePacket(node.getId(), vmt.getTaskId()));
                 }
@@ -115,12 +81,6 @@ public class PhantasiaCompat {
         }
     }
 
-    // ── "View in Phantasia" button helper ─────────────────────────────────────
-
-    /**
-     * Returns true if the given task is a ViewMachineTask/ViewSceneTask whose target id is
-     * known to Phantasia. Safe to call even when Phantasia is absent — returns false.
-     */
     public static boolean canOpenForTask(Object task) {
         if (!isAvailable()) return false;
         if (task instanceof ViewMachineTask vmt) {
@@ -132,13 +92,6 @@ public class PhantasiaCompat {
         return false;
     }
 
-    /**
-     * Opens the Phantasia viewer for a ViewMachineTask or ViewSceneTask.
-     * Safe no-op when Phantasia is absent or the machine/scene isn't registered.
-     *
-     * @param task   the task to open a viewer for
-     * @param parent the Screen Phantasia should return to on close
-     */
     public static void openForTask(Object task, Screen parent) {
         if (!isAvailable()) return;
         if (task instanceof ViewMachineTask vmt) {
@@ -148,23 +101,9 @@ public class PhantasiaCompat {
         }
     }
 
-    // ── Embedded 3D preview widget ────────────────────────────────────────────
-    //
-    // The preview is stored as Object in callers to avoid a hard compile-time reference to
-    // PhantasiaMachinePreview leaking into screens that don't otherwise need the Phantasia dep
-    // (matters for anyone building without CurseMaven access) — cast happens only inside here.
-
-    /**
-     * Creates a preview for the first ViewMachineTask on the given quest node,
-     * or returns null if Phantasia is absent / no qualifying task exists.
-     *
-     * Call this when selectedNode changes (not on every rebuild — recreating the
-     * preview resets the camera and triggers an async reload).
-     */
     public static Object createPreviewForNode(QuestNode node) {
         if (!isAvailable() || node == null) return null;
-        // A quest's own content-level preview (set directly on the node, independent of any
-        // view_machine task requirement) takes priority over one implied by a task.
+
         String contentMachineId = node.getPreviewMachineId();
         if (contentMachineId != null && !contentMachineId.isBlank()) {
             Object preview = createPreview(contentMachineId);
@@ -178,11 +117,6 @@ public class PhantasiaCompat {
         return null;
     }
 
-    /**
-     * Creates a preview for an arbitrary machine id, independent of any quest/task. Used by the
-     * quest group ("popup") editor and by quest content previews that aren't tied to a
-     * ViewMachineTask. Returns null if Phantasia is absent or the id isn't a known machine.
-     */
     public static Object createPreview(String machineId) {
         if (!isAvailable() || machineId == null || machineId.isBlank()) return null;
         if (!PhantasiaAPI.hasScript(machineId)) return null;
@@ -191,11 +125,6 @@ public class PhantasiaCompat {
         return preview;
     }
 
-    /**
-     * Creates a preview for an entire multi-machine scene (a static composite of every
-     * placement, not the full stepped/interactive viewer - see {@link PhantasiaScenePreview}'s
-     * class doc). Returns null if Phantasia is absent or the scene id is unknown.
-     */
     public static Object createScenePreview(String sceneId) {
         if (!isAvailable() || sceneId == null || sceneId.isBlank()) return null;
         if (!PhantasiaAPI.hasScene(sceneId)) return null;
@@ -204,7 +133,6 @@ public class PhantasiaCompat {
         return preview;
     }
 
-    /** Applies the user's "Auto-Spin Previews" setting (Settings screen) to a freshly-created preview. */
     private static void applyAutoSpinSetting(Object preview) {
         float degPerSec = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isPhantasiaAutoSpin() ?
                 20f : 0f;
@@ -212,41 +140,29 @@ public class PhantasiaCompat {
         else if (preview instanceof PhantasiaScenePreview p) p.setAutoSpin(degPerSec);
     }
 
-    /**
-     * Advances the preview camera animation. Call once per render frame (before rendering).
-     * Works for both machine and scene previews (see {@link #createPreview(String)} /
-     * {@link #createScenePreview(String)}).
-     */
     public static void tickPreview(Object preview) {
         if (preview instanceof PhantasiaMachinePreview p) p.tick();
         else if (preview instanceof PhantasiaScenePreview p) p.tick();
     }
 
-    /** True once Phantasia has given up on this preview's pattern load (distinct from "still loading"). */
     public static boolean isPreviewLoadFailed(Object preview) {
         if (preview instanceof PhantasiaMachinePreview p) return p.isLoadFailed();
         if (preview instanceof PhantasiaScenePreview p) return p.isLoadFailed();
         return false;
     }
 
-    /** Renders the preview into the given screen rectangle. */
     public static void renderPreview(Object preview, GuiGraphics g, int x, int y, int w, int h,
                                      float partialTick) {
         if (preview instanceof PhantasiaMachinePreview p) p.render(g, x, y, w, h, partialTick);
         else if (preview instanceof PhantasiaScenePreview p) p.render(g, x, y, w, h, partialTick);
     }
 
-    /** Returns true once the pattern load is complete and the 3D view is live. */
     public static boolean isPreviewReady(Object preview) {
         if (preview instanceof PhantasiaMachinePreview p) return p.isReady();
         if (preview instanceof PhantasiaScenePreview p) return p.isReady();
         return false;
     }
 
-    /**
-     * Forwards a mouse click to the preview (lets the player drag-to-rotate, or opens the full
-     * Phantasia viewer for the click-to-view hint). Returns true if the preview consumed the click.
-     */
     public static boolean previewMouseClicked(Object preview, double mx, double my, int x, int y, int w, int h,
                                               Screen parent) {
         if (preview instanceof PhantasiaMachinePreview p) return p.mouseClicked(mx, my, x, y, w, h, parent);
@@ -254,12 +170,9 @@ public class PhantasiaCompat {
         return false;
     }
 
-    /**
-     * Releases GL resources. Call from Screen.onClose() and whenever the selected
-     * node changes so the old preview doesn't leak a dummy world.
-     */
     public static void closePreview(Object preview) {
         if (preview instanceof PhantasiaMachinePreview p) p.close();
         else if (preview instanceof PhantasiaScenePreview p) p.close();
     }
 }
+

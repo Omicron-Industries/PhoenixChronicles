@@ -19,19 +19,18 @@ import java.util.Optional;
 public class ChronicleNetwork {
 
     private static final String PROTOCOL = "1";
-    // Change from final to standard static variable
+    
     public static SimpleChannel CHANNEL;
     private static int id = 0;
 
     public static void init() {
-        // Initialize the channel here where it's safe!
+        
         CHANNEL = NetworkRegistry.newSimpleChannel(
                 new ResourceLocation("phoenix_chronicles", "main"),
                 () -> PROTOCOL,
                 PROTOCOL::equals,
                 PROTOCOL::equals);
 
-        // Note: You had S2CSyncQuestsPacket registered twice here. Fixed that duplicate below.
         CHANNEL.registerMessage(id++,
                 S2CSyncQuestsPacket.class,
                 S2CSyncQuestsPacket::encode,
@@ -96,3 +95,4 @@ public class ChronicleNetwork {
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }
+

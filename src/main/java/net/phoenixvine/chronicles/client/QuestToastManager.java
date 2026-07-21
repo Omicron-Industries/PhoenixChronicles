@@ -20,19 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Manages animated toast notifications for quest state changes.
- *
- * Two toast types:
- * UNLOCKED — small blue banner: "Quest Unlocked: <title>"
- * COMPLETED — gold banner: "Quest Complete! <title>"
- *
- * Each toast is rendered under one of three presets (QuestChroniclesSettings.ToastStyle) unless
- * the quest has its own custom design (QuestToastConfig, set via the node context menu's
- * "Design toast…" entry), in which case that freeform layout is used instead.
- *
- * Call from the client HUD overlay renderer (ChronicleClientEvents or QuestHudOverlay).
- */
 public class QuestToastManager {
 
     public enum ToastType {
@@ -40,15 +27,12 @@ public class QuestToastManager {
         COMPLETED
     }
 
-    // Shrunk from 200x32, then again from 140x24 - these kept reading as more of an interruption
-    // than a quiet notification. Smaller footprint, lighter background, thinner accent bar; the
-    // position setting (see render()) lets them move out of the way entirely.
     private static final int TOAST_W = 124;
     private static final int TOAST_H = 20;
     private static final int MARGIN = 4;
     private static final int GAP = 3;
     private static final int SLIDE_TICKS = 8;
-    private static final int STAY_TICKS = 48; // 2.4 s at 20 tps
+    private static final int STAY_TICKS = 48; 
     private static final int FADE_TICKS = 12;
     private static final int MAX_VISIBLE = 3;
 
@@ -74,7 +58,6 @@ public class QuestToastManager {
         queue.addLast(new ToastEntry(node, type));
     }
 
-    /** Call once per client tick to advance animations and promote queued toasts. */
     public void tick() {
         active.removeIf(t -> t.ticksAlive > SLIDE_TICKS + STAY_TICKS + FADE_TICKS);
         while (active.size() < MAX_VISIBLE && !queue.isEmpty()) {
@@ -83,15 +66,11 @@ public class QuestToastManager {
         for (ActiveToast t : active) t.ticksAlive++;
     }
 
-    /** Render all active toasts — call from HUD overlay post-render. */
     public void render(GuiGraphics g, int screenW, int screenH) {
         if (active.isEmpty()) return;
         Font font = Minecraft.getInstance().font;
         QuestChroniclesSettings.ToastStyle defaultStyle = QuestChroniclesSettings.get().getToastStyle();
 
-        // Custom-designed toasts render in their own pass first (each is independently
-        // positioned by its quest's design, so they don't participate in the shared stack
-        // layout the presets below use).
         List<ActiveToast> presetToasts = new ArrayList<>();
         for (ActiveToast t : active) {
             QuestToastConfig custom = QuestToastConfig.getOrNull(t.entry.node.getId().toString());
@@ -110,8 +89,6 @@ public class QuestToastManager {
         }
     }
 
-    // ── Preset: COMPACT (small corner banner) ───────────────────────────────
-
     private void renderCompact(GuiGraphics g, Font font, int screenW, int screenH, List<ActiveToast> toasts) {
         QuestChroniclesSettings.HUDPosition pos = QuestChroniclesSettings.get().getToastPosition();
         boolean top = pos == QuestChroniclesSettings.HUDPosition.TOP_LEFT ||
@@ -123,8 +100,7 @@ public class QuestToastManager {
                 pos == QuestChroniclesSettings.HUDPosition.BOTTOM_RIGHT;
 
         int stackH = toasts.size() * TOAST_H + Math.max(0, toasts.size() - 1) * GAP;
-        // Anchored 1/4 of the way in from whichever edge, same offset either direction, so the
-        // stack sits clear of both the hotbar and the pinned-quest widget regardless of corner.
+
         int slotY = top ? screenH / 4 : screenH - screenH / 4 - stackH;
 
         for (ActiveToast t : toasts) {
@@ -135,7 +111,7 @@ public class QuestToastManager {
             } else if (left) {
                 x = (int) (MARGIN - TOAST_W + (TOAST_W * progress));
             } else {
-                x = (screenW - TOAST_W) / 2; // center anchors just fade in place, no horizontal slide
+                x = (screenW - TOAST_W) / 2; 
             }
             int y = slotY;
             slotY += TOAST_H + GAP;
@@ -147,12 +123,10 @@ public class QuestToastManager {
             int bar = (t.entry.type == ToastType.COMPLETED) ? C_BAR_DONE : C_BAR_UNLOCK;
             int titleCol = (t.entry.type == ToastType.COMPLETED) ? C_TITLE_DONE : C_TITLE_UNLOCK;
 
-            // Background
             g.fill(x, y, x + TOAST_W, y + TOAST_H, (bg & 0x00FFFFFF) | a);
-            // Left accent bar
+            
             g.fill(x, y, x + 2, y + TOAST_H, (bar & 0x00FFFFFF) | a);
 
-            // Icon
             QuestNode node = t.entry.node;
             int textX = x + 5;
             if (node.getIconItem() != null && node.getIconItem() != net.minecraft.world.item.Items.AIR) {
@@ -160,34 +134,28 @@ public class QuestToastManager {
                 textX = x + 22;
             }
 
-            // Labels. Available width must be relative to the toast's OWN left edge (x), not
-            // double-subtracted against the absolute screen x too - the old
-            // "TOAST_W - textX - x - 8" math went deeply negative for any real x, so
-            // plainSubstrByWidth always truncated to nothing and every toast showed just "…".
             int availW = TOAST_W - (textX - x) - 5;
             String label = (t.entry.type == ToastType.COMPLETED) ? "Quest Complete!" : "Quest Unlocked";
             g.drawString(font, "§7" + label, textX, y + 2, (C_LABEL & 0x00FFFFFF) | a, false);
             String rawTitle = node.getTitle().getString();
             String titleStr = font.width(rawTitle) > availW ?
-                    font.plainSubstrByWidth(rawTitle, Math.max(0, availW - 6)) + "…" : rawTitle;
+                    font.plainSubstrByWidth(rawTitle, Math.max(0, availW - 6)) + "â€¦" : rawTitle;
             g.drawString(font, titleStr, textX, y + 11, (titleCol & 0x00FFFFFF) | a, false);
         }
     }
-
-    // ── Preset: ABOVE_HOTBAR (wider banner just above the hotbar) ───────────
 
     private static final int BANNER_W = 200;
     private static final int BANNER_H = 26;
 
     private void renderAboveHotbar(GuiGraphics g, Font font, int screenW, int screenH, List<ActiveToast> toasts) {
         int x = (screenW - BANNER_W) / 2;
-        // Stack upward from just above the hotbar/XP bar, most recent on the bottom.
+        
         int slotY = screenH - 62 - (toasts.size() - 1) * (BANNER_H + GAP);
 
         for (ActiveToast t : toasts) {
             float alpha = computeAlpha(t);
             int a = (int) (alpha * 0xFF) << 24;
-            // Slides straight down into place instead of sideways - reads better centered.
+            
             int slideOff = (int) ((1f - computeX(t)) * 10);
             int y = slotY - slideOff;
             slotY += BANNER_H + GAP;
@@ -209,19 +177,16 @@ public class QuestToastManager {
             String rawTitle = node.getTitle().getString();
             int maxW = BANNER_W - 10;
             String titleStr = font.width(rawTitle) > maxW ?
-                    font.plainSubstrByWidth(rawTitle, maxW - 6) + "…" : rawTitle;
+                    font.plainSubstrByWidth(rawTitle, maxW - 6) + "â€¦" : rawTitle;
             g.drawCenteredString(font, titleStr, cx, y + BANNER_H - 11, (titleCol & 0x00FFFFFF) | a);
         }
     }
-
-    // ── Preset: BIG_CENTER (large, interruptive center-screen text) ─────────
 
     private void renderBigCenter(GuiGraphics g, Font font, int screenW, int screenH, List<ActiveToast> toasts) {
         int cy = screenH / 2 - 40;
         for (ActiveToast t : toasts) {
             float alpha = computeAlpha(t);
-            // Punches in with a quick scale-up instead of sliding, then holds - the sideways
-            // slide the other presets use reads as too small a motion to notice mid-screen.
+
             float scale = 0.6f + 0.4f * Math.min(1f, computeX(t));
             int a = (int) (alpha * 0xFF) << 24;
 
@@ -249,14 +214,6 @@ public class QuestToastManager {
         }
     }
 
-    // ── Custom per-quest design ──────────────────────────────────────────────
-
-    /**
-     * Renders one toast from a freeform per-quest QuestToastConfig - each element (icon, title,
-     * label) is independently positioned/scaled/colored, anchored as a fraction of screen size.
-     * Shared with ToastDesignerScreen's live preview, so what a pack dev sees while designing is
-     * exactly what plays in-game.
-     */
     public void renderCustom(GuiGraphics g, Font font, int screenW, int screenH, ActiveToast t,
                              QuestToastConfig cfg) {
         float alpha = computeAlpha(t);
@@ -271,17 +228,13 @@ public class QuestToastManager {
 
         float minX, maxX, minY, maxY;
         if (cfg.bgAutoFit) {
-            // Background rect spans the union of all three element positions plus padding, so it
-            // always visually contains whatever the designer laid out regardless of arrangement -
-            // but this also means dragging any ONE element visibly balloons/shifts the whole
-            // background+accent bar along with it. See bgAutoFit's doc comment.
+
             minX = Math.min(tx, Math.min(lx, ix)) - cfg.bgPadX;
             maxX = Math.max(tx, Math.max(lx, ix)) + cfg.bgPadX;
             minY = Math.min(ty, Math.min(ly, iy)) - cfg.bgPadY;
             maxY = Math.max(ty, Math.max(ly, iy)) + cfg.bgPadY;
         } else {
-            // Independent, fixed-size background anchored at its own position - completely
-            // decoupled from wherever the icon/title/label currently sit.
+
             float bx = cfg.bgX * screenW, by = cfg.bgY * screenH;
             minX = bx - cfg.bgPadX;
             maxX = bx + cfg.bgPadX;
@@ -295,10 +248,6 @@ public class QuestToastManager {
         drawCustomElement(g, font, cfg.title, rawTitle, screenW, screenH, a, cfg.bgPadX);
         drawCustomElement(g, font, cfg.label, label, screenW, screenH, a, cfg.bgPadX);
 
-        // Custom icon set overrides the quest's own auto icon when the designer added any - each
-        // entry is independently positioned/scaled (see QuestToastConfig.IconEntry), not forced
-        // into a single row anchored at cfg.icon like before (which meant a second icon could
-        // only ever be moved together with the first).
         if (!cfg.icons.isEmpty()) {
             for (QuestToastConfig.IconEntry entry : cfg.icons) {
                 int iconPx = Math.round(16 * entry.scale);
@@ -314,12 +263,6 @@ public class QuestToastManager {
             g.pose().popPose();
         }
 
-        // Small square Phantasia preview in the toast's top-right corner, on top of everything
-        // else - a toast is far too short-lived for the async pattern load to ever finish inside
-        // one, so previews are looked up from a shared cache keyed by machine id (see
-        // getOrCreatePhantasiaPreview()) instead of being created fresh per toast: the first
-        // trigger for a given machine still shows the loading spinner, but every trigger after
-        // that reuses the already-loaded preview instead of restarting the load from scratch.
         if (!cfg.phantasiaMachineId.isBlank()) {
             Object preview = getOrCreatePhantasiaPreview(cfg.phantasiaMachineId);
             if (preview != null) {
@@ -334,12 +277,6 @@ public class QuestToastManager {
         }
     }
 
-    /**
-     * The auto-fit background's center, as a fraction of screen size - used by ToastDesignerScreen
-     * to seed {@link QuestToastConfig#bgX}/{@link QuestToastConfig#bgY} when a pack dev switches
-     * from auto-fit to an independent background, so the box doesn't visually jump the moment they
-     * toggle it (same union-of-elements math as {@link #renderCustom}'s auto-fit branch).
-     */
     public static float[] computeAutoFitCenter(QuestToastConfig cfg) {
         float tx = cfg.title.x, ty = cfg.title.y;
         float lx = cfg.label.x, ly = cfg.label.y;
@@ -351,13 +288,9 @@ public class QuestToastManager {
         return new float[] { (minX + maxX) / 2f, (minY + maxY) / 2f };
     }
 
-    // Shared cache so repeat toast triggers (and the designer's own preview) reuse an
-    // already-loaded preview per machine id, rather than each one starting its own async pattern
-    // load that a ~3 second toast has no realistic chance of finishing before it's torn down.
     private static final Map<String, Object> PHANTASIA_PREVIEW_CACHE = new HashMap<>();
     private static final Map<String, Long> PHANTASIA_PREVIEW_CREATED_AT = new HashMap<>();
-    // Machine ids we've already logged a "stuck loading" warning for, so it's not spammed once
-    // per frame for however long the preview stays unresolved.
+
     private static final java.util.Set<String> PHANTASIA_LOGGED_STUCK = new java.util.HashSet<>();
 
     private static Object getOrCreatePhantasiaPreview(String machineId) {
@@ -371,14 +304,6 @@ public class QuestToastManager {
         return created;
     }
 
-    /**
-     * The whole Phantasia load pipeline (pattern loader thread pool -> onPatternLoaded callback
-     * -> RenderSystem.recordRenderCall) is Phantasia's own machinery and isn't something our
-     * tick()/render() calls drive or can get stuck waiting on from our side - if a preview still
-     * isn't ready (and hasn't reported outright failure either) several seconds after creation,
-     * that's surprising enough to be worth a one-time log line pointing at exactly which machine
-     * id and how long it's been stuck, instead of silently spinning forever with no trace.
-     */
     private static void logIfStuck(String machineId, Object preview) {
         if (PHANTASIA_LOGGED_STUCK.contains(machineId)) return;
         if (PhantasiaCompat.isPreviewReady(preview)) return;
@@ -394,7 +319,6 @@ public class QuestToastManager {
                 "quickly from Phantasia's own UI but hangs here, that's worth reporting upstream.");
     }
 
-    /** Draws one custom toast icon (item, fluid swatch, or arbitrary texture) at the given rect. */
     private void renderToastIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
         try {
             switch (icon.kind) {
@@ -415,20 +339,10 @@ public class QuestToastManager {
                 case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
-            // Bad/renamed registry id or texture path — skip this icon rather than crash the frame.
+            
         }
     }
 
-    /**
-     * Draws one freeform-positioned text element (title or label) of a custom toast design -
-     * word-wrapped to fit within the SMALLER of (a) the background's own half-width and (b) how
-     * much real screen actually remains around this element's own X position. (b) matters on its
-     * own: a background sized to hug a SHORT default title (or one wrapped-height migration from
-     * auto-fit never accounted for multi-line text) doesn't retroactively grow just because the
-     * quest happens to have a much longer title, so wrapping against ONLY the background's width
-     * could still let a long-enough title's wrapped block run past the actual game window edge.
-     * Bounding against real screen space as well is the actual "never off-screen" guarantee.
-     */
     private void drawCustomElement(GuiGraphics g, Font font, QuestToastConfig.Element el, String text,
                                    int screenW, int screenH, int alpha, float bgHalfWidth) {
         String display = (el.bold ? "§l" : "") + text;
@@ -444,10 +358,7 @@ public class QuestToastManager {
                 .split(net.minecraft.network.chat.Component.literal(display), maxWidth);
         int totalH = lines.size() * font.lineHeight;
         int ly = -totalH / 2;
-        // The horizontal cap above stops a long title from running off the SIDE of the screen,
-        // but a title that wraps to several lines can still push the whole block past the TOP or
-        // BOTTOM edge if it's anchored near there - clamp the block's world-space Y range back
-        // into [0, screenH] the same way.
+
         float worldTop = y + ly * el.scale;
         float worldBottom = y + (ly + totalH) * el.scale;
         if (worldTop < 0) ly -= Math.round(worldTop / el.scale);
@@ -478,7 +389,6 @@ public class QuestToastManager {
         return 1.0f;
     }
 
-    /** Builds a fully-settled (post-slide-in, pre-fade-out) fake toast for ToastDesignerScreen's live preview. */
     public static ActiveToast makePreviewToast(QuestNode node, ToastType type) {
         ActiveToast t = new ActiveToast(new ToastEntry(node, type));
         t.ticksAlive = SLIDE_TICKS + 1;
@@ -497,3 +407,4 @@ public class QuestToastManager {
         }
     }
 }
+
