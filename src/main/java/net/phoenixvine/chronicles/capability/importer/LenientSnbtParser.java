@@ -90,7 +90,7 @@ public final class LenientSnbtParser {
                 tag.put(key, value);
                 skipIgnorable();
             }
-            pos++; 
+            pos++;
             return tag;
         }
 
@@ -111,7 +111,7 @@ public final class LenientSnbtParser {
         private Tag parseList() {
             expect('[');
             skipIgnorable();
-            
+
             char maybeType = peek();
             if (maybeType == 'I' || maybeType == 'B' || maybeType == 'L') {
                 int save = pos;
@@ -130,7 +130,7 @@ public final class LenientSnbtParser {
                 list.add(parseValue());
                 skipIgnorable();
             }
-            pos++; 
+            pos++;
             return list;
         }
 
@@ -164,7 +164,7 @@ public final class LenientSnbtParser {
         }
 
         private String parseQuotedString(char quote) {
-            pos++; 
+            pos++;
             StringBuilder sb = new StringBuilder();
             while (pos < len) {
                 char c = s.charAt(pos);
@@ -174,7 +174,7 @@ public final class LenientSnbtParser {
                         case 'n' -> '\n';
                         case 't' -> '\t';
                         case 'r' -> '\r';
-                        default -> next; 
+                        default -> next;
                     });
                     pos += 2;
                     continue;
@@ -238,4 +238,3 @@ public final class LenientSnbtParser {
         }
     }
 }
-

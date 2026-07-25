@@ -1,7 +1,7 @@
 package net.phoenixvine.chronicles.client;
 
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ClientTextOverrides {
 
@@ -15,4 +15,3 @@ public class ClientTextOverrides {
         return overrides.get(key);
     }
 }
-

@@ -110,7 +110,7 @@ public abstract class QuestReward {
         public void grant(ServerPlayer player) {
             ItemStack stack = new ItemStack(item, count);
             if (!player.addItem(stack)) {
-                
+
                 player.drop(stack, false);
             }
         }
@@ -195,7 +195,7 @@ public abstract class QuestReward {
 
         @Override
         public Component getSummary() {
-            String preview = command.length() > 32 ? command.substring(0, 29) + "â€¦" : command;
+            String preview = command.length() > 32 ? command.substring(0, 29) + "…" : command;
             return Component.literal("/" + preview);
         }
 
@@ -349,7 +349,7 @@ public abstract class QuestReward {
                 table.grant(player);
             } else {
                 com.mojang.logging.LogUtils.getLogger().warn(
-                        "[Phoenix Chronicles] Reward table '{}' not found â€” skipping reward for {}",
+                        "[Phoenix Chronicles] Reward table '{}' not found — skipping reward for {}",
                         tableId, player.getName().getString());
             }
         }
@@ -457,4 +457,3 @@ public abstract class QuestReward {
         }
     }
 }
-

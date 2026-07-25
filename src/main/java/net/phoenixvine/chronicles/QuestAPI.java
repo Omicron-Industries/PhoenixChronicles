@@ -178,4 +178,3 @@ public final class QuestAPI {
         return total == 0 ? 0f : (float) done / total;
     }
 }
-

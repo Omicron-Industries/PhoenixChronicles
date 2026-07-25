@@ -7,7 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.registry.ChapterFolderRegistry;
+import net.phoenixvine.chronicles.registry.CategoryRegistry;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -29,7 +29,7 @@ public class NewFolderScreen extends Screen {
     private int panelLeft, panelTop;
 
     public NewFolderScreen(Screen parent, Consumer<String> onCreated) {
-        super(Component.literal("New Folder"));
+        super(Component.literal("New Category"));
         this.parent = parent;
         this.onCreated = onCreated;
     }
@@ -63,15 +63,16 @@ public class NewFolderScreen extends Screen {
     private void create() {
         String label = name.trim();
         if (label.isEmpty()) return;
-        String id = label.toUpperCase().replaceAll("[^A-Z0-9_]", "_");
-        ChapterFolderRegistry.addFolder(id, label);
-        ChapterFolderRegistry.save();
+
+        String id = label.toLowerCase().replaceAll("[^a-z0-9_]", "_");
+        CategoryRegistry.addCategory(id, label);
+        CategoryRegistry.save();
         onCreated.accept(id);
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -82,10 +83,10 @@ public class NewFolderScreen extends Screen {
         g.pose().translate(0f, 0f, 300f);
 
         ChroniclesUIKit.drawModalChrome(g, font, width, height, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
-                "§bNew Chapter Folder", ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
+                "§bNew Category", ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
                 ACCENT, ChroniclesThemePalette.TEXT);
 
-        g.drawString(font, "§8Folder name", panelLeft + MARGIN, panelTop + 24, ChroniclesThemePalette.TEXT_FAINT,
+        g.drawString(font, "§8Category name", panelLeft + MARGIN, panelTop + 24, ChroniclesThemePalette.TEXT_FAINT,
                 false);
 
         g.flush();
@@ -95,11 +96,11 @@ public class NewFolderScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 257 || key == 335) { 
+        if (key == 257 || key == 335) {
             create();
             return true;
         }
-        if (key == 256) { 
+        if (key == 256) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -120,4 +121,3 @@ public class NewFolderScreen extends Screen {
         return false;
     }
 }
-

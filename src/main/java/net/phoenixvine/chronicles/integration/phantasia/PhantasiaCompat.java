@@ -175,4 +175,3 @@ public class PhantasiaCompat {
         else if (preview instanceof PhantasiaScenePreview p) p.close();
     }
 }
-

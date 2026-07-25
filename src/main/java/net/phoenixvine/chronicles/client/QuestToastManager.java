@@ -32,7 +32,7 @@ public class QuestToastManager {
     private static final int MARGIN = 4;
     private static final int GAP = 3;
     private static final int SLIDE_TICKS = 8;
-    private static final int STAY_TICKS = 48; 
+    private static final int STAY_TICKS = 48;
     private static final int FADE_TICKS = 12;
     private static final int MAX_VISIBLE = 3;
 
@@ -111,7 +111,7 @@ public class QuestToastManager {
             } else if (left) {
                 x = (int) (MARGIN - TOAST_W + (TOAST_W * progress));
             } else {
-                x = (screenW - TOAST_W) / 2; 
+                x = (screenW - TOAST_W) / 2;
             }
             int y = slotY;
             slotY += TOAST_H + GAP;
@@ -124,13 +124,13 @@ public class QuestToastManager {
             int titleCol = (t.entry.type == ToastType.COMPLETED) ? C_TITLE_DONE : C_TITLE_UNLOCK;
 
             g.fill(x, y, x + TOAST_W, y + TOAST_H, (bg & 0x00FFFFFF) | a);
-            
+
             g.fill(x, y, x + 2, y + TOAST_H, (bar & 0x00FFFFFF) | a);
 
             QuestNode node = t.entry.node;
             int textX = x + 5;
             if (node.getIconItem() != null && node.getIconItem() != net.minecraft.world.item.Items.AIR) {
-                g.renderItem(new ItemStack(node.getIconItem()), x + 4, y + TOAST_H / 2 - 8);
+                renderFadedItem(g, new ItemStack(node.getIconItem()), x + 4, y + TOAST_H / 2 - 8, alpha);
                 textX = x + 22;
             }
 
@@ -139,7 +139,7 @@ public class QuestToastManager {
             g.drawString(font, "§7" + label, textX, y + 2, (C_LABEL & 0x00FFFFFF) | a, false);
             String rawTitle = node.getTitle().getString();
             String titleStr = font.width(rawTitle) > availW ?
-                    font.plainSubstrByWidth(rawTitle, Math.max(0, availW - 6)) + "â€¦" : rawTitle;
+                    font.plainSubstrByWidth(rawTitle, Math.max(0, availW - 6)) + "…" : rawTitle;
             g.drawString(font, titleStr, textX, y + 11, (titleCol & 0x00FFFFFF) | a, false);
         }
     }
@@ -149,13 +149,13 @@ public class QuestToastManager {
 
     private void renderAboveHotbar(GuiGraphics g, Font font, int screenW, int screenH, List<ActiveToast> toasts) {
         int x = (screenW - BANNER_W) / 2;
-        
+
         int slotY = screenH - 62 - (toasts.size() - 1) * (BANNER_H + GAP);
 
         for (ActiveToast t : toasts) {
             float alpha = computeAlpha(t);
             int a = (int) (alpha * 0xFF) << 24;
-            
+
             int slideOff = (int) ((1f - computeX(t)) * 10);
             int y = slotY - slideOff;
             slotY += BANNER_H + GAP;
@@ -169,15 +169,15 @@ public class QuestToastManager {
 
             QuestNode node = t.entry.node;
             int cx = x + BANNER_W / 2;
-            g.renderItem(new ItemStack(node.getIconItem() != null ? node.getIconItem() :
-                    net.minecraft.world.item.Items.BOOK), cx - 8, y + 4);
+            renderFadedItem(g, new ItemStack(node.getIconItem() != null ? node.getIconItem() :
+                    net.minecraft.world.item.Items.BOOK), cx - 8, y + 4, alpha);
 
             String label = (t.entry.type == ToastType.COMPLETED) ? "Quest Complete!" : "Quest Unlocked";
             g.drawCenteredString(font, "§7" + label, cx, y + 3, (C_LABEL & 0x00FFFFFF) | a);
             String rawTitle = node.getTitle().getString();
             int maxW = BANNER_W - 10;
             String titleStr = font.width(rawTitle) > maxW ?
-                    font.plainSubstrByWidth(rawTitle, maxW - 6) + "â€¦" : rawTitle;
+                    font.plainSubstrByWidth(rawTitle, maxW - 6) + "…" : rawTitle;
             g.drawCenteredString(font, titleStr, cx, y + BANNER_H - 11, (titleCol & 0x00FFFFFF) | a);
         }
     }
@@ -204,7 +204,7 @@ public class QuestToastManager {
                 g.pose().pushPose();
                 g.pose().translate(-12, -4, 0);
                 g.pose().scale(1.6f, 1.6f, 1f);
-                g.renderItem(new ItemStack(node.getIconItem()), 0, 0);
+                renderFadedItem(g, new ItemStack(node.getIconItem()), 0, 0, alpha);
                 g.pose().popPose();
             }
             g.drawCenteredString(font, "§l" + rawTitle, 12, 4, (titleCol & 0x00FFFFFF) | a);
@@ -253,13 +253,13 @@ public class QuestToastManager {
                 int iconPx = Math.round(16 * entry.scale);
                 int ex = Math.round(entry.x * screenW) - iconPx / 2;
                 int ey = Math.round(entry.y * screenH) - iconPx / 2;
-                renderToastIcon(g, new QuestGroup.GroupIcon(entry.kind, entry.id), ex, ey, iconPx);
+                renderToastIcon(g, new QuestGroup.GroupIcon(entry.kind, entry.id), ex, ey, iconPx, alpha);
             }
         } else if (node.getIconItem() != null && node.getIconItem() != net.minecraft.world.item.Items.AIR) {
             g.pose().pushPose();
             g.pose().translate(ix, iy, 0);
             g.pose().scale(cfg.icon.scale, cfg.icon.scale, 1f);
-            g.renderItem(new ItemStack(node.getIconItem()), -8, -8);
+            renderFadedItem(g, new ItemStack(node.getIconItem()), -8, -8, alpha);
             g.pose().popPose();
         }
 
@@ -319,7 +319,7 @@ public class QuestToastManager {
                 "quickly from Phantasia's own UI but hangs here, that's worth reporting upstream.");
     }
 
-    private void renderToastIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
+    private void renderToastIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size, float alpha) {
         try {
             switch (icon.kind) {
                 case ITEM -> {
@@ -327,19 +327,47 @@ public class QuestToastManager {
                     if (item == null || item == net.minecraft.world.item.Items.AIR) return;
                     float scale = size / 16f;
                     g.pose().pushPose();
-                    g.pose().translate(x + size / 2f, y + size / 2f, 0f);
-                    g.pose().scale(scale, scale, scale);
-                    g.renderItem(new ItemStack(item), -8, -8);
-                    g.pose().popPose();
+                    try {
+                        g.pose().translate(x + size / 2f, y + size / 2f, 0f);
+                        g.pose().scale(scale, scale, scale);
+                        renderFadedItem(g, new ItemStack(item), -8, -8, alpha);
+                    } finally {
+                        g.pose().popPose();
+                    }
                 }
                 case FLUID -> {
                     Fluid fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(icon.id));
-                    net.phoenixvine.chronicles.client.render.ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
+                    com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
+                    try {
+                        net.phoenixvine.chronicles.client.render.ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
+                    } finally {
+                        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+                    }
                 }
-                case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
+                case TEXTURE -> {
+                    com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
+                    try {
+                        g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
+                    } finally {
+                        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+                    }
+                }
             }
         } catch (Exception ignored) {
-            
+
+        }
+    }
+
+    private static void renderFadedItem(GuiGraphics g, ItemStack stack, int x, int y, float alpha) {
+        if (alpha >= 0.999f) {
+            g.renderItem(stack, x, y);
+            return;
+        }
+        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
+        try {
+            g.renderItem(stack, x, y);
+        } finally {
+            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         }
     }
 
@@ -407,4 +435,3 @@ public class QuestToastManager {
         }
     }
 }
-

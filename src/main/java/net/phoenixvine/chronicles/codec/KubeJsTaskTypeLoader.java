@@ -48,7 +48,7 @@ public final class KubeJsTaskTypeLoader {
                 if (PhoenixTaskRegistry.get(typeId) != null) continue;
 
                 String label = obj.has("label") ? obj.get("label").getAsString() : typeId;
-                String icon = obj.has("icon") ? obj.get("icon").getAsString() : "§7â—†";
+                String icon = obj.has("icon") ? obj.get("icon").getAsString() : "§7◆";
                 String tooltip = obj.has("tooltip") ? obj.get("tooltip").getAsString() : label;
                 String defaultTriggerId = obj.has("default_trigger_id") ? obj.get("default_trigger_id").getAsString() :
                         typeId;
@@ -83,7 +83,7 @@ public final class KubeJsTaskTypeLoader {
                     try {
                         taskId = new ResourceLocation(tag.getString("task_id"));
                     } catch (Exception ex) {
-                        taskId = new ResourceLocation("phoenixcore", "kjs_task");
+                        taskId = new ResourceLocation("phoenix_chronicles", "kjs_task");
                     }
                     Component desc;
                     try {
@@ -93,13 +93,13 @@ public final class KubeJsTaskTypeLoader {
                     }
                     if (desc == null) desc = Component.literal(label);
                     ExternalTriggerTask t = new ExternalTriggerTask(taskId, desc, trigger, required);
-                    
+
                     t.setKjsTypeId(typeId);
                     return t;
                 }).icon(icon).label(label).tooltip(tooltip);
 
                 for (FieldDef f : fields) builder.field(f);
-                
+
                 if (fields.isEmpty()) {
                     builder.field(FieldDef.text("trigger_id", "Trigger ID", "e.g. " + defaultTriggerId));
                     builder.field(FieldDef.integer("required", "Count"));
@@ -119,4 +119,3 @@ public final class KubeJsTaskTypeLoader {
 
     private KubeJsTaskTypeLoader() {}
 }
-

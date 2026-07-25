@@ -16,7 +16,7 @@ public class AE2FluidStorageTask extends QuestTask {
     private ResourceLocation fluidId;
     private long requiredAmount;
     private boolean consume;
-    
+
     private boolean sticky = true;
 
     public AE2FluidStorageTask(ResourceLocation taskId, Component description, ResourceLocation fluidId,
@@ -110,4 +110,3 @@ public class AE2FluidStorageTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
-

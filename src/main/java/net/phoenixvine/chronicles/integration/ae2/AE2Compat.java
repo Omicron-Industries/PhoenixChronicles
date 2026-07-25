@@ -9,7 +9,6 @@ import net.minecraftforge.fml.ModList;
 import appeng.api.config.Actionable;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.security.IActionSource;
-import appeng.api.networking.storage.IStorageService;
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
@@ -74,4 +73,3 @@ public final class AE2Compat {
         return true;
     }
 }
-

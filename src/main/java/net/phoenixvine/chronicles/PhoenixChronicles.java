@@ -23,7 +23,7 @@ public class PhoenixChronicles {
 
     public static final String MOD_ID = "phoenix_chronicles";
     public static final Logger LOGGER = LogManager.getLogger();
-    
+
     public static GTRegistrate CHRONICLES_REGISTRATE = null;
 
     public PhoenixChronicles() {
@@ -53,7 +53,7 @@ public class PhoenixChronicles {
                 try {
                     net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.init();
                 } catch (Throwable t) {
-                    LOGGER.error("Phantasia integration failed to initialize â€” Phantasia-linked quest tasks" +
+                    LOGGER.error("Phantasia integration failed to initialize — Phantasia-linked quest tasks" +
                             " will be unavailable this session.", t);
                 }
             }
@@ -64,6 +64,9 @@ public class PhoenixChronicles {
 
     private void clientSetup(final FMLClientSetupEvent event) {
         LOGGER.info("Hey, we're on Minecraft version {}!", Minecraft.getInstance().getLaunchedVersion());
+        if (net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isAlwaysProfilerEnabled()) {
+            net.phoenixvine.chronicles.client.FrameProfiler.setEnabled(true);
+        }
     }
 
     public static ResourceLocation id(String path) {
@@ -75,4 +78,3 @@ public class PhoenixChronicles {
         net.phoenixvine.chronicles.client.ChroniclesLangPack.register(event);
     }
 }
-

@@ -19,8 +19,8 @@ public class FluidRequirementTask extends QuestTask {
 
     private ResourceLocation fluidId;
     private int requiredAmount;
-    private boolean consume; 
-    
+    private boolean consume;
+
     private boolean sticky = true;
 
     public FluidRequirementTask(ResourceLocation taskId, Component description, ResourceLocation fluidId,
@@ -62,7 +62,6 @@ public class FluidRequirementTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (fluidId == null || requiredAmount <= 0) return false;
         long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, getFluid()) : 0;
@@ -105,7 +104,7 @@ public class FluidRequirementTask extends QuestTask {
 
     @Override
     public void tryConsume(Player player) {
-        if (fluidId == null || !consume || requiredAmount <= 0) return; 
+        if (fluidId == null || !consume || requiredAmount <= 0) return;
 
         int remainingToDrain = requiredAmount;
 
@@ -130,7 +129,7 @@ public class FluidRequirementTask extends QuestTask {
             }
         }
         player.getInventory().setChanged();
-        
+
         if (remainingToDrain > 0 && checksAe2Storage()) {
             AE2Compat.tryConsume(player, getFluid(), remainingToDrain);
         }
@@ -161,7 +160,7 @@ public class FluidRequirementTask extends QuestTask {
         tag.putString("type", "fluid_check");
         tag.putString("fluid_id", fluidId != null ? fluidId.toString() : "minecraft:empty");
         tag.putInt("amount", requiredAmount);
-        tag.putBoolean("consume", consume); 
+        tag.putBoolean("consume", consume);
         tag.putBoolean("sticky", sticky);
         return tag;
     }
@@ -172,8 +171,7 @@ public class FluidRequirementTask extends QuestTask {
             this.fluidId = new ResourceLocation(nbt.getString("fluid_id"));
         }
         this.requiredAmount = nbt.getInt("amount");
-        this.consume = nbt.getBoolean("consume"); 
+        this.consume = nbt.getBoolean("consume");
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
-

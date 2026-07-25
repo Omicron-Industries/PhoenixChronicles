@@ -24,6 +24,7 @@ public final class BackgroundPictureConfig {
         public float x, y;
         public float w = 64f, h = 64f;
         public float opacity = 1.0f;
+        public int color = 0xFFFFFF;
     }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -32,18 +33,18 @@ public final class BackgroundPictureConfig {
 
     private BackgroundPictureConfig() {}
 
-    public static List<Picture> get(String category) {
+    public static List<Picture> get(String chapter) {
         if (!loaded) load();
-        return CACHE.computeIfAbsent(category, c -> new ArrayList<>());
+        return CACHE.computeIfAbsent(chapter, c -> new ArrayList<>());
     }
 
-    public static void add(String category, Picture p) {
-        get(category).add(p);
+    public static void add(String chapter, Picture p) {
+        get(chapter).add(p);
         save();
     }
 
-    public static void remove(String category, Picture p) {
-        get(category).remove(p);
+    public static void remove(String chapter, Picture p) {
+        get(chapter).remove(p);
         save();
     }
 
@@ -77,4 +78,3 @@ public final class BackgroundPictureConfig {
                 .resolve("config").resolve("phoenix_chronicles").resolve("background_pictures.json");
     }
 }
-

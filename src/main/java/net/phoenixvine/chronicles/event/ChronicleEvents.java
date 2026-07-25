@@ -30,7 +30,7 @@ import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
-import net.phoenixvine.chronicles.registry.CategoryFlagRegistry;
+import net.phoenixvine.chronicles.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.registry.RewardTableRegistry;
@@ -49,6 +49,11 @@ public class ChronicleEvents {
 
     public static MinecraftServer getCachedServer() {
         return net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+    }
+
+    private static net.minecraft.resources.ResourceLocation parseQuestArg(String raw) {
+        return raw.indexOf(':') >= 0 ? new net.minecraft.resources.ResourceLocation(raw) :
+                new net.minecraft.resources.ResourceLocation("phoenix_chronicles", raw);
     }
 
     private static volatile boolean hasServerStarted = false;
@@ -76,13 +81,14 @@ public class ChronicleEvents {
     public static void onServerStarting(ServerStartingEvent event) {
         java.nio.file.Path configDir = resolveConfigDir(event.getServer());
         PhoenixTaskRegistry.registerBuiltins();
-        KubeJsTaskTypeLoader.load(configDir); 
-        PhoenixQuestFlags.invalidateCaches(); 
-        CategoryFlagRegistry.load(configDir);
-        net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+        KubeJsTaskTypeLoader.load(configDir);
+        PhoenixQuestFlags.invalidateCaches();
+        net.phoenixvine.chronicles.codec.ChronicleDataMigration.migrate(configDir);
+        ChapterFlagRegistry.load(configDir);
+        net.phoenixvine.chronicles.registry.ChapterPrereqDefaults.load(configDir);
         net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
         RewardTableRegistry.load(configDir);
-        net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
+        net.phoenixvine.chronicles.registry.CategoryRegistry.load(configDir);
         QuestFileLoader.loadAdditiveFromDisk(configDir);
         net.phoenixvine.chronicles.codec.QuestFileWatcher.start(event.getServer(), configDir);
         hasServerStarted = true;
@@ -111,11 +117,11 @@ public class ChronicleEvents {
 
                 for (Object task : node.getTasks()) {
                     if (task instanceof CraftItemTask craftTask) {
-                        
+
                         craftTask.onItemCrafted(player, itemId, amount);
                     }
                 }
-                
+
                 QuestProgressTracker.checkAndTryComplete(player, node);
             }
         });
@@ -136,7 +142,7 @@ public class ChronicleEvents {
 
                     for (Object task : node.getTasks()) {
                         if (task instanceof KillEntityTask killTask) {
-                            
+
                             killTask.onEntityKilled(player, entityId);
                         }
                     }
@@ -246,7 +252,7 @@ public class ChronicleEvents {
                                             "quest");
                                     net.minecraft.resources.ResourceLocation questId;
                                     try {
-                                        questId = new net.minecraft.resources.ResourceLocation(qStr);
+                                        questId = parseQuestArg(qStr);
                                     } catch (Exception e) {
                                         ctx.getSource().sendFailure(Component.literal("Invalid quest id: " + qStr));
                                         return 0;
@@ -283,7 +289,7 @@ public class ChronicleEvents {
                                             "quest");
                                     net.minecraft.resources.ResourceLocation questId;
                                     try {
-                                        questId = new net.minecraft.resources.ResourceLocation(qStr);
+                                        questId = parseQuestArg(qStr);
                                     } catch (Exception e) {
                                         ctx.getSource().sendFailure(Component.literal("Invalid quest id: " + qStr));
                                         return 0;
@@ -367,11 +373,11 @@ public class ChronicleEvents {
                             }
                             java.nio.file.Path configDir = resolveConfigDir(server);
                             QuestTreeRegistry.clearConfigQuests();
-                            CategoryFlagRegistry.load(configDir);
-                            net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+                            ChapterFlagRegistry.load(configDir);
+                            net.phoenixvine.chronicles.registry.ChapterPrereqDefaults.load(configDir);
                             net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
                             RewardTableRegistry.load(configDir);
-                            net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
+                            net.phoenixvine.chronicles.registry.CategoryRegistry.load(configDir);
                             QuestFileLoader.loadAdditiveFromDisk(configDir);
                             int questCount = QuestTreeRegistry.getAllQuests().size();
                             S2CSyncQuestsPacket syncPacket = new S2CSyncQuestsPacket(QuestTreeRegistry.getAllQuests(),
@@ -383,7 +389,7 @@ public class ChronicleEvents {
                             }
                             final int fp = playerCount;
                             ctx.getSource().sendSuccess(() -> Component.literal(
-                                    "§aâœ” Reloaded " + questCount + " quest(s) from config, synced to " + fp +
+                                    "§a✔ Reloaded " + questCount + " quest(s) from config, synced to " + fp +
                                             " player(s)."),
                                     true);
                             return 1;
@@ -407,7 +413,7 @@ public class ChronicleEvents {
                             int count = net.phoenixvine.chronicles.codec.QuestFileSaver.exportTo(exportDir);
                             final java.nio.file.Path fp = exportDir;
                             ctx.getSource().sendSuccess(() -> Component.literal(
-                                    "§aâœ” Exported §f" + count + " §aquest(s) to §7" + fp), false);
+                                    "§a✔ Exported §f" + count + " §aquest(s) to §7" + fp), false);
                             return count;
                         }))
 
@@ -433,7 +439,7 @@ public class ChronicleEvents {
                         .requires(src -> src.hasPermission(2))
                         .executes(ctx -> {
                             List<String> errors = QuestFileLoader.LOAD_ERRORS;
-                            
+
                             List<String> noTask = new ArrayList<>();
                             for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
 
@@ -441,18 +447,18 @@ public class ChronicleEvents {
                             }
                             int total = errors.size() + noTask.size();
                             if (total == 0) {
-                                ctx.getSource().sendSuccess(() -> Component.literal("§aâœ” No issues found. " +
+                                ctx.getSource().sendSuccess(() -> Component.literal("§a✔ No issues found. " +
                                         QuestTreeRegistry.getAllQuests().size() + " quests loaded cleanly."), false);
                                 return 1;
                             }
-                            ctx.getSource().sendSuccess(() -> Component.literal("§eâš  " + total + " issue(s) found:"),
+                            ctx.getSource().sendSuccess(() -> Component.literal("§e⚠ " + total + " issue(s) found:"),
                                     false);
                             for (String err : errors)
-                                ctx.getSource().sendSuccess(() -> Component.literal("§câœ— " + err), false);
+                                ctx.getSource().sendSuccess(() -> Component.literal("§c✗ " + err), false);
                             for (String id : noTask)
                                 ctx.getSource()
                                         .sendSuccess(() -> Component.literal(
-                                                "§7â—¦ '" + id + "' has no tasks â€” will auto-complete on unlock."),
+                                                "§7◦ '" + id + "' has no tasks — will auto-complete on unlock."),
                                                 false);
                             return 1;
                         })));
@@ -472,7 +478,7 @@ public class ChronicleEvents {
         String questArg = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "quest");
         net.minecraft.resources.ResourceLocation questId;
         try {
-            questId = new net.minecraft.resources.ResourceLocation(questArg);
+            questId = parseQuestArg(questArg);
         } catch (Exception e) {
             ctx.getSource().sendFailure(Component.literal("Invalid quest ID: " + questArg));
             return 0;
@@ -487,7 +493,7 @@ public class ChronicleEvents {
                 QuestCapabilityProvider.PLAYER_QUESTS)
                 .ifPresent(data -> {
                     data.setQuestState(questId, target);
-                    
+
                     ChronicleNetwork.CHANNEL.send(
                             net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> fsp),
                             new S2CSyncPlayerProgressPacket(
@@ -515,7 +521,7 @@ public class ChronicleEvents {
         String questArg = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "quest");
         net.minecraft.resources.ResourceLocation questId;
         try {
-            questId = new net.minecraft.resources.ResourceLocation(questArg);
+            questId = parseQuestArg(questArg);
         } catch (Exception e) {
             ctx.getSource().sendFailure(Component.literal("Invalid quest ID: " + questArg));
             return 0;
@@ -568,7 +574,7 @@ public class ChronicleEvents {
         }
         final int fp = playerCount;
         ctx.getSource().sendSuccess(() -> Component.literal(
-                "§aâœ” Imported §f" + added + " §anew quest(s) from §7" + importDir +
+                "§a✔ Imported §f" + added + " §anew quest(s) from §7" + importDir +
                         (fp > 0 ? " §aand synced to §f" + fp + " §aplayer(s)." : ".")),
                 true);
         return added;
@@ -609,13 +615,13 @@ public class ChronicleEvents {
             final net.phoenixvine.chronicles.capability.importer.FtbQuestsImporter.ImportResult r = result;
             server.execute(() -> {
                 long tReloadStart = System.currentTimeMillis();
-                
+
                 QuestTreeRegistry.clearConfigQuests();
-                net.phoenixvine.chronicles.registry.CategoryFlagRegistry.load(configDir);
-                net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+                net.phoenixvine.chronicles.registry.ChapterFlagRegistry.load(configDir);
+                net.phoenixvine.chronicles.registry.ChapterPrereqDefaults.load(configDir);
                 net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
                 net.phoenixvine.chronicles.registry.RewardTableRegistry.load(configDir);
-                net.phoenixvine.chronicles.registry.ChapterFolderRegistry.load(configDir);
+                net.phoenixvine.chronicles.registry.CategoryRegistry.load(configDir);
                 net.phoenixvine.chronicles.codec.QuestFileLoader.loadAdditiveFromDisk(configDir);
                 long tReloadDone = System.currentTimeMillis();
                 System.out
@@ -646,19 +652,19 @@ public class ChronicleEvents {
                                 ") took " + (tSyncDone - tReloadDone) + "ms");
                 final int fp = playerCount;
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                        "§aâœ” FTB import: §f" + r.imported() + " §aconverted, §c" + r.skipped() + " §askipped" +
-                                (r.category().isEmpty() ? "" : " §8(category: §7" + r.category() + "§8)") +
-                                (fp > 0 ? " §8Â· §asynced to §f" + fp + " §aplayer(s)" : "")),
+                        "§a✔ FTB import: §f" + r.imported() + " §aconverted, §c" + r.skipped() + " §askipped" +
+                                (r.category().isEmpty() ? "" : " §8(chapter: §7" + r.category() + "§8)") +
+                                (fp > 0 ? " §8· §asynced to §f" + fp + " §aplayer(s)" : "")),
                         true);
                 for (String w : r.warnings()) {
-                    ctx.getSource().sendSuccess(() -> Component.literal("§eâš  " + w), false);
+                    ctx.getSource().sendSuccess(() -> Component.literal("§e⚠ " + w), false);
                 }
 
                 if (!loadErrors.isEmpty()) {
                     ctx.getSource().sendSuccess(() -> Component.literal(
-                            "§câš  " + loadErrors.size() + " issue(s) found after reload:"), false);
+                            "§c⚠ " + loadErrors.size() + " issue(s) found after reload:"), false);
                     for (String err : loadErrors) {
-                        ctx.getSource().sendSuccess(() -> Component.literal("§c  â€¢ " + err), false);
+                        ctx.getSource().sendSuccess(() -> Component.literal("§c  • " + err), false);
                     }
                 }
             });
@@ -696,27 +702,21 @@ public class ChronicleEvents {
                     PacketDistributor.PLAYER.with(() -> serverPlayer),
                     new S2CSyncQuestsPacket(serverQuests, serverPlayer.getServer()));
 
+            QuestProgressTracker.autoUnlockSatisfiedQuests(serverPlayer);
             serverPlayer.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-                for (QuestNode node : serverQuests.values()) {
-                    if (node.isFlagDisabled()) continue;
-                    if (node.getEffectiveVisibility(serverPlayer.getServer()) == QuestNode.Visibility.DISABLED)
-                        continue;
-                    if (data.getQuestState(node.getId(), net.phoenixvine.chronicles.model.QuestState.LOCKED) ==
-                            net.phoenixvine.chronicles.model.QuestState.LOCKED) {
-                        if (net.phoenixvine.chronicles.tracker.QuestProgressTracker.prereqsSatisfied(node, data,
-                                serverPlayer.getServer())) {
-                            net.phoenixvine.chronicles.tracker.QuestProgressTracker
-                                    .changeQuestState(serverPlayer, node,
-                                            net.phoenixvine.chronicles.model.QuestState.UNLOCKED);
-                        }
-                    }
-                }
-                
                 ChronicleNetwork.CHANNEL.send(
                         PacketDistributor.PLAYER.with(() -> serverPlayer),
                         new S2CSyncPlayerProgressPacket(data));
             });
         }
     }
-}
 
+    @SubscribeEvent
+    public static void onTreeReloaded(QuestEvent.TreeReloaded event) {
+        MinecraftServer server = getCachedServer();
+        if (server == null) return;
+        for (net.minecraft.server.level.ServerPlayer player : server.getPlayerList().getPlayers()) {
+            QuestProgressTracker.autoUnlockSatisfiedQuests(player);
+        }
+    }
+}

@@ -12,7 +12,6 @@ public final class TeamKeyResolver {
     private TeamKeyResolver() {}
 
     public static Optional<String> resolve(ServerPlayer player) {
-
         if (net.minecraftforge.fml.ModList.get().isLoaded("phoenix_guilds")) {
             GuildManager guildMgr = GuildManager.get(player.getServer().overworld());
             var guild = guildMgr.getGuildFor(player.getUUID());
@@ -35,4 +34,3 @@ public final class TeamKeyResolver {
         return Optional.empty();
     }
 }
-

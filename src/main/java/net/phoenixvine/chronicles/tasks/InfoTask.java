@@ -47,4 +47,3 @@ public class InfoTask extends QuestTask {
         if (nbt.contains("body")) body = nbt.getString("body");
     }
 }
-

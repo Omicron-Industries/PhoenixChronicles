@@ -71,7 +71,7 @@ public class ToastDesignerScreen extends Screen {
     private int contentTop, contentBottom;
 
     private QuestToastManager.ToastType previewType = QuestToastManager.ToastType.COMPLETED;
-    private Float snapGuideX, snapGuideY; 
+    private Float snapGuideX, snapGuideY;
 
     private static QuestToastConfig toastClipboard = null;
 
@@ -80,11 +80,11 @@ public class ToastDesignerScreen extends Screen {
     private long feedbackUntil = 0;
 
     private int hoveredIconIndex = -1;
-    
+
     private int hoveredRemoveIconIndex = -1;
-    
+
     private int selectedIconIndex = -1;
-    
+
     private int draggingIconIndex = -1;
     private EditBox iconScaleBox;
     private int iconScaleY;
@@ -179,7 +179,6 @@ public class ToastDesignerScreen extends Screen {
     }
 
     private String tabLabel(PanelTab t) {
-
         String name = switch (t) {
             case ELEMENT -> "Elem";
             case ICONS -> "Icons";
@@ -263,11 +262,12 @@ public class ToastDesignerScreen extends Screen {
                 b -> {
                     if (selected == Elem.ICON) return;
                     elemOf(selected).bold = !elemOf(selected).bold;
+                    fitBackgroundToElements();
                     rebuildFields();
                 }).bounds(fx, y, fw, FIELD_H).build());
         y += STRIDE + 10;
 
-        addRenderableWidget(Button.builder(Component.literal("§7â†º Reset " + elemPlainLabel(selected)), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7↺ Reset " + elemPlainLabel(selected)), b -> {
             switch (selected) {
                 case ICON -> cfg.icon = QuestToastConfig.defaultIcon();
                 case TITLE -> cfg.title = QuestToastConfig.defaultTitle();
@@ -319,7 +319,7 @@ public class ToastDesignerScreen extends Screen {
             });
             addRenderableWidget(iconScaleBox);
             y += STRIDE + 8;
-            addRenderableWidget(Button.builder(Component.literal("§câœ• Remove selected icon"), b -> {
+            addRenderableWidget(Button.builder(Component.literal("§c✕ Remove selected icon"), b -> {
                 cfg.icons.remove(selectedIconIndex);
                 selectedIconIndex = -1;
                 rebuildFields();
@@ -356,7 +356,7 @@ public class ToastDesignerScreen extends Screen {
         addRenderableWidget(bgPadYBox);
         y += STRIDE + 8;
 
-        addRenderableWidget(Button.builder(Component.literal("§7âŠ¡ Fit to elements now"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7⊡ Fit to elements now"), b -> {
             fitBackgroundToElements();
             setFeedback("Background fit to current elements");
             rebuildFields();
@@ -396,6 +396,9 @@ public class ToastDesignerScreen extends Screen {
         addRenderableWidget(accentColorBox);
     }
 
+    private static final float FIT_MARGIN_X = 12f;
+    private static final float FIT_MARGIN_Y = 10f;
+
     private void fitBackgroundToElements() {
         int previewW = width - PANEL_W;
         float tx = cfg.title.x * previewW, ty = cfg.title.y * height;
@@ -405,14 +408,24 @@ public class ToastDesignerScreen extends Screen {
         float titleHalfH = textBlockHalfHeight(cfg.title, node.getTitle().getString(), previewW);
         float labelHalfH = textBlockHalfHeight(cfg.label, "Quest Complete!", previewW);
 
-        float minX = Math.min(tx, Math.min(lx, ix)) - cfg.bgPadX;
-        float maxX = Math.max(tx, Math.max(lx, ix)) + cfg.bgPadX;
-        float minY = Math.min(ty - titleHalfH, Math.min(ly - labelHalfH, iy)) - cfg.bgPadY;
-        float maxY = Math.max(ty + titleHalfH, Math.max(ly + labelHalfH, iy)) + cfg.bgPadY;
+        float widthCap = previewW * 0.4f;
+        float titleHalfW = textBlockHalfWidth(cfg.title, node.getTitle().getString(), widthCap);
+        float labelHalfW = textBlockHalfWidth(cfg.label, "Quest Complete!", widthCap);
+
+        float minX = Math.min(tx - titleHalfW, Math.min(lx - labelHalfW, ix)) - FIT_MARGIN_X;
+        float maxX = Math.max(tx + titleHalfW, Math.max(lx + labelHalfW, ix)) + FIT_MARGIN_X;
+        float minY = Math.min(ty - titleHalfH, Math.min(ly - labelHalfH, iy)) - FIT_MARGIN_Y;
+        float maxY = Math.max(ty + titleHalfH, Math.max(ly + labelHalfH, iy)) + FIT_MARGIN_Y;
         cfg.bgX = ((minX + maxX) / 2f) / previewW;
         cfg.bgY = ((minY + maxY) / 2f) / height;
         cfg.bgPadX = (maxX - minX) / 2f;
         cfg.bgPadY = (maxY - minY) / 2f;
+    }
+
+    private float textBlockHalfWidth(QuestToastConfig.Element el, String text, float capHalfWidth) {
+        String display = (el.bold ? "§l" : "") + text;
+        float halfWidth = font.width(display) * el.scale / 2f;
+        return Math.min(halfWidth, capHalfWidth);
     }
 
     private float textBlockHalfHeight(QuestToastConfig.Element el, String text, int previewW) {
@@ -420,18 +433,20 @@ public class ToastDesignerScreen extends Screen {
         float screenRoomHalf = Math.min(x, previewW - x) - 8f;
         float widthCapLocal = Math.min(cfg.bgPadX * 2 - 16, screenRoomHalf * 2);
         int maxWidth = Math.max(20, Math.round(widthCapLocal / el.scale));
-        int lines = font.split(Component.literal(text), maxWidth).size();
+
+        String display = (el.bold ? "§l" : "") + text;
+        int lines = font.split(Component.literal(display), maxWidth).size();
         return font.lineHeight * lines * el.scale / 2f;
     }
 
     private void initPresetsTab(int fx, int fw, int y) {
         int presetHalfW = (fw - 6) / 2;
-        addRenderableWidget(Button.builder(Component.literal("§7âŽ˜ Copy design"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7⎘ Copy design"), b -> {
             toastClipboard = cfg.copy();
             setFeedback("Design copied");
         }).bounds(fx, y, presetHalfW, FIELD_H).build());
         addRenderableWidget(Button.builder(
-                Component.literal(toastClipboard != null ? "§7âŽ— Paste design" : "§8âŽ— Paste (none copied)"), b -> {
+                Component.literal(toastClipboard != null ? "§7⎗ Paste design" : "§8⎗ Paste (none copied)"), b -> {
                     if (toastClipboard != null) {
                         cfg = toastClipboard.copy();
                         setFeedback("Design pasted");
@@ -441,7 +456,7 @@ public class ToastDesignerScreen extends Screen {
         y += STRIDE + 8;
 
         presetY = y;
-        addRenderableWidget(Button.builder(Component.literal("§7Save as presetâ€¦"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7Save as preset…"), b -> {
             if (minecraft != null) minecraft.setScreen(new QuestTextInputScreen(this, "Preset Name", "", 32, name -> {
                 if (name != null && !name.isBlank()) {
                     QuestToastPresetRegistry.put(name.trim(), cfg.copy());
@@ -449,7 +464,7 @@ public class ToastDesignerScreen extends Screen {
                 }
             }));
         }).bounds(fx, y, presetHalfW, FIELD_H).build());
-        addRenderableWidget(Button.builder(Component.literal("§7Load preset â–¾"),
+        addRenderableWidget(Button.builder(Component.literal("§7Load preset ▾"),
                 b -> presetDropOpen = !presetDropOpen).bounds(fx + presetHalfW + 6, y, presetHalfW, FIELD_H).build());
     }
 
@@ -498,7 +513,7 @@ public class ToastDesignerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -514,7 +529,7 @@ public class ToastDesignerScreen extends Screen {
         int previewW = width - PANEL_W;
 
         g.fill(0, 0, previewW, height, ChroniclesThemePalette.BG);
-        g.fill(0, 0, previewW, height, 0x33000000); 
+        g.fill(0, 0, previewW, height, 0x33000000);
 
         QuestToastManager.get().renderCustom(g, font, previewW, height, previewToast, cfg);
         drawDragHandles(g, previewW, mx, my);
@@ -552,14 +567,14 @@ public class ToastDesignerScreen extends Screen {
                 }
             }
             case BACKGROUND -> {
-                g.drawString(font, "§8Background size (W Ã— H)", fx, sizeY, ChroniclesThemePalette.TEXT_FAINT);
+                g.drawString(font, "§8Background size (W × H)", fx, sizeY, ChroniclesThemePalette.TEXT_FAINT);
                 if (PHANTASIA) {
                     g.drawString(font, "§8Phantasia §7(optional)", fx, phantasiaY, ChroniclesThemePalette.TEXT_FAINT);
                 }
                 g.drawString(font, "§8Background / Accent", fx, bgColorY, ChroniclesThemePalette.TEXT_FAINT);
             }
             case PRESETS -> {
-                
+
             }
         }
         g.disableScissor();
@@ -616,7 +631,7 @@ public class ToastDesignerScreen extends Screen {
         hoveredIconIndex = -1;
         hoveredRemoveIconIndex = -1;
         if (cfg.icons.isEmpty()) {
-            g.drawString(font, "§8(none â€” auto quest icon used)", x, y + 4, ChroniclesThemePalette.TEXT_FAINT, false);
+            g.drawString(font, "§8(none — auto quest icon used)", x, y + 4, ChroniclesThemePalette.TEXT_FAINT, false);
             return;
         }
         int ix = x;
@@ -632,7 +647,7 @@ public class ToastDesignerScreen extends Screen {
             boolean remHov = mx >= rx && mx < rx + ICON_REMOVE_BADGE && my >= ry && my < ry + ICON_REMOVE_BADGE;
             if (remHov) hoveredRemoveIconIndex = i;
             g.fill(rx, ry, rx + ICON_REMOVE_BADGE, ry + ICON_REMOVE_BADGE, remHov ? 0xFFCC2222 : 0xAA661111);
-            g.drawString(font, "§fÃ—", rx - 1, ry - 1, 0xFFFFFFFF, false);
+            g.drawString(font, "§f×", rx - 1, ry - 1, 0xFFFFFFFF, false);
             ix += sz + gap;
         }
     }
@@ -659,13 +674,13 @@ public class ToastDesignerScreen extends Screen {
                 case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
-            
+
         }
     }
 
     private String shortTitle() {
         String t = node.getTitle().getString();
-        return t.length() > 24 ? t.substring(0, 24) + "â€¦" : t;
+        return t.length() > 24 ? t.substring(0, 24) + "…" : t;
     }
 
     private static final int BG_HANDLE_SZ = 6;
@@ -674,10 +689,10 @@ public class ToastDesignerScreen extends Screen {
         int[] box = bgBox(previewW);
         int h = BG_HANDLE_SZ / 2;
         return new int[][] {
-                { box[0] - h, box[1] - h, box[0] + h, box[1] + h }, 
-                { box[2] - h, box[1] - h, box[2] + h, box[1] + h }, 
-                { box[0] - h, box[3] - h, box[0] + h, box[3] + h }, 
-                { box[2] - h, box[3] - h, box[2] + h, box[3] + h }, 
+                { box[0] - h, box[1] - h, box[0] + h, box[1] + h },
+                { box[2] - h, box[1] - h, box[2] + h, box[1] + h },
+                { box[0] - h, box[3] - h, box[0] + h, box[3] + h },
+                { box[2] - h, box[3] - h, box[2] + h, box[3] + h },
         };
     }
 
@@ -696,7 +711,7 @@ public class ToastDesignerScreen extends Screen {
             }
         }
         for (Elem e : Elem.values()) {
-            if (e == Elem.ICON && !cfg.icons.isEmpty()) continue; 
+            if (e == Elem.ICON && !cfg.icons.isEmpty()) continue;
             int[] ebox = elementBox(e, previewW);
             boolean ehov = mx >= ebox[0] && mx <= ebox[2] && my >= ebox[1] && my <= ebox[3];
             boolean isSelected = e == selected;
@@ -831,7 +846,7 @@ public class ToastDesignerScreen extends Screen {
     public boolean mouseScrolled(double mx, double my, double delta) {
         if (mx >= width - PANEL_W) {
             panelScrollY = Math.max(0, panelScrollY - (int) Math.round(delta * 12));
-            rebuildFields(); 
+            rebuildFields();
             return true;
         }
         return super.mouseScrolled(mx, my, delta);
@@ -936,7 +951,7 @@ public class ToastDesignerScreen extends Screen {
     public boolean mouseReleased(double mx, double my, int btn) {
         if (btn == 0 && resizingBg) {
             resizingBg = false;
-            rebuildFields(); 
+            rebuildFields();
             return true;
         }
         if (btn == 0 && (dragging != null || draggingBg || draggingIconIndex >= 0)) {
@@ -945,7 +960,7 @@ public class ToastDesignerScreen extends Screen {
             draggingIconIndex = -1;
             snapGuideX = null;
             snapGuideY = null;
-            rebuildFields(); 
+            rebuildFields();
             return true;
         }
         return super.mouseReleased(mx, my, btn);
@@ -953,20 +968,20 @@ public class ToastDesignerScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { 
+        if (key == 256) {
             closeDesigner();
             return true;
         }
 
         if (activeTab == PanelTab.ELEMENT && !isAnyEditBoxFocused()) {
-            float step = (mods & 0x1) != 0 ? 0.01f : 0.002f; 
+            float step = (mods & 0x1) != 0 ? 0.01f : 0.002f;
             QuestToastConfig.Element el = elemOf(selected);
             boolean moved = true;
             switch (key) {
-                case 263 -> el.x = Math.max(0.02f, el.x - step); 
-                case 262 -> el.x = Math.min(0.98f, el.x + step); 
-                case 265 -> el.y = Math.max(0.05f, el.y - step); 
-                case 264 -> el.y = Math.min(0.95f, el.y + step); 
+                case 263 -> el.x = Math.max(0.02f, el.x - step);
+                case 262 -> el.x = Math.min(0.98f, el.x + step);
+                case 265 -> el.y = Math.max(0.05f, el.y - step);
+                case 264 -> el.y = Math.min(0.95f, el.y + step);
                 default -> moved = false;
             }
             if (moved) {
@@ -991,4 +1006,3 @@ public class ToastDesignerScreen extends Screen {
         return false;
     }
 }
-

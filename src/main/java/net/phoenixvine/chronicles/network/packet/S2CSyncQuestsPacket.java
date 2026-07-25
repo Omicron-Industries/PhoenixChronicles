@@ -39,7 +39,7 @@ public class S2CSyncQuestsPacket {
             ResourceLocation id = buf.readResourceLocation();
             Component title = buf.readComponent();
             Component description = buf.readComponent();
-            String category = buf.readUtf();
+            String chapter = buf.readUtf();
             String shapeType = buf.readUtf();
             String iconItemId = buf.readUtf();
             int customX = buf.readInt();
@@ -90,7 +90,7 @@ public class S2CSyncQuestsPacket {
             String iconFluid = buf.readUtf();
 
             snapshotMap.put(id, new QuestSnapshot(
-                    id, title, description, category, shapeType, iconItemId,
+                    id, title, description, chapter, shapeType, iconItemId,
                     customX, customY, subtitle, visibility, enableIf, taskMinCount, requireAllPrerequisites,
                     childIds, prereqIds, prereqRequired, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow,
@@ -105,7 +105,7 @@ public class S2CSyncQuestsPacket {
             buf.writeResourceLocation(snap.id);
             buf.writeComponent(snap.title);
             buf.writeComponent(snap.description);
-            buf.writeUtf(snap.category);
+            buf.writeUtf(snap.chapter);
             buf.writeUtf(snap.shapeType);
             buf.writeUtf(snap.iconItemId);
             buf.writeInt(snap.customX);
@@ -159,54 +159,54 @@ public class S2CSyncQuestsPacket {
         final ResourceLocation id;
         final Component title;
         final Component description;
-        final String category;
+        final String chapter;
         final String shapeType;
         final String iconItemId;
         final int customX;
         final int customY;
-        
+
         final String subtitle;
-        final String visibility;   
-        final String enableIf;     
+        final String visibility;
+        final String enableIf;
         final int taskMinCount;
-        
+
         final Boolean requireAllPrerequisites;
         final List<ResourceLocation> childIds;
         final List<ResourceLocation> prereqIds;
-        
+
         final List<Boolean> prereqRequired;
-        
+
         final List<Boolean> prereqForbidden;
-        
+
         final List<Boolean> prereqLink;
-        
+
         final List<Boolean> prereqCosmetic;
-        
+
         final List<String> prereqLineShape;
         final List<String> prereqLineVisual;
         final List<String> prereqLineSpeed;
         final List<String> prereqLineArrow;
-        
+
         final Integer optionalPrereqMinCount;
-        final List<CompoundTag> tasksNbt;  
-        
+        final List<CompoundTag> tasksNbt;
+
         final ResourceLocation linkTarget;
-        
+
         final String iconTexture;
-        
+
         final String shapeTexture;
-        
+
         final String nodeSize;
-        
+
         final int sizeOverridePx;
-        
+
         final String iconFluid;
 
         QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
             this.id = node.getId();
             this.title = node.getEffectiveTitleRaw(server);
             this.description = node.getEffectiveDescriptionRaw(server);
-            this.category = node.getCategory() != null ? node.getCategory() : "MAIN";
+            this.chapter = node.getChapter() != null ? node.getChapter() : "MAIN";
             this.shapeType = node.getShapeType() != null ? node.getShapeType() : "SQUARE";
             this.iconItemId = node.getIconItemId();
             this.customX = node.getCustomX();
@@ -265,7 +265,7 @@ public class S2CSyncQuestsPacket {
         }
 
         QuestSnapshot(ResourceLocation id, Component title, Component description,
-                      String category, String shapeType, String iconItemId,
+                      String chapter, String shapeType, String iconItemId,
                       int customX, int customY,
                       String subtitle, String visibility, String enableIf, int taskMinCount,
                       Boolean requireAllPrerequisites,
@@ -281,7 +281,7 @@ public class S2CSyncQuestsPacket {
             this.id = id;
             this.title = title;
             this.description = description;
-            this.category = category;
+            this.chapter = chapter;
             this.shapeType = shapeType;
             this.iconItemId = iconItemId;
             this.customX = customX;
@@ -319,7 +319,7 @@ public class S2CSyncQuestsPacket {
 
             for (QuestSnapshot snap : snapshots.values()) {
                 QuestNode node = new QuestNode(snap.id, snap.title, snap.description);
-                node.setCategory(snap.category);
+                node.setChapter(snap.chapter);
                 node.setShapeType(snap.shapeType);
                 node.setCustomX(snap.customX);
                 node.setCustomY(snap.customY);
@@ -425,10 +425,9 @@ public class S2CSyncQuestsPacket {
             QuestTask task = PhoenixTaskRegistry.deserialize(tag);
             if (task == null) {
                 System.err.println("[Phoenix Chronicles] Unknown task type in sync packet: '" +
-                        tag.getString("type") + "' â€” skipping.");
+                        tag.getString("type") + "' — skipping.");
             }
             return task;
         }
     }
 }
-

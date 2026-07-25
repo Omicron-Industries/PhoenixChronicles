@@ -9,7 +9,7 @@ import net.phoenixvine.chronicles.model.QuestTask;
 
 public class ViewMachineTask extends QuestTask {
 
-    private String machineId;   
+    private String machineId;
     private float minSeconds;
 
     public ViewMachineTask(ResourceLocation taskId, Component description, String machineId, float minSeconds) {
@@ -55,4 +55,3 @@ public class ViewMachineTask extends QuestTask {
         this.minSeconds = nbt.contains("min_seconds") ? nbt.getFloat("min_seconds") : 3.0f;
     }
 }
-

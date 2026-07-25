@@ -7,7 +7,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.client.CategoryConfig;
+import net.phoenixvine.chronicles.client.ChapterConfig;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.codec.QuestContentLoader;
 import net.phoenixvine.chronicles.codec.QuestFileLoader;
@@ -38,27 +38,30 @@ public class LangEditorScreen extends Screen {
 
     private static final int SIDEBAR_W = 120;
     private static final int HEADER_H = 36;
-    private static final int GROUP_H = 16;   
+    private static final int GROUP_H = 16;
     private static final int ROW_H = 46;
     private static final int DESC_ROW_H = 148;
     private static final int FIELD_H = 13;
     private static final int FOOTER_H = 20;
 
     private final Screen parent;
-    private String selectedCategory = "";
+    private String selectedChapter = "";
     private String searchQuery = "";
     private int sidebarScrollPx = 0;
+    private ResourceLocation focusQuestId = null;
 
     private final List<TextEntry> entries = new ArrayList<>();
-    
+
     private final Map<String, String> dirty = new LinkedHashMap<>();
 
-    private int scrollPx = 0;    
+    private int scrollPx = 0;
     private EditBox searchBox;
     private String statusMsg = "";
     private int statusTimer = 0;
 
     private final List<net.minecraft.client.gui.components.AbstractWidget> rowBoxes = new ArrayList<>();
+
+    private final List<Button> jumpButtons = new ArrayList<>();
 
     private record TextEntry(
                              ResourceLocation questId,
@@ -75,8 +78,8 @@ public class LangEditorScreen extends Screen {
     public LangEditorScreen(Screen parent, QuestNode focusQuest) {
         super(Component.literal("Text Editor"));
         this.parent = parent;
-        this.selectedCategory = focusQuest.getCategory() != null ? focusQuest.getCategory() : "";
-        this.searchQuery = focusQuest.getId().getPath();
+        this.selectedChapter = focusQuest.getChapter() != null ? focusQuest.getChapter() : "";
+        this.focusQuestId = focusQuest.getId();
     }
 
     @Override
@@ -84,14 +87,14 @@ public class LangEditorScreen extends Screen {
         clearWidgets();
         rowBoxes.clear();
 
-        List<String> cats = buildCategoryList();
-        if (!cats.isEmpty() && !cats.contains(selectedCategory)) {
-            selectedCategory = cats.get(0);
+        List<String> cats = buildChapterList();
+        if (!cats.isEmpty() && !cats.contains(selectedChapter)) {
+            selectedChapter = cats.get(0);
         }
 
         int listX = SIDEBAR_W + 4;
         searchBox = new EditBox(font, listX, HEADER_H + 11, (width - SIDEBAR_W) / 2 - 8, 13, Component.empty());
-        searchBox.setHint(Component.literal("§8Search textâ€¦ (Regex supported)"));
+        searchBox.setHint(Component.literal("§8Search text… (Regex supported)"));
         searchBox.setMaxLength(128);
         searchBox.setValue(searchQuery);
 
@@ -105,76 +108,107 @@ public class LangEditorScreen extends Screen {
         });
         addRenderableWidget(searchBox);
 
-        addRenderableWidget(Button.builder(Component.literal("§aâœ” Save all"),
+        addRenderableWidget(Button.builder(Component.literal("§a✔ Save all"),
                 b -> saveAll()).bounds(width - 100, HEADER_H + 11, 96, 13).build());
 
-        addRenderableWidget(Button.builder(Component.literal("§7â€¹ Back"),
-                        b -> {
-                            if (minecraft != null) minecraft.setScreen(parent);
-                        })
+        addRenderableWidget(Button.builder(Component.literal("§7‹ Back"),
+                b -> {
+                    if (minecraft != null) minecraft.setScreen(parent);
+                })
                 .bounds(listX, height - 16, 56, 12).build());
 
         rebuildEntries();
         buildRowBoxes();
+
+        if (focusQuestId != null) {
+            for (int ei = 0; ei < entries.size(); ei++) {
+                if (entries.get(ei).questId().equals(focusQuestId)) {
+                    scrollPx = Math.max(0, Math.min(maxScrollPx(), entryY(ei) - GROUP_H));
+                    buildRowBoxes();
+                    break;
+                }
+            }
+            focusQuestId = null;
+        }
+    }
+
+    private boolean isWholePackSearch() {
+        return !searchQuery.trim().isEmpty();
     }
 
     private void rebuildEntries() {
         entries.clear();
         String q = searchQuery.trim();
+        boolean wholePack = isWholePackSearch();
 
         java.util.regex.Pattern pattern = null;
         if (!q.isEmpty()) {
             try {
                 pattern = java.util.regex.Pattern.compile(q, java.util.regex.Pattern.CASE_INSENSITIVE);
             } catch (java.util.regex.PatternSyntaxException ignored) {
-                
+
             }
         }
 
         String lowerQ = q.toLowerCase();
 
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-            if (!selectedCategory.equals(node.getCategory())) continue;
+
+            if (!wholePack && !selectedChapter.equals(node.getChapter())) continue;
 
             String title = node.getTitleRaw().getString();
             String desc = node.getDescriptionRaw().getString();
             String sub = node.getSubtitleRaw() != null ? node.getSubtitleRaw() : "";
             String p = node.getId().getPath();
 
-            boolean matchesSearch = q.isEmpty() ||
-                    matchesQuery(title, pattern, lowerQ) ||
-                    matchesQuery(desc, pattern, lowerQ) ||
-                    matchesQuery(sub, pattern, lowerQ) ||
-                    matchesQuery(p, pattern, lowerQ);
+            if (!wholePack) {
 
-            if (!matchesSearch) {
-                for (QuestTask t : node.getTasks()) {
-                    if (matchesQuery(t.getDescriptionRaw().getString(), pattern, lowerQ)) {
-                        matchesSearch = true;
-                        break;
-                    }
+                entries.add(new TextEntry(node.getId(), p + ".title", "Title", title, "title"));
+                entries.add(new TextEntry(node.getId(), p + ".description", "Description", desc, "description"));
+                if (!sub.isBlank()) {
+                    entries.add(new TextEntry(node.getId(), p + ".subtitle", "Subtitle", sub, "subtitle"));
                 }
+                int i = 0;
+                for (QuestTask task : node.getTasks()) {
+                    entries.add(new TextEntry(node.getId(), p + ".task_" + i, "Task " + (i + 1),
+                            task.getDescriptionRaw().getString(), "task_" + i));
+                    i++;
+                }
+                continue;
             }
 
-            if (!matchesSearch) continue;
-
-            entries.add(new TextEntry(node.getId(), p + ".title", "Title", title, "title"));
-            entries.add(new TextEntry(node.getId(), p + ".description", "Description", desc, "description"));
-            if (!sub.isBlank()) {
+            if (matchesQuery(title, pattern, lowerQ))
+                entries.add(new TextEntry(node.getId(), p + ".title", "Title", title, "title"));
+            if (matchesQuery(desc, pattern, lowerQ))
+                entries.add(new TextEntry(node.getId(), p + ".description", "Description", desc, "description"));
+            if (!sub.isBlank() && matchesQuery(sub, pattern, lowerQ))
                 entries.add(new TextEntry(node.getId(), p + ".subtitle", "Subtitle", sub, "subtitle"));
-            }
-
             int i = 0;
             for (QuestTask task : node.getTasks()) {
-                entries.add(new TextEntry(
-                        node.getId(),
-                        p + ".task_" + i,
-                        "Task " + (i + 1),
-                        task.getDescriptionRaw().getString(),
-                        "task_" + i));
+                String taskDesc = task.getDescriptionRaw().getString();
+                if (matchesQuery(taskDesc, pattern, lowerQ)) {
+                    entries.add(new TextEntry(node.getId(), p + ".task_" + i, "Task " + (i + 1), taskDesc,
+                            "task_" + i));
+                }
                 i++;
             }
         }
+    }
+
+    private void jumpToQuest(ResourceLocation questId) {
+        QuestNode target = QuestTreeRegistry.getQuest(questId);
+        if (target == null || target.getChapter() == null) return;
+        selectedChapter = target.getChapter();
+        searchQuery = "";
+        if (searchBox != null) searchBox.setValue("");
+        rebuildEntries();
+        for (int ei = 0; ei < entries.size(); ei++) {
+            if (entries.get(ei).questId().equals(questId)) {
+                scrollPx = Math.max(0, Math.min(maxScrollPx(), entryY(ei) - GROUP_H));
+                break;
+            }
+        }
+        buildRowBoxes();
     }
 
     private boolean matchesQuery(String target, java.util.regex.Pattern pattern, String lowerQuery) {
@@ -233,16 +267,33 @@ public class LangEditorScreen extends Screen {
         int fieldX = listX + 4;
         int fieldW = listW - 8;
 
+        jumpButtons.forEach(this::removeWidget);
+        jumpButtons.clear();
+        boolean wholePack = isWholePackSearch();
+        ResourceLocation lastGroupForJump = null;
+
         for (int ei = 0; ei < entries.size(); ei++) {
             TextEntry entry = entries.get(ei);
             int rh = rowHeightFor(entry);
             int rowY = top + entryY(ei) - scrollPx;
-            if (rowY + rh <= top) continue;  
-            if (rowY >= bott) break;          
+            if (rowY + rh <= top) continue;
+            if (rowY >= bott) break;
+
+            if (wholePack && !entry.questId().equals(lastGroupForJump)) {
+                lastGroupForJump = entry.questId();
+                int gy = rowY - GROUP_H;
+                if (gy + GROUP_H > top && gy < bott) {
+                    ResourceLocation jumpTarget = entry.questId();
+                    Button jumpBtn = Button.builder(Component.literal("§dJump →"), b -> jumpToQuest(jumpTarget))
+                            .bounds(listX + listW - 54, gy + 2, 50, GROUP_H - 4).build();
+                    addRenderableWidget(jumpBtn);
+                    jumpButtons.add(jumpBtn);
+                }
+            }
 
             String key = entry.key();
             if (entry.fieldType().equals("description")) {
-                
+
                 int boxY = rowY + 26;
                 int boxH = rh - 26 - 6;
                 MultilineTextArea box = new MultilineTextArea(font, fieldX, boxY, fieldW, boxH, 8192);
@@ -251,7 +302,7 @@ public class LangEditorScreen extends Screen {
                 addRenderableWidget(box);
                 rowBoxes.add(box);
             } else {
-                
+
                 int boxY = rowY + 26;
                 EditBox box = new EditBox(font, fieldX, boxY, fieldW, FIELD_H, Component.empty());
                 box.setMaxLength(512);
@@ -291,7 +342,7 @@ public class LangEditorScreen extends Screen {
                 if (gy + GROUP_H > top && gy < bott) {
                     g.fill(listX, gy, listX + listW, gy + GROUP_H, C_GROUP_BG);
                     g.fill(listX, gy, listX + 3, gy + GROUP_H, C_ACCENT);
-                    g.drawString(font, "§dâ–¸ §7quests/" + entry.questId().getPath() + ".md",
+                    g.drawString(font, "§d▸ §7quests/" + entry.questId().getPath() + ".md",
                             listX + 8, gy + 3, ChroniclesThemePalette.TEXT);
                 }
             }
@@ -315,7 +366,7 @@ public class LangEditorScreen extends Screen {
             }
             int maxKeyW = listW - 16;
             String langKeyDisplay = font.width(langKey) > maxKeyW ?
-                    font.plainSubstrByWidth(langKey, maxKeyW - font.width("â€¦")) + "â€¦" : langKey;
+                    font.plainSubstrByWidth(langKey, maxKeyW - font.width("…")) + "…" : langKey;
             g.drawString(font, langKeyDisplay, listX + 6, rowY + 13, ChroniclesThemePalette.TEXT_FAINT);
 
             if (dirty.containsKey(entry.key()))
@@ -341,7 +392,7 @@ public class LangEditorScreen extends Screen {
         g.fill(SIDEBAR_W, 0, SIDEBAR_W + 1, height, ChroniclesThemePalette.BORDER);
         g.drawCenteredString(font, "§8CHAPTERS", SIDEBAR_W / 2, HEADER_H - 10, ChroniclesThemePalette.TEXT_FAINT);
 
-        List<String> cats = buildCategoryList();
+        List<String> cats = buildChapterList();
         int sidebarContentH = cats.size() * 15;
         int sidebarViewH = height - HEADER_H - 4;
         int maxSidebarScroll = Math.max(0, sidebarContentH - sidebarViewH);
@@ -350,7 +401,7 @@ public class LangEditorScreen extends Screen {
         g.enableScissor(0, HEADER_H, SIDEBAR_W, height);
         int ty = HEADER_H + 4 - sidebarScrollPx;
         for (String cat : cats) {
-            boolean sel = cat.equals(selectedCategory);
+            boolean sel = cat.equals(selectedChapter);
             boolean hov = mx >= 2 && mx < SIDEBAR_W - 2 && my >= ty && my < ty + 13;
             if (sel) {
                 g.fill(0, ty - 1, SIDEBAR_W - 1, ty + 14, 0xFF1A1A26);
@@ -373,9 +424,9 @@ public class LangEditorScreen extends Screen {
 
         g.fill(0, 0, width, HEADER_H, ChroniclesThemePalette.HEADER);
         g.fill(0, HEADER_H - 1, width, HEADER_H, ChroniclesThemePalette.BORDER);
-        g.drawString(font, "§dText Editor  §8â”‚  §7" + friendly(selectedCategory),
+        g.drawString(font, "§dText Editor  §8│  §7" + friendly(selectedChapter),
                 SIDEBAR_W + 6, 6, ChroniclesThemePalette.TEXT);
-        g.drawString(font, "§8Ctrl+S saves  Â·  primary: quests/*.md  Â·  also exports lang/en_us.json",
+        g.drawString(font, "§8Ctrl+S saves  ·  primary: quests/*.md  ·  also exports lang/en_us.json",
                 SIDEBAR_W + 6, 16, ChroniclesThemePalette.TEXT_FAINT);
 
         g.fill(SIDEBAR_W, height - 18, width, height, ChroniclesThemePalette.PANEL);
@@ -389,7 +440,7 @@ public class LangEditorScreen extends Screen {
         if (statusTimer > 0)
             g.drawString(font, statusMsg, listX + 64, height - 13, ChroniclesThemePalette.TEXT);
 
-        g.drawString(font, "§8" + entries.size() + " fields  Â·  " + countQuests() + " quests",
+        g.drawString(font, "§8" + entries.size() + " fields  ·  " + countQuests() + " quests",
                 width - 140, height - 13, ChroniclesThemePalette.TEXT_FAINT);
 
         searchBox.render(g, mx, my, partial);
@@ -421,17 +472,16 @@ public class LangEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
-        
         if (mx < SIDEBAR_W && my > HEADER_H) {
-            List<String> cats = buildCategoryList();
+            List<String> cats = buildChapterList();
             int ty = HEADER_H + 4 - sidebarScrollPx;
             for (String cat : cats) {
                 if (my >= ty && my < ty + 13) {
-                    if (!cat.equals(selectedCategory)) {
-                        selectedCategory = cat;
+                    if (!cat.equals(selectedChapter)) {
+                        selectedChapter = cat;
                         scrollPx = 0;
                         rebuildEntries();
-                        buildRowBoxes(); 
+                        buildRowBoxes();
                     }
                     return true;
                 }
@@ -461,8 +511,8 @@ public class LangEditorScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
         if (mx < SIDEBAR_W) {
-            
-            List<String> cats = buildCategoryList();
+
+            List<String> cats = buildChapterList();
             int sidebarContentH = cats.size() * 15;
             int sidebarViewH = height - HEADER_H - 4;
             int maxSidebarScroll = Math.max(0, sidebarContentH - sidebarViewH);
@@ -477,7 +527,7 @@ public class LangEditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { 
+        if (key == 256) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -485,7 +535,7 @@ public class LangEditorScreen extends Screen {
         if (ctrl && key == 83) {
             saveAll();
             return true;
-        } 
+        }
 
         if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
             for (net.minecraft.client.gui.components.AbstractWidget w : rowBoxes) {
@@ -533,12 +583,12 @@ public class LangEditorScreen extends Screen {
                 }
 
                 if (Files.exists(mdFile)) {
-                    
+
                     String existing = Files.readString(mdFile, StandardCharsets.UTF_8);
                     String patched = patchMdFile(existing, newTitle, newDesc);
                     Files.writeString(mdFile, patched, StandardCharsets.UTF_8);
                 } else {
-                    
+
                     String t = newTitle != null ? newTitle : questPath;
                     String d = newDesc != null ? newDesc : "";
                     Files.writeString(mdFile, buildMdFile(t, d), StandardCharsets.UTF_8);
@@ -551,14 +601,14 @@ public class LangEditorScreen extends Screen {
             Path snbt = base.resolve(questPath + ".snbt");
             if (Files.exists(snbt)) {
                 try {
-                    
+
                     boolean hasTaskChanges = fields.stream().anyMatch(e -> e.fieldType().startsWith("task_"));
 
                     if (hasTaskChanges) {
-                        
+
                         net.minecraft.nbt.CompoundTag tag = net.minecraft.nbt.TagParser.parseTag(
                                 Files.readString(snbt, StandardCharsets.UTF_8));
-                        
+
                         for (TextEntry e : fields) {
                             String v = dirty.get(e.key());
                             if (v == null) continue;
@@ -577,9 +627,9 @@ public class LangEditorScreen extends Screen {
                                         taskList.set(idx, tTag);
                                     }
                                 }
-                                
+
                                 QuestNode qNode = QuestTreeRegistry.getQuest(
-                                        new net.minecraft.resources.ResourceLocation("phoenixcore", questPath));
+                                        new net.minecraft.resources.ResourceLocation("phoenix_chronicles", questPath));
                                 if (qNode != null) {
                                     int idx2 = Integer.parseInt(e.fieldType().substring(5));
                                     if (idx2 < qNode.getTasks().size())
@@ -590,7 +640,7 @@ public class LangEditorScreen extends Screen {
                         }
                         Files.writeString(snbt, tag.toString(), StandardCharsets.UTF_8);
                     } else {
-                        
+
                         String content = Files.readString(snbt, StandardCharsets.UTF_8);
                         for (TextEntry e : fields) {
                             String v = dirty.get(e.key());
@@ -617,16 +667,15 @@ public class LangEditorScreen extends Screen {
         writeEnUsJson(base);
 
         dirty.clear();
-        
+
         QuestContentLoader.reloadAllQuestsFromDisk();
         QuestFileLoader.loadAdditiveFromDisk(base);
         rebuildEntries();
         buildRowBoxes();
-        setStatus("§aâœ” Saved " + saved + " quest(s)  â†’  quests/*.md  +  lang/en_us.json");
+        setStatus("§a✔ Saved " + saved + " quest(s)  →  quests/*.md  +  lang/en_us.json");
     }
 
     static String patchMdFile(String original, String newTitle, String newDesc) {
-        
         boolean hasFrontMatter = original.startsWith("---");
         String frontMatter = "";
         String body = original;
@@ -644,11 +693,11 @@ public class LangEditorScreen extends Screen {
                 frontMatter = frontMatter.replaceAll("(?m)^title:.*$",
                         "title: \"" + newTitle.replace("\"", "\\\"") + "\"");
             } else if (hasFrontMatter) {
-                
+
                 frontMatter = frontMatter.substring(0, frontMatter.lastIndexOf("---")) + "title: \"" +
                         newTitle.replace("\"", "\\\"") + "\"\n---";
             } else {
-                
+
                 frontMatter = "---\ntitle: \"" + newTitle.replace("\"", "\\\"") + "\"\n---\n";
                 hasFrontMatter = true;
             }
@@ -669,8 +718,11 @@ public class LangEditorScreen extends Screen {
         Map<String, String> lang = new LinkedHashMap<>();
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
             String p = node.getId().getPath().replace('/', '.');
-            lang.put("phoenix_chronicles.quest." + p + ".title", node.getTitleRaw().getString());
-            lang.put("phoenix_chronicles.quest." + p + ".description", node.getDescriptionRaw().getString());
+
+            if (!node.getTitleRaw().getString().isBlank())
+                lang.put("phoenix_chronicles.quest." + p + ".title", node.getTitleRaw().getString());
+            if (!node.getDescriptionRaw().getString().isBlank())
+                lang.put("phoenix_chronicles.quest." + p + ".description", node.getDescriptionRaw().getString());
             if (node.getSubtitleRaw() != null && !node.getSubtitleRaw().isBlank())
                 lang.put("phoenix_chronicles.quest." + p + ".subtitle", node.getSubtitleRaw());
 
@@ -736,10 +788,10 @@ public class LangEditorScreen extends Screen {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private List<String> buildCategoryList() {
+    private List<String> buildChapterList() {
         List<String> cats = new ArrayList<>();
         for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
-            String c = n.getCategory();
+            String c = n.getChapter();
             if (c != null && !cats.contains(c)) cats.add(c);
         }
         return cats;
@@ -747,7 +799,7 @@ public class LangEditorScreen extends Screen {
 
     private String friendly(String cat) {
         if (cat == null || cat.isBlank()) return "All";
-        String resolved = CategoryConfig.getResolvedDisplayName(cat);
+        String resolved = ChapterConfig.getResolvedDisplayName(cat);
         if (resolved != null) return resolved;
         StringBuilder sb = new StringBuilder();
         for (String w : cat.toLowerCase().replace("_", " ").split(" "))
@@ -755,4 +807,3 @@ public class LangEditorScreen extends Screen {
         return sb.toString().trim();
     }
 }
-

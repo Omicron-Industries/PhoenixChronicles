@@ -16,7 +16,7 @@ public class TagItemTask extends QuestTask {
 
     private TagKey<Item> tag;
     private int required = 1;
-    
+
     private boolean sticky = true;
 
     public TagItemTask(ResourceLocation taskId, Component description, TagKey<Item> tag, int required) {
@@ -59,7 +59,6 @@ public class TagItemTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (countMatching(player) >= required) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
@@ -102,4 +101,3 @@ public class TagItemTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
-

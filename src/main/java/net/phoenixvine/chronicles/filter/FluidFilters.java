@@ -41,7 +41,7 @@ public final class FluidFilters {
 
         @Override
         public String describe() {
-            return nbt != null && !nbt.isEmpty() ? fluidId + " {â€¦}" : fluidId.toString();
+            return nbt != null && !nbt.isEmpty() ? fluidId + " {…}" : fluidId.toString();
         }
 
         @Override
@@ -242,7 +242,7 @@ public final class FluidFilters {
             case TYPE_NOT -> Not.deserialize(tag);
             default -> {
                 System.err.println("[Chronicles] Unknown fluid filter type: " + type);
-                
+
                 yield new IFluidFilter() {
 
                     @Override
@@ -294,4 +294,3 @@ public final class FluidFilters {
 
     private FluidFilters() {}
 }
-

@@ -64,4 +64,3 @@ public class StructureTask extends QuestTask {
         if (nbt.contains("structure_id")) structureId = new ResourceLocation(nbt.getString("structure_id"));
     }
 }
-

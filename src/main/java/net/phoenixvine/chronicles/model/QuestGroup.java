@@ -7,10 +7,10 @@ public class QuestGroup {
 
     private String id;
     private String label;
-    private int color;        
-    private int borderColor;  
-    private int x, y, width, height; 
-    private String category;
+    private int color;
+    private int borderColor;
+    private int x, y, width, height;
+    private String chapter;
 
     public enum IconKind {
         ITEM,
@@ -21,7 +21,7 @@ public class QuestGroup {
     public static final class GroupIcon {
 
         public final IconKind kind;
-        
+
         public final String id;
 
         public GroupIcon(IconKind kind, String id) {
@@ -37,10 +37,10 @@ public class QuestGroup {
     private static final int DEFAULT_COLOR = 0x22FFFFFF;
     private static final int DEFAULT_BORDER = 0x44FFFFFF;
 
-    public QuestGroup(String id, String label, String category) {
+    public QuestGroup(String id, String label, String chapter) {
         this.id = id;
         this.label = label;
-        this.category = category;
+        this.chapter = chapter;
         this.color = DEFAULT_COLOR;
         this.borderColor = DEFAULT_BORDER;
         this.x = 0;
@@ -81,8 +81,8 @@ public class QuestGroup {
         return height;
     }
 
-    public String getCategory() {
-        return category;
+    public String getChapter() {
+        return chapter;
     }
 
     public List<GroupIcon> getIcons() {
@@ -142,8 +142,8 @@ public class QuestGroup {
         this.height = height;
     }
 
-    public void setCategory(String category) {
-        this.category = category;
+    public void setChapter(String chapter) {
+        this.chapter = chapter;
     }
 
     public void setPosition(int x, int y) {
@@ -156,4 +156,3 @@ public class QuestGroup {
         this.height = height;
     }
 }
-

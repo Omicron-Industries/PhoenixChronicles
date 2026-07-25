@@ -21,4 +21,3 @@ public class S2CReloadQuestsFromDiskPacket {
         ctx.get().setPacketHandled(true);
     }
 }
-

@@ -86,4 +86,3 @@ public class RewardTable {
         return new RewardTable(id, displayName, entries, pickCount);
     }
 }
-

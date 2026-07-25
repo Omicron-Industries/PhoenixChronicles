@@ -46,4 +46,3 @@ public class C2STogglePinPacket {
         ctx.get().setPacketHandled(true);
     }
 }
-

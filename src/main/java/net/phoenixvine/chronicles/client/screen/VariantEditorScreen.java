@@ -31,13 +31,18 @@ public class VariantEditorScreen extends Screen {
     private int listTop, listBottom, formTop;
 
     private final Screen parent;
+
+    Screen getParentScreen() {
+        return parent;
+    }
+
     private final QuestNode questNode;
     private final List<QuestNode.QuestVariant> variants = new ArrayList<>();
     private int selected = -1;
 
     private EditBox conditionBox, titleBox, descBox;
 
-    private static final QuestNode.Visibility[] VIS_CYCLE; 
+    private static final QuestNode.Visibility[] VIS_CYCLE;
     static {
         QuestNode.Visibility[] v = QuestNode.Visibility.values();
         VIS_CYCLE = new QuestNode.Visibility[v.length + 1];
@@ -76,7 +81,7 @@ public class VariantEditorScreen extends Screen {
     protected void rebuildWidgets() {
         clearWidgets();
 
-        addRenderableWidget(Button.builder(Component.literal("§7â€¹ Done"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§7‹ Done"), b -> {
             flushToQuestNode();
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(width / 2 - 40, height - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
@@ -101,7 +106,7 @@ public class VariantEditorScreen extends Screen {
 
         conditionBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         conditionBox.setMaxLength(160);
-        conditionBox.setHint(Component.literal("§8condition â€” e.g. config:pack_mode=expert"));
+        conditionBox.setHint(Component.literal("§8condition — e.g. config:pack_mode=expert"));
         conditionBox.setValue(v.condition);
         conditionBox.setResponder(s -> v.condition = s);
         addRenderableWidget(conditionBox);
@@ -109,7 +114,7 @@ public class VariantEditorScreen extends Screen {
 
         titleBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         titleBox.setMaxLength(128);
-        titleBox.setHint(Component.literal("§8title override â€” blank = inherit base title"));
+        titleBox.setHint(Component.literal("§8title override — blank = inherit base title"));
         titleBox.setValue(v.title != null ? v.title : "");
         titleBox.setResponder(s -> v.title = s.isBlank() ? null : s);
         addRenderableWidget(titleBox);
@@ -117,7 +122,7 @@ public class VariantEditorScreen extends Screen {
 
         descBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         descBox.setMaxLength(512);
-        descBox.setHint(Component.literal("§8description override â€” blank = inherit base description"));
+        descBox.setHint(Component.literal("§8description override — blank = inherit base description"));
         descBox.setValue(v.description != null ? v.description : "");
         descBox.setResponder(s -> v.description = s.isBlank() ? null : s);
         addRenderableWidget(descBox);
@@ -129,12 +134,15 @@ public class VariantEditorScreen extends Screen {
             v.visibility = VIS_CYCLE[(visIdx + 1) % VIS_CYCLE.length];
             rebuildWidgets();
         }).bounds(fx, fy, (fw - FIELD_GAP) / 2, FIELD_H)
-                .tooltip(Tooltip.create(Component.literal("Cycle: Inherit â†’ Normal â†’ Hidden â†’ Mystery â†’ Disabled")))
+                .tooltip(Tooltip
+                        .create(Component.literal("Cycle: Inherit → Normal → Hidden → Mystery → Disabled")))
                 .build());
 
         String taskRewardLabel = (v.tasks != null || v.rewards != null) ?
-                "§eEdit Tasks/Rewardsâ€¦ §8(overridden)" : "§7Edit Tasks/Rewardsâ€¦";
+                "§eEdit Tasks/Rewards… §8(overridden)" : "§7Edit Tasks/Rewards…";
         addRenderableWidget(Button.builder(Component.literal(taskRewardLabel), b -> {
+
+            flushToQuestNode();
             if (minecraft != null) minecraft.setScreen(new TaskRewardEditorScreen(this, questNode, v));
         }).bounds(fx + (fw - FIELD_GAP) / 2 + FIELD_GAP, fy, (fw - FIELD_GAP) / 2, FIELD_H).build());
         fy += FIELD_H + FIELD_GAP;
@@ -163,6 +171,7 @@ public class VariantEditorScreen extends Screen {
         if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
             net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
         }
+        ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
     }
 
     @Override
@@ -176,7 +185,7 @@ public class VariantEditorScreen extends Screen {
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
-        g.drawCenteredString(font, "§fQuest Variants  §8â€” §7" + questNode.getId().getPath(),
+        g.drawCenteredString(font, "§fQuest Variants  §8— §7" + questNode.getId().getPath(),
                 width / 2, (HEADER_H - 8) / 2, C_TEXT);
 
         g.fill(0, HEADER_H, width, listTop - 1, C_PANEL);
@@ -217,19 +226,19 @@ public class VariantEditorScreen extends Screen {
             int textX = MARGIN + 8;
             int maxW = width - MARGIN - textX - 40;
             String condLine = cond;
-            if (font.width(condLine) > maxW) condLine = font.plainSubstrByWidth(condLine, maxW - 4) + "â€¦";
+            if (font.width(condLine) > maxW) condLine = font.plainSubstrByWidth(condLine, maxW - 4) + "…";
             g.drawString(font, condLine, textX, ty + 3, C_TEXT_DIM, false);
             g.drawString(font, "§8" + summary, textX, ty + 12, C_TEXT_FAINT, false);
 
             int cx = width - MARGIN - 12;
-            g.drawString(font, "§cÃ—", cx, ty + 6, 0xFFFF5555, false);
-            if (i > 0) g.drawString(font, "§7â–²", cx - 24, ty + 6, C_TEXT_DIM, false);
-            if (i < variants.size() - 1) g.drawString(font, "§7â–¼", cx - 12, ty + 6, C_TEXT_DIM, false);
+            g.drawString(font, "§c×", cx, ty + 6, 0xFFFF5555, false);
+            if (i > 0) g.drawString(font, "§7▲", cx - 24, ty + 6, C_TEXT_DIM, false);
+            if (i < variants.size() - 1) g.drawString(font, "§7▼", cx - 12, ty + 6, C_TEXT_DIM, false);
 
             ty += ROW_H;
         }
         if (variants.isEmpty())
-            g.drawString(font, "§8No variants yet â€” this quest behaves identically in every pack mode.",
+            g.drawString(font, "§8No variants yet — this quest behaves identically in every pack mode.",
                     MARGIN + 8, listTop + 4, C_TEXT_FAINT, false);
         g.disableScissor();
 
@@ -243,7 +252,7 @@ public class VariantEditorScreen extends Screen {
         if (v.visibility != null) parts.add("visibility=" + v.visibility.name().toLowerCase());
         if (v.tasks != null) parts.add(v.tasks.size() + " task(s)");
         if (v.rewards != null) parts.add(v.rewards.size() + " reward(s)");
-        return parts.isEmpty() ? "no overrides â€” condition only gates nothing" : String.join(", ", parts);
+        return parts.isEmpty() ? "no overrides — condition only gates nothing" : String.join(", ", parts);
     }
 
     @Override
@@ -287,6 +296,7 @@ public class VariantEditorScreen extends Screen {
     @Override
     public void onClose() {
         flushToQuestNode();
+        ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
@@ -299,4 +309,3 @@ public class VariantEditorScreen extends Screen {
         ChroniclesUIKit.drawBorder(g, x, y, w, h, color);
     }
 }
-

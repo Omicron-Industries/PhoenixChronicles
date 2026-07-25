@@ -66,11 +66,11 @@ public class SettingsScreen extends Screen {
         final RowType type;
         final String label;
         final Supplier<String> valueFn;
-        final Runnable onLeft, onRight; 
-        final Runnable onClick; 
+        final Runnable onLeft, onRight;
+        final Runnable onClick;
         int y;
         int height = ROW_H;
-        String tooltip; 
+        String tooltip;
 
         Row(RowType type, String label, Supplier<String> valueFn, Runnable onLeft, Runnable onRight,
             Runnable onClick) {
@@ -112,7 +112,7 @@ public class SettingsScreen extends Screen {
         }
 
         static Row link(String label, Runnable onClick) {
-            return new Row(RowType.LINK, label, () -> "â†’", null, null, onClick);
+            return new Row(RowType.LINK, label, () -> "→", null, null, onClick);
         }
 
         static Row info(String text, int lineCount) {
@@ -179,28 +179,35 @@ public class SettingsScreen extends Screen {
                         .tip("COLLAPSIBLE: click the small arrow to pin the sidebar open/closed.\n" +
                                 "HOVER_TO_EXPAND: FTB Quests-style - always collapsed, moving the\n" +
                                 "mouse over it opens it, moving away closes it - no clicking needed."));
+                rows.add(Row.cycle("§fQuest Node Move Style",
+                        net.phoenixvine.chronicles.codec.QuestChroniclesSettings.NodeMoveMode.class,
+                        settings::getNodeMoveMode, settings::setNodeMoveMode)
+                        .tip("DRAG: shift+click and hold to move a quest node, release to drop it.\n" +
+                                "PICKUP_PLACE: shift+click once to pick it up (it follows the cursor\n" +
+                                "with no button held), click again to place it - Escape cancels\n" +
+                                "either way and snaps it back to where it started."));
                 rows.add(Row.link("§fTheme Editor",
                         () -> {
                             if (minecraft != null) minecraft.setScreen(new ChroniclesThemeEditorScreen(this));
                         })
                         .tip("Opens the full color editor - customize every panel, text, and\nstate color, then save it as a named theme."));
-                rows.add(Row.info("§8Keybinds: Minecraft's own Options â†’ Controls â†’ Phoenix Chronicles", 1));
+                rows.add(Row.info("§8Keybinds: Minecraft's own Options → Controls → Phoenix Chronicles", 1));
             }
             case HUD -> {
                 rows.add(Row.cycle("§fHUD Position", HUDPosition.class, settings::getHudPosition,
                         settings::setHudPosition)
-                        .tip("Where the persistent quest-tracker HUD sits on screen\nwhile you're out playing, not in the quest book."));
+                        .tip("Which screen corner the pinned-quest widget(s) anchor to and stack from\nwhile you're out playing (this does not affect the quest book itself)."));
                 rows.add(new Row(RowType.CYCLE, "§fHUD Opacity",
                         () -> String.format("%.0f%%", settings.getHudOpacity() * 100),
                         () -> settings.setHudOpacity(settings.getHudOpacity() - 0.1f),
                         () -> settings.setHudOpacity(settings.getHudOpacity() + 0.1f), null)
-                        .tip("Background transparency of the HUD tracker."));
+                        .tip("How see-through the pinned quest widget's background panel is.\nLower = more of the game shows through behind it; text stays fully readable either way."));
                 rows.add(Row.toggle("§fShow HUD Title", settings::isShowHUDTitle, settings::setShowHUDTitle)
-                        .tip("Shows the pinned quest's name on the HUD."));
+                        .tip("Shows the quest icon, name, and pin marker as a header row\non each pinned widget. Turn off to hide that header row entirely -\nonly the remaining-task list below it will still show."));
                 rows.add(Row.toggle("§fShow HUD Progress", settings::isShowHUDProgress, settings::setShowHUDProgress)
-                        .tip("Shows task completion progress (e.g. 2/5) on the HUD."));
+                        .tip("Shows a small \"done/total\" count (e.g. 2/5) next to the quest title.\nTurn off to hide just this counter - the list of remaining tasks\nbelow it is unaffected."));
                 rows.add(Row.toggle("§fShow HUD Rewards", settings::isShowHUDRewards, settings::setShowHUDRewards)
-                        .tip("Shows a preview of unclaimed reward icons on the HUD."));
+                        .tip("Shows a row of small reward icons at the bottom of each pinned\nquest's HUD widget, below its remaining tasks."));
             }
             case POPUPS -> {
                 rows.add(Row.toggle("§fShow Pop-Ups", settings::isShowToasts, settings::setShowToasts)
@@ -211,7 +218,7 @@ public class SettingsScreen extends Screen {
                         settings::setToastPosition).tip("Corner of the screen pop-ups slide in from."));
                 rows.add(Row.toggle("§fPlay Pop-Up Sounds", settings::isPlayToastSounds, settings::setPlayToastSounds)
                         .tip("Plays a sound alongside quest unlock/completion pop-ups."));
-                rows.add(Row.info("§8Individual pop-ups: right-click a quest â†’ Design Pop-Up", 1));
+                rows.add(Row.info("§8Individual pop-ups: right-click a quest → Design Pop-Up", 1));
             }
             case CANVAS -> {
                 rows.add(Row.toggle("§fHide Completed by Default", settings::isHideCompletedByDefault,
@@ -252,6 +259,13 @@ public class SettingsScreen extends Screen {
                 rows.add(Row.toggle("§fShow Dev Info by Default", settings::isShowDevInfoByDefault,
                         settings::setShowDevInfoByDefault)
                         .tip("Opens quest editors with dev-only fields expanded by default."));
+                rows.add(Row.toggle("§fAlways-On Profiler", settings::isAlwaysProfilerEnabled, on -> {
+                    settings.setAlwaysProfilerEnabled(on);
+                    settings.save();
+                    net.phoenixvine.chronicles.client.FrameProfiler.setEnabled(on);
+                }).tip("Keeps the rolling render-cost profiler (Ctrl+P) running for the\n" +
+                        "whole session and logs a snapshot every 10s - useful for tracking\n" +
+                        "down intermittent performance issues without remembering to toggle it."));
                 rows.add(Row.info(
                         "§8Off by default - click to opt in. Still only takes effect if you're\n" +
                                 "§8creative or op level 2+; this can't grant dev tools by itself.",
@@ -316,11 +330,14 @@ public class SettingsScreen extends Screen {
                     if (hov) g.fill(x, ry, x + w, ry + ROW_H, 0x10FFFFFF);
                     int textY = ry + (ROW_H - 8) / 2;
                     g.drawString(font, r.label, x + 4, textY, C_TEXT, false);
-                    g.drawCenteredString(font, "§7â†’", x + w - ARROW_W / 2, textY, hov ? C_ACCENT : C_TEXT_DIM);
+                    g.drawCenteredString(font, "§7→", x + w - ARROW_W / 2, textY, hov ? C_ACCENT : C_TEXT_DIM);
                 }
                 default -> renderValueRow(g, x, ry, w, r, mx, my);
             }
-            if (r.tooltip != null && mx >= x && mx < x + w && my >= ry && my < ry + r.height) {
+
+            boolean overArrow = r.type != RowType.INFO && r.type != RowType.LINK && my >= ry && my < ry + r.height &&
+                    mx >= x + w - (ARROW_GAP + ARROW_W * 2) && mx < x + w;
+            if (r.tooltip != null && !overArrow && mx >= x && mx < x + w && my >= ry && my < ry + r.height) {
                 hoveredTooltip = r.tooltip;
             }
         }
@@ -339,14 +356,14 @@ public class SettingsScreen extends Screen {
         g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 18,
                 saveHov ? 0xFF2A4A2A : 0xFF1A2A1A);
         if (saveHov) g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 1, C_OK);
-        g.drawCenteredString(font, "§aâœ“ Save", width / 2 - btnW / 2 - btnGap / 2, btnY + 6, saveHov ? C_OK : C_TEXT);
+        g.drawCenteredString(font, "§a✓ Save", width / 2 - btnW / 2 - btnGap / 2, btnY + 6, saveHov ? C_OK : C_TEXT);
 
         boolean cancelHov = mx >= width / 2 + btnGap / 2 && mx < width / 2 + btnW + btnGap / 2 && my >= btnY &&
                 my < btnY + 18;
         g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 18,
                 cancelHov ? 0xFF3A3A3A : 0xFF2A2A2A);
         if (cancelHov) g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 1, C_CANCEL);
-        g.drawCenteredString(font, "§7âœ• Cancel", width / 2 + btnW / 2 + btnGap / 2, btnY + 6,
+        g.drawCenteredString(font, "§7✕ Cancel", width / 2 + btnW / 2 + btnGap / 2, btnY + 6,
                 cancelHov ? C_CANCEL : C_TEXT);
 
         if (hoveredTooltip != null) {
@@ -366,7 +383,7 @@ public class SettingsScreen extends Screen {
         if (ty + th > height) ty = height - th;
         if (ty < 0) ty = 0;
 
-        g.fill(tx - 4, ty - 3, tx + tw + 4, ty + th, 0xEE0A0A0E);
+        g.fill(tx - 4, ty - 3, tx + tw + 4, ty + th, 0xFF0A0A0E);
         g.fill(tx - 4, ty - 3, tx + tw + 4, ty - 2, C_ACCENT);
         int ly = ty;
         for (String line : lines) {
@@ -446,7 +463,7 @@ public class SettingsScreen extends Screen {
                 case CYCLE -> {
                     int rArrowX = x + w - ARROW_W;
                     int lArrowX = rArrowX - ARROW_GAP - ARROW_W;
-                    if (mx < lArrowX) break; 
+                    if (mx < lArrowX) break;
                     (mx >= rArrowX ? r.onRight : r.onLeft).run();
                     rebuildRows();
                     return true;
@@ -474,4 +491,3 @@ public class SettingsScreen extends Screen {
         return false;
     }
 }
-

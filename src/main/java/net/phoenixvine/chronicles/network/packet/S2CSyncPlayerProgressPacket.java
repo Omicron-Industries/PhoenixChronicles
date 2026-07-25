@@ -78,7 +78,7 @@ public class S2CSyncPlayerProgressPacket {
             if (isFirstSync) {
                 firstSyncTimeMs = now;
                 graceDeadlineMs = now + LOGIN_GRACE_MS;
-                return; 
+                return;
             }
             if (now < graceDeadlineMs) {
 
@@ -105,4 +105,3 @@ public class S2CSyncPlayerProgressPacket {
         });
     }
 }
-

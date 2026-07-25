@@ -11,7 +11,7 @@ public class KillEntityTask extends QuestTask {
 
     private ResourceLocation entityId;
     private int requiredCount;
-    private boolean consume; 
+    private boolean consume;
 
     public KillEntityTask(ResourceLocation taskId, Component description, ResourceLocation entityId, int requiredCount,
                           boolean consume) {
@@ -58,7 +58,7 @@ public class KillEntityTask extends QuestTask {
 
     @Override
     public void tryConsume(Player player) {
-        if (!consume) return; 
+        if (!consume) return;
 
         TaskProgressAccess.with(player, this.getTaskId(), nbt -> {
             nbt.putInt("current", 0);
@@ -78,7 +78,7 @@ public class KillEntityTask extends QuestTask {
         tag.putString("type", "kill_entity");
         tag.putString("entity_id", entityId != null ? entityId.toString() : "minecraft:pig");
         tag.putInt("required", requiredCount);
-        tag.putBoolean("consume", consume); 
+        tag.putBoolean("consume", consume);
         return tag;
     }
 
@@ -88,7 +88,6 @@ public class KillEntityTask extends QuestTask {
             this.entityId = new ResourceLocation(nbt.getString("entity_id"));
         }
         this.requiredCount = nbt.getInt("required");
-        this.consume = nbt.getBoolean("consume"); 
+        this.consume = nbt.getBoolean("consume");
     }
 }
-

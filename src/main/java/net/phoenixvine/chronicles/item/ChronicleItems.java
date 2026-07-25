@@ -18,4 +18,3 @@ public class ChronicleItems {
             "chronicle_loot_crate",
             () -> new ChronicleLootCrateItem(new Item.Properties().stacksTo(16)));
 }
-

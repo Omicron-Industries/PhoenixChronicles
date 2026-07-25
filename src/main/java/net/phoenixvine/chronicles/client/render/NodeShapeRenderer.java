@@ -72,6 +72,8 @@ public final class NodeShapeRenderer {
 
         BufferUploader.drawWithShader(bb.end());
         RenderSystem.enableDepthTest();
+
+        RenderSystem.enableCull();
         fillQueue.clear();
         return count;
     }
@@ -81,9 +83,13 @@ public final class NodeShapeRenderer {
         int a = (color >>> 24) & 0xFF, r = (color >>> 16) & 0xFF, gg = (color >>> 8) & 0xFF, b = color & 0xFF;
         g.flush();
         RenderSystem.setShaderColor(r / 255f, gg / 255f, b / 255f, a / 255f);
-        g.blit(tex, x, y, 0, 0, w, h, w, h);
-        g.flush();
-        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        try {
+            g.blit(tex, x, y, 0, 0, w, h, w, h);
+        } finally {
+
+            g.flush();
+            RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        }
     }
 
     private static double guiScale() {
@@ -113,8 +119,8 @@ public final class NodeShapeRenderer {
         if (edgeR <= edgeL) return;
         int alpha = (color >>> 24) & 0xFF;
 
-        int xL = (int) Math.floor(edgeL);  
-        int xR = (int) Math.floor(edgeR);  
+        int xL = (int) Math.floor(edgeL);
+        int xR = (int) Math.floor(edgeR);
 
         if (xL == xR) {
             float cov = edgeR - edgeL;
@@ -122,8 +128,8 @@ public final class NodeShapeRenderer {
             return;
         }
 
-        int x0 = (int) Math.ceil(edgeL);   
-        int x1 = xR - 1;                   
+        int x0 = (int) Math.ceil(edgeL);
+        int x1 = xR - 1;
         if (xL < x0) {
             float cov = x0 - edgeL;
             if (cov > 0.02f) queueFillRect(g, xL, py, xL + 1, py + 1, withAlpha(color, Math.round(alpha * cov)));
@@ -185,10 +191,10 @@ public final class NodeShapeRenderer {
     public static void outlineDiamond(GuiGraphics g, int x, int y, int sz, int color, int thickness) {
         int cx = x + sz / 2, cy = y + sz / 2, h = sz / 2 - 1;
 
-        queuedDrawLine(g, cx, cy - h, cx - h, cy, color, thickness); 
-        queuedDrawLine(g, cx, cy - h, cx + h, cy, color, thickness); 
-        queuedDrawLine(g, cx - h, cy, cx, cy + h, color, thickness); 
-        queuedDrawLine(g, cx + h, cy, cx, cy + h, color, thickness); 
+        queuedDrawLine(g, cx, cy - h, cx - h, cy, color, thickness);
+        queuedDrawLine(g, cx, cy - h, cx + h, cy, color, thickness);
+        queuedDrawLine(g, cx - h, cy, cx, cy + h, color, thickness);
+        queuedDrawLine(g, cx + h, cy, cx, cy + h, color, thickness);
     }
 
     private static final float HEX_SCALE = 1f / 0.866f;
@@ -201,7 +207,7 @@ public final class NodeShapeRenderer {
 
         float cx = (float) ((x + sz / 2f) * gs), cy = (float) ((y + sz / 2f) * gs);
         float r = (float) ((sz / 2f - 1) * gs) * HEX_SCALE;
-        float qr = r * 0.866f; 
+        float qr = r * 0.866f;
         int py0 = (int) Math.floor(cy - r), py1 = (int) Math.ceil(cy + r);
         for (int py = py0; py < py1; py++) {
             float dy = Math.abs(py + 0.5f - cy);
@@ -246,9 +252,9 @@ public final class NodeShapeRenderer {
     public static void outlineTriangle(GuiGraphics g, int x, int y, int sz, int color, int thickness) {
         int cx = x + sz / 2, top = y + 1, bot = y + sz - 1;
         int bl = x + 1, br = x + sz - 1;
-        queuedDrawLine(g, cx, top, bl, bot, color, thickness); 
-        queuedDrawLine(g, cx, top, br, bot, color, thickness); 
-        queuedDrawLine(g, bl, bot, br, bot, color, thickness); 
+        queuedDrawLine(g, cx, top, bl, bot, color, thickness);
+        queuedDrawLine(g, cx, top, br, bot, color, thickness);
+        queuedDrawLine(g, bl, bot, br, bot, color, thickness);
     }
 
     public static void fillStar(GuiGraphics g, int x, int y, int sz, int color) {
@@ -260,7 +266,7 @@ public final class NodeShapeRenderer {
         float cx = (float) ((x + sz / 2f) * gs), cy = (float) ((y + sz / 2f) * gs);
         float outerR = (float) ((sz / 2f - 1) * gs), innerR = outerR * 0.4f;
         int points = 5;
-        
+
         float[] px = new float[points * 2], py2 = new float[points * 2];
         for (int i = 0; i < points * 2; i++) {
             double a = -Math.PI / 2 + i * Math.PI / points;
@@ -280,7 +286,7 @@ public final class NodeShapeRenderer {
                     xs[count++] = px[i] + (scanY - y0) / (y1 - y0) * (px[j] - px[i]);
                 }
             }
-            
+
             for (int i = 1; i < count; i++) {
                 float v = xs[i];
                 int k = i - 1;
@@ -304,7 +310,7 @@ public final class NodeShapeRenderer {
         for (int i = 0; i <= points * 2; i++) {
             double a = -Math.PI / 2 + i * Math.PI / points;
             float r2 = (i % 2 == 0) ? outerR : innerR;
-            
+
             int nx = (int) Math.round(cx + Math.cos(a) * r2), ny = (int) Math.round(cy + Math.sin(a) * r2);
             if (i > 0) queuedDrawLine(g, prevX, prevY2, nx, ny, color, thickness);
             prevX = nx;
@@ -337,7 +343,7 @@ public final class NodeShapeRenderer {
         int prevX = 0, prevY2 = 0;
         for (int i = 0; i <= sides; i++) {
             double a = -Math.PI / 2 + (i % sides) * 2 * Math.PI / sides;
-            
+
             int nx = (int) Math.round(cx + Math.cos(a) * r), ny = (int) Math.round(cy + Math.sin(a) * r);
             if (i > 0) queuedDrawLine(g, prevX, prevY2, nx, ny, color, thickness);
             prevX = nx;
@@ -354,9 +360,9 @@ public final class NodeShapeRenderer {
         float midY = (float) ((y + sz * 2 / 3f) * gs);
         float top = (float) (y * gs), bot = (float) ((y + sz) * gs);
         float left = (float) ((x + 1) * gs), right = (float) ((x + sz - 1) * gs);
-        
+
         queueFillRect(g, (int) left, (int) top, (int) right, (int) midY, color);
-        
+
         float cx = (float) ((x + sz / 2f) * gs);
         int py0 = (int) Math.floor(midY), py1 = (int) Math.ceil(bot);
         for (int py = py0; py < py1; py++) {
@@ -369,12 +375,12 @@ public final class NodeShapeRenderer {
 
     public static void outlineShield(GuiGraphics g, int x, int y, int sz, int color, int thickness) {
         int midY = y + sz * 2 / 3, cx = x + sz / 2;
-        
+
         queueFillRect(g, x + 1, y, x + sz - 1, y + thickness, color);
-        
+
         queueFillRect(g, x, y, x + thickness, midY, color);
         queueFillRect(g, x + sz - thickness, y, x + sz, midY, color);
-        
+
         queuedDrawLine(g, x, midY, cx, y + sz - 1, color, thickness);
         queuedDrawLine(g, x + sz, midY, cx, y + sz - 1, color, thickness);
     }
@@ -405,7 +411,7 @@ public final class NodeShapeRenderer {
         int x0 = cx - arm / 2, x1 = cx + arm / 2, y0 = cy - arm / 2, y1 = cy + arm / 2;
         int ax0 = x + arm / 2, ax1 = x + sz - arm / 2;
         int ay0 = y + arm / 2, ay1 = y + sz - arm / 2;
-        
+
         int[] ox = { x0, x1, x1, ax1, ax1, x1, x1, x0, x0, ax0, ax0, x0, x0 };
         int[] oy = { ay0, ay0, y0, y0, ay0, ay0, ay1, ay1, ay0, ay0, y0, y0, ay0 };
         for (int i = 0; i < 12; i++) queuedDrawLine(g, ox[i], oy[i], ox[i + 1], oy[i + 1], color, thickness);
@@ -479,7 +485,7 @@ public final class NodeShapeRenderer {
         double dx = x1 - x0, dy = y1 - y0;
         double len = Math.sqrt(dx * dx + dy * dy);
         if (len < 0.5) return;
-        double nx = -dy / len, ny = dx / len; 
+        double nx = -dy / len, ny = dx / len;
         double off = thickness / 2.0 + 0.5;
 
         int ax0 = (int) Math.round(x0 + nx * off), ay0 = (int) Math.round(y0 + ny * off);
@@ -557,4 +563,3 @@ public final class NodeShapeRenderer {
         queueFillRect(g, x - half, y - half, x - half + thickness, y - half + thickness, color);
     }
 }
-

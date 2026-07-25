@@ -67,4 +67,3 @@ public class ScriptTask extends QuestTask {
         this.data = nbt.copy();
     }
 }
-

@@ -26,7 +26,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
     private EditBox nameInput;
 
     private int scrollOffset = 0;
-    
+
     private int listRowsStartY = 0;
 
     private final List<String> pendingDeletions = new ArrayList<>();
@@ -41,7 +41,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
     private boolean isUndoing = false;
 
     private boolean confirmActive = false;
-    private String pendingAction = null;   
+    private String pendingAction = null;
 
     private int C_BG, C_PANEL, C_HEADER, C_BORDER, C_ACCENT, C_TEXT, C_DIM, C_FAINT;
 
@@ -85,7 +85,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
         int y = 38;
         int rh = height > 360 ? 20 : 17;
 
-        sections.add(new SectionLabel("â–  Base Layers", sbX, y));
+        sections.add(new SectionLabel("■ Base Layers", sbX, y));
         y += 12;
         addField("BG", t.bg, sbX, y, boxW);
         y += rh;
@@ -96,7 +96,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
         addField("Border", t.border, sbX, y, boxW);
         y += rh + 6;
 
-        sections.add(new SectionLabel("â–  Typography", sbX, y));
+        sections.add(new SectionLabel("■ Typography", sbX, y));
         y += 12;
         addField("Text", t.text, sbX, y, boxW);
         y += rh;
@@ -105,7 +105,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
         addField("Faint", t.textFaint, sbX, y, boxW);
         y += rh + 6;
 
-        sections.add(new SectionLabel("â–  State Colors", sbX, y));
+        sections.add(new SectionLabel("■ State Colors", sbX, y));
         y += 12;
         addField("Accent", t.accent, sbX, y, boxW);
         y += rh;
@@ -190,10 +190,10 @@ public class ChroniclesThemeEditorScreen extends Screen {
             status = "§eClick again to discard!";
             statusC = 0xFFFFBB33;
         } else if (hasChanges()) {
-            status = "§7â— " + ChroniclesTheme.getActiveName() + " (unsaved)";
+            status = "§7● " + ChroniclesTheme.getActiveName() + " (unsaved)";
             statusC = 0xFFFFBB33;
         } else {
-            status = "§7â—‹ " + ChroniclesTheme.getActiveName();
+            status = "§7○ " + ChroniclesTheme.getActiveName();
             statusC = C_DIM;
         }
         g.drawString(font, status, width - sbW + 8, 19, statusC, false);
@@ -202,15 +202,15 @@ public class ChroniclesThemeEditorScreen extends Screen {
             g.drawString(font, "§8" + s.title, s.x, s.y, C_ACCENT, false);
         }
         for (FieldEntry f : fields) {
-            
+
             g.drawString(font, f.label, f.box.getX() - 65, f.box.getY() + 4, C_TEXT, false);
-            
+
             int sx = f.box.getX() + f.box.getWidth() + 3;
             int sy = f.box.getY();
             int sw = 14;
 
             g.fill(sx, sy, sx + sw, sy + 14, f.target.getColor());
-            
+
             g.fill(sx, sy, sx + sw, sy + 1, C_BORDER);
             g.fill(sx, sy + 13, sx + sw, sy + 14, C_BORDER);
             g.fill(sx, sy, sx + 1, sy + 14, C_BORDER);
@@ -232,7 +232,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
         int mockX = 10;
 
         int animY = 8;
-        g.drawString(font, "§7Node states Â· dep line Â· text hierarchy", mockX, animY, C_FAINT, false);
+        g.drawString(font, "§7Node states · dep line · text hierarchy", mockX, animY, C_FAINT, false);
 
         int mockTop = animY + 13;
         int mockH = Math.min(150, (height - 20) / 2);
@@ -243,7 +243,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
         int hdrH = 17;
         g.fill(mockX, mockTop, mockX + mockW, mockTop + hdrH, t.header.getColor());
         g.fill(mockX, mockTop + hdrH - 1, mockX + mockW, mockTop + hdrH, t.border.getColor());
-        g.drawString(font, "§fâœ¦ Phoenix Chronicles", mockX + 5, mockTop + 5, t.text.getColor(), false);
+        g.drawString(font, "§f✦ Phoenix Chronicles", mockX + 5, mockTop + 5, t.text.getColor(), false);
 
         int sideW = Math.min(52, mockW / 5);
         g.fill(mockX, mockTop + hdrH, mockX + sideW, mockTop + mockH, t.panel.getColor());
@@ -273,7 +273,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
 
         g.fill(n1x, ny, n1x + sz, ny + sz, (t.done.getColor() & 0x00FFFFFF) | 0xFF081A0E);
         drawBorder(g, n1x, ny, sz, sz, t.done.getColor());
-        g.drawCenteredString(font, "§aâœ”", n1x + sz / 2, ny + sz / 2 - 4, t.done.getColor());
+        g.drawCenteredString(font, "§a✔", n1x + sz / 2, ny + sz / 2 - 4, t.done.getColor());
 
         g.fill(n2x, ny, n2x + sz, ny + sz, (t.activeColor.getColor() & 0x00FFFFFF) | 0xFF221C00);
         float activePulse = animPulse(0.6f, 0.4f, 500.0);
@@ -281,12 +281,12 @@ public class ChroniclesThemeEditorScreen extends Screen {
         int glowColor = (glowA << 24) | (t.activeColor.getColor() & 0xFFFFFF);
         drawBorder(g, n2x - 2, ny - 2, sz + 4, sz + 4, glowColor);
         drawBorder(g, n2x, ny, sz, sz, t.activeColor.getColor());
-        g.drawCenteredString(font, "§eâ—Ž", n2x + sz / 2, ny + sz / 2 - 4, t.activeColor.getColor());
+        g.drawCenteredString(font, "§e◎", n2x + sz / 2, ny + sz / 2 - 4, t.activeColor.getColor());
 
         g.fill(n3x, ny, n3x + sz, ny + sz, (t.locked.getColor() & 0x00FFFFFF) | 0xFF1A1A24);
         drawBorder(g, n3x, ny, sz, sz, t.locked.getColor());
         g.fill(n3x + 1, ny + 1, n3x + sz - 1, ny + sz - 1, 0x880B0B0F);
-        g.drawCenteredString(font, "§8âœ•", n3x + sz / 2, ny + sz / 2 - 4, t.locked.getColor());
+        g.drawCenteredString(font, "§8✕", n3x + sz / 2, ny + sz / 2 - 4, t.locked.getColor());
 
         int lblY = ny + sz + 3;
         if (lblY + 8 < mockTop + mockH) {
@@ -327,12 +327,12 @@ public class ChroniclesThemeEditorScreen extends Screen {
             drawBorder(g, mockX, listY, mockW, itemH, (t.border.getColor() & 0x00FFFFFF) | 0x44000000);
 
             int nameColor = sel ? t.accent.getColor() : hov ? t.text.getColor() : t.textDim.getColor();
-            g.drawString(font, (sel ? "â—" : "â—‹") + " " + name, mockX + 6, listY + 3, nameColor, false);
+            g.drawString(font, (sel ? "●" : "○") + " " + name, mockX + 6, listY + 3, nameColor, false);
 
             if (!ChroniclesTheme.isBuiltin(name)) {
                 int dX = mockX + mockW - 14;
                 boolean dHov = mx >= dX && mx <= dX + 12 && my >= listY && my < listY + itemH;
-                g.drawString(font, "âœ•", dX + 1, listY + 3, dHov ? 0xFFFF5555 : 0x66FF5555, false);
+                g.drawString(font, "✕", dX + 1, listY + 3, dHov ? 0xFFFF5555 : 0x66FF5555, false);
             }
 
             listY += itemH;
@@ -355,7 +355,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
         for (int i = scrollOffset; i < vis.size() && listY + itemH <= height - 4; i++) {
             String name = vis.get(i);
             if (my >= listY && my < listY + itemH) {
-                
+
                 if (!ChroniclesTheme.isBuiltin(name)) {
                     int dX = mockX + mockW - 14;
                     if (mx >= dX && mx <= dX + 12) {
@@ -364,12 +364,12 @@ public class ChroniclesThemeEditorScreen extends Screen {
                             ChroniclesTheme.setCurrent("DARK");
                         confirmActive = false;
                         pendingAction = null;
-                        lastTrackedName = null; 
+                        lastTrackedName = null;
                         init();
                         return true;
                     }
                 }
-                
+
                 if (mx >= mockX && mx <= mockX + mockW - 16) {
                     if (hasChanges()) {
                         if (!confirmActive || !name.equals(pendingAction)) {
@@ -413,11 +413,11 @@ public class ChroniclesThemeEditorScreen extends Screen {
             if (key == 90) {
                 tryUndo();
                 return true;
-            }  
+            }
             if (key == 83) {
                 save();
                 return true;
-            }  
+            }
         }
         return super.keyPressed(key, scan, mods);
     }
@@ -450,7 +450,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
         isUndoing = true;
         Snap prev = undoStack.pop();
         restore(prev);
-        
+
         for (FieldEntry f : fields) {
             String v = fieldValue(prev, f.label);
             if (v != null) f.box.setValue(v.toUpperCase(Locale.ROOT));
@@ -518,7 +518,7 @@ public class ChroniclesThemeEditorScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     private int sidebarW() {
         return Math.max(SIDEBAR_MIN, width / 4);
@@ -537,7 +537,6 @@ public class ChroniclesThemeEditorScreen extends Screen {
     }
 
     private void drawMockLine(GuiGraphics g, int x1, int y, int x2, int y2, int color) {
-        
         for (int x = x1; x < x2; x++) g.fill(x, y - 1, x + 1, y + 2, color);
     }
 
@@ -553,4 +552,3 @@ public class ChroniclesThemeEditorScreen extends Screen {
 
     private record SectionLabel(String title, int x, int y) {}
 }
-

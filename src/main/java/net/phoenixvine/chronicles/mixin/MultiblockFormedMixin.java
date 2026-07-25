@@ -37,4 +37,3 @@ public abstract class MultiblockFormedMixin {
         QuestAPI.fireExternalEvent(serverPlayer, "gtceu_multiblock:" + machineId, data);
     }
 }
-

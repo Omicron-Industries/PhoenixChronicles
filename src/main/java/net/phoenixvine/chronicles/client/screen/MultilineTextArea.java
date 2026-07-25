@@ -1,12 +1,14 @@
 package net.phoenixvine.chronicles.client.screen;
 
 import net.minecraft.SharedConstants;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.MultilineTextField;
 import net.minecraft.client.gui.components.Whence;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
@@ -35,6 +37,9 @@ public class MultilineTextArea extends AbstractWidget {
     private int scrollLines = 0;
     private int lastCursorForScroll = -1;
     private Consumer<String> responder;
+
+    private String lastWrappedText = null;
+    private int lastWrapWidth = -1;
 
     public MultilineTextArea(Font font, int x, int y, int w, int h, int maxLength) {
         super(x, y, w, h, Component.empty());
@@ -95,27 +100,32 @@ public class MultilineTextArea extends AbstractWidget {
         String full = textField.value();
         String disp = full.replace('§', '&');
 
-        lines.clear();
-        if (disp.isEmpty()) {
-            lines.add(new LinePos(0, 0, ""));
-        } else {
-            int currentIndex = 0;
-            String[] rawLines = disp.split("\n", -1);
+        if (!disp.equals(lastWrappedText) || width != lastWrapWidth) {
+            lines.clear();
+            if (disp.isEmpty()) {
+                lines.add(new LinePos(0, 0, ""));
+            } else {
+                int currentIndex = 0;
+                String[] rawLines = disp.split("\n", -1);
 
-            for (String rawLine : rawLines) {
-                if (rawLine.isEmpty()) {
-                    lines.add(new LinePos(currentIndex, currentIndex, ""));
-                } else {
-                    final int lineStart = currentIndex;
-                    font.getSplitter().splitLines(rawLine, width - 12, Style.EMPTY, false,
-                            (style, s, e) -> {
-                                int globalStart = lineStart + s;
-                                int globalEnd = lineStart + e;
-                                lines.add(new LinePos(globalStart, globalEnd, disp.substring(globalStart, globalEnd)));
-                            });
+                for (String rawLine : rawLines) {
+                    if (rawLine.isEmpty()) {
+                        lines.add(new LinePos(currentIndex, currentIndex, ""));
+                    } else {
+                        final int lineStart = currentIndex;
+                        font.getSplitter().splitLines(rawLine, width - 12, Style.EMPTY, false,
+                                (style, s, e) -> {
+                                    int globalStart = lineStart + s;
+                                    int globalEnd = lineStart + e;
+                                    lines.add(new LinePos(globalStart, globalEnd,
+                                            disp.substring(globalStart, globalEnd)));
+                                });
+                    }
+                    currentIndex += rawLine.length() + 1;
                 }
-                currentIndex += rawLine.length() + 1; 
             }
+            lastWrappedText = disp;
+            lastWrapWidth = width;
         }
 
         int visibleLines = Math.max(1, (height - 6) / 9);
@@ -245,26 +255,42 @@ public class MultilineTextArea extends AbstractWidget {
         }
     }
 
+    private int charIndexAt(double mx, double my) {
+        if (lines.isEmpty()) return 0;
+        int lineIdx = Math.max(0,
+                Math.min((int) ((my - (getY() + 6)) / 9) + scrollLines, lines.size() - 1));
+        LinePos line = lines.get(lineIdx);
+        int localX = (int) (mx - (getX() + 6));
+        int rawOffset = 0;
+        while (rawOffset < line.text.length()) {
+            if (font.width(line.text.substring(0, rawOffset + 1)) > localX) break;
+            rawOffset++;
+        }
+        return line.start + rawOffset;
+    }
+
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
         if (mx >= getX() && mx < getX() + width && my >= getY() && my < getY() + height) {
             setFocused(true);
-            if (!lines.isEmpty()) {
-                int lineIdx = Math.max(0,
-                        Math.min((int) ((my - (getY() + 6)) / 9) + scrollLines, lines.size() - 1));
-                LinePos line = lines.get(lineIdx);
-                int localX = (int) (mx - (getX() + 6));
-                int rawOffset = 0;
-                while (rawOffset < line.text.length()) {
-                    if (font.width(line.text.substring(0, rawOffset + 1)) > localX) break;
-                    rawOffset++;
-                }
-                textField.seekCursor(Whence.ABSOLUTE, line.start + rawOffset);
+            if (btn == 0 && !lines.isEmpty()) {
+                textField.setSelecting(false);
+                textField.seekCursor(Whence.ABSOLUTE, charIndexAt(mx, my));
             }
             return true;
         }
         setFocused(false);
         return false;
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
+        if (btn == 0 && isFocused() && !lines.isEmpty()) {
+            textField.setSelecting(true);
+            textField.seekCursor(Whence.ABSOLUTE, charIndexAt(mx, my));
+            return true;
+        }
+        return super.mouseDragged(mx, my, btn, dx, dy);
     }
 
     @Override
@@ -274,6 +300,28 @@ public class MultilineTextArea extends AbstractWidget {
         if (kc == GLFW.GLFW_KEY_ENTER || kc == GLFW.GLFW_KEY_KP_ENTER) {
             this.forceInsert("\n");
             return true;
+        }
+        if (Screen.hasControlDown()) {
+            if (kc == GLFW.GLFW_KEY_C) {
+                if (textField.hasSelection()) {
+                    Minecraft.getInstance().keyboardHandler.setClipboard(textField.getSelectedText());
+                }
+                return true;
+            }
+            if (kc == GLFW.GLFW_KEY_X) {
+                if (textField.hasSelection()) {
+                    Minecraft.getInstance().keyboardHandler.setClipboard(textField.getSelectedText());
+                    forceInsert("");
+                }
+                return true;
+            }
+            if (kc == GLFW.GLFW_KEY_V) {
+                String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
+                if (clip != null && !clip.isEmpty()) {
+                    forceInsert(clip.replace("\r\n", "\n").replace("\r", "\n"));
+                }
+                return true;
+            }
         }
         if (textField.keyPressed(kc)) {
             fireChanged();
@@ -307,4 +355,3 @@ public class MultilineTextArea extends AbstractWidget {
         }
     }
 }
-

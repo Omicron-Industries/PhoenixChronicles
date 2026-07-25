@@ -55,4 +55,3 @@ public class ViewSceneTask extends QuestTask {
         this.minSeconds = nbt.contains("min_seconds") ? nbt.getFloat("min_seconds") : 5.0f;
     }
 }
-

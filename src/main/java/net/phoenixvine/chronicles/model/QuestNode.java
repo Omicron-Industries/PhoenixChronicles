@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.flag.PhoenixQuestFlags;
-import net.phoenixvine.chronicles.registry.CategoryFlagRegistry;
+import net.phoenixvine.chronicles.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.tracker.TutorialStep;
 
 import lombok.Getter;
@@ -23,9 +23,9 @@ public class QuestNode {
     private Component title;
     private Component description;
 
-    private String category = "MAIN";
+    private String chapter = "MAIN";
     private String shapeType = "SQUARE";
-    
+
     private String shapeTexture = "";
 
     public enum NodeSize {
@@ -38,7 +38,7 @@ public class QuestNode {
 
     private NodeSize nodeSize = NodeSize.NORMAL;
     private Item iconItem = null;
-    
+
     private String iconTexture = "";
     private int customX = 0;
     private int customY = 0;
@@ -54,11 +54,11 @@ public class QuestNode {
     private String subtitle = "";
 
     public enum Visibility {
-        NORMAL,   
-        HIDDEN,   
-        MYSTERY,  
-        DISABLED  
-                  
+        NORMAL,
+        HIDDEN,
+        MYSTERY,
+        DISABLED
+
     }
 
     private Visibility visibility = Visibility.NORMAL;
@@ -67,7 +67,8 @@ public class QuestNode {
     private String enableIf = null;
 
     public boolean isFlagEnabled() {
-        return PhoenixQuestFlags.evaluate(enableIf) && CategoryFlagRegistry.isCategoryEnabled(category);
+        return PhoenixQuestFlags.evaluate(enableIf, null, "quest " + id + " enableIf") &&
+                ChapterFlagRegistry.isChapterEnabled(chapter);
     }
 
     public void setEnableIf(String expr) {
@@ -191,7 +192,7 @@ public class QuestNode {
     }
 
     private RepeatMode repeatMode = RepeatMode.NONE;
-    private int repeatCooldownHours = 24; 
+    private int repeatCooldownHours = 24;
 
     private Boolean requireAllPrerequisites = null;
 
@@ -206,7 +207,7 @@ public class QuestNode {
     private final Map<ResourceLocation, net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineStyle> prereqLineShape = new HashMap<>();
     private final Map<ResourceLocation, net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineVisualStyle> prereqLineVisual = new HashMap<>();
     private final Map<ResourceLocation, net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineAnimSpeed> prereqLineSpeed = new HashMap<>();
-    
+
     private final Map<ResourceLocation, Boolean> prereqLineArrow = new HashMap<>();
 
     private Integer optionalPrereqMinCount = null;
@@ -259,6 +260,10 @@ public class QuestNode {
     }
 
     public Component getTitle() {
+        if (isLinkStub() && title.getString().isBlank()) {
+            QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
+            if (target != null) return target.getTitle();
+        }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("title"));
             if (override != null) return Component.literal(override);
@@ -280,6 +285,10 @@ public class QuestNode {
     }
 
     public Component getDescription() {
+        if (isLinkStub() && description.getString().isBlank()) {
+            QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
+            if (target != null) return target.getDescription();
+        }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("description"));
             if (override != null) return Component.literal(override);
@@ -304,12 +313,12 @@ public class QuestNode {
         return "phoenix_chronicles.quest." + id.getPath().replace('/', '.') + "." + field;
     }
 
-    public String getCategory() {
-        return category;
+    public String getChapter() {
+        return chapter;
     }
 
-    public void setCategory(String c) {
-        this.category = c;
+    public void setChapter(String c) {
+        this.chapter = c;
     }
 
     public String getShapeType() {
@@ -417,6 +426,10 @@ public class QuestNode {
     }
 
     public String getSubtitle() {
+        if (isLinkStub() && subtitle.isBlank()) {
+            QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
+            if (target != null) return target.getSubtitle();
+        }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("subtitle"));
             if (override != null) return override;
@@ -482,7 +495,7 @@ public class QuestNode {
 
     public boolean getEffectiveRequireAllPrerequisites() {
         if (requireAllPrerequisites != null) return requireAllPrerequisites;
-        Boolean catDefault = net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.getRequireAll(category);
+        Boolean catDefault = net.phoenixvine.chronicles.registry.ChapterPrereqDefaults.getRequireAll(chapter);
         return catDefault != null ? catDefault : true;
     }
 
@@ -509,7 +522,7 @@ public class QuestNode {
     public void setPrereqForbidden(ResourceLocation prereqId, boolean forbidden) {
         if (forbidden) {
             prereqForbidden.add(prereqId);
-            prereqRequired.remove(prereqId); 
+            prereqRequired.remove(prereqId);
         } else {
             prereqForbidden.remove(prereqId);
         }
@@ -594,7 +607,7 @@ public class QuestNode {
 
     public int getEffectiveOptionalPrereqMinCount() {
         if (optionalPrereqMinCount != null) return optionalPrereqMinCount;
-        Integer catDefault = net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.getOptionalMinCount(category);
+        Integer catDefault = net.phoenixvine.chronicles.registry.ChapterPrereqDefaults.getOptionalMinCount(chapter);
         return catDefault != null ? catDefault : 0;
     }
 
@@ -632,7 +645,7 @@ public class QuestNode {
         return Collections.unmodifiableList(prerequisites);
     }
 
-    public void addTask(QuestTask task) { 
+    public void addTask(QuestTask task) {
         if (task != null) tasks.add(task);
     }
 
@@ -640,7 +653,7 @@ public class QuestNode {
         tasks.clear();
     }
 
-    public List<QuestTask> getTasks() { 
+    public List<QuestTask> getTasks() {
         return Collections.unmodifiableList(tasks);
     }
 
@@ -670,7 +683,7 @@ public class QuestNode {
 
     public QuestVariant resolveVariant(net.minecraft.server.MinecraftServer server) {
         for (QuestVariant v : variants) {
-            if (PhoenixQuestFlags.evaluate(v.condition, server)) return v;
+            if (PhoenixQuestFlags.evaluate(v.condition, server, "quest " + id + " variant condition")) return v;
         }
         return null;
     }
@@ -736,4 +749,3 @@ public class QuestNode {
         }
     }
 }
-

@@ -29,4 +29,3 @@ public class ChronicleBookItem extends Item {
         net.minecraft.client.Minecraft.getInstance().setScreen(new ChronicleOverviewScreen());
     }
 }
-

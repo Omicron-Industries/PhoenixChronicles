@@ -37,7 +37,7 @@ public class NewChapterChoiceScreen extends Screen {
             parent.openNewChapterForm();
         }).bounds(fx, btnY, fw, 18).build());
 
-        addRenderableWidget(Button.builder(Component.literal("§bNew Chapter Category"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§bNew Category"), b -> {
             if (minecraft != null) {
                 minecraft.setScreen(new NewFolderScreen(parent, id -> parent.rebuild()));
             }
@@ -49,7 +49,7 @@ public class NewChapterChoiceScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -70,7 +70,7 @@ public class NewChapterChoiceScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { 
+        if (key == 256) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -91,4 +91,3 @@ public class NewChapterChoiceScreen extends Screen {
         return false;
     }
 }
-

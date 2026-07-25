@@ -5,11 +5,11 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.phoenixvine.chronicles.client.CategoryConfig;
-import net.phoenixvine.chronicles.client.ChroniclesLangPack;
+import net.phoenixvine.chronicles.client.ChapterConfig;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.registry.ChapterFolderRegistry;
+import net.phoenixvine.chronicles.model.CategoryDefinition;
+import net.phoenixvine.chronicles.registry.CategoryRegistry;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -18,7 +18,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class CategoryThemeScreen extends Screen {
+public class ChapterThemeScreen extends Screen {
 
     private static final int PANEL_W = 268;
     private static final int MARGIN = 12;
@@ -29,26 +29,26 @@ public class CategoryThemeScreen extends Screen {
     private static final int[] ROW_H_TABLE = { STRIDE + 10, STRIDE, STRIDE, STRIDE + 10, STRIDE + 10, STRIDE + 10,
             STRIDE + 10 };
     private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_STYLE = 2, ROW_COLOR = 3, ROW_TEXTURE = 4,
-            ROW_FOLDER = 5, ROW_PARENT = 6;
+            ROW_CATEGORY = 5, ROW_PARENT = 6;
     private static final int PANEL_H;
 
     static {
         int h = 28;
         for (int rh : ROW_H_TABLE) h += rh;
-        PANEL_H = h + 8 + 22 + 10 + 18 + 10; 
+        PANEL_H = h + 8 + 22 + 10 + 22 + 18 + 10;
     }
 
     private static final int ACCENT = 0xFF884499;
 
     private final Screen parent;
-    private final String category;
+    private final String chapter;
 
-    private CategoryConfig.BgStyle selectedStyle;
+    private ChapterConfig.BgStyle selectedStyle;
     private int cachedColor;
     private String cachedTexture;
     private String cachedDisplayName;
     private String cachedIcon;
-    
+
     private final String originalDisplayName;
 
     private EditBox colorBox;
@@ -56,31 +56,32 @@ public class CategoryThemeScreen extends Screen {
     private EditBox nameBox;
 
     private boolean styleDropOpen = false;
-    private boolean folderDropOpen = false;
+    private boolean categoryDropOpen = false;
     private boolean parentDropOpen = false;
-    
-    private String cachedFolderId;
-    
-    private String cachedParentCategory;
+    private boolean deleteConfirmArmed = false;
+
+    private String cachedCategoryId;
+
+    private String cachedParentChapter;
     private int panelLeft, panelTop;
 
-    private static final CategoryConfig.BgStyle[] STYLES = CategoryConfig.BgStyle.values();
+    private static final ChapterConfig.BgStyle[] STYLES = ChapterConfig.BgStyle.values();
 
-    public CategoryThemeScreen(Screen parent, String category) {
+    public ChapterThemeScreen(Screen parent, String chapter) {
         super(Component.literal("Chapter Theme"));
         this.parent = parent;
-        this.category = category;
+        this.chapter = chapter;
 
-        CategoryConfig cfg = CategoryConfig.get(category);
+        ChapterConfig cfg = ChapterConfig.get(chapter);
         this.selectedStyle = cfg.getStyle();
         this.cachedColor = cfg.getColor();
         this.cachedTexture = cfg.getTexture();
-        this.cachedDisplayName = cfg.getDisplayName(); 
+        this.cachedDisplayName = cfg.getDisplayName();
         this.originalDisplayName = this.cachedDisplayName;
         this.cachedIcon = cfg.getIcon();
-        ChapterFolderRegistry.ChapterFolder existingFolder = ChapterFolderRegistry.folderFor(category);
-        this.cachedFolderId = existingFolder != null ? existingFolder.id() : null;
-        this.cachedParentCategory = cfg.getParentCategory();
+        CategoryDefinition existingCategory = CategoryRegistry.categoryFor(chapter);
+        this.cachedCategoryId = existingCategory != null ? existingCategory.id() : null;
+        this.cachedParentChapter = cfg.getParentChapter();
     }
 
     private int rowTop(int index) {
@@ -89,28 +90,28 @@ public class CategoryThemeScreen extends Screen {
         return y;
     }
 
-    private String folderLabel(String id) {
+    private String categoryLabel(String id) {
         if (id == null) return "(none)";
-        for (ChapterFolderRegistry.ChapterFolder f : ChapterFolderRegistry.getFolders())
-            if (f.id().equals(id)) return f.label();
+        for (CategoryDefinition c : CategoryRegistry.getCategories())
+            if (c.id().equals(id)) return c.displayName();
         return "(none)";
     }
 
-    private List<String> folderOptions() {
+    private List<String> categoryOptions() {
         List<String> opts = new ArrayList<>();
         opts.add("(none)");
-        for (ChapterFolderRegistry.ChapterFolder f : ChapterFolderRegistry.getFolders()) opts.add(f.label());
-        opts.add("+ New folderâ€¦");
+        for (CategoryDefinition c : CategoryRegistry.getCategories()) opts.add(c.displayName());
+        opts.add("+ New category…");
         return opts;
     }
 
-    private List<String> parentCategoryOptions() {
-        List<String> all = (parent instanceof ChronicleOverviewScreen cos) ? cos.buildCategoryList() : List.of();
+    private List<String> parentChapterOptions() {
+        List<String> all = (parent instanceof ChronicleOverviewScreen cos) ? cos.buildChapterList() : List.of();
         Set<String> descendants = new HashSet<>();
-        collectDescendants(category, all, descendants);
+        collectDescendants(chapter, all, descendants);
         List<String> opts = new ArrayList<>();
         for (String c : all) {
-            if (!c.equals(category) && !descendants.contains(c)) opts.add(c);
+            if (!c.equals(chapter) && !descendants.contains(c)) opts.add(c);
         }
         return opts;
     }
@@ -122,14 +123,14 @@ public class CategoryThemeScreen extends Screen {
     private List<String> parentDropdownDisplayOptions() {
         List<String> opts = new ArrayList<>();
         opts.add("(none)");
-        for (String c : parentCategoryOptions()) opts.add(displayNameFor(c));
+        for (String c : parentChapterOptions()) opts.add(displayNameFor(c));
         return opts;
     }
 
     private void collectDescendants(String of, List<String> all, Set<String> out) {
         for (String c : all) {
             if (out.contains(c)) continue;
-            if (net.phoenixvine.chronicles.client.CategoryConfig.get(c).getParentCategory().equals(of)) {
+            if (ChapterConfig.get(c).getParentChapter().equals(of)) {
                 out.add(c);
                 collectDescendants(c, all, out);
             }
@@ -162,7 +163,7 @@ public class CategoryThemeScreen extends Screen {
                 .bounds(fx + iconPreviewW + 4, rowTop(ROW_ICON), fw - iconPreviewW - 4, FIELD_H).build());
 
         addRenderableWidget(Button.builder(
-                Component.literal("§8Style: §7" + selectedStyle.name() + " §8â–¾"),
+                Component.literal("§8Style: §7" + selectedStyle.name() + " §8▾"),
                 b -> styleDropOpen = !styleDropOpen).bounds(fx, rowTop(ROW_STYLE), fw, FIELD_H).build());
 
         colorBox = new EditBox(font, fx, rowTop(ROW_COLOR) + 11, fw, FIELD_H, Component.empty());
@@ -181,28 +182,28 @@ public class CategoryThemeScreen extends Screen {
         textureBox.setValue(cachedTexture);
         textureBox.setResponder(v -> {
             cachedTexture = v.trim();
-            if (!cachedTexture.isEmpty()) selectedStyle = CategoryConfig.BgStyle.CUSTOM;
+            if (!cachedTexture.isEmpty()) selectedStyle = ChapterConfig.BgStyle.CUSTOM;
         });
         addRenderableWidget(textureBox);
-        addRenderableWidget(Button.builder(Component.literal("Browseâ€¦"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("Browse…"), b -> {
             if (minecraft != null)
                 minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
                     cachedTexture = rl;
-                    selectedStyle = CategoryConfig.BgStyle.CUSTOM;
+                    selectedStyle = ChapterConfig.BgStyle.CUSTOM;
                     clearWidgets();
                     init();
                 }));
         }).bounds(fx + fw - browseW, textureRowY + 11, browseW, FIELD_H).build());
 
         addRenderableWidget(Button.builder(
-                Component.literal("§8Folder: §7" + folderLabel(cachedFolderId) + " §8â–¾"),
-                b -> folderDropOpen = !folderDropOpen).bounds(fx, rowTop(ROW_FOLDER), fw, FIELD_H).build());
+                Component.literal("§8Category: §7" + categoryLabel(cachedCategoryId) + " §8▾"),
+                b -> categoryDropOpen = !categoryDropOpen).bounds(fx, rowTop(ROW_CATEGORY), fw, FIELD_H).build());
 
-        String parentLabel = cachedParentCategory.isEmpty() ? "(none)" :
-                (parent instanceof ChronicleOverviewScreen cos ? cos.friendly(cachedParentCategory) :
-                        cachedParentCategory);
+        String parentLabel = cachedParentChapter.isEmpty() ? "(none)" :
+                (parent instanceof ChronicleOverviewScreen cos ? cos.friendly(cachedParentChapter) :
+                        cachedParentChapter);
         addRenderableWidget(Button.builder(
-                Component.literal("§8Parent Chapter: §7" + parentLabel + " §8â–¾"),
+                Component.literal("§8Parent Chapter: §7" + parentLabel + " §8▾"),
                 b -> parentDropOpen = !parentDropOpen).bounds(fx, rowTop(ROW_PARENT), fw, FIELD_H).build());
 
         int btnY = panelTop + PANEL_H - 10 - 18;
@@ -214,14 +215,37 @@ public class CategoryThemeScreen extends Screen {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })
                 .bounds(fx + half + 6, btnY, half, 18).build());
+
+        if (parent instanceof ChronicleOverviewScreen cos) {
+            int questCount = cos.chapterQuestCount(chapter);
+            String label;
+            if (questCount == 0) {
+                label = "§cDelete Chapter";
+            } else if (deleteConfirmArmed) {
+                label = "§c§lClick again to delete " + questCount + " quest(s)";
+            } else {
+                label = "§6Delete Chapter §7(" + questCount + " quests)";
+            }
+            addRenderableWidget(Button.builder(Component.literal(label),
+                    b -> {
+                        if (questCount == 0 || deleteConfirmArmed) {
+                            cos.deleteChapter(chapter);
+                            if (minecraft != null) minecraft.setScreen(parent);
+                        } else {
+                            deleteConfirmArmed = true;
+                            clearWidgets();
+                            init();
+                        }
+                    }).bounds(fx, btnY - 18 - 4, fw, 18).build());
+        }
     }
 
     private int styleDropdownY() {
         return rowTop(ROW_STYLE) + FIELD_H + 1;
     }
 
-    private int folderDropdownY() {
-        return rowTop(ROW_FOLDER) + FIELD_H + 1;
+    private int categoryDropdownY() {
+        return rowTop(ROW_CATEGORY) + FIELD_H + 1;
     }
 
     private int parentDropdownY() {
@@ -230,7 +254,7 @@ public class CategoryThemeScreen extends Screen {
 
     private String defaultFriendlyName() {
         StringBuilder sb = new StringBuilder();
-        for (String w : category.toLowerCase().replace("_", " ").split(" "))
+        for (String w : chapter.toLowerCase().replace("_", " ").split(" "))
             if (!w.isEmpty()) sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1)).append(' ');
         return sb.toString().trim();
     }
@@ -247,39 +271,40 @@ public class CategoryThemeScreen extends Screen {
     }
 
     private void save() {
-        CategoryConfig cfg = new CategoryConfig();
+        ChapterConfig cfg = new ChapterConfig();
         cfg.setStyle(selectedStyle);
         cfg.setColor(cachedColor);
         cfg.setTexture(cachedTexture);
         cfg.setDisplayName(cachedDisplayName);
         cfg.setIcon(cachedIcon);
-        cfg.setParentCategory(cachedParentCategory);
-        CategoryConfig.put(category, cfg);
-        CategoryConfig.save();
-        CategoryConfig.invalidate();
+        cfg.setParentChapter(cachedParentChapter);
+        ChapterConfig.put(chapter, cfg);
+        ChapterConfig.save();
+        ChapterConfig.invalidate();
 
-        ChapterFolderRegistry.ChapterFolder currentFolder = ChapterFolderRegistry.folderFor(category);
-        if (currentFolder != null && !currentFolder.id().equals(cachedFolderId)) {
-            ChapterFolderRegistry.removeCategoryFromFolder(currentFolder.id(), category);
+        CategoryDefinition currentCategory = CategoryRegistry.categoryFor(chapter);
+        if (currentCategory != null && !currentCategory.id().equals(cachedCategoryId)) {
+            CategoryRegistry.removeChapterFromCategory(currentCategory.id(), chapter);
         }
-        if (cachedFolderId != null) {
-            ChapterFolderRegistry.addCategoryToFolder(cachedFolderId, category);
+        if (cachedCategoryId != null) {
+            CategoryRegistry.addChapterToCategory(cachedCategoryId, chapter);
         }
-        ChapterFolderRegistry.save();
+        CategoryRegistry.save();
 
         if (minecraft != null && !cachedDisplayName.equals(originalDisplayName)) {
-            String key = "phoenix_chronicles.category." + category.toLowerCase() + ".name";
+            String key = "phoenix_chronicles.chapter." + chapter.toLowerCase() + ".name";
             java.nio.file.Path base = minecraft.gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
             String value = cachedDisplayName.isEmpty() ? defaultFriendlyName() : cachedDisplayName;
             net.phoenixvine.chronicles.registry.QuestLangRegistry.writeKey(base, key, value);
-            ChroniclesLangPack.reload();
+
+            net.phoenixvine.chronicles.client.ClientTextOverrides.put(key, value);
         }
 
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -291,7 +316,7 @@ public class CategoryThemeScreen extends Screen {
         g.pose().translate(0f, 0f, 300f);
 
         ChroniclesUIKit.drawModalChrome(g, font, width, height, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
-                "§dTheme â€” §7" + category, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
+                "§dTheme — §7" + chapter, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
                 ACCENT, ChroniclesThemePalette.TEXT);
 
         int fx = panelLeft + MARGIN;
@@ -310,11 +335,11 @@ public class CategoryThemeScreen extends Screen {
         g.drawString(font, "§8Custom Background", fx, rowTop(ROW_TEXTURE),
                 ChroniclesThemePalette.TEXT_FAINT);
 
-        int previewY = rowTop(ROW_FOLDER) + STRIDE + 10 + 8;
+        int previewY = rowTop(ROW_CATEGORY) + STRIDE + 10 + 8;
         int bg = (cachedColor != 0) ? (0xFF000000 | cachedColor) : 0xFF0B0B0F;
         g.fill(fx, previewY, fx + fw, previewY + 22, bg);
         ChroniclesUIKit.drawBorder(g, fx, previewY, fw, 22, 0xFF333344);
-        
+
         renderStylePreview(g, fx + 1, previewY + 1, fw - 2, 20);
 
         g.flush();
@@ -323,20 +348,20 @@ public class CategoryThemeScreen extends Screen {
         if (styleDropOpen) {
             g.flush();
             int dy = styleDropdownY();
-            ChroniclesUIKit.drawDropdown(g, font, java.util.List.of(STYLES), s -> ((CategoryConfig.BgStyle) s).name(),
+            ChroniclesUIKit.drawDropdown(g, font, java.util.List.of(STYLES), s -> ((ChapterConfig.BgStyle) s).name(),
                     java.util.List.of(STYLES).indexOf(selectedStyle), fx, dy, fw, ROW_H, mx, my);
         }
-        if (folderDropOpen) {
+        if (categoryDropOpen) {
             g.flush();
-            List<String> opts = folderOptions();
-            int selIdx = opts.indexOf(folderLabel(cachedFolderId));
-            ChroniclesUIKit.drawDropdown(g, font, opts, s -> (String) s, selIdx, fx, folderDropdownY(), fw, ROW_H,
+            List<String> opts = categoryOptions();
+            int selIdx = opts.indexOf(categoryLabel(cachedCategoryId));
+            ChroniclesUIKit.drawDropdown(g, font, opts, s -> (String) s, selIdx, fx, categoryDropdownY(), fw, ROW_H,
                     mx, my);
         }
         if (parentDropOpen) {
             g.flush();
             List<String> opts = parentDropdownDisplayOptions();
-            int selIdx = cachedParentCategory.isEmpty() ? 0 : opts.indexOf(displayNameFor(cachedParentCategory));
+            int selIdx = cachedParentChapter.isEmpty() ? 0 : opts.indexOf(displayNameFor(cachedParentChapter));
             ChroniclesUIKit.drawDropdown(g, font, opts, s -> (String) s, Math.max(0, selIdx), fx, parentDropdownY(),
                     fw, ROW_H, mx, my);
         }
@@ -356,7 +381,7 @@ public class CategoryThemeScreen extends Screen {
                 for (int py = y; py < y + h; py += 10) g.fill(x, py, x + w, py + 1, 0x22FFFFFF);
             }
             case HEX_GRID -> {
-                
+
                 for (int row = 0; row < 3; row++) {
                     int ox = (row % 2 == 0) ? 0 : 6;
                     for (int col = 0; col < 5; col++) {
@@ -377,7 +402,7 @@ public class CategoryThemeScreen extends Screen {
                     }
                 }
             }
-            case SOLID -> {} 
+            case SOLID -> {}
             case CUSTOM -> g.drawCenteredString(font, "§8custom", x + w / 2, y + h / 2 - 4, 0xFF555566);
         }
     }
@@ -401,48 +426,48 @@ public class CategoryThemeScreen extends Screen {
             styleDropOpen = false;
             return true;
         }
-        if (btn == 0 && folderDropOpen) {
+        if (btn == 0 && categoryDropOpen) {
             int fx = panelLeft + MARGIN;
             int fw = PANEL_W - MARGIN * 2;
-            int dy = folderDropdownY();
-            List<String> opts = folderOptions();
+            int dy = categoryDropdownY();
+            List<String> opts = categoryOptions();
             for (int i = 0; i < opts.size(); i++) {
                 int rowY = dy + i * ROW_H;
                 if (mx >= fx && mx <= fx + fw && my >= rowY && my <= rowY + ROW_H) {
-                    folderDropOpen = false;
+                    categoryDropOpen = false;
                     if (i == 0) {
-                        cachedFolderId = null;
+                        cachedCategoryId = null;
                         clearWidgets();
                         init();
                     } else if (i == opts.size() - 1) {
                         if (minecraft != null) {
                             minecraft.setScreen(new NewFolderScreen(this, newId -> {
-                                cachedFolderId = newId;
+                                cachedCategoryId = newId;
                                 clearWidgets();
                                 init();
                             }));
                         }
                     } else {
-                        cachedFolderId = ChapterFolderRegistry.getFolders().get(i - 1).id();
+                        cachedCategoryId = CategoryRegistry.getCategories().get(i - 1).id();
                         clearWidgets();
                         init();
                     }
                     return true;
                 }
             }
-            folderDropOpen = false;
+            categoryDropOpen = false;
             return true;
         }
         if (btn == 0 && parentDropOpen) {
             int fx = panelLeft + MARGIN;
             int fw = PANEL_W - MARGIN * 2;
             int dy = parentDropdownY();
-            List<String> valid = parentCategoryOptions(); 
+            List<String> valid = parentChapterOptions();
             int optCount = valid.size() + 1;
             for (int i = 0; i < optCount; i++) {
                 int rowY = dy + i * ROW_H;
                 if (mx >= fx && mx <= fx + fw && my >= rowY && my <= rowY + ROW_H) {
-                    cachedParentCategory = i == 0 ? "" : valid.get(i - 1);
+                    cachedParentChapter = i == 0 ? "" : valid.get(i - 1);
                     parentDropOpen = false;
                     clearWidgets();
                     init();
@@ -461,7 +486,7 @@ public class CategoryThemeScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { 
+        if (key == 256) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -473,4 +498,3 @@ public class CategoryThemeScreen extends Screen {
         return false;
     }
 }
-

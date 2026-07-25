@@ -22,7 +22,7 @@ import java.util.stream.Stream;
 public class FtbQuestsImporter {
 
     private static final float COORD_SCALE = 80f;
-    private static final float COORD_PADDING = 2.0f; 
+    private static final float COORD_PADDING = 2.0f;
     private static final Pattern LANG_KEY = Pattern.compile("^\\{([A-Za-z0-9_.-]+)}$");
 
     public record ImportResult(int imported, int skipped, String category, List<String> warnings) {}
@@ -36,10 +36,11 @@ public class FtbQuestsImporter {
                                 CompoundTag chapter,
                                 String categorySlug,
                                 String displayTitle,
-                                Map<String, String> idToPath,   
+                                Map<String, String> idToPath,
                                 List<LinkStub> linkStubs,
                                 double minX,
-                                double minY) {}
+                                double minY,
+                                String ftbGroupId) {}
 
     public static ImportResult importDirectory(Path importDir, Path outputDir) {
         Path cleanImportDir = importDir.toAbsolutePath().normalize();
@@ -117,6 +118,8 @@ public class FtbQuestsImporter {
             }
         }
 
+        importChapterGroups(chapters, cleanImportDir, langMap, warnings);
+
         net.phoenixvine.chronicles.registry.QuestLangRegistry.mergeWrite(outputDir, langOut);
         if (!langOut.isEmpty()) warnings.add("Wrote " + langOut.size() + " lang key(s) to lang/en_us.json.");
 
@@ -128,7 +131,6 @@ public class FtbQuestsImporter {
     private static ChapterIndex indexChapter(CompoundTag chapter, Path file, String fallbackTitle,
                                              Map<String, String> langMap, List<String> warnings,
                                              Set<String> globalUsedPaths) {
-
         String categorySlug = slugify(fallbackTitle).toUpperCase(Locale.ROOT);
         if (categorySlug.isEmpty()) categorySlug = "IMPORTED";
 
@@ -192,7 +194,79 @@ public class FtbQuestsImporter {
             }
         }
 
-        return new ChapterIndex(file, chapter, categorySlug, displayTitle, idToPath, linkStubs, minX, minY);
+        String ftbGroupId = chapter.contains("group") ? chapter.getString("group").trim() : "";
+        return new ChapterIndex(file, chapter, categorySlug, displayTitle, idToPath, linkStubs, minX, minY,
+                ftbGroupId);
+    }
+
+    private static void importChapterGroups(List<ChapterIndex> chapters, Path importDir,
+                                            Map<String, String> langMap, List<String> warnings) {
+        Map<String, List<String>> groupIdToChapters = new LinkedHashMap<>();
+        for (ChapterIndex idx : chapters) {
+            String groupId = idx.ftbGroupId();
+            if (groupId == null || groupId.isBlank()) continue;
+            groupIdToChapters.computeIfAbsent(groupId, k -> new ArrayList<>()).add(idx.categorySlug());
+        }
+        if (groupIdToChapters.isEmpty()) return;
+
+        Map<String, String> groupTitles = loadChapterGroupTitles(importDir, langMap, warnings);
+
+        int created = 0;
+        for (Map.Entry<String, List<String>> e : groupIdToChapters.entrySet()) {
+            String ftbGroupId = e.getKey();
+            String categoryId = "ftb_" + ftbGroupId.toLowerCase(Locale.ROOT);
+            String label = groupTitles.get(ftbGroupId);
+            if (label == null || label.isBlank()) label = "Imported Group (" + ftbGroupId.substring(0,
+                    Math.min(6, ftbGroupId.length())) + ")";
+
+            if (net.phoenixvine.chronicles.registry.CategoryRegistry.get(categoryId) == null) {
+                net.phoenixvine.chronicles.registry.CategoryRegistry.addCategory(categoryId, label);
+                created++;
+            }
+            for (String chapterSlug : e.getValue()) {
+                net.phoenixvine.chronicles.registry.CategoryRegistry.addChapterToCategory(categoryId, chapterSlug);
+            }
+        }
+        net.phoenixvine.chronicles.registry.CategoryRegistry.save();
+        if (created > 0) {
+            warnings.add("Imported " + created + " chapter group(s) as categories" +
+                    (groupTitles.isEmpty() ? " (no chapter_groups.snbt found - used placeholder names, rename them " +
+                            "in the chapter settings screen)." : "."));
+        }
+    }
+
+    private static Map<String, String> loadChapterGroupTitles(Path importDir, Map<String, String> langMap,
+                                                              List<String> warnings) {
+        Map<String, String> titles = new HashMap<>();
+        List<Path> candidates = new ArrayList<>();
+        candidates.add(importDir.resolve("chapter_groups.snbt"));
+        if (importDir.getParent() != null) candidates.add(importDir.getParent().resolve("chapter_groups.snbt"));
+
+        Path found = null;
+        for (Path candidate : candidates) {
+            if (Files.exists(candidate)) {
+                found = candidate;
+                break;
+            }
+        }
+        if (found == null) return titles;
+
+        try {
+            String snbt = Files.readString(found, StandardCharsets.UTF_8);
+            CompoundTag root = LenientSnbtParser.parse(snbt);
+            ListTag groups = root.getList("chapter_groups", Tag.TAG_COMPOUND);
+            for (int i = 0; i < groups.size(); i++) {
+                CompoundTag g = groups.getCompound(i);
+                if (!g.contains("id")) continue;
+                String id = g.getString("id");
+                String rawTitle = g.contains("title") ? g.getString("title") : "";
+                String resolved = resolveText(rawTitle, langMap, warnings, false);
+                if (isUsableTitle(resolved)) titles.put(id, resolved);
+            }
+        } catch (Exception e) {
+            warnings.add("Failed to read " + found.getFileName() + ": " + e.getMessage());
+        }
+        return titles;
     }
 
     private static ImportResult writeChapter(ChapterIndex idx, Path outputDir, Map<String, QuestLoc> globalIndex,
@@ -200,7 +274,6 @@ public class FtbQuestsImporter {
                                              Map<String, String> langOut) throws IOException {
         CompoundTag chapter = idx.chapter();
         ListTag quests = chapter.getList("quests", Tag.TAG_COMPOUND);
-        if (quests.isEmpty() && idx.linkStubs().isEmpty()) return new ImportResult(0, 0, idx.categorySlug(), List.of());
 
         Path questsBaseDir = outputDir.resolve("quests");
         Path categoryFolder = questsBaseDir.resolve(idx.categorySlug().toLowerCase(Locale.ROOT));
@@ -252,15 +325,15 @@ public class FtbQuestsImporter {
         StringBuilder sb = new StringBuilder("{\n");
         append(sb, "id", link.path());
 
-        append(sb, "title", "Linked Quest");
-        append(sb, "category", idx.categorySlug());
+        append(sb, "title", "");
+        append(sb, "chapter", idx.categorySlug());
         append(sb, "shape", mapShape(link.shape()));
 
         int px = (int) Math.round((link.x() - idx.minX() + COORD_PADDING) * COORD_SCALE);
         int py = (int) Math.round((link.y() - idx.minY() + COORD_PADDING) * COORD_SCALE);
         sb.append("    positionX: ").append(px).append(",\n");
         sb.append("    positionY: ").append(py).append(",\n");
-        append(sb, "link_target", "phoenixcore:" + target.path());
+        append(sb, "link_target", "phoenix_chronicles:" + target.path());
 
         sb.append("}");
         return sb.toString();
@@ -312,7 +385,7 @@ public class FtbQuestsImporter {
         if (isUsableTitle(subtitle) && !subtitle.equals(resolvedTitle)) langOut.put(langPrefix + "subtitle", subtitle);
         if (!desc.isEmpty()) langOut.put(langPrefix + "description", desc);
 
-        append(sb, "category", idx.categorySlug());
+        append(sb, "chapter", idx.categorySlug());
         append(sb, "shape", mapShape(q.getString("shape")));
 
         double rawX = numeric(q.get("x"));
@@ -337,14 +410,14 @@ public class FtbQuestsImporter {
             int depCount = 0;
             for (int i = 0; i < deps.size(); i++) {
                 String depFtbId = deps.getString(i);
-                
+
                 QuestLoc loc = globalIndex.get(depFtbId);
                 if (loc == null) {
                     warnings.add("Quest " + ftbId + ": dependency " + depFtbId +
                             " was not found in any imported chapter (likely outside this import batch) - dropped.");
                     continue;
                 }
-                depSb.append("        {id: \"").append(loc.path()).append("\", category: \"")
+                depSb.append("        {id: \"").append(loc.path()).append("\", chapter: \"")
                         .append(loc.category()).append("\", required: true},\n");
                 depCount++;
             }
@@ -422,7 +495,7 @@ public class FtbQuestsImporter {
                                       Map<String, String> langMap, List<String> warnings,
                                       Map<String, String> langOut) {
         String type = t.getString("type");
-        String taskId = "phoenixcore:" + questPath + "_task_" + idx;
+        String taskId = "phoenix_chronicles:" + questPath + "_task_" + idx;
         boolean optional = t.getBoolean("optional_task");
 
         String rawTaskTitle = t.contains("title") ? t.get("title").getAsString() : "";
@@ -778,7 +851,7 @@ public class FtbQuestsImporter {
             if (w.isEmpty()) continue;
             if (sb.length() > 0) sb.append(' ');
             if (w.length() > 1 && w.equals(w.toUpperCase())) {
-                sb.append(w); 
+                sb.append(w);
             } else {
                 sb.append(Character.toUpperCase(w.charAt(0))).append(w.length() > 1 ? w.substring(1) : "");
             }
@@ -863,7 +936,8 @@ public class FtbQuestsImporter {
 
         if (trimmed.startsWith("[") || (trimmed.startsWith("{") && trimmed.contains("\""))) {
             try {
-                return flattenComponent(JsonParser.parseString(trimmed), langMap, warnings, richCapable);
+
+                return flattenComponent(JsonParser.parseString(trimmed), langMap, warnings, richCapable).trim();
             } catch (Exception ignored) {}
         }
 
@@ -871,10 +945,10 @@ public class FtbQuestsImporter {
         if (m.matches()) {
             String key = m.group(1);
             String resolved = langMap.get(key);
-            if (resolved != null) return convertFormatting(resolved, richCapable);
+            if (resolved != null) return convertFormatting(resolved, richCapable).trim();
             warnings.add("Unresolved lang key: " + key);
         }
-        return convertFormatting(raw, richCapable);
+        return convertFormatting(raw, richCapable).trim();
     }
 
     private static String flattenComponent(JsonElement el, Map<String, String> langMap, List<String> warnings,
@@ -907,8 +981,9 @@ public class FtbQuestsImporter {
 
     public static String convertFormatting(String s, boolean richCapable) {
         if (s == null) return "";
+
         String out = richCapable ? s.replaceAll("&#([0-9A-Fa-f]{6})", "{#$1}") : s.replaceAll("&#([0-9A-Fa-f]{6})", "");
-        return out.replaceAll("(?i)&([0-9a-fk-or])", "§$1").replace(">?", "").trim();
+        return out.replaceAll("(?i)&([0-9a-fk-or])", "§$1").replace(">?", "");
     }
 
     private static String escape(String s) {
@@ -925,4 +1000,3 @@ public class FtbQuestsImporter {
         sb.append("    ").append(key).append(": \"").append(value).append("\",\n");
     }
 }
-

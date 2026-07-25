@@ -59,14 +59,13 @@ public class TerminalScreen extends Screen {
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        
         if (codePoint >= 32 && codePoint != 127) {
-            
+
             String left = inputBuffer.substring(0, cursorPosition);
             String right = inputBuffer.substring(cursorPosition);
 
             inputBuffer = left + codePoint + right;
-            cursorPosition++; 
+            cursorPosition++;
             return true;
         }
         return super.charTyped(codePoint, modifiers);
@@ -77,6 +76,30 @@ public class TerminalScreen extends Screen {
         if (keyCode == InputConstants.KEY_ESCAPE) {
             if (this.minecraft != null) this.minecraft.setScreen(parent);
             return true;
+        }
+
+        if (Screen.hasControlDown() && this.minecraft != null) {
+            if (keyCode == InputConstants.KEY_C) {
+                if (!inputBuffer.isEmpty()) this.minecraft.keyboardHandler.setClipboard(inputBuffer);
+                return true;
+            }
+            if (keyCode == InputConstants.KEY_X) {
+                if (!inputBuffer.isEmpty()) this.minecraft.keyboardHandler.setClipboard(inputBuffer);
+                inputBuffer = "";
+                cursorPosition = 0;
+                return true;
+            }
+            if (keyCode == InputConstants.KEY_V) {
+                String clip = this.minecraft.keyboardHandler.getClipboard();
+                if (clip != null && !clip.isEmpty()) {
+                    clip = clip.replace("\n", " ").replace("\r", "");
+                    String left = inputBuffer.substring(0, cursorPosition);
+                    String right = inputBuffer.substring(cursorPosition);
+                    inputBuffer = left + clip + right;
+                    cursorPosition += clip.length();
+                }
+                return true;
+            }
         }
 
         if (keyCode == InputConstants.KEY_BACKSPACE && cursorPosition > 0 && !inputBuffer.isEmpty()) {
@@ -151,7 +174,6 @@ public class TerminalScreen extends Screen {
     }
 
     private void executeTerminalDirective(String raw) {
-        
         cmdHistory.addFirst(raw);
         if (cmdHistory.size() > MAX_CMD_HISTORY) cmdHistory.removeLast();
         cmdHistoryIdx = -1;
@@ -175,7 +197,7 @@ public class TerminalScreen extends Screen {
             case "theme" -> cmdTheme(parts);
             case "whoami" -> cmdWhoami();
             case "progress" -> cmdProgress(parts);
-            default -> consoleHistory.add("§cERR: Unknown directive '§f" + cmd + "§c' â€” type §fhelp§c for commands.");
+            default -> consoleHistory.add("§cERR: Unknown directive '§f" + cmd + "§c' — type §fhelp§c for commands.");
         }
 
         inputBuffer = "";
@@ -220,14 +242,14 @@ public class TerminalScreen extends Screen {
             }
         }
         consoleHistory.add("§aAvailable directives:");
-        consoleHistory.add("§f  quests [active|all|done]    §8â€” list quest nodes");
-        consoleHistory.add("§f  quest <id>                  §8â€” inspect a quest");
-        consoleHistory.add("§f  progress <id>               §8â€” per-task progress");
-        consoleHistory.add("§f  activate / deactivate <id>  §8â€” toggle tracking");
-        consoleHistory.add("§f  claim <id>                  §8â€” claim rewards");
-        consoleHistory.add("§f  theme <name>                §8â€” switch UI theme");
-        consoleHistory.add("§f  whoami                      §8â€” player identity");
-        consoleHistory.add("§f  clear                       §8â€” clear terminal");
+        consoleHistory.add("§f  quests [active|all|done]    §8— list quest nodes");
+        consoleHistory.add("§f  quest <id>                  §8— inspect a quest");
+        consoleHistory.add("§f  progress <id>               §8— per-task progress");
+        consoleHistory.add("§f  activate / deactivate <id>  §8— toggle tracking");
+        consoleHistory.add("§f  claim <id>                  §8— claim rewards");
+        consoleHistory.add("§f  theme <name>                §8— switch UI theme");
+        consoleHistory.add("§f  whoami                      §8— player identity");
+        consoleHistory.add("§f  clear                       §8— clear terminal");
         consoleHistory.add("§8Type §fhelp <cmd>§8 for details.");
     }
 
@@ -244,7 +266,7 @@ public class TerminalScreen extends Screen {
             Map<ResourceLocation, QuestState> states = data.getAllStates();
             long active = states.values().stream().filter(s -> s == QuestState.ACTIVE).count();
             long done = states.values().stream().filter(s -> s == QuestState.COMPLETED).count();
-            consoleHistory.add("§8  Quests â€” §aactive: §f" + active + "  §adone: §f" + done);
+            consoleHistory.add("§8  Quests — §aactive: §f" + active + "  §adone: §f" + done);
         }
     }
 
@@ -297,7 +319,7 @@ public class TerminalScreen extends Screen {
         }
 
         consoleHistory.add("§a== " + node.getTitle().getString() + " §8[" + id + "]");
-        if (node.getCategory() != null) consoleHistory.add("§8  Category: §7" + node.getCategory());
+        if (node.getChapter() != null) consoleHistory.add("§8  Chapter: §7" + node.getChapter());
 
         PlayerQuestData data = getPlayerData();
         QuestState state = data != null ? data.getQuestState(id, QuestState.LOCKED) : QuestState.LOCKED;
@@ -347,7 +369,8 @@ public class TerminalScreen extends Screen {
             String prog = task.getProgressString(mc.player);
             String desc = task.getDescription().getString();
             consoleHistory
-                    .add("  " + (done ? "§aâœ”" : "§câœ—") + " §f" + desc + (prog != null ? " §8[§7" + prog + "§8]" : ""));
+                    .add("  " + (done ? "§a✔" : "§c✗") + " §f" + desc +
+                            (prog != null ? " §8[§7" + prog + "§8]" : ""));
         }
     }
 
@@ -417,7 +440,7 @@ public class TerminalScreen extends Screen {
 
     private static ResourceLocation safeRL(String s) {
         try {
-            if (!s.contains(":")) s = "minecraft:" + s; 
+            if (!s.contains(":")) s = "minecraft:" + s;
             return new ResourceLocation(s);
         } catch (Exception e) {
             return null;
@@ -427,7 +450,7 @@ public class TerminalScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        frameTickCounter++; 
+        frameTickCounter++;
     }
 
     @Override
@@ -478,4 +501,3 @@ public class TerminalScreen extends Screen {
         return false;
     }
 }
-

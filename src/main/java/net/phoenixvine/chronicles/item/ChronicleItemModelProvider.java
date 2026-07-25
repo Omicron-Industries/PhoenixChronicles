@@ -12,9 +12,7 @@ public class ChronicleItemModelProvider extends ItemModelProvider {
 
     @Override
     protected void registerModels() {
-        
         withExistingParent(ChronicleItems.CHRONICLE_BOOK.getId().getPath(), "item/generated")
                 .texture("layer0", modLoc("item/chronicle_book"));
     }
 }
-

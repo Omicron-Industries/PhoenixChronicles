@@ -16,12 +16,12 @@ import org.jetbrains.annotations.NotNull;
 
 public class QuestbookTitleScreen extends Screen {
 
-    private static final int PANEL_W = 240;        
-    private static final int PANEL_H = 145;        
-    private static final int MARGIN = 16;          
-    private static final int COMPONENT_H = 20;     
-    private static final int SPACING = 6;          
-    private static final int SECTION_GAP = 14;     
+    private static final int PANEL_W = 240;
+    private static final int PANEL_H = 145;
+    private static final int MARGIN = 16;
+    private static final int COMPONENT_H = 20;
+    private static final int SPACING = 6;
+    private static final int SECTION_GAP = 14;
     private static final int ACCENT = 0xFF4499CC;
 
     private final Screen parent;
@@ -58,8 +58,8 @@ public class QuestbookTitleScreen extends Screen {
 
         currentY += 12 + COMPONENT_H + SECTION_GAP;
 
-        int iconPreviewW = COMPONENT_H; 
-        addRenderableWidget(Button.builder(Component.literal("§7Change iconâ€¦"),
+        int iconPreviewW = COMPONENT_H;
+        addRenderableWidget(Button.builder(Component.literal("§7Change icon…"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                         cachedIcon = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem())
@@ -101,7 +101,7 @@ public class QuestbookTitleScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -140,4 +140,3 @@ public class QuestbookTitleScreen extends Screen {
         return false;
     }
 }
-

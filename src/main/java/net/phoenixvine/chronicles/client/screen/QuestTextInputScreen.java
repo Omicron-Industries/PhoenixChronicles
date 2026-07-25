@@ -53,7 +53,7 @@ public class QuestTextInputScreen extends Screen {
     private final String initial;
 
     private MultilineTextArea inputBox;
-    private EditBox hexBox;  
+    private EditBox hexBox;
 
     private int pw, ph, px, py, btnY;
 
@@ -94,7 +94,7 @@ public class QuestTextInputScreen extends Screen {
 
         g.fill(px, py, px + pw, py + ph, ChroniclesThemePalette.PANEL);
         ChroniclesUIKit.drawBorder(g, px, py, pw, ph, ChroniclesThemePalette.BORDER);
-        
+
         g.fill(px + 1, py, px + pw - 1, py + 2, C_ACCENT);
 
         g.drawCenteredString(font, "§f" + fieldLabel, px + pw / 2, py + 7, ChroniclesThemePalette.TEXT);
@@ -111,17 +111,17 @@ public class QuestTextInputScreen extends Screen {
         renderFormatButtons(g, mx, my);
 
         int half = pw / 2 - 6;
-        drawBtn(g, mx, my, px + 6, btnY, half, 16, "§aâœ“ Confirm", C_GREEN);
-        drawBtn(g, mx, my, px + pw / 2 + 3, btnY, half, 16, "§câœ• Cancel", C_BTN);
+        drawBtn(g, mx, my, px + 6, btnY, half, 16, "§a✓ Confirm", C_GREEN);
+        drawBtn(g, mx, my, px + pw / 2 + 3, btnY, half, 16, "§c✕ Cancel", C_BTN);
     }
 
     private void renderHexRow(GuiGraphics g, int mx, int my) {
         int rowY = btnY - 36;
         g.drawString(font, "§8Hex: ", px + 8, rowY + 2, ChroniclesThemePalette.TEXT_DIM, false);
-        
+
         int insX = px + 8 + font.width("Hex: ") + 60;
         drawBtn(g, mx, my, insX, rowY - 1, 40, 14, "§7insert", C_BTN);
-        
+
         String hexVal = hexBox != null ? hexBox.getValue().trim() : "";
         if (hexVal.startsWith("#") && hexVal.length() == 7) {
             try {
@@ -129,7 +129,7 @@ public class QuestTextInputScreen extends Screen {
                 g.fill(insX + 44, rowY, insX + 58, rowY + 12, col);
             } catch (NumberFormatException ignored) {}
         }
-        g.drawString(font, "§8{#RRGGBB} syntax â€” no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
+        g.drawString(font, "§8{#RRGGBB} syntax — no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
                 false);
     }
 
@@ -148,8 +148,8 @@ public class QuestTextInputScreen extends Screen {
             }
 
             String displayLabel = MD_LABELS[i];
-            if (i == 0) displayLabel = "§l" + displayLabel;      
-            else if (i == 1) displayLabel = "§o" + displayLabel; 
+            if (i == 0) displayLabel = "§l" + displayLabel;
+            else if (i == 1) displayLabel = "§o" + displayLabel;
 
             g.drawCenteredString(font, displayLabel, bx + btnW / 2, rowY + 2, hov ? 0xFFFFFFFF : 0xFFAAAAAA);
         }
@@ -193,12 +193,12 @@ public class QuestTextInputScreen extends Screen {
         if (super.mouseClicked(mx, my, btn)) return true;
 
         int half = pw / 2 - 6;
-        
+
         if (mx >= px + 6 && mx < px + 6 + half && my >= btnY && my < btnY + 16) {
             confirm();
             return true;
         }
-        
+
         if (mx >= px + pw / 2 + 3 && mx < px + pw - 3 && my >= btnY && my < btnY + 16) {
             Minecraft.getInstance().setScreen(parent);
             return true;
@@ -262,13 +262,11 @@ public class QuestTextInputScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-
         if (inputBox != null && inputBox.scrollBy(delta)) return true;
         return super.mouseScrolled(mx, my, delta);
     }
 
     private void confirm() {
-
         try {
             onConfirm.accept(inputBox != null ? inputBox.getValue() : initial);
         } catch (Exception e) {
@@ -284,4 +282,3 @@ public class QuestTextInputScreen extends Screen {
         return false;
     }
 }
-

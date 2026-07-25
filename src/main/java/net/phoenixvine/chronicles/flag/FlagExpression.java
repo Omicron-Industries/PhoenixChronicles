@@ -61,7 +61,7 @@ public final class FlagExpression {
                     default -> false;
                 };
             } catch (NumberFormatException ignored) {
-                return false; 
+                return false;
             }
         }
 
@@ -69,4 +69,3 @@ public final class FlagExpression {
         return op == Op.EQ ? eq : !eq;
     }
 }
-

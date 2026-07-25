@@ -84,7 +84,7 @@ public class ChronicleLootCrateItem extends Item {
             granted++;
         }
 
-        sp.sendSystemMessage(Component.literal("§6âœ¦ §eCrate opened! §7(" + granted + " reward(s) granted)"));
+        sp.sendSystemMessage(Component.literal("§6✦ §eCrate opened! §7(" + granted + " reward(s) granted)"));
         level.playSound(null, sp.blockPosition(), SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
                 SoundSource.PLAYERS, 0.5f, 1.2f);
 
@@ -125,4 +125,3 @@ public class ChronicleLootCrateItem extends Item {
         return stack;
     }
 }
-

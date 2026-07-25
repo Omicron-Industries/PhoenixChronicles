@@ -19,8 +19,8 @@ import java.util.stream.Stream;
 
 public class TextureBrowserScreen extends Screen {
 
-    private static final int THUMB = 48;      
-    private static final int THUMB_PAD = 6;   
+    private static final int THUMB = 48;
+    private static final int THUMB_PAD = 6;
     private static final int HEADER_H = 42;
     private static final int FOOTER_H = 28;
     private static final int COLS = 6;
@@ -61,7 +61,7 @@ public class TextureBrowserScreen extends Screen {
         applyFilter();
 
         searchBox = new EditBox(font, width / 2 - 100, HEADER_H / 2 - 5, 200, 14, Component.empty());
-        searchBox.setHint(Component.literal("§8Searchâ€¦"));
+        searchBox.setHint(Component.literal("§8Search…"));
         searchBox.setResponder(q -> {
             query = q.toLowerCase();
             applyFilter();
@@ -82,7 +82,7 @@ public class TextureBrowserScreen extends Screen {
         int fy = height - FOOTER_H;
         g.fill(0, fy, width, height, C_PANEL);
         g.fill(0, fy, width, fy + 1, C_BORDER);
-        g.drawString(font, "§8" + filtered.size() + " Textures  Â·  LMB to select  Â·  RMB to copy path",
+        g.drawString(font, "§8" + filtered.size() + " Textures  ·  LMB to select  ·  RMB to copy path",
                 8, fy + 10, C_FAINT, false);
 
         g.enableScissor(0, HEADER_H, width, fy);
@@ -127,7 +127,7 @@ public class TextureBrowserScreen extends Screen {
 
             String name = shortName(rl);
             int nameW = font.width(name);
-            if (nameW > THUMB) name = font.plainSubstrByWidth(name, THUMB - 4) + "â€¦";
+            if (nameW > THUMB) name = font.plainSubstrByWidth(name, THUMB - 4) + "…";
             g.drawString(font, "§8" + name, tx, ty + THUMB + 2, C_FAINT, false);
 
             if (hov) g.renderTooltip(font, Component.literal("§f" + rl), mx, my);
@@ -195,13 +195,13 @@ public class TextureBrowserScreen extends Screen {
                     .resolve("config").resolve("phoenix_chronicles").resolve("textures");
             if (Files.exists(texDir)) {
                 try (Stream<Path> walk = Files.walk(texDir)) {
-                    walk.filter(p -> p.toString().endsWith(".png"))
+                    walk.filter(TextureBrowserScreen::isImageFile)
                             .sorted()
                             .forEach(p -> {
                                 String rel = texDir.relativize(p).toString()
                                         .replace('\\', '/');
                                 try {
-                                    result.add(new ResourceLocation("phoenixcore", "textures/custom/" + rel));
+                                    result.add(new ResourceLocation("phoenix_chronicles", "textures/custom/" + rel));
                                 } catch (Exception ignored2) {}
                             });
                 }
@@ -221,10 +221,14 @@ public class TextureBrowserScreen extends Screen {
         }
     }
 
+    private static boolean isImageFile(Path p) {
+        String name = p.toString().toLowerCase();
+        return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg");
+    }
+
     private static String shortName(ResourceLocation rl) {
         String path = rl.getPath();
         int slash = path.lastIndexOf('/');
         return slash >= 0 ? path.substring(slash + 1) : path;
     }
 }
-

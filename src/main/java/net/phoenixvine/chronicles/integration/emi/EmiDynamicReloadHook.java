@@ -13,9 +13,7 @@ public class EmiDynamicReloadHook {
 
     @SubscribeEvent
     public static void onQuestTreeReloaded(QuestEvent.TreeReloaded event) {
-
         if (!net.minecraftforge.fml.ModList.get().isLoaded("emi")) return;
         EmiReloadManager.reload();
     }
 }
-

@@ -77,6 +77,11 @@ public class ChronicleKeyBindings {
             GLFW.GLFW_KEY_SLASH,
             "key.categories.phoenix_chronicles");
 
+    public static final KeyMapping TOGGLE_QUEST_VIEW = new KeyMapping(
+            "key.phoenix_chronicles.toggle_quest_view",
+            GLFW.GLFW_KEY_SPACE,
+            "key.categories.phoenix_chronicles");
+
     @SubscribeEvent
     public static void register(RegisterKeyMappingsEvent event) {
         event.register(ITEM_LOOKUP);
@@ -92,6 +97,6 @@ public class ChronicleKeyBindings {
         event.register(TOGGLE_SUBGRAPH);
         event.register(IMPORT_FTB);
         event.register(OPEN_DEV_WIKI);
+        event.register(TOGGLE_QUEST_VIEW);
     }
 }
-

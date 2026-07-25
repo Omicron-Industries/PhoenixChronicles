@@ -46,7 +46,7 @@ public class ItemPickerScreen extends Screen {
     private final Consumer<ItemStack> onPick;
 
     private final List<ItemStack> displayItems = new ArrayList<>();
-    private int scrollOffset = 0; 
+    private int scrollOffset = 0;
     private ItemStack hoveredStack = null;
     private ItemStack selectedStack = null;
 
@@ -87,7 +87,7 @@ public class ItemPickerScreen extends Screen {
         int searchY = panelTop + HEADER_H + 16;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
-        searchBox.setHint(Component.literal("§8Search itemsâ€¦"));
+        searchBox.setHint(Component.literal("§8Search items…"));
         searchBox.setValue(searchQuery);
         searchBox.setResponder(q -> {
             searchQuery = q;
@@ -134,7 +134,7 @@ public class ItemPickerScreen extends Screen {
                 if (!matchesId && !matchesName) continue;
             }
             displayItems.add(stack);
-            if (displayItems.size() >= 2000) break; 
+            if (displayItems.size() >= 2000) break;
         }
     }
 
@@ -154,7 +154,7 @@ public class ItemPickerScreen extends Screen {
         } else if (hasJei) {
             populateFromJeiApi();
         } else {
-            
+
             populateFromRegistry();
         }
     }
@@ -181,7 +181,7 @@ public class ItemPickerScreen extends Screen {
                 }
             }
         } catch (Exception e) {
-            
+
             populateFromRegistry();
         }
     }
@@ -189,7 +189,7 @@ public class ItemPickerScreen extends Screen {
     private void populateFromJeiApi() {
         try {
             Class<?> internalClass = Class.forName("mezz.jei.api.runtime.IJeiRuntime");
-            
+
             Class<?> helpersClass = Class.forName("mezz.jei.common.Internal");
             Object runtime = helpersClass.getMethod("getJeiRuntime").invoke(null);
             if (runtime == null) {
@@ -219,11 +219,10 @@ public class ItemPickerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-
         if (parent != null) parent.render(g, -1, -1, partial);
         g.flush();
 
@@ -312,7 +311,7 @@ public class ItemPickerScreen extends Screen {
             g.renderItem(selectedStack, panelLeft + 4, prevY + 1);
             String selName = selectedStack.getHoverName().getString();
             int maxW = PANEL_W - 30;
-            if (font.width(selName) > maxW) selName = font.plainSubstrByWidth(selName, maxW - 6) + "â€¦";
+            if (font.width(selName) > maxW) selName = font.plainSubstrByWidth(selName, maxW - 6) + "…";
             g.drawString(font, "§f" + selName, panelLeft + 22, prevY + 5, ChroniclesThemePalette.TEXT);
         }
 
@@ -334,7 +333,7 @@ public class ItemPickerScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { 
+        if (key == 256) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -367,4 +366,3 @@ public class ItemPickerScreen extends Screen {
         }
     }
 }
-

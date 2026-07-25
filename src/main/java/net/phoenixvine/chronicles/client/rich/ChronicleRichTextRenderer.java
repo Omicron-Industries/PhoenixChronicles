@@ -45,11 +45,29 @@ public final class ChronicleRichTextRenderer {
     }
 
     public static int measureHeight(Font font, List<RichSpan> spans, int maxW) {
-        return measureSpanList(font, spans, maxW, 1.0f);
+        return measureHeight(font, spans, maxW, 1.0f);
     }
 
+    private static final int HEIGHT_CACHE_SLOTS = 6;
+    private static final List<RichSpan>[] hcSpans = new List[HEIGHT_CACHE_SLOTS];
+    private static final int[] hcWidth = new int[HEIGHT_CACHE_SLOTS];
+    private static final float[] hcScale = new float[HEIGHT_CACHE_SLOTS];
+    private static final int[] hcHeight = new int[HEIGHT_CACHE_SLOTS];
+    private static int hcNext = 0;
+
     public static int measureHeight(Font font, List<RichSpan> spans, int maxW, float scale) {
-        return measureSpanList(font, spans, maxW, scale);
+        for (int i = 0; i < HEIGHT_CACHE_SLOTS; i++) {
+            if (hcSpans[i] == spans && hcWidth[i] == maxW && hcScale[i] == scale) {
+                return hcHeight[i];
+            }
+        }
+        int height = measureSpanList(font, spans, maxW, scale);
+        hcSpans[hcNext] = spans;
+        hcWidth[hcNext] = maxW;
+        hcScale[hcNext] = scale;
+        hcHeight[hcNext] = height;
+        hcNext = (hcNext + 1) % HEIGHT_CACHE_SLOTS;
+        return height;
     }
 
     public static List<RichSpan.Region> renderBlocks(
@@ -138,7 +156,7 @@ public final class ChronicleRichTextRenderer {
                 out.add(new RichSpan.Text(t.text(), t.style().withBold(true).withColor(
                         net.minecraft.network.chat.TextColor.fromRgb(HEADING_COLOR & 0xFFFFFF))));
             } else {
-                out.add(s); 
+                out.add(s);
             }
         }
         return out;
@@ -221,8 +239,10 @@ public final class ChronicleRichTextRenderer {
         if (text == null || text.isEmpty()) return new int[] { curX, curY };
 
         int lineH = Math.round(LINE_H * scale);
+        boolean interactive = source instanceof RichSpan.Link || source instanceof RichSpan.Tip;
 
         String[] lines = text.split("\n", -1);
+        Style running = style;
         for (int li = 0; li < lines.length; li++) {
             if (li > 0) {
                 curX = originX;
@@ -230,35 +250,57 @@ public final class ChronicleRichTextRenderer {
             }
             String line = lines[li];
             String[] tokens = tokenize(line);
+
+            StringBuilder run = new StringBuilder();
+            Style runStyle = running;
+            int runStartX = curX;
+
             for (String token : tokens) {
                 if (token.isBlank() && curX == originX) continue;
                 int tokW = Math.round(font.width(token) * scale);
                 if (curX + tokW > originX + maxW && curX > originX) {
+                    flushRun(g, font, run, runStyle, fallbackColor, runStartX, curY, clipTop, clipBot, scale);
                     curX = originX;
                     curY += lineH;
+                    runStartX = curX;
                 }
 
-                if (curY >= clipTop && curY + 8 <= clipBot) {
-                    MutableComponent comp = Component.literal(token).withStyle(style);
-                    int color = style.getColor() != null ? (0xFF000000 | style.getColor().getValue()) : fallbackColor;
-                    if (scale == 1.0f) {
-                        g.drawString(font, comp, curX, curY, color, false);
-                    } else {
-                        g.pose().pushPose();
-                        g.pose().translate(curX, curY, 0);
-                        g.pose().scale(scale, scale, 1f);
-                        g.drawString(font, comp, 0, 0, color, false);
-                        g.pose().popPose();
-                    }
+                Style newStyle = applyLegacyCodes(running, token);
+                if (!newStyle.equals(runStyle) && !run.isEmpty()) {
+                    flushRun(g, font, run, runStyle, fallbackColor, runStartX, curY, clipTop, clipBot, scale);
+                    runStartX = curX;
                 }
-                boolean interactive = source instanceof RichSpan.Link || source instanceof RichSpan.Tip;
+                running = newStyle;
+                runStyle = newStyle;
+                run.append(token);
+
                 if (interactive && !token.isBlank()) {
                     regions.add(new RichSpan.Region(curX, curY, curX + tokW, curY + lineH, source));
                 }
                 curX += tokW;
             }
+            flushRun(g, font, run, runStyle, fallbackColor, runStartX, curY, clipTop, clipBot, scale);
         }
         return new int[] { curX, curY };
+    }
+
+    private static void flushRun(GuiGraphics g, Font font, StringBuilder run, Style runStyle, int fallbackColor,
+                                 int runStartX, int curY, int clipTop, int clipBot, float scale) {
+        if (run.isEmpty()) return;
+        if (curY >= clipTop && curY + 8 <= clipBot) {
+            MutableComponent comp = Component.literal(run.toString()).withStyle(runStyle);
+            int color = runStyle.getColor() != null ? (0xFF000000 | runStyle.getColor().getValue()) : fallbackColor;
+            if (scale == 1.0f) {
+                g.drawString(font, comp, runStartX, curY, color, false);
+            } else {
+                g.pose().pushPose();
+                g.pose().translate(runStartX, curY, 0);
+                g.pose().scale(scale, scale, 1f);
+                g.drawString(font, comp, 0, 0, color, false);
+                g.pose().popPose();
+            }
+        }
+        run.setLength(0);
     }
 
     private static int[] measureWords(Font font, String text, int curX, int curY, int originX, int maxW,
@@ -284,6 +326,26 @@ public final class ChronicleRichTextRenderer {
         return new int[] { curX, curY };
     }
 
+    private static Style applyLegacyCodes(Style base, String token) {
+        Style style = base;
+        int len = token.length();
+        for (int i = 0; i < len - 1; i++) {
+            if (token.charAt(i) != '§') continue;
+            net.minecraft.ChatFormatting fmt = net.minecraft.ChatFormatting.getByCode(token.charAt(i + 1));
+            if (fmt == null) continue;
+            style = switch (fmt) {
+                case RESET -> Style.EMPTY;
+                case BOLD -> style.withBold(true);
+                case ITALIC -> style.withItalic(true);
+                case UNDERLINE -> style.withUnderlined(true);
+                case STRIKETHROUGH -> style.withStrikethrough(true);
+                case OBFUSCATED -> style.withObfuscated(true);
+                default -> style.withColor(fmt);
+            };
+        }
+        return style;
+    }
+
     private static String[] tokenize(String s) {
         if (s.isEmpty()) return new String[] { "" };
         List<String> tokens = new ArrayList<>();
@@ -297,4 +359,3 @@ public final class ChronicleRichTextRenderer {
         return tokens.toArray(String[]::new);
     }
 }
-

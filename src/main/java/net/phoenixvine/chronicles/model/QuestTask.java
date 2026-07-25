@@ -79,4 +79,3 @@ public abstract class QuestTask {
 
     public abstract void deserializeNBT(CompoundTag nbt);
 }
-

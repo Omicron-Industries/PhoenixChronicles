@@ -30,7 +30,7 @@ public class QuestFileLoader {
                                String title,
                                String description,
                                String subtitle,
-                               String category,
+                               String chapter,
                                String shape,
                                String iconItemId,
                                int posX,
@@ -115,7 +115,7 @@ public class QuestFileLoader {
 
         if (records.isEmpty()) return;
         wireAndRegister(records);
-        
+
         for (QuestRecord rec : records) QuestTreeRegistry.markAsConfigQuest(rec.id());
         System.out.println("[Phoenix Chronicles] Loaded " + records.size() +
                 " editor quest(s) from config dir.");
@@ -156,11 +156,10 @@ public class QuestFileLoader {
     }
 
     private static void wireAndRegister(List<QuestRecord> records) {
-        
         for (QuestRecord rec : records) {
             QuestNode node = new QuestNode(rec.id(),
                     Component.literal(rec.title()), Component.literal(rec.description()));
-            node.setCategory(rec.category());
+            node.setChapter(rec.chapter());
             node.setShapeType(rec.shape());
             node.setCustomX(rec.posX());
             node.setCustomY(rec.posY());
@@ -205,24 +204,24 @@ public class QuestFileLoader {
                     parent.addChild(node);
                 } else {
                     System.err.println("[Phoenix Chronicles] Parent '" + rec.parentId() + "' not found for '" +
-                            rec.id() + "' â€” treating as root.");
+                            rec.id() + "' — treating as root.");
                     QuestTreeRegistry.registerRootChapter(node);
                 }
             } else {
                 QuestTreeRegistry.registerRootChapter(node);
             }
-            
+
             for (String pid : rec.prereqRequired().keySet()) {
-                if (QuestTreeRegistry.getQuest(new ResourceLocation("phoenixcore", pid)) == null)
+                if (QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", pid)) == null)
                     LOAD_ERRORS.add("Quest '" + rec.id().getPath() + "': prereq '" + pid + "' not found.");
             }
             for (String pid : rec.prereqForbidden()) {
-                if (QuestTreeRegistry.getQuest(new ResourceLocation("phoenixcore", pid)) == null)
+                if (QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", pid)) == null)
                     LOAD_ERRORS.add("Quest '" + rec.id().getPath() + "': forbidden prereq '" + pid + "' not found.");
             }
 
             for (Map.Entry<String, Boolean> e : rec.prereqRequired().entrySet()) {
-                QuestNode prereq = QuestTreeRegistry.getQuest(new ResourceLocation("phoenixcore", e.getKey()));
+                QuestNode prereq = QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", e.getKey()));
                 if (prereq != null) {
                     node.addPrerequisite(prereq);
                     node.setPrereqRequired(prereq.getId(), e.getValue());
@@ -232,7 +231,7 @@ public class QuestFileLoader {
                 }
             }
             for (String pid : rec.prereqForbidden()) {
-                QuestNode prereq = QuestTreeRegistry.getQuest(new ResourceLocation("phoenixcore", pid));
+                QuestNode prereq = QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", pid));
                 if (prereq != null) {
                     node.addPrerequisite(prereq);
                     node.setPrereqForbidden(prereq.getId(), true);
@@ -270,11 +269,13 @@ public class QuestFileLoader {
             String fileName = file.getFileName().toString();
             String idStr = tag.contains("id") && !tag.getString("id").isEmpty() ? tag.getString("id") :
                     fileName.substring(0, fileName.lastIndexOf('.'));
-            ResourceLocation id = new ResourceLocation("phoenixcore", idStr.toLowerCase());
+            ResourceLocation id = new ResourceLocation("phoenix_chronicles", idStr.toLowerCase());
 
             String title = tag.contains("title") ? tag.getString("title") : "Unnamed Quest";
             String desc = tag.contains("description") ? tag.getString("description") : "";
-            String category = tag.contains("category") ? tag.getString("category") : "MAIN";
+
+            String chapter = tag.contains("chapter") ? tag.getString("chapter") :
+                    tag.contains("category") ? tag.getString("category") : "MAIN";
             String shape = tag.contains("shape") ? tag.getString("shape") : "SQUARE";
             String iconItem = tag.contains("icon_item") ? tag.getString("icon_item") : "";
             String iconTexture = tag.contains("icon_texture") ? tag.getString("icon_texture") : "";
@@ -285,7 +286,7 @@ public class QuestFileLoader {
 
             String parentStr = tag.contains("parent") ? tag.getString("parent") : "none";
             ResourceLocation parentId = (!parentStr.isEmpty() && !parentStr.equals("none")) ?
-                    new ResourceLocation("phoenixcore", parentStr.toLowerCase()) : null;
+                    new ResourceLocation("phoenix_chronicles", parentStr.toLowerCase()) : null;
 
             QuestNode.RepeatMode repeatMode = QuestNode.RepeatMode.NONE;
             if (tag.contains("repeat_mode")) {
@@ -403,7 +404,7 @@ public class QuestFileLoader {
                 }
             }
 
-            return new QuestRecord(id, title, desc, subtitle, category.toUpperCase(), shape.toUpperCase(),
+            return new QuestRecord(id, title, desc, subtitle, chapter.toUpperCase(), shape.toUpperCase(),
                     iconItem, posX, posY, visibility, taskMinCount, parentId,
                     repeatMode, repeatCooldownHours, requireAllPrereqs, rewards, tasks, emergencyTag,
                     prereqRequired, optionalPrereqMinCount, enableIf, prereqForbidden, prereqLink, prereqCosmetic,
@@ -455,4 +456,3 @@ public class QuestFileLoader {
         return task;
     }
 }
-

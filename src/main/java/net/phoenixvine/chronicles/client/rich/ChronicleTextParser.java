@@ -28,7 +28,7 @@ public final class ChronicleTextParser {
                 if (end > i) {
                     String token = input.substring(i + 1, end);
                     if (token.startsWith("#") && token.length() == 7 && isHex6(token, 1)) {
-                        
+
                         flush(buf, currentStyle, out);
                         currentStyle = Style.EMPTY.withColor(
                                 TextColor.fromRgb((int) Long.parseLong(token.substring(1), 16)));
@@ -146,4 +146,3 @@ public final class ChronicleTextParser {
         return true;
     }
 }
-

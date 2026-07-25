@@ -17,7 +17,7 @@ public final class QuestIconCache {
 
     private static final Map<String, ResourceLocation> CACHE = new HashMap<>();
     private static final Map<String, int[]> DIMS_CACHE = new HashMap<>();
-    private static final Map<String, Boolean> MISS_CACHE = new HashMap<>(); 
+    private static final Map<String, Boolean> MISS_CACHE = new HashMap<>();
 
     private QuestIconCache() {}
 
@@ -37,7 +37,7 @@ public final class QuestIconCache {
             int w = img.getWidth(), h = img.getHeight();
             DynamicTexture tex = new DynamicTexture(img);
             String texName = questPath.replace('/', '_').replace(':', '_').toLowerCase();
-            ResourceLocation loc = new ResourceLocation("phoenixcore", "dynamic/quest_icon/" + texName);
+            ResourceLocation loc = new ResourceLocation("phoenix_chronicles", "dynamic/quest_icon/" + texName);
             Minecraft.getInstance().getTextureManager().register(loc, tex);
             CACHE.put(questPath, loc);
             DIMS_CACHE.put(questPath, new int[] { w, h });
@@ -75,4 +75,3 @@ public final class QuestIconCache {
                 .resolve("config").resolve("phoenix_chronicles").resolve("icons").resolve(filename);
     }
 }
-

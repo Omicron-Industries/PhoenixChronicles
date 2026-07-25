@@ -23,7 +23,7 @@ public class QuestToastConfig {
 
         public float x = 0.5f, y = 0.5f;
         public float scale = 1.0f;
-        
+
         public int color = 0xFFFFFFFF;
         public boolean bold = false;
 
@@ -43,18 +43,18 @@ public class QuestToastConfig {
     public Element label = defaultLabel();
     public int bgColor = 0xB2170D00;
     public int accentColor = 0xFFFFAA00;
-    
+
     public float bgPadX = 26f, bgPadY = 14f;
-    
+
     public boolean bgAutoFit = true;
-    
+
     public float bgX = 0.5f, bgY = 0.5f;
 
     public static class IconEntry {
 
         public QuestGroup.IconKind kind;
         public String id;
-        
+
         public float x = 0.5f, y = 0.42f;
         public float scale = 1.5f;
 
@@ -180,4 +180,3 @@ public class QuestToastConfig {
                 .resolve("config").resolve("phoenix_chronicles").resolve("quest_toasts.json");
     }
 }
-

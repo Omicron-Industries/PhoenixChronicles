@@ -19,7 +19,7 @@ public class FilterItemTask extends QuestTask {
     private IItemFilter filter;
     private int count;
     private boolean consume;
-    
+
     private boolean sticky = true;
 
     public FilterItemTask(ResourceLocation taskId, Component description,
@@ -53,7 +53,6 @@ public class FilterItemTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (countMatching(player) >= count) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
@@ -142,4 +141,3 @@ public class FilterItemTask extends QuestTask {
         this.sticky = v;
     }
 }
-

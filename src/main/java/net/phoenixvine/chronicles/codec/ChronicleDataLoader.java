@@ -57,11 +57,13 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
 
                 QuestNode node = new QuestNode(questId, title, desc);
 
-                String category = "MAIN";
-                if (json.has("category")) {
-                    category = json.get("category").getAsString().trim().toUpperCase();
+                String chapter = "MAIN";
+                if (json.has("chapter")) {
+                    chapter = json.get("chapter").getAsString().trim().toUpperCase();
+                } else if (json.has("category")) {
+                    chapter = json.get("category").getAsString().trim().toUpperCase();
                 }
-                node.setCategory(category);
+                node.setChapter(chapter);
 
                 if (json.has("layout_x") && json.has("layout_y")) {
                     node.setCustomX(json.get("layout_x").getAsInt());
@@ -251,4 +253,3 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
         }
     }
 }
-

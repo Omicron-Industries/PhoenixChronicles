@@ -25,7 +25,7 @@ public final class EmiReturnScreenFix {
     @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
         Screen ephemeral = armedEphemeralScreen.get();
-        if (ephemeral == null) return; 
+        if (ephemeral == null) return;
         if (event.getNewScreen() == ephemeral) {
             event.setNewScreen(armedReturnToScreen.get());
             armedEphemeralScreen = new WeakReference<>(null);
@@ -33,4 +33,3 @@ public final class EmiReturnScreenFix {
         }
     }
 }
-

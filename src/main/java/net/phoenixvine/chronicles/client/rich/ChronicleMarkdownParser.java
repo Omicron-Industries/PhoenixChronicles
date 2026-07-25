@@ -23,7 +23,7 @@ public final class ChronicleMarkdownParser {
 
         String[] lines = input.replace("\r\n", "\n").replace("\r", "\n").split("\n", -1);
         int i = 0;
-        boolean lastWasBlank = true; 
+        boolean lastWasBlank = true;
 
         while (i < lines.length) {
             String raw = lines[i];
@@ -47,7 +47,7 @@ public final class ChronicleMarkdownParser {
 
             Matcher um = UNORDERED.matcher(trimmed);
             if (um.matches()) {
-                blocks.add(new RichBlock.ListItem("â€¢", 10, parseInline(um.group(1))));
+                blocks.add(new RichBlock.ListItem("•", 10, parseInline(um.group(1))));
                 lastWasBlank = false;
                 i++;
                 continue;
@@ -210,4 +210,3 @@ public final class ChronicleMarkdownParser {
         return true;
     }
 }
-

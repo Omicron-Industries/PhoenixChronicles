@@ -51,4 +51,3 @@ public class QuestCapabilityProvider implements ICapabilitySerializable<Compound
         event.register(PlayerQuestData.class);
     }
 }
-

@@ -23,7 +23,7 @@ public class ChroniclesTheme {
 
         public String hex;
         private transient Integer cached = null;
-        
+
         private transient long animOffset = 0L;
 
         public ThemeColor() {
@@ -309,4 +309,3 @@ public class ChroniclesTheme {
         saveAll();
     }
 }
-

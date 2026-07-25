@@ -50,4 +50,3 @@ public class BiomeTask extends QuestTask {
         if (nbt.contains("biome_id")) biomeId = new ResourceLocation(nbt.getString("biome_id"));
     }
 }
-

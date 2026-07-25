@@ -1,8 +1,6 @@
 package net.phoenixvine.chronicles.registry;
 
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.codec.ChronicleDataLoader;
-import net.phoenixvine.chronicles.codec.QuestFileLoader;
 import net.phoenixvine.chronicles.model.QuestNode;
 
 import org.jetbrains.annotations.Nullable;
@@ -14,9 +12,9 @@ public class QuestTreeRegistry {
 
     private static final Map<ResourceLocation, QuestNode> ALL_QUESTS = new ConcurrentHashMap<>();
     private static final Map<ResourceLocation, QuestNode> ROOT_NODES = new ConcurrentHashMap<>();
-    
+
     private static final java.util.Set<ResourceLocation> CONFIG_QUEST_IDS = ConcurrentHashMap.newKeySet();
-    
+
     private static final Map<ResourceLocation, QuestNode> TASK_OWNER = new ConcurrentHashMap<>();
 
     public static void registerRootChapter(QuestNode root) {
@@ -55,12 +53,19 @@ public class QuestTreeRegistry {
         if (parentId != null) {
             QuestNode parent = ALL_QUESTS.get(parentId);
             if (parent != null) {
-                
+
                 parent.addChild(node);
                 ROOT_NODES.remove(node.getId());
             }
         } else {
             ROOT_NODES.put(node.getId(), node);
+        }
+
+        net.minecraft.server.MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        if (server != null) {
+            for (net.minecraft.server.level.ServerPlayer player : server.getPlayerList().getPlayers()) {
+                net.phoenixvine.chronicles.tracker.QuestProgressTracker.autoUnlockSatisfiedQuests(player);
+            }
         }
     }
 
@@ -87,9 +92,9 @@ public class QuestTreeRegistry {
         ROOT_NODES.remove(id);
         if (removed == null) return;
         for (var task : removed.getTasks()) TASK_OWNER.remove(task.getTaskId());
-        
+
         for (QuestNode n : ALL_QUESTS.values()) {
-            
+
             n.removeChild(removed);
         }
     }
@@ -112,4 +117,3 @@ public class QuestTreeRegistry {
         TASK_OWNER.clear();
     }
 }
-

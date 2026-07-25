@@ -65,4 +65,3 @@ public class EnchantmentTask extends QuestTask {
         if (nbt.contains("required_level")) requiredLevel = Math.max(1, nbt.getInt("required_level"));
     }
 }
-

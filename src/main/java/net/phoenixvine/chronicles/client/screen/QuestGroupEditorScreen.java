@@ -39,7 +39,7 @@ public class QuestGroupEditorScreen extends Screen {
     private static final int C_BORDER = 0xFF8844AA;
 
     private final Screen parent;
-    private final String category;
+    private final String chapter;
     @Nullable
     private final QuestGroup existing;
     private final int canvasX;
@@ -61,11 +61,11 @@ public class QuestGroupEditorScreen extends Screen {
     private Object phantasiaPreview = null;
     private int previewX, previewY, previewW;
 
-    public QuestGroupEditorScreen(Screen parent, String category, @Nullable QuestGroup existing,
+    public QuestGroupEditorScreen(Screen parent, String chapter, @Nullable QuestGroup existing,
                                   int canvasX, int canvasY) {
         super(Component.literal(existing == null ? "New Quest Group" : "Edit Quest Group"));
         this.parent = parent;
-        this.category = category;
+        this.chapter = chapter;
         this.existing = existing;
         this.canvasX = canvasX;
         this.canvasY = canvasY;
@@ -74,7 +74,6 @@ public class QuestGroupEditorScreen extends Screen {
 
     @Override
     protected void init() {
-
         dialogH = 30 + ROW_H * 4 + 20 + 16 + 24 + 30;
         if (PHANTASIA) dialogH += ROW_H + PREVIEW_H + 6;
 
@@ -86,7 +85,7 @@ public class QuestGroupEditorScreen extends Screen {
         int row = dy + 30;
 
         labelBox = new EditBox(font, fieldX, row, fieldW, FIELD_H, Component.empty());
-        labelBox.setHint(Component.literal("§8Group labelâ€¦"));
+        labelBox.setHint(Component.literal("§8Group label…"));
         labelBox.setMaxLength(48);
         if (existing != null) labelBox.setValue(existing.getLabel());
         addRenderableWidget(labelBox);
@@ -147,7 +146,7 @@ public class QuestGroupEditorScreen extends Screen {
             phantasiaIdBox.setMaxLength(128);
             if (existing != null) phantasiaIdBox.setValue(existing.getPhantasiaMachineId());
             addRenderableWidget(phantasiaIdBox);
-            addRenderableWidget(Button.builder(Component.literal("§7â–¶ Preview"), b -> refreshPhantasiaPreview())
+            addRenderableWidget(Button.builder(Component.literal("§7▶ Preview"), b -> refreshPhantasiaPreview())
                     .bounds(fieldX + fieldW - 56, row, 56, FIELD_H).build());
             row += ROW_H;
 
@@ -159,7 +158,7 @@ public class QuestGroupEditorScreen extends Screen {
             if (existing != null && !existing.getPhantasiaMachineId().isEmpty()) refreshPhantasiaPreview();
         }
 
-        row += 6; 
+        row += 6;
 
         int btnY = dy + dialogH - 24;
         int btnW = existing != null ? (DIALOG_W - 30) / 3 : (DIALOG_W - 20) / 2;
@@ -214,7 +213,7 @@ public class QuestGroupEditorScreen extends Screen {
         if (existing != null) {
             group = existing;
         } else {
-            group = new QuestGroup(QuestGroupManager.generateId(), label, category);
+            group = new QuestGroup(QuestGroupManager.generateId(), label, chapter);
             group.setX(canvasX);
             group.setY(canvasY);
         }
@@ -222,7 +221,7 @@ public class QuestGroupEditorScreen extends Screen {
         group.setLabel(label);
         group.setColor(QuestGroupManager.parseColor(colorStr));
         group.setBorderColor(QuestGroupManager.parseColor(borderStr));
-        group.setCategory(category);
+        group.setChapter(chapter);
         group.setSize(w, h);
         group.clearIcons();
         for (QuestGroup.GroupIcon icon : icons) group.addIcon(icon.kind, icon.id);
@@ -273,7 +272,7 @@ public class QuestGroupEditorScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
@@ -286,7 +285,7 @@ public class QuestGroupEditorScreen extends Screen {
 
         g.fill(dx, dy, dx + DIALOG_W, dy + dialogH, ChroniclesThemePalette.PANEL);
         ChroniclesUIKit.drawBorder(g, dx, dy, DIALOG_W, dialogH, C_BORDER);
-        
+
         g.fill(dx + 1, dy + 1, dx + DIALOG_W - 1, dy + 16, ChroniclesThemePalette.HEADER);
         g.drawCenteredString(font, "§d" + this.title.getString(), dx + DIALOG_W / 2, dy + 4,
                 ChroniclesThemePalette.TEXT);
@@ -299,7 +298,7 @@ public class QuestGroupEditorScreen extends Screen {
         row += ROW_H;
         g.drawString(font, "§8Border color  §7(#AARRGGBB)", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
         row += ROW_H;
-        g.drawString(font, "§8Size (W Ã— H)", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Size (W × H)", dx + 10, row - 11, ChroniclesThemePalette.TEXT_FAINT);
         row += ROW_H;
 
         g.drawString(font, "§8Icons  §7(click to remove)", dx + 10, row - 8, ChroniclesThemePalette.TEXT_FAINT);
@@ -317,7 +316,7 @@ public class QuestGroupEditorScreen extends Screen {
 
         row += 6;
 
-        g.drawString(font, "§8Chapter: §7" + friendlyCategory(), dx + 10, row + 2, ChroniclesThemePalette.TEXT_DIM);
+        g.drawString(font, "§8Chapter: §7" + friendlyChapter(), dx + 10, row + 2, ChroniclesThemePalette.TEXT_DIM);
 
         if (!errorMsg.isEmpty()) {
             g.drawCenteredString(font, "§c" + errorMsg, dx + DIALOG_W / 2, dy + dialogH - 36, 0xFFCC4444);
@@ -344,7 +343,7 @@ public class QuestGroupEditorScreen extends Screen {
             renderIcon(g, icons.get(i), ix, y, sz);
             if (hov) {
                 g.fill(ix, y, ix + sz, y + sz, 0x66CC2222);
-                g.drawCenteredString(font, "§câœ•", ix + sz / 2, y + sz / 2 - 4, 0xFFFFFFFF);
+                g.drawCenteredString(font, "§c✕", ix + sz / 2, y + sz / 2 - 4, 0xFFFFFFFF);
             }
             ix += sz + gap;
         }
@@ -371,7 +370,7 @@ public class QuestGroupEditorScreen extends Screen {
                 case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
-            
+
         }
     }
 
@@ -402,10 +401,10 @@ public class QuestGroupEditorScreen extends Screen {
         return super.mouseClicked(mx, my, btn);
     }
 
-    private String friendlyCategory() {
-        if (category == null || category.equals("ALL")) return "All Chapters";
+    private String friendlyChapter() {
+        if (chapter == null || chapter.equals("ALL")) return "All Chapters";
         StringBuilder sb = new StringBuilder();
-        for (String w : category.toLowerCase().replace("_", " ").split(" ")) {
+        for (String w : chapter.toLowerCase().replace("_", " ").split(" ")) {
             if (!w.isEmpty()) sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1)).append(' ');
         }
         return sb.toString().trim();
@@ -416,4 +415,3 @@ public class QuestGroupEditorScreen extends Screen {
         return false;
     }
 }
-

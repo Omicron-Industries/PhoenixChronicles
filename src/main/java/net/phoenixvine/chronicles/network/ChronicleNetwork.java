@@ -19,12 +19,11 @@ import java.util.Optional;
 public class ChronicleNetwork {
 
     private static final String PROTOCOL = "1";
-    
+
     public static SimpleChannel CHANNEL;
     private static int id = 0;
 
     public static void init() {
-        
         CHANNEL = NetworkRegistry.newSimpleChannel(
                 new ResourceLocation("phoenix_chronicles", "main"),
                 () -> PROTOCOL,
@@ -95,4 +94,3 @@ public class ChronicleNetwork {
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }
-

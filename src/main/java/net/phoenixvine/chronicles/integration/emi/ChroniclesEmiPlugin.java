@@ -26,7 +26,7 @@ public class ChroniclesEmiPlugin implements EmiPlugin {
 
     public static void loadQuestsIntoEmi(EmiRegistry registry) {
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-            
+
             if (node.isFlagDisabled()) {
                 continue;
             }
@@ -37,4 +37,3 @@ public class ChroniclesEmiPlugin implements EmiPlugin {
         }
     }
 }
-

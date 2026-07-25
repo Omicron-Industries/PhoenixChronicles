@@ -61,4 +61,3 @@ public class C2SPhantasiaTaskCompletePacket {
         ctx.get().setPacketHandled(true);
     }
 }
-

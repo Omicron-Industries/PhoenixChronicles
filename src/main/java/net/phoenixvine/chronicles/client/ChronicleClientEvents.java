@@ -39,6 +39,4 @@ public class ChronicleClientEvents {
         QuestFileSaver.saveAllQuestsToDisk();
         LangSyncScheduler.flushNow();
     }
-
 }
-

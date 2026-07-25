@@ -17,6 +17,7 @@ import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
@@ -27,8 +28,8 @@ import java.util.List;
 public class QuestHudOverlay {
 
     private static final int WIDGET_W = 148;
-    private static final int MARGIN_R = 6;   
-    private static final int MARGIN_T = 6;   
+    private static final int MARGIN_R = 6;
+    private static final int MARGIN_T = 6;
     private static final int PAD = 5;
     private static final int ROW_H = 11;
     private static final int BAR_H = 4;
@@ -36,7 +37,7 @@ public class QuestHudOverlay {
     private static final int C_BG = 0xCC0B0B0F;
     private static final int C_BORDER = 0xFF252530;
     private static final int C_TITLE_BG = 0xDD09090D;
-    private static final int C_DONE_ROW = 0x220044FF; 
+    private static final int C_DONE_ROW = 0x220044FF;
     private static final int C_PROG_BG = 0xFF141420;
     private static final int C_PROG_FILL = 0xFF00AA55;
     private static final int C_PROG_ACT = 0xFFBB8800;
@@ -47,6 +48,8 @@ public class QuestHudOverlay {
     private static final int C_PIN = 0xFFAA44FF;
 
     private static final int STACK_GAP = 4;
+    private static final int REWARD_ICON_SZ = 14;
+    private static final int REWARD_ICON_GAP = 3;
 
     private static final List<int[]> lastWidgetBounds = new java.util.ArrayList<>();
 
@@ -146,19 +149,25 @@ public class QuestHudOverlay {
             boolean showTitle = cfg.isShowHUDTitle();
             boolean showProgress = cfg.isShowHUDProgress();
 
+            List<String> remainingTaskLines = remainingTaskLines(tasks, mc);
+            List<QuestReward> rewards = node.getRewards();
+            boolean showRewards = cfg.isShowHUDRewards() && !rewards.isEmpty();
+
             int titleH = showTitle ? PAD + ROW_H + 3 : PAD;
-            int barSection = (showProgress && !tasks.isEmpty()) ? BAR_H + 4 : 0;
-            int widgetH = titleH + barSection + PAD;
+            int tasksSection = remainingTaskLines.isEmpty() ? 0 : (remainingTaskLines.size() * ROW_H) + 3;
+            int rewardsSection = showRewards ? REWARD_ICON_SZ + 6 : 0;
+            int widgetH = titleH + tasksSection + rewardsSection + PAD;
 
             int wy = stacksUp ? cursorY - widgetH : cursorY;
             int wx = switch (cfg.getHudPosition()) {
                 case TOP_LEFT, BOTTOM_LEFT -> MARGIN_R;
                 case TOP_CENTER, BOTTOM_CENTER -> (screenW - WIDGET_W) / 2;
-                default -> screenW - WIDGET_W - MARGIN_R; 
+                default -> screenW - WIDGET_W - MARGIN_R;
             };
             cursorY += stacksUp ? -(widgetH + STACK_GAP) : (widgetH + STACK_GAP);
 
-            drawWidget(mc, g, font, cfg, node, state, tasks, done, wx, wy, widgetH, pinnedId);
+            drawWidget(mc, g, font, cfg, node, state, done, tasks.size(), wx, wy, widgetH, pinnedId,
+                    remainingTaskLines, showProgress, showRewards ? rewards : List.of());
             lastWidgetBounds.add(new int[] { wx, wy, widgetH });
         }
 
@@ -169,11 +178,23 @@ public class QuestHudOverlay {
         }
     }
 
+    private static List<String> remainingTaskLines(List<QuestTask> tasks, Minecraft mc) {
+        List<String> lines = new java.util.ArrayList<>();
+        if (mc.player == null) return lines;
+        for (QuestTask t : tasks) {
+            if (t.isCompletedFor(mc.player)) continue;
+            String desc = t.getDescription().getString();
+            if (!desc.isBlank()) lines.add(desc);
+        }
+        return lines;
+    }
+
     private static void drawWidget(Minecraft mc, GuiGraphics g, Font font, QuestChroniclesSettings cfg,
-                                   QuestNode node, QuestState state, List<QuestTask> tasks, int done,
-                                   int wx, int wy, int widgetH, ResourceLocation pinnedId) {
+                                   QuestNode node, QuestState state, int done, int total,
+                                   int wx, int wy, int widgetH, ResourceLocation pinnedId,
+                                   List<String> remainingTaskLines, boolean showProgress,
+                                   List<QuestReward> rewards) {
         boolean showTitle = cfg.isShowHUDTitle();
-        boolean showProgress = cfg.isShowHUDProgress();
 
         int bgAlpha = (int) (cfg.getHudOpacity() * 0xCC);
         int dynBg = (bgAlpha << 24) | 0x0B0B0F;
@@ -187,14 +208,14 @@ public class QuestHudOverlay {
         int ty = wy + PAD;
 
         if (showTitle) {
-            
+
             g.fill(wx + 1, wy + 1, wx + WIDGET_W - 1, wy + PAD + ROW_H + 1, C_TITLE_BG);
 
             String stateGlyph = switch (state) {
-                case COMPLETED -> "§aâœ”";
-                case ACTIVE -> "§6â–¶";
-                case LOCKED -> "§8âœ•";
-                default -> "§7â—‹";
+                case COMPLETED -> "§a✔";
+                case ACTIVE -> "§6▶";
+                case LOCKED -> "§8✕";
+                default -> "§7○";
             };
             int titleColor = switch (state) {
                 case COMPLETED -> C_TEXT_DONE;
@@ -211,39 +232,35 @@ public class QuestHudOverlay {
                 g.drawString(font, stateGlyph + " " + titleStr, wx + PAD, wy + PAD + 1, titleColor, false);
             }
 
-            g.drawString(font, "§5ðŸ“Œ", wx + WIDGET_W - 14, wy + PAD, C_PIN, false);
+            if (showProgress && total > 0) {
+                String counter = done + "/" + total;
+                g.drawString(font, "§8" + counter, wx + WIDGET_W - PAD - 14 - font.width(counter), wy + PAD + 1,
+                        C_TEXT_DIM, false);
+            }
+
+            g.drawString(font, "§5📌", wx + WIDGET_W - 14, wy + PAD, C_PIN, false);
 
             int divY = wy + PAD + ROW_H + 1;
             g.fill(wx + PAD, divY, wx + WIDGET_W - PAD, divY + 1, C_BORDER);
             ty = divY + 3;
         }
 
-        if (showProgress && !tasks.isEmpty()) {
+        if (!remainingTaskLines.isEmpty()) {
             ty += 3;
-            int n = tasks.size();
-            int maxPips = Math.min(n, 20); 
-            int pipAreaW = WIDGET_W - PAD * 2 - 2;
-            int pipW = Math.max(3, Math.min(9, (pipAreaW - (maxPips - 1)) / maxPips));
-            int gap = 1;
-            int totalPipW = maxPips * pipW + (maxPips - 1) * gap;
-            int pipX = wx + PAD + (pipAreaW - totalPipW) / 2;
-            int barCol = state == QuestState.COMPLETED ? C_PROG_FILL : C_PROG_ACT;
-            for (int pi = 0; pi < maxPips; pi++) {
-                boolean pipDone = pi < done;
-                int px = pipX + pi * (pipW + gap);
-                
-                g.fill(px, ty, px + pipW, ty + BAR_H, C_PROG_BG);
-                
-                if (pipDone) g.fill(px, ty, px + pipW, ty + BAR_H, barCol);
-                
-                if (pipDone) g.fill(px, ty, px + pipW, ty + 1, 0x33FFFFFF);
+            for (String line : remainingTaskLines) {
+                String hintStr = truncate(font, "- " + line, WIDGET_W - PAD * 2);
+                g.drawString(font, "§7" + hintStr, wx + PAD, ty, C_TEXT_DIM, false);
+                ty += ROW_H;
             }
-            if (n > maxPips) {
-                
-                g.drawString(font, "§8+" + (n - maxPips), pipX + totalPipW + 3, ty - 1, C_TEXT_DIM, false);
-            } else {
-                g.drawString(font, "§8" + done + "/" + n, wx + PAD + pipAreaW - font.width(done + "/" + n) + 1, ty - 1,
-                        C_TEXT_DIM, false);
+        }
+
+        if (!rewards.isEmpty()) {
+            ty += 3;
+            int ix = wx + PAD;
+            int maxIcons = Math.max(1, (WIDGET_W - PAD * 2) / (REWARD_ICON_SZ + REWARD_ICON_GAP));
+            for (int i = 0; i < rewards.size() && i < maxIcons; i++) {
+                drawRewardIcon(g, rewards.get(i), ix, ty, REWARD_ICON_SZ);
+                ix += REWARD_ICON_SZ + REWARD_ICON_GAP;
             }
         }
 
@@ -258,9 +275,39 @@ public class QuestHudOverlay {
         }
     }
 
+    private static void drawRewardIcon(GuiGraphics g, QuestReward reward, int x, int y, int size) {
+        g.fill(x, y, x + size, y + size, 0xFF0F0F18);
+        g.fill(x, y, x + size, y + 1, 0xFF333344);
+        g.fill(x, y + size - 1, x + size, y + size, 0xFF333344);
+        g.fill(x, y, x + 1, y + size, 0xFF333344);
+        g.fill(x + size - 1, y, x + size, y + size, 0xFF333344);
+
+        if (reward instanceof QuestReward.ItemReward ir) {
+            float scale = size / 16f;
+            g.pose().pushPose();
+            try {
+                g.pose().translate(x + size / 2f, y + size / 2f, 0f);
+                g.pose().scale(scale, scale, 1f);
+                g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), -8, -8);
+            } catch (Exception ignored) {} finally {
+                g.pose().popPose();
+            }
+        } else {
+            String glyph = switch (reward.getType()) {
+                case XP -> "⚡";
+                case COMMAND -> "◆";
+                case LOOT_TABLE, LOOT_CRATE -> "📦";
+                case SCRIPT_EVENT -> "✦";
+                default -> "★";
+            };
+            Font font = Minecraft.getInstance().font;
+            g.drawString(font, "§7" + glyph, x + size / 2 - font.width(glyph) / 2, y + size / 2 - 4, 0xFF888898,
+                    false);
+        }
+    }
+
     private static String truncate(Font font, String text, int maxW) {
         if (font.width(text) <= maxW) return text;
-        return font.plainSubstrByWidth(text, maxW - 6) + "â€¦";
+        return font.plainSubstrByWidth(text, maxW - 6) + "…";
     }
 }
-

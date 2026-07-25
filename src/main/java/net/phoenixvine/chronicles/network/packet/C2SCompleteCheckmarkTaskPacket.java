@@ -48,4 +48,3 @@ public class C2SCompleteCheckmarkTaskPacket {
         ctx.get().setPacketHandled(true);
     }
 }
-

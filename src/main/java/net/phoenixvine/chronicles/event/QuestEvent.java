@@ -4,7 +4,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.eventbus.api.Cancelable;
 import net.minecraftforge.eventbus.api.Event;
-import net.phoenixvine.chronicles.QuestAPI;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 
@@ -106,4 +105,3 @@ public class QuestEvent extends Event {
 
     public static class TreeReloaded extends net.minecraftforge.eventbus.api.Event {}
 }
-

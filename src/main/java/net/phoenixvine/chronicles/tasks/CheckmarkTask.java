@@ -30,8 +30,5 @@ public class CheckmarkTask extends QuestTask {
     }
 
     @Override
-    public void deserializeNBT(CompoundTag nbt) {
-        
-    }
+    public void deserializeNBT(CompoundTag nbt) {}
 }
-

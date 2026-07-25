@@ -37,7 +37,7 @@ public class QuestInventoryButton {
         int top = (screenH - IMAGE_H) / 2;
 
         int claimable = countClaimable();
-        Component label = Component.literal(claimable > 0 ? "ðŸ“– " + (claimable > 9 ? "9+" : claimable) : "ðŸ“–");
+        Component label = Component.literal(claimable > 0 ? "📖 " + (claimable > 9 ? "9+" : claimable) : "📖");
         Button.OnPress onPress = b -> {
             if (Minecraft.getInstance().player != null)
                 Minecraft.getInstance().setScreen(new ChronicleOverviewScreen());
@@ -49,7 +49,7 @@ public class QuestInventoryButton {
 
             case TOP_LEFT -> Button.builder(label, onPress)
                     .bounds(SCREEN_MARGIN, SCREEN_MARGIN, BTN_SIZE, BTN_SIZE).build();
-            default -> Button.builder(label, onPress) 
+            default -> Button.builder(label, onPress)
                     .bounds(left - BTN_SIZE, top + (IMAGE_H - BTN_SIZE) / 2, BTN_SIZE, BTN_SIZE).build();
         };
         event.addListener(button);
@@ -71,4 +71,3 @@ public class QuestInventoryButton {
         return count;
     }
 }
-

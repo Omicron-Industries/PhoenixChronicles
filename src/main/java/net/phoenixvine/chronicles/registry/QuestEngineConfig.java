@@ -32,4 +32,3 @@ public final class QuestEngineConfig {
         return ae2StorageForItemFluidTasks;
     }
 }
-

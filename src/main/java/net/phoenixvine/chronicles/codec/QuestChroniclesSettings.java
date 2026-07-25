@@ -35,8 +35,8 @@ public class QuestChroniclesSettings {
     }
 
     public enum LineStyle {
-        SPLINE,   
-        STRAIGHT  
+        SPLINE,
+        STRAIGHT
     }
 
     public enum SidebarBehavior {
@@ -45,12 +45,12 @@ public class QuestChroniclesSettings {
     }
 
     public enum LineVisualStyle {
-        THIN,    
-        NORMAL,  
-        BOLD,    
-        THICK,   
-        WIDE,    
-        GLOW     
+        THIN,
+        NORMAL,
+        BOLD,
+        THICK,
+        WIDE,
+        GLOW
     }
 
     public enum InvButtonPos {
@@ -60,9 +60,14 @@ public class QuestChroniclesSettings {
     }
 
     public enum ToastStyle {
-        COMPACT,       
-        ABOVE_HOTBAR,  
-        BIG_CENTER     
+        COMPACT,
+        ABOVE_HOTBAR,
+        BIG_CENTER
+    }
+
+    public enum NodeMoveMode {
+        DRAG,
+        PICKUP_PLACE
     }
 
     public enum LineAnimSpeed {
@@ -95,34 +100,41 @@ public class QuestChroniclesSettings {
     private boolean showInventoryButton = true;
     private InvButtonPos invButtonPos = InvButtonPos.LEFT;
     private boolean showLineArrows = true;
-    
+
     private boolean devModeDisabled = true;
-    
-    private String lastCategory = "";
-    
+
+    private String lastChapter = "";
+
     private HUDPosition toastPosition = HUDPosition.TOP_RIGHT;
-    
+
     private String questbookName = "";
-    
+
     private String questbookIcon = "";
-    
+
     private ToastStyle toastStyle = ToastStyle.COMPACT;
-    
+
     private boolean playToastSounds = true;
-    
+
     private boolean phantasiaAutoSpin = true;
-    
+
     private boolean hideCompletedByDefault = false;
-    
+
     private int defaultGridSnap = 8;
-    
+
     private boolean showToasts = true;
-    
+
     private boolean reduceMotion = false;
-    
+
     private boolean returnToQuestbookFromRecipeViewer = true;
-    
+
     private SidebarBehavior sidebarBehavior = SidebarBehavior.COLLAPSIBLE;
+
+    private int taskInspectorW = -1;
+    private int taskRewardW = -1;
+
+    private NodeMoveMode nodeMoveMode = NodeMoveMode.DRAG;
+
+    private boolean alwaysProfilerEnabled = false;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path SETTINGS_FILE = Paths.get("config", "phoenix_chronicles_settings.json");
@@ -291,16 +303,24 @@ public class QuestChroniclesSettings {
         this.devModeDisabled = disabled;
     }
 
-    public String getLastCategory() {
-        return lastCategory == null ? "" : lastCategory;
+    public String getLastChapter() {
+        return lastChapter == null ? "" : lastChapter;
     }
 
-    public void setLastCategory(String category) {
-        this.lastCategory = category == null ? "" : category;
+    public void setLastChapter(String chapter) {
+        this.lastChapter = chapter == null ? "" : chapter;
     }
 
     public void setShowLineArrows(boolean show) {
         this.showLineArrows = show;
+    }
+
+    public boolean isAlwaysProfilerEnabled() {
+        return alwaysProfilerEnabled;
+    }
+
+    public void setAlwaysProfilerEnabled(boolean enabled) {
+        this.alwaysProfilerEnabled = enabled;
     }
 
     public HUDPosition getToastPosition() {
@@ -362,6 +382,14 @@ public class QuestChroniclesSettings {
         this.phantasiaAutoSpin = spin;
     }
 
+    public NodeMoveMode getNodeMoveMode() {
+        return nodeMoveMode == null ? NodeMoveMode.DRAG : nodeMoveMode;
+    }
+
+    public void setNodeMoveMode(NodeMoveMode mode) {
+        this.nodeMoveMode = mode != null ? mode : NodeMoveMode.DRAG;
+    }
+
     public boolean isHideCompletedByDefault() {
         return hideCompletedByDefault;
     }
@@ -394,6 +422,22 @@ public class QuestChroniclesSettings {
         this.defaultGridSnap = Math.max(1, snap);
     }
 
+    public int getTaskInspectorW() {
+        return taskInspectorW;
+    }
+
+    public void setTaskInspectorW(int w) {
+        this.taskInspectorW = w;
+    }
+
+    public int getTaskRewardW() {
+        return taskRewardW;
+    }
+
+    public void setTaskRewardW(int w) {
+        this.taskRewardW = w;
+    }
+
     public boolean isShowToasts() {
         return showToasts;
     }
@@ -422,4 +466,3 @@ public class QuestChroniclesSettings {
         return density == Density.COMPACT ? 8 : 12;
     }
 }
-

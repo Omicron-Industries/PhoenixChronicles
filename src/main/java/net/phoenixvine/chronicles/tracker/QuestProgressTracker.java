@@ -68,9 +68,9 @@ public class QuestProgressTracker {
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
 
             for (QuestNode node : new java.util.ArrayList<>(QuestTreeRegistry.getAllQuests().values())) {
-                
+
                 if (node.isFlagDisabled()) continue;
-                
+
                 if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
 
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
@@ -85,7 +85,7 @@ public class QuestProgressTracker {
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
                 if (!MinecraftForge.EVENT_BUS.post(new QuestEvent.PlayerTick(player, node))) {
-                    
+
                     for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
                         if (skipInventoryScan(task, player, invChanged)) continue;
                         if (!task.isCompletedFor(player)) task.onTick(player);
@@ -97,12 +97,10 @@ public class QuestProgressTracker {
     }
 
     public static void checkAndTryComplete(Player player, QuestNode node) {
-
         checkAndTryComplete(player, node, true);
     }
 
     private static void checkAndTryComplete(Player player, QuestNode node, boolean invChanged) {
-        
         if (node.isFlagDisabled() || node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
             return;
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
@@ -114,15 +112,18 @@ public class QuestProgressTracker {
 
             boolean complete;
             if (minCount > 0) {
-                
+
                 int done = 0;
                 for (QuestTask task : tasks) {
                     if (skipInventoryScan(task, player, invChanged)) continue;
                     if (task.isCompletedFor(player)) done++;
                 }
                 complete = done >= minCount;
+            } else if (tasks.isEmpty()) {
+
+                complete = node.isLinkStub();
             } else {
-                
+
                 complete = true;
                 for (QuestTask task : tasks) {
                     if (task.isOptional()) continue;
@@ -166,7 +167,6 @@ public class QuestProgressTracker {
     }
 
     private static void propagateSharedCompletion(net.minecraft.server.level.ServerPlayer source, QuestNode node) {
-
         if (net.minecraftforge.fml.ModList.get().isLoaded("phoenix_guilds")) {
             GuildManager guildMgr = GuildManager.get(source.getServer().overworld());
             var pTeam = guildMgr.getGuildFor(source.getUUID());
@@ -233,6 +233,20 @@ public class QuestProgressTracker {
         });
     }
 
+    public static void autoUnlockSatisfiedQuests(ServerPlayer player) {
+        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            for (QuestNode node : net.phoenixvine.chronicles.registry.QuestTreeRegistry.getAllQuests().values()) {
+                if (node.isFlagDisabled()) continue;
+                if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
+                if (data.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.LOCKED) {
+                    if (prereqsSatisfied(node, data, player.getServer())) {
+                        changeQuestState(player, node, QuestState.UNLOCKED);
+                    }
+                }
+            }
+        });
+    }
+
     public static boolean prereqsSatisfied(QuestNode node, PlayerQuestData data,
                                            net.minecraft.server.MinecraftServer server) {
         List<QuestNode> prereqs = node.getPrerequisites();
@@ -262,14 +276,14 @@ public class QuestProgressTracker {
                 if (node.isPrereqRequired(p.getId())) required.add(p);
                 else optional.add(p);
             }
-            
+
             for (QuestNode p : required) {
                 if (data.getQuestState(p.getId(), QuestState.LOCKED) != QuestState.COMPLETED) return false;
             }
-            
+
             if (!optional.isEmpty()) {
                 int minCount = node.getEffectiveOptionalPrereqMinCount();
-                if (minCount < 0) return true; 
+                if (minCount < 0) return true;
                 int doneOptional = 0;
                 for (QuestNode p : optional) {
                     if (data.getQuestState(p.getId(), QuestState.LOCKED) == QuestState.COMPLETED) doneOptional++;
@@ -295,7 +309,7 @@ public class QuestProgressTracker {
 
     public static boolean canRepeatNow(QuestNode node, PlayerQuestData data) {
         long last = data.getLastCompletedTime(node.getId());
-        if (last == 0) return true; 
+        if (last == 0) return true;
 
         return switch (node.getRepeatMode()) {
             case NONE -> false;
@@ -314,14 +328,13 @@ public class QuestProgressTracker {
     }
 
     private static void resetForRepeat(Player player, QuestNode node, PlayerQuestData data) {
-
         for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
             net.phoenixvine.chronicles.capability.TaskProgressAccess.clear(player, task.getTaskId());
         }
-        
+
         data.clearClaimedRewards(node.getId());
         data.clearChosenRewardIndex(node.getId());
-        
+
         changeQuestState(player, node, QuestState.UNLOCKED);
     }
 
@@ -330,7 +343,7 @@ public class QuestProgressTracker {
             if (data.hasClaimedRewards(node.getId())) return;
             if (MinecraftForge.EVENT_BUS.post(
                     new QuestEvent.RewardClaimed(player, node)))
-                return; 
+                return;
             for (QuestReward reward : node.getEffectiveRewards(player.getServer())) {
                 reward.grant(player);
             }
@@ -374,4 +387,3 @@ public class QuestProgressTracker {
         });
     }
 }
-

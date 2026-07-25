@@ -4,7 +4,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
-import net.phoenixvine.chronicles.QuestAPI;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.model.QuestTask;
 
@@ -12,7 +11,7 @@ public class ExternalTriggerTask extends QuestTask {
 
     private String triggerId = "";
     private int required = 1;
-    
+
     private String kjsTypeId = null;
 
     public ExternalTriggerTask(ResourceLocation taskId, Component description, String triggerId, int required) {
@@ -50,7 +49,7 @@ public class ExternalTriggerTask extends QuestTask {
 
     public void onExternalEvent(Player player, net.minecraft.nbt.CompoundTag eventData) {
         TaskProgressAccess.with(player, getTaskId(), nbt -> {
-            if (nbt.getInt("current") >= required) return; 
+            if (nbt.getInt("current") >= required) return;
             int next = Math.min(nbt.getInt("current") + 1, required);
             nbt.putInt("current", next);
         });
@@ -71,4 +70,3 @@ public class ExternalTriggerTask extends QuestTask {
         if (nbt.contains("required")) this.required = Math.max(1, nbt.getInt("required"));
     }
 }
-

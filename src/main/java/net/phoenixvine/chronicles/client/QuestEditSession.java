@@ -33,14 +33,14 @@ public class QuestEditSession {
 
     public static void pushUndo(Runnable undoAction) {
         undoStack.push(undoAction);
-        redoStack.clear(); 
+        redoStack.clear();
     }
 
     public static boolean performUndo() {
         if (!undoStack.isEmpty()) {
             Runnable action = undoStack.pop();
             action.run();
-            
+
             return true;
         }
         return false;
@@ -54,13 +54,13 @@ public class QuestEditSession {
     public static void setTestMode(boolean active) {
         testMode = active;
         if (!active) {
-            testModeData = new PlayerQuestData(); 
+            testModeData = new PlayerQuestData();
         }
     }
 
     public static void setStatsOpen(boolean open) {
         statsOpen = open;
-        if (open) validationOpen = false; 
+        if (open) validationOpen = false;
     }
 
     public static void setValidationOpen(boolean open) {
@@ -76,4 +76,3 @@ public class QuestEditSession {
         return questClipboard != null && !questClipboard.isBlank();
     }
 }
-

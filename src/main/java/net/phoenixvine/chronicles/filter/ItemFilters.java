@@ -45,7 +45,7 @@ public final class ItemFilters {
         public String describe() {
             ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
             String base = id != null ? id.toString() : "unknown";
-            return nbt != null && !nbt.isEmpty() ? base + " {â€¦}" : base;
+            return nbt != null && !nbt.isEmpty() ? base + " {…}" : base;
         }
 
         @Override
@@ -253,7 +253,7 @@ public final class ItemFilters {
             case TYPE_NOT -> Not.deserialize(tag);
             default -> {
                 System.err.println("[Chronicles] Unknown item filter type: " + type);
-                
+
                 yield new IItemFilter() {
 
                     @Override
@@ -305,4 +305,3 @@ public final class ItemFilters {
 
     private ItemFilters() {}
 }
-

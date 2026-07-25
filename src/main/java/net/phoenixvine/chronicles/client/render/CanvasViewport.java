@@ -73,4 +73,3 @@ public class CanvasViewport {
         return zoom;
     }
 }
-

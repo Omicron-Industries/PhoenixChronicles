@@ -12,11 +12,9 @@ public class ChroniclesLanguageProvider extends LanguageProvider {
 
     @Override
     protected void addTranslations() {
-
         add(ChronicleItems.CHRONICLE_BOOK.get(), "§dPhoenix Chronicle");
 
         add("key.categories.phoenix_chronicles", "Phoenix Chronicles");
         add("key.phoenix_chronicles.item_lookup", "Quest Item Lookup");
     }
 }
-

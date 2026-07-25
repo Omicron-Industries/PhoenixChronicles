@@ -42,7 +42,7 @@ public class RewardTableRegistry {
                         try {
                             String raw = Files.readString(file, StandardCharsets.UTF_8);
                             CompoundTag tag = TagParser.parseTag(raw);
-                            
+
                             if (!tag.contains("id") || tag.getString("id").isBlank()) {
                                 String fname = file.getFileName().toString();
                                 tag.putString("id", fname.substring(0, fname.lastIndexOf('.')));
@@ -64,4 +64,3 @@ public class RewardTableRegistry {
         System.out.println("[Phoenix Chronicles] Loaded " + TABLES.size() + " reward table(s).");
     }
 }
-

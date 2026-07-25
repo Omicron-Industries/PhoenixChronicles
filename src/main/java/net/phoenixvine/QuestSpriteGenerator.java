@@ -10,7 +10,7 @@ import javax.imageio.ImageIO;
 public class QuestSpriteGenerator {
 
     private static final int SPRITE_SIZE = 64;
-    
+
     private static final String OUTPUT_DIR = "src/main/resources/assets/phoenix_chronicles/textures/gui/sprites/";
 
     public static void main(String[] args) {
@@ -64,17 +64,17 @@ public class QuestSpriteGenerator {
             generateArrowhead("line_arrow.png");
             generateGridPattern("bg_dot_grid.png");
 
-            generateLinePattern("dep_line_dotted.png", new boolean[] { true, false });               
-                                                                                                     
-            generateLinePattern("dep_line_dashed.png", new boolean[] { true, true, true, false, false }); 
-                                                                                                          
-            generateLineBadge("line_badge_forbidden.png", true);                                  
-                                                                                                  
-            generateLineBadge("line_badge_cosmetic.png", false);                                 
-                                                                                                 
-            generateLineCurve("line_curve_in.png", true);                                        
-                                                                                                 
-            generateLineCurve("line_curve_out.png", false);                                      
+            generateLinePattern("dep_line_dotted.png", new boolean[] { true, false });
+
+            generateLinePattern("dep_line_dashed.png", new boolean[] { true, true, true, false, false });
+
+            generateLineBadge("line_badge_forbidden.png", true);
+
+            generateLineBadge("line_badge_cosmetic.png", false);
+
+            generateLineCurve("line_curve_in.png", true);
+
+            generateLineCurve("line_curve_out.png", false);
 
             System.out.println("=================================================");
             System.out.println("SUCCESS: All 20 UI assets baked completely!");
@@ -143,7 +143,6 @@ public class QuestSpriteGenerator {
     }
 
     private static void generateLinePattern(String filename, boolean[] pattern) throws IOException {
-        
         BufferedImage img = new BufferedImage(pattern.length, 1, BufferedImage.TYPE_INT_ARGB);
         for (int x = 0; x < pattern.length; x++) {
             img.setRGB(x, 0, pattern[x] ? Color.WHITE.getRGB() : 0x00000000);
@@ -184,10 +183,8 @@ public class QuestSpriteGenerator {
     }
 
     private static void setupGraphics(Graphics2D g) {
-        
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
         g.setColor(Color.WHITE);
     }
 }
-

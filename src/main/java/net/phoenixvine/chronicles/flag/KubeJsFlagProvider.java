@@ -73,4 +73,3 @@ public class KubeJsFlagProvider implements QuestFlagProvider {
         }
     }
 }
-

@@ -23,6 +23,7 @@ public class QuestGroupManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static boolean loaded = false;
+    private static long loadedMtime = -2;
 
     public static Collection<QuestGroup> getAll() {
         return GROUPS.values();
@@ -44,9 +45,9 @@ public class QuestGroupManager {
         GROUPS.clear();
     }
 
-    public static List<QuestGroup> forCategory(String category) {
+    public static List<QuestGroup> forChapter(String chapter) {
         return GROUPS.values().stream()
-                .filter(g -> "ALL".equals(category) || category.equalsIgnoreCase(g.getCategory()))
+                .filter(g -> "ALL".equals(chapter) || chapter.equalsIgnoreCase(g.getChapter()))
                 .collect(Collectors.toList());
     }
 
@@ -71,11 +72,14 @@ public class QuestGroupManager {
     }
 
     public static void load(Path configDir) {
-        if (loaded) return;
+        Path file = groupsFile(configDir);
+
+        long mtime = Files.exists(file) ? file.toFile().lastModified() : -1;
+        if (loaded && mtime == loadedMtime) return;
         loaded = true;
+        loadedMtime = mtime;
         GROUPS.clear();
 
-        Path file = groupsFile(configDir);
         if (!Files.exists(file)) return;
 
         try {
@@ -90,9 +94,10 @@ public class QuestGroupManager {
                 String id = getString(obj, "id", null);
                 if (id == null || id.isBlank()) continue;
                 String label = getString(obj, "label", "Group");
-                String category = getString(obj, "category", "ALL");
+                String chapter = obj.has("chapter") ? getString(obj, "chapter", "ALL") :
+                        getString(obj, "category", "ALL");
 
-                QuestGroup g = new QuestGroup(id, label, category);
+                QuestGroup g = new QuestGroup(id, label, chapter);
                 g.setColor(parseColor(getString(obj, "color", "#22FFFFFF")));
                 g.setBorderColor(parseColor(getString(obj, "borderColor", "#44FFFFFF")));
                 g.setX(getInt(obj, "x", 0));
@@ -131,7 +136,7 @@ public class QuestGroupManager {
                 JsonObject obj = new JsonObject();
                 obj.addProperty("id", g.getId());
                 obj.addProperty("label", g.getLabel());
-                obj.addProperty("category", g.getCategory());
+                obj.addProperty("chapter", g.getChapter());
                 obj.addProperty("color", formatColor(g.getColor()));
                 obj.addProperty("borderColor", formatColor(g.getBorderColor()));
                 obj.addProperty("x", g.getX());
@@ -193,4 +198,3 @@ public class QuestGroupManager {
         return def;
     }
 }
-

@@ -15,9 +15,9 @@ public final class FrameProfiler {
     private static final Map<String, Long> startNanos = new LinkedHashMap<>();
     private static final Map<String, Long> accumNanos = new LinkedHashMap<>();
     private static final Map<String, Double> avgMs = new LinkedHashMap<>();
-    
+
     private static final Map<String, Double> maxMs = new LinkedHashMap<>();
-    
+
     private static final Map<String, Integer> counters = new LinkedHashMap<>();
     private static long lastLogMs = 0;
 
@@ -95,12 +95,17 @@ public final class FrameProfiler {
         accumNanos.clear();
 
         long nowNanos = System.nanoTime();
+        double gapMs = 0;
         if (lastFrameEndNanos != 0) {
-            double gapMs = (nowNanos - lastFrameEndNanos) / 1_000_000.0;
+            gapMs = (nowNanos - lastFrameEndNanos) / 1_000_000.0;
             wallClockGapAvgMs = wallClockGapAvgMs * 0.9 + gapMs * 0.1;
             wallClockGapMaxMs = Math.max(wallClockGapMaxMs, gapMs);
         }
         lastFrameEndNanos = nowNanos;
+
+        if (ProfilerSession.isActive()) {
+            ProfilerSession.onFrame(gapMs);
+        }
 
         long[] totals = currentGcTotals();
         gcCountThisWindow += Math.max(0, totals[0] - lastGcCount);
@@ -112,7 +117,7 @@ public final class FrameProfiler {
         if (now - lastLogMs >= LOG_INTERVAL_MS) {
             lastLogMs = now;
             logSnapshot();
-            maxMs.clear(); 
+            maxMs.clear();
             wallClockGapMaxMs = 0;
             gcCountThisWindow = 0;
             gcTimeMsThisWindow = 0;
@@ -165,4 +170,3 @@ public final class FrameProfiler {
         return maxMs.getOrDefault(section, avgMs.getOrDefault(section, 0.0));
     }
 }
-

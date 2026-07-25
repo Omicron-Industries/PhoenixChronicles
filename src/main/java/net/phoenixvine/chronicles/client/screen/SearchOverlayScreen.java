@@ -62,7 +62,7 @@ public class SearchOverlayScreen extends Screen {
         int panY = height / 10;
 
         searchBox = new EditBox(font, panX + 14, panY + 10, panW - 28, 20, Component.empty());
-        searchBox.setHint(Component.literal("§8Search questsâ€¦  §7(@category, task names, descriptions, itemsâ€¦)"));
+        searchBox.setHint(Component.literal("§8Search quests…  §7(@chapter, task names, descriptions, items…)"));
         searchBox.setMaxLength(128);
         searchBox.setFocused(true);
         searchBox.setResponder(v -> {
@@ -79,7 +79,6 @@ public class SearchOverlayScreen extends Screen {
 
     @Override
     public void onClose() {
-        
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
@@ -90,7 +89,6 @@ public class SearchOverlayScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float partial) {
-
         g.fill(0, 0, width, height, 0xFF000000);
 
         if (searchBox == null) return;
@@ -125,7 +123,7 @@ public class SearchOverlayScreen extends Screen {
 
         int cy = panY + searchRowH;
 
-        List<String> cats = parent.buildCategoryList();
+        List<String> cats = parent.buildChapterList();
         int cpx = panX + 14, cpy = cy + 4, cph = 14;
 
         {
@@ -161,7 +159,7 @@ public class SearchOverlayScreen extends Screen {
         g.enableScissor(panX + 1, listY, panX + panW - 1, listY + listH);
 
         if (results.isEmpty()) {
-            String msg = words.length == 0 ? "Type to searchâ€¦" : "No results";
+            String msg = words.length == 0 ? "Type to search…" : "No results";
             g.drawCenteredString(font, "§8" + msg, panX + panW / 2, listY + 12, C_TEXT_FAINT);
         }
 
@@ -180,7 +178,7 @@ public class SearchOverlayScreen extends Screen {
             g.fill(panX + 8, ry + 2, panX + panW - 8, ry + OVL_ROW_H - 2, rowBg);
             if (sel) g.fill(panX + 8, ry + 2, panX + 10, ry + OVL_ROW_H - 2, 0xFF6688FF);
 
-            String cat = node.getCategory() != null ? node.getCategory() : "MAIN";
+            String cat = node.getChapter() != null ? node.getChapter() : "MAIN";
             int catAccent = CAT_ACCENTS[Math.abs(cat.hashCode()) % CAT_ACCENTS.length];
             g.fill(panX + 12, ry + 10, panX + 14, ry + OVL_ROW_H - 10, catAccent);
 
@@ -215,7 +213,7 @@ public class SearchOverlayScreen extends Screen {
             }
 
             QuestState st = parent.getState(node);
-            String dot = st == QuestState.COMPLETED ? "§aâ—" : st == QuestState.ACTIVE ? "§6â—" : "§8â—‹";
+            String dot = st == QuestState.COMPLETED ? "§a●" : st == QuestState.ACTIVE ? "§6◐" : "§8○";
             g.drawString(font, dot, titleX + Math.min(font.width(title), badgeX - titleX - 30) + 4, ry + 8, 0xFFFFFFFF,
                     false);
 
@@ -226,7 +224,7 @@ public class SearchOverlayScreen extends Screen {
         int footerY = panY + panH - footerH - 2;
         g.fill(panX + 1, footerY, panX + panW - 1, footerY + 1, C_BORDER);
         String footerLeft = results.size() + (results.size() == 1 ? " result" : " results");
-        String footerRight = "â†‘â†“ navigate  Â·  Enter select  Â·  Ctrl+F close";
+        String footerRight = "↑↓ navigate  ·  Enter select  ·  Ctrl+F close";
         g.drawString(font, "§8" + footerLeft, panX + 14, footerY + 5, C_TEXT_FAINT, false);
         g.drawString(font, "§8" + footerRight, panX + panW - font.width(footerRight) - 14, footerY + 5, C_TEXT_FAINT,
                 false);
@@ -236,20 +234,20 @@ public class SearchOverlayScreen extends Screen {
     public boolean keyPressed(int key, int scan, int mods) {
         boolean ctrl = (mods & 2) != 0;
 
-        if (key == 256 || (key == 70 && ctrl)) { 
+        if (key == 256 || (key == 70 && ctrl)) {
             onClose();
             return true;
         }
-        if (key == 257 || key == 335) { 
+        if (key == 257 || key == 335) {
             if (!results.isEmpty()) selectResult(results.get(Math.min(selectedIdx, results.size() - 1)));
             return true;
         }
-        if (key == 264) { 
+        if (key == 264) {
             selectedIdx = Math.min(selectedIdx + 1, results.size() - 1);
             ensureSelectionVisible(OVL_MAX_ROWS * OVL_ROW_H);
             return true;
         }
-        if (key == 265) { 
+        if (key == 265) {
             selectedIdx = Math.max(0, selectedIdx - 1);
             ensureSelectionVisible(OVL_MAX_ROWS * OVL_ROW_H);
             return true;
@@ -288,8 +286,8 @@ public class SearchOverlayScreen extends Screen {
         }
 
         if (btn == 0) {
-            
-            List<String> cats = parent.buildCategoryList();
+
+            List<String> cats = parent.buildChapterList();
             int cpx = panX + 14, cpy = panY + searchRowH + 4, cph = 14;
             int allW = font.width("All") + 10;
             if (mx >= cpx && mx < cpx + allW && my >= cpy && my < cpy + cph) {
@@ -323,7 +321,7 @@ public class SearchOverlayScreen extends Screen {
                 ry += OVL_ROW_H;
             }
         }
-        return true; 
+        return true;
     }
 
     private List<QuestNode> computeResults() {
@@ -338,7 +336,7 @@ public class SearchOverlayScreen extends Screen {
         for (QuestNode n : all) {
             if (n.isFlagDisabled()) continue;
             if (n.getVisibility() == QuestNode.Visibility.HIDDEN) continue;
-            if (!activeCat.isEmpty() && !activeCat.equalsIgnoreCase(n.getCategory())) continue;
+            if (!activeCat.isEmpty() && !activeCat.equalsIgnoreCase(n.getChapter())) continue;
 
             if (words.length == 0) {
                 filtered.add(n);
@@ -374,7 +372,7 @@ public class SearchOverlayScreen extends Screen {
     private String extractSnippet(QuestNode n) {
         if (words.length == 0) {
             String d = n.getDescription().getString();
-            return d.length() > 72 ? d.substring(0, 70) + "â€¦" : d;
+            return d.length() > 72 ? d.substring(0, 70) + "…" : d;
         }
         String hay = parent.searchCache.computeIfAbsent(n.getId(), id -> parent.buildSearchHaystack(n));
         for (String w : words) {
@@ -383,15 +381,14 @@ public class SearchOverlayScreen extends Screen {
             if (idx < 0) continue;
             int start = Math.max(0, idx - 20);
             int end = Math.min(hay.length(), idx + w.length() + 52);
-            String s = (start > 0 ? "â€¦" : "") + hay.substring(start, end).replace('\n', ' ') +
-                    (end < hay.length() ? "â€¦" : "");
-            return s.length() > 74 ? s.substring(0, 72) + "â€¦" : s;
+            String s = (start > 0 ? "…" : "") + hay.substring(start, end).replace('\n', ' ') +
+                    (end < hay.length() ? "…" : "");
+            return s.length() > 74 ? s.substring(0, 72) + "…" : s;
         }
         return "";
     }
 
     private void selectResult(QuestNode node) {
-        
         if (minecraft != null) minecraft.setScreen(parent);
         parent.navigateToNode(node);
     }
@@ -403,4 +400,3 @@ public class SearchOverlayScreen extends Screen {
         else if (bot > scrollY + listH) scrollY = bot - listH;
     }
 }
-

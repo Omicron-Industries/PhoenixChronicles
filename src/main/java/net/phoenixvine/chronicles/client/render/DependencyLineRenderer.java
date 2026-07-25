@@ -20,6 +20,13 @@ public class DependencyLineRenderer {
     private static final float[] EMPTY_FLOATS = new float[0];
     private static final int TRIM_SAMPLE_STEPS = 48;
 
+    private static final int MAX_STEPS = 64;
+    private final float[] scratchPathX = new float[MAX_STEPS + 1];
+    private final float[] scratchPathY = new float[MAX_STEPS + 1];
+    private final float[] scratchNormX = new float[MAX_STEPS + 1];
+    private final float[] scratchNormY = new float[MAX_STEPS + 1];
+    private final float[] scratchCumLen = new float[MAX_STEPS + 1];
+
     private static final float TRIM_OVERLAP_PX = 2f;
 
     private static final float ARROW_SPEED_PX_PER_MS = 0.15f;
@@ -38,12 +45,34 @@ public class DependencyLineRenderer {
     private ResourceLocation lineCtxParentId, lineCtxChildId;
 
     public void rebuild(List<int[]> edges, List<ResourceLocation[]> edgeNodes,
-                        float zoom, float nodeSizePx, QuestChroniclesSettings settings) {
+                        float zoom, QuestChroniclesSettings settings) {
         lineCache.clear();
         lineCache.addAll(edges);
         lineCacheNodes.clear();
         lineCacheNodes.addAll(edgeNodes);
-        rebuildLineGeometryCache(zoom, nodeSizePx, settings);
+        rebuildLineGeometryCache(zoom, settings);
+    }
+
+    public void refreshEdgeEndpoints(ResourceLocation movedNodeId,
+                                     java.util.function.Function<ResourceLocation, int[]> centerLookup,
+                                     float zoom, QuestChroniclesSettings settings) {
+        for (int i = 0; i < lineCache.size() && i < lineCacheNodes.size(); i++) {
+            ResourceLocation[] pair = lineCacheNodes.get(i);
+            if (!pair[0].equals(movedNodeId) && !pair[1].equals(movedNodeId)) continue;
+
+            int[] c0 = centerLookup.apply(pair[0]);
+            int[] c1 = centerLookup.apply(pair[1]);
+            if (c0 == null || c1 == null) continue;
+
+            int[] ln = lineCache.get(i);
+            ln[0] = c0[0];
+            ln[1] = c0[1];
+            ln[2] = c1[0];
+            ln[3] = c1[1];
+
+            LineGeometry geo = buildLineGeometry(ln, settings, zoom);
+            if (i < lineGeometryCache.size()) lineGeometryCache.set(i, geo);
+        }
     }
 
     public void panShift(int dx, int dy) {
@@ -57,10 +86,10 @@ public class DependencyLineRenderer {
         }
     }
 
-    private void rebuildLineGeometryCache(float zoom, float nodeSizePx, QuestChroniclesSettings settings) {
+    private void rebuildLineGeometryCache(float zoom, QuestChroniclesSettings settings) {
         lineGeometryCache.clear();
         for (int[] ln : lineCache) {
-            lineGeometryCache.add(buildLineGeometry(ln, settings, zoom, nodeSizePx));
+            lineGeometryCache.add(buildLineGeometry(ln, settings, zoom));
         }
     }
 
@@ -73,17 +102,17 @@ public class DependencyLineRenderer {
         final int dashPeriod;
         final int dashOn;
         final long effectiveSpeedDiv;
-        
+
         final boolean showArrow;
         float xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb;
         final float arrowSize;
         final int arrowColor;
         final int arrowCount;
-        
+
         final float capRadius;
-        
+
         final long arrowPeriodMs;
-        
+
         final float[] arcT;
 
         LineGeometry(float[] quads, int segmentCount, int color,
@@ -145,13 +174,17 @@ public class DependencyLineRenderer {
             float px = mt * mt * mt * xa + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * xb;
             float py = mt * mt * mt * ya + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * yb;
             if (t0 < 0f) {
-                float dxs = Math.abs(px - xa), dys = Math.abs(py - ya);
-                if (Math.max(dxs, dys) >= startHalfSize) t0 = t;
+                float dxs = px - xa, dys = py - ya;
+                if (Math.sqrt(dxs * dxs + dys * dys) >= startHalfSize) t0 = t;
             }
-            float dxe = Math.abs(px - xb), dye = Math.abs(py - yb);
-            if (Math.max(dxe, dye) >= endHalfSize) t1 = t;
+            float dxe = px - xb, dye = py - yb;
+            if (Math.sqrt(dxe * dxe + dye * dye) >= endHalfSize) t1 = t;
         }
-        if (t0 < 0f || t1 < 0f || t0 >= t1) return null;
+        if (t0 < 0f || t1 < 0f || t0 >= t1) {
+
+            float half = 0.5f / TRIM_SAMPLE_STEPS;
+            return new float[] { Math.max(0f, 0.5f - half), Math.min(1f, 0.5f + half) };
+        }
         return new float[] { t0, t1 };
     }
 
@@ -185,8 +218,11 @@ public class DependencyLineRenderer {
         return bezierRightHalf(left[0], left[1], left[2], left[3], left[4], left[5], left[6], left[7], t0n);
     }
 
-    private LineGeometry buildLineGeometry(int[] ln, QuestChroniclesSettings settings, float zoom, float nodeSizePx) {
+    private LineGeometry buildLineGeometry(int[] ln, QuestChroniclesSettings settings, float zoom) {
         int x1 = ln[0], y1 = ln[1], x2 = ln[2], y2 = ln[3];
+
+        float sizeA = ln.length > 10 ? ln[10] : 0f;
+        float sizeB = ln.length > 11 ? ln[11] : sizeA;
         int color = ln[4], style = ln[5];
         QuestChroniclesSettings.LineStyle shapeOverride = ln[6] >= 0 ?
                 QuestChroniclesSettings.LineStyle.values()[ln[6]] : null;
@@ -227,13 +263,31 @@ public class DependencyLineRenderer {
 
         float dist = (float) Math.sqrt(adx * adx + ady * ady);
         if (dist < 0.5f) {
-            return new LineGeometry(EMPTY_FLOATS, 0, 0, true, 8, 5, 1L,
-                    false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, EMPTY_FLOATS);
+
+            float ux = adx > 1e-4f || ady > 1e-4f ? (x2 - x1) / Math.max(dist, 1e-4f) : 1f;
+            float uy = adx > 1e-4f || ady > 1e-4f ? (y2 - y1) / Math.max(dist, 1e-4f) : 0f;
+            float midX = (x1 + x2) / 2f, midY = (y1 + y2) / 2f;
+            float half = 3f;
+            xa = midX - ux * half;
+            ya = midY - uy * half;
+            xb = midX + ux * half;
+            yb = midY + uy * half;
+            cp1x = xa;
+            cp1y = ya;
+            cp2x = xb;
+            cp2y = yb;
+            adx = Math.abs(xb - xa);
+            ady = Math.abs(yb - ya);
+            dist = half * 2f;
         }
 
-        float nodeRadius = nodeSizePx / 2f;
-        float trimHalfSize = Math.max(0.5f, nodeRadius - TRIM_OVERLAP_PX);
-        float[] trimRange = findTrimRange(xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb, trimHalfSize, trimHalfSize);
+        float trimHalfA = Math.max(0.5f, sizeA / 2f - TRIM_OVERLAP_PX);
+        float trimHalfB = Math.max(0.5f, sizeB / 2f - TRIM_OVERLAP_PX);
+
+        float maxTrimEachSide = dist * 0.4f;
+        trimHalfA = Math.min(trimHalfA, maxTrimEachSide);
+        trimHalfB = Math.min(trimHalfB, maxTrimEachSide);
+        float[] trimRange = findTrimRange(xa, ya, cp1x, cp1y, cp2x, cp2y, xb, yb, trimHalfA, trimHalfB);
         if (trimRange == null) {
 
             return new LineGeometry(EMPTY_FLOATS, 0, 0, true, 8, 5, 1L,
@@ -263,7 +317,7 @@ public class DependencyLineRenderer {
             case THICK -> 1.8f;
             case WIDE -> 2.6f;
             case GLOW -> 0.9f;
-            default -> 0.75f; 
+            default -> 0.75f;
         };
 
         float currentZoom = Math.max(0.05f, zoom);
@@ -306,11 +360,11 @@ public class DependencyLineRenderer {
 
         int arrowCount = showArrow ? Math.min(80, Math.max(1, Math.round(dist / (arrowSize * 2.1f)))) : 0;
 
-        float[] pathX = new float[steps + 1];
-        float[] pathY = new float[steps + 1];
+        float[] pathX = scratchPathX;
+        float[] pathY = scratchPathY;
 
-        float[] normX = new float[steps + 1];
-        float[] normY = new float[steps + 1];
+        float[] normX = scratchNormX;
+        float[] normY = scratchNormY;
         for (int i = 0; i <= steps; i++) {
             float t = (float) i / steps;
             float mt = 1f - t;
@@ -353,7 +407,7 @@ public class DependencyLineRenderer {
             float eOxInner = nex * innerOff, eOyInner = ney * innerOff;
 
             int b = i * 16;
-            
+
             quads[b] = sx + sOxOuter;
             quads[b + 1] = sy + sOyOuter;
             quads[b + 2] = sx + sOxInner;
@@ -362,7 +416,7 @@ public class DependencyLineRenderer {
             quads[b + 5] = ey + eOyInner;
             quads[b + 6] = ex + eOxOuter;
             quads[b + 7] = ey + eOyOuter;
-            
+
             quads[b + 8] = sx - sOxInner;
             quads[b + 9] = sy - sOyInner;
             quads[b + 10] = sx - sOxOuter;
@@ -378,7 +432,8 @@ public class DependencyLineRenderer {
         long arrowPeriodMs = Math.max(80L, Math.min(8000L,
                 Math.round(baseArrowPeriodMs * (speedDiv / 35.0))));
 
-        float[] cumLen = new float[steps + 1];
+        float[] cumLen = scratchCumLen;
+        cumLen[0] = 0f;
         for (int i = 1; i <= steps; i++) {
             float ddx = pathX[i] - pathX[i - 1], ddy = pathY[i] - pathY[i - 1];
             cumLen[i] = cumLen[i - 1] + (float) Math.sqrt(ddx * ddx + ddy * ddy);
@@ -426,12 +481,12 @@ public class DependencyLineRenderer {
         int color = colorOverride != null ? colorOverride : geo.color;
         for (int i = 0; i < geo.segmentCount; i++) {
             int b = i * 16;
-            
+
             queueRibbonQuad(geo.quads[b], geo.quads[b + 1],
                     geo.quads[b + 2], geo.quads[b + 3],
                     geo.quads[b + 4], geo.quads[b + 5],
                     geo.quads[b + 6], geo.quads[b + 7], color);
-            
+
             queueRibbonQuad(geo.quads[b + 8], geo.quads[b + 9],
                     geo.quads[b + 10], geo.quads[b + 11],
                     geo.quads[b + 12], geo.quads[b + 13],
@@ -456,7 +511,7 @@ public class DependencyLineRenderer {
                         t * t * t * geo.xb;
                 float py = mt * mt * mt * geo.ya + 3 * mt * mt * t * geo.cp1y + 3 * mt * t * t * geo.cp2y +
                         t * t * t * geo.yb;
-                
+
                 float dx = 3 * mt * mt * (geo.cp1x - geo.xa) + 6 * mt * t * (geo.cp2x - geo.cp1x) +
                         3 * t * t * (geo.xb - geo.cp2x);
                 float dy = 3 * mt * mt * (geo.cp1y - geo.ya) + 6 * mt * t * (geo.cp2y - geo.cp1y) +
@@ -499,10 +554,10 @@ public class DependencyLineRenderer {
                 ResourceLocation[] pair = lineCacheNodes.get(i);
                 int[] ln = lineCache.get(i);
                 if (pair[1].equals(hoveredNodeId)) {
-                    
+
                     emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependencyColor(ln[4]), true);
                 } else if (pair[0].equals(hoveredNodeId)) {
-                    
+
                     emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependentColor(ln[4]), true);
                 }
             }
@@ -594,9 +649,9 @@ public class DependencyLineRenderer {
         boolean isCosmetic = childNode.isPrereqCosmetic(lineCtxParentId);
 
         String cycleLabel;
-        if (isForbidden) cycleLabel = "§aType: Forbidden  â†’  Required";
-        else if (!isRequired) cycleLabel = "§cType: Optional  â†’  Forbidden";
-        else cycleLabel = "§eType: Required  â†’  Optional";
+        if (isForbidden) cycleLabel = "§aType: Forbidden  →  Required";
+        else if (!isRequired) cycleLabel = "§cType: Optional  →  Forbidden";
+        else cycleLabel = "§eType: Required  →  Optional";
 
         String linkLabel = isLink ? "§7Unmark as link" : "§dMark as link";
         String cosmeticLabel = isCosmetic ? "§7Unmark as cosmetic-only" : "§6Mark as cosmetic-only (no gate)";
@@ -619,7 +674,7 @@ public class DependencyLineRenderer {
                 visualLabel,
                 speedLabel,
                 arrowLabel,
-                "§bDependency line settingsâ€¦"
+                "§bDependency line settings…"
         };
         int menuW = 210, itemH = 14, pad = 4;
         int menuH = pad + labels.length * itemH + pad;
@@ -690,14 +745,15 @@ public class DependencyLineRenderer {
         lineCtxOpen = false;
 
         if (idx == 0) {
-            
+
             childNode.removePrerequisite(parentNode);
             parentNode.removeChild(childNode);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
-            feedback.accept("Removed: " + parentNode.getTitle().getString() + " â†’ " + childNode.getTitle().getString());
+            feedback.accept(
+                    "Removed: " + parentNode.getTitle().getString() + " → " + childNode.getTitle().getString());
         } else if (idx == 1) {
-            
+
             if (isForbidden) {
                 childNode.setPrereqForbidden(lineCtxParentId, false);
                 childNode.setPrereqRequired(lineCtxParentId, true);
@@ -712,27 +768,27 @@ public class DependencyLineRenderer {
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
         } else if (idx == 2) {
-            
+
             childNode.setPrereqLink(lineCtxParentId, !isLink);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept(isLink ? "Unmarked as link" : "Marked as link");
         } else if (idx == 3) {
-            
+
             childNode.setPrereqCosmetic(lineCtxParentId, !isCosmetic);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept(isCosmetic ? "Unmarked as cosmetic-only (now gates unlock)" :
                     "Marked as cosmetic-only (no longer gates unlock)");
         } else if (idx == 4) {
-            
+
             childNode.setHideDepLine(!childNode.isHideDepLine());
             QuestFileSaver.updateHideDepLine(childNode);
             requestRebuild.run();
             feedback.accept(childNode.isHideDepLine() ? "Dep lines hidden: " + childNode.getTitle().getString() :
                     "Dep lines shown: " + childNode.getTitle().getString());
         } else if (idx == 5) {
-            
+
             var next = cycleLineOverride(childNode.getPrereqLineShape(lineCtxParentId),
                     QuestChroniclesSettings.LineStyle.values());
             childNode.setPrereqLineShape(lineCtxParentId, next);
@@ -740,7 +796,7 @@ public class DependencyLineRenderer {
             requestRebuild.run();
             feedback.accept("Line shape: " + lineOverrideLabel(next));
         } else if (idx == 6) {
-            
+
             var next = cycleLineOverride(childNode.getPrereqLineVisual(lineCtxParentId),
                     QuestChroniclesSettings.LineVisualStyle.values());
             childNode.setPrereqLineVisual(lineCtxParentId, next);
@@ -748,7 +804,7 @@ public class DependencyLineRenderer {
             requestRebuild.run();
             feedback.accept("Line style: " + lineOverrideLabel(next));
         } else if (idx == 7) {
-            
+
             var next = cycleLineOverride(childNode.getPrereqLineSpeed(lineCtxParentId),
                     QuestChroniclesSettings.LineAnimSpeed.values());
             childNode.setPrereqLineSpeed(lineCtxParentId, next);
@@ -756,14 +812,14 @@ public class DependencyLineRenderer {
             requestRebuild.run();
             feedback.accept("Dot speed: " + lineOverrideLabel(next));
         } else if (idx == 8) {
-            
+
             Boolean next = cycleArrowOverride(childNode.getPrereqLineArrow(lineCtxParentId));
             childNode.setPrereqLineArrow(lineCtxParentId, next);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept("Arrow: " + arrowOverrideLabel(next));
         } else if (idx == 9) {
-            
+
             openLineSettings.accept(parentNode);
         }
     }
@@ -812,7 +868,6 @@ public class DependencyLineRenderer {
                                 int color, int style, long animTick, boolean spline,
                                 QuestChroniclesSettings.LineVisualStyle vis, long speedDiv, boolean showArrow,
                                 float zoom) {
-        
         float xa = (float) x1;
         float ya = (float) y1;
         float xb = (float) x2;
@@ -853,7 +908,7 @@ public class DependencyLineRenderer {
             case THICK -> 1.8f;
             case WIDE -> 2.6f;
             case GLOW -> 0.9f;
-            default -> 0.75f; 
+            default -> 0.75f;
         };
 
         float currentZoom = Math.max(0.05f, zoom);
@@ -992,12 +1047,12 @@ public class DependencyLineRenderer {
             cp2x = x2;
             cp2y = my;
         }
-        
+
         float t = ((animMs / 1800f) + lineIdx * 0.37f) % 1f;
         float mt = 1f - t;
         int bx = Math.round(mt * mt * mt * x1 + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * x2);
         int by = Math.round(mt * mt * mt * y1 + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * y2);
-        
+
         g.fill(bx - 1, by - 1, bx + 2, by + 2, 0xFFFFEE88);
         g.fill(bx - 2, by - 2, bx + 3, by + 3, 0x44FFCC44);
     }
@@ -1141,4 +1196,3 @@ public class DependencyLineRenderer {
         arrowQueue.clear();
     }
 }
-

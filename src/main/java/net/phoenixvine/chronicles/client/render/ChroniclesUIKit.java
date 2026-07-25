@@ -29,7 +29,6 @@ public final class ChroniclesUIKit {
                                        int panelX, int panelY, int panelW, int panelH, int headerH,
                                        String title, int panelColor, int headerColor, int borderColor,
                                        int textColor) {
-
         g.flush();
         drawScrim(g, screenW, screenH);
 
@@ -70,7 +69,7 @@ public final class ChroniclesUIKit {
                 g.fill(x + 1, rowY, x + w - 1, rowY + rowH, 0xFF1E1E2A);
                 hoveredRow = i;
             }
-            String marker = (i == selectedIndex) ? "§aâ— §7" : "§8  §7";
+            String marker = (i == selectedIndex) ? "§a● §7" : "§8  §7";
             g.drawString(font, marker + labelFn.apply(items.get(i)), x + 6, rowY + (rowH - font.lineHeight) / 2,
                     hovered ? ChroniclesThemePalette.TEXT : ChroniclesThemePalette.TEXT_DIM);
         }
@@ -100,8 +99,12 @@ public final class ChroniclesUIKit {
         float gr = ((tint >> 8) & 0xFF) / 255f;
         float b = (tint & 0xFF) / 255f;
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(r, gr, b, a == 0f ? 1f : a);
-        g.blit(x, y, 0, size, size, sprite);
-        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        try {
+            g.blit(x, y, 0, size, size, sprite);
+        } finally {
+
+            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        }
     }
 
     public static void drawScaledString(GuiGraphics g, Font font, String text, float x, float y, int color,
@@ -144,4 +147,3 @@ public final class ChroniclesUIKit {
         return String.format("#%06X", color & 0x00FFFFFF);
     }
 }
-

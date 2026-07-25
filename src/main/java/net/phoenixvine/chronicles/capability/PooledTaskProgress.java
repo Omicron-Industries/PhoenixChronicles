@@ -73,4 +73,3 @@ public class PooledTaskProgress extends SavedData {
         return root;
     }
 }
-

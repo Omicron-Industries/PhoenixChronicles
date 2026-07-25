@@ -39,40 +39,40 @@ public class SetIconScreen extends Screen {
         int fw = PANEL_W - MARGIN * 2;
         int y = panelTop + 26;
 
-        addRenderableWidget(Button.builder(Component.literal("§eItemâ€¦"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§eItem…"), b -> {
             minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                 node.setIconItem(stack.getItem());
                 node.setIconTexture("");
                 node.setIconFluid("");
                 QuestFileSaver.updateNodeIconAll(node);
-                parent.setFeedback("Icon â†’ " + stack.getHoverName().getString());
+                parent.setFeedback("Icon → " + stack.getHoverName().getString());
                 parent.rebuild();
                 close();
             }));
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
-        addRenderableWidget(Button.builder(Component.literal("§bFluidâ€¦"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§bFluid…"), b -> {
             minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
                 node.setIconItem(null);
                 node.setIconTexture("");
                 node.setIconFluid(fluidId);
                 QuestFileSaver.updateNodeIconAll(node);
                 ResourceLocation rl = ResourceLocation.tryParse(fluidId);
-                parent.setFeedback("Icon â†’ " + (rl != null ? rl.getPath() : fluidId) + " (fluid)");
+                parent.setFeedback("Icon → " + (rl != null ? rl.getPath() : fluidId) + " (fluid)");
                 parent.rebuild();
                 close();
             }));
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
-        addRenderableWidget(Button.builder(Component.literal("§dTextureâ€¦"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("§dTexture…"), b -> {
             minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
                 node.setIconItem(null);
                 node.setIconFluid("");
                 node.setIconTexture(rl);
                 QuestFileSaver.updateNodeIconAll(node);
-                parent.setFeedback("Icon texture â†’ " + rl);
+                parent.setFeedback("Icon texture → " + rl);
                 parent.rebuild();
                 close();
             }));
@@ -95,11 +95,10 @@ public class SetIconScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-
         parent.renderForChildScreen(g);
 
         g.pose().pushPose();
@@ -126,7 +125,7 @@ public class SetIconScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { 
+        if (key == 256) {
             close();
             return true;
         }
@@ -138,4 +137,3 @@ public class SetIconScreen extends Screen {
         return false;
     }
 }
-

@@ -21,15 +21,16 @@ public final class CustomTextureCache {
 
     private static final Map<String, ResourceLocation> RESOLVED = new HashMap<>();
     private static final Set<String> MISSING = new HashSet<>();
+    private static final Map<String, int[]> NATIVE_SIZE = new HashMap<>();
 
     private CustomTextureCache() {}
 
     public static ResourceLocation resolve(ResourceLocation rl) {
         String key = rl.toString();
         if (RESOLVED.containsKey(key)) return rl;
-        if (MISSING.contains(key)) return rl; 
+        if (MISSING.contains(key)) return rl;
 
-        if (!"phoenixcore".equals(rl.getNamespace()) || !rl.getPath().startsWith(CUSTOM_PREFIX)) {
+        if (!"phoenix_chronicles".equals(rl.getNamespace()) || !rl.getPath().startsWith(CUSTOM_PREFIX)) {
             return rl;
         }
 
@@ -43,6 +44,7 @@ public final class CustomTextureCache {
 
         try (InputStream is = Files.newInputStream(file)) {
             NativeImage img = NativeImage.read(is);
+            NATIVE_SIZE.put(key, new int[] { img.getWidth(), img.getHeight() });
             DynamicTexture tex = new DynamicTexture(img);
             Minecraft.getInstance().getTextureManager().register(rl, tex);
             RESOLVED.put(key, rl);
@@ -53,10 +55,16 @@ public final class CustomTextureCache {
         return rl;
     }
 
+    public static int[] nativeSize(ResourceLocation rl) {
+        int[] size = NATIVE_SIZE.get(rl.toString());
+        return size == null ? null : new int[] { size[0], size[1] };
+    }
+
     public static void invalidate(ResourceLocation rl) {
         String key = rl.toString();
         if (RESOLVED.remove(key) != null) Minecraft.getInstance().getTextureManager().release(rl);
         MISSING.remove(key);
+        NATIVE_SIZE.remove(key);
     }
 
     public static void invalidateAll() {
@@ -64,6 +72,6 @@ public final class CustomTextureCache {
         for (ResourceLocation loc : RESOLVED.values()) mc.getTextureManager().release(loc);
         RESOLVED.clear();
         MISSING.clear();
+        NATIVE_SIZE.clear();
     }
 }
-

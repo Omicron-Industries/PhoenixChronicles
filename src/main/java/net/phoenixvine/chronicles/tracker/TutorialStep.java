@@ -23,4 +23,3 @@ public record TutorialStep(String text, String highlight) {
         return isNodeHighlight() ? highlight.substring(5) : null;
     }
 }
-

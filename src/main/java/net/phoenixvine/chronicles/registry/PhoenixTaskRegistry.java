@@ -90,7 +90,7 @@ public final class PhoenixTaskRegistry {
     }
 
     private static final Map<String, TaskEntry> REGISTRY = new LinkedHashMap<>();
-    
+
     private static final List<TaskEntry> EDITOR_ORDER = new ArrayList<>();
     private static final Map<String, ScriptTaskHandler> SCRIPT_HANDLERS = new HashMap<>();
 
@@ -202,7 +202,7 @@ public final class PhoenixTaskRegistry {
         TaskEntry entry = REGISTRY.get(typeId);
         if (entry == null) return null;
         try {
-            
+
             return (QuestTask) entry.deserializer().apply(tag);
         } catch (Exception e) {
             System.err.println(
@@ -222,7 +222,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "pig"), 1, false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§câ˜ ").label("Kill Entity")
+        }).icon("§c☠").label("Kill Entity")
                 .tooltip("Kill a number of a specific mob type.\nTarget: entity registry id (e.g. minecraft:zombie)")
                 .field(FieldDef.entityId("entity_id", "Entity ID"))
                 .field(FieldDef.integer("required", "Count"))
@@ -234,7 +234,7 @@ public final class PhoenixTaskRegistry {
                     net.minecraft.world.item.Items.DIRT, 1, false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§eâ– ").label("Collect Item")
+        }).icon("§e■").label("Collect Item")
                 .tooltip(
                         "Have a specific item in your inventory.\nTarget: item registry id. Consume: remove items on complete.")
                 .field(FieldDef.itemId("item_id", "Item ID"))
@@ -247,7 +247,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "dirt"), 1);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§6âš’").label("Craft Item")
+        }).icon("§6⚒").label("Craft Item")
                 .tooltip("Craft a specific item the required number of times.\nTarget: item registry id.")
                 .field(FieldDef.itemId("item_id", "Item ID"))
                 .field(FieldDef.integer("count", "Count"))
@@ -257,8 +257,8 @@ public final class PhoenixTaskRegistry {
             ExperienceTask t = new ExperienceTask(taskId(tag), desc(tag), 1);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§aâœ¦").label("XP Level")
-                .tooltip("Reach a minimum XP level.\nNo target needed â€” just set the required level.")
+        }).icon("§a✦").label("XP Level")
+                .tooltip("Reach a minimum XP level.\nNo target needed — just set the required level.")
                 .field(FieldDef.integer("required_level", "Level"))
                 .register();
 
@@ -267,7 +267,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "air"), false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§bâ—Ž").label("Terminal / Location")
+        }).icon("§b◎").label("Terminal / Location")
                 .tooltip("Interact with a specific terminal block or location.\nTarget: terminal registry id.")
                 .field(FieldDef.text("terminal_id", "Terminal ID"))
                 .field(FieldDef.bool("consume", "Consume"))
@@ -278,7 +278,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "story/root"));
             t.deserializeNBT(tag);
             return t;
-        }).icon("§dâ˜…").label("Advancement")
+        }).icon("§d★").label("Advancement")
                 .tooltip(
                         "Earn a specific Minecraft advancement.\nTarget: advancement id (e.g. minecraft:story/mine_diamond)")
                 .field(FieldDef.text("advancement_id", "Advancement ID"))
@@ -289,7 +289,7 @@ public final class PhoenixTaskRegistry {
                     net.minecraft.world.level.block.Blocks.STONE, "PLACE");
             t.deserializeNBT(tag);
             return t;
-        }).icon("§7â–¡").label("Block Interact")
+        }).icon("§7□").label("Block Interact")
                 .tooltip("Place or right-click a specific block.\nTarget: block id. Secondary: PLACE or RIGHT_CLICK.")
                 .field(FieldDef.text("block_id", "Block ID"))
                 .field(FieldDef.text("mode", "Mode", "PLACE or RIGHT_CLICK"))
@@ -301,7 +301,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "water"), 1000, false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§3â‰‹").label("Fluid Check")
+        }).icon("§3≋").label("Fluid Check")
                 .tooltip("Have a fluid amount in a tank.\nTarget: fluid id. Count: amount in mB.")
                 .field(FieldDef.fluidId("fluid_id", "Fluid ID"))
                 .field(FieldDef.integer("amount", "Amount (mB)"))
@@ -313,7 +313,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "jump"), 1, false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§9â‰¡").label("Stat Tracker")
+        }).icon("§9≡").label("Stat Tracker")
                 .tooltip(
                         "Reach a value on a Minecraft statistic.\nTarget: stat id (e.g. minecraft:jump). Count: target value.")
                 .field(FieldDef.text("stat_id", "Stat ID"))
@@ -328,7 +328,7 @@ public final class PhoenixTaskRegistry {
                             new net.minecraft.resources.ResourceLocation("minecraft", "overworld")));
             t.deserializeNBT(tag);
             return t;
-        }).icon("§5âŠ•").label("Visit Dimension")
+        }).icon("§5⊕").label("Visit Dimension")
                 .tooltip("Travel to a specific dimension.\nSecondary: dimension id (e.g. minecraft:the_nether)")
                 .field(FieldDef.text("dimension_id", "Dimension ID"))
                 .register();
@@ -338,7 +338,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "plains"));
             t.deserializeNBT(tag);
             return t;
-        }).icon("§2â›°").label("Visit Biome")
+        }).icon("§2⛰").label("Visit Biome")
                 .tooltip("Stand inside a specific biome.\nTarget: biome registry id (e.g. minecraft:jungle)")
                 .field(FieldDef.text("biome_id", "Biome ID"))
                 .register();
@@ -348,7 +348,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "village"));
             t.deserializeNBT(tag);
             return t;
-        }).icon("§6âŒ‚").label("Visit Structure")
+        }).icon("§6⌂").label("Visit Structure")
                 .tooltip("Enter a specific structure.\nTarget: structure registry id (e.g. minecraft:village)")
                 .field(FieldDef.text("structure_id", "Structure ID"))
                 .register();
@@ -357,8 +357,8 @@ public final class PhoenixTaskRegistry {
             CheckmarkTask t = new CheckmarkTask(taskId(tag), desc(tag));
             t.deserializeNBT(tag);
             return t;
-        }).icon("§aâœ“").label("Checkmark")
-                .tooltip("Admin-completable manual task.\nNo target needed â€” complete with /chronicle task complete.")
+        }).icon("§a✓").label("Checkmark")
+                .tooltip("Admin-completable manual task.\nNo target needed — complete with /chronicle task complete.")
                 .register();
 
         register("tag_item", tag -> {
@@ -366,7 +366,7 @@ public final class PhoenixTaskRegistry {
                     net.minecraft.tags.ItemTags.create(new net.minecraft.resources.ResourceLocation("c", "gems")), 1);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§eâ—ˆ").label("Tag Item")
+        }).icon("§e◈").label("Tag Item")
                 .tooltip(
                         "Have items matching an item tag in inventory.\nTarget: item tag (e.g. c:ores/iron). Count: required amount.")
                 .field(FieldDef.text("tag", "Item Tag"))
@@ -379,7 +379,7 @@ public final class PhoenixTaskRegistry {
             return t;
         }).icon("§7§l!").label("Info / Text")
                 .tooltip(
-                        "A read-only information panel the player must acknowledge.\nNo target â€” body text is shown to the player.")
+                        "A read-only information panel the player must acknowledge.\nNo target — body text is shown to the player.")
                 .field(FieldDef.text("body", "Body Text"))
                 .register();
 
@@ -388,7 +388,7 @@ public final class PhoenixTaskRegistry {
                     10000L, EnergyStorageTask.EnergyType.FE, EnergyStorageTask.Source.INVENTORY);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§6âš¡").label("Energy Storage")
+        }).icon("§6⚡").label("Energy Storage")
                 .tooltip(
                         "Check stored energy (FE or GTM EU) in inventory items OR a right-clicked block.\nCount: amount required.\nTarget: FE / EU / ANY  (energy type).\nSecondary: INVENTORY / HELD / BLOCK  (source).")
                 .field(FieldDef.text("energy_type", "Energy Type", "FE / EU / ANY"))
@@ -402,7 +402,7 @@ public final class PhoenixTaskRegistry {
                     net.minecraft.world.item.Items.DIRT, 1, false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§bâ—†").label("AE2 Item Storage")
+        }).icon("§b◆").label("AE2 Item Storage")
                 .tooltip("Have an item amount stored in your Applied Energistics 2 network.\n" +
                         "Read through whichever wireless terminal you're currently holding.\n" +
                         "Target: item registry id. Consume: withdraw items on complete.")
@@ -417,7 +417,7 @@ public final class PhoenixTaskRegistry {
                     new net.minecraft.resources.ResourceLocation("minecraft", "water"), 1000, false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§bâ‰‹").label("AE2 Fluid Storage")
+        }).icon("§b≋").label("AE2 Fluid Storage")
                 .tooltip("Have a fluid amount stored in your Applied Energistics 2 network.\n" +
                         "Read through whichever wireless terminal you're currently holding.\n" +
                         "Target: fluid id. Count: amount in mB.")
@@ -431,7 +431,7 @@ public final class PhoenixTaskRegistry {
                     ItemFilters.tag("c:gems"), 1, false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§eâ—‡").label("Collect Items (Filter)")
+        }).icon("§e◇").label("Collect Items (Filter)")
                 .tooltip("Have items matching a composable filter in inventory.\n" +
                         "Filter types: exact, tag, mod, any_of, all_of, not.\n" +
                         "Consume: remove matching items on completion.\n" +
@@ -447,7 +447,7 @@ public final class PhoenixTaskRegistry {
                     false);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§3â‰‹").label("Fluid Check (Filter)")
+        }).icon("§3≋").label("Fluid Check (Filter)")
                 .tooltip("Have a fluid amount in inventory matching a composable filter.\n" +
                         "Filter types: exact, tag, mod, any_of, all_of, not.\n" +
                         "Supports fluid tags (e.g. forge:milk, minecraft:water).\n" +
@@ -462,7 +462,7 @@ public final class PhoenixTaskRegistry {
                     net.minecraft.world.level.block.Blocks.STONE, 1);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§7âœ•").label("Break Block")
+        }).icon("§7✕").label("Break Block")
                 .tooltip(
                         "Break a specific block a required number of times.\nTarget: block registry id (e.g. minecraft:stone). Count: how many times.")
                 .field(FieldDef.text("block_id", "Block ID"))
@@ -474,7 +474,7 @@ public final class PhoenixTaskRegistry {
                     taskId(tag), desc(tag), new net.minecraft.resources.ResourceLocation("minecraft:sharpness"), 1);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§bâœ¦").label("Enchantment")
+        }).icon("§b✦").label("Enchantment")
                 .tooltip(
                         "Complete when the player has a specific enchantment at >= the required level on any equipped item.\nenchantment_id: registry id (e.g. minecraft:sharpness). required_level: minimum enchantment level.")
                 .field(FieldDef.text("enchantment_id", "Enchantment ID", "e.g. minecraft:sharpness"))
@@ -485,7 +485,7 @@ public final class PhoenixTaskRegistry {
             ViewMachineTask t = new ViewMachineTask(taskId(tag), desc(tag), "", 3.0f);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§bâ¬¡").label("View Machine (Phantasia)")
+        }).icon("§b⬡").label("View Machine (Phantasia)")
                 .tooltip(
                         "Completes when the player views a Phantasia build guide for a specific machine for at least the required time.\nTarget: machine id (Phantasia multiblock definition id).")
                 .field(FieldDef.text("machine_id", "Machine ID"))
@@ -496,7 +496,7 @@ public final class PhoenixTaskRegistry {
             ViewSceneTask t = new ViewSceneTask(taskId(tag), desc(tag), "", 5.0f);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§bâ¬¢").label("View Scene (Phantasia)")
+        }).icon("§b⬢").label("View Scene (Phantasia)")
                 .tooltip(
                         "Completes when the player views a multi-machine Phantasia scene for at least the required time.\nTarget: scene id (Phantasia scene definition id).")
                 .field(FieldDef.text("scene_id", "Scene ID"))
@@ -507,7 +507,7 @@ public final class PhoenixTaskRegistry {
             ExternalTriggerTask t = new ExternalTriggerTask(taskId(tag), desc(tag), "", 1);
             t.deserializeNBT(tag);
             return t;
-        }).icon("§dâš¡").label("External Trigger")
+        }).icon("§d⚡").label("External Trigger")
                 .tooltip(
                         "Completes when an external mod/script fires QuestAPI.fireExternalEvent() with the matching trigger ID.\nTarget: trigger id (e.g. mymod:sun_eaten).\nCount: how many times the event must fire.")
                 .field(FieldDef.text("trigger_id", "Trigger ID", "e.g. mymod:sun_eaten"))
@@ -537,4 +537,3 @@ public final class PhoenixTaskRegistry {
 
     private PhoenixTaskRegistry() {}
 }
-

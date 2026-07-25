@@ -48,13 +48,31 @@ public final class PhoenixQuestFlags {
         conditions.remove(name);
     }
 
+    private static volatile String currentContext = null;
+
+    @Nullable
+    public static String currentContext() {
+        return currentContext;
+    }
+
     public static boolean evaluate(@Nullable String expression) {
         return evaluate(expression, null);
     }
 
+    public static boolean evaluate(@Nullable String expression, @Nullable MinecraftServer server,
+                                   @Nullable String context) {
+        String prev = currentContext;
+        currentContext = context;
+        try {
+            return evaluate(expression, server);
+        } finally {
+            currentContext = prev;
+        }
+    }
+
     public static boolean evaluate(@Nullable String expression, @Nullable MinecraftServer server) {
         if (expression == null || expression.isBlank()) return true;
-        
+
         for (String orClause : expression.split("\\|")) {
             boolean andResult = true;
             for (String part : orClause.split(",")) {
@@ -64,7 +82,7 @@ public final class PhoenixQuestFlags {
                     break;
                 }
             }
-            if (andResult) return true; 
+            if (andResult) return true;
         }
         return false;
     }
@@ -81,9 +99,10 @@ public final class PhoenixQuestFlags {
             QuestFlagProvider provider = providers.get(prefix);
             if (provider != null) return provider.evaluate(rest, server);
 
-            if (warnedUnknown.add("prefix:" + prefix)) {
+            String ctxSuffix1 = currentContext != null ? " [" + currentContext + "]" : "";
+            if (warnedUnknown.add("prefix:" + prefix + ctxSuffix1)) {
                 System.err.println("[Phoenix Chronicles] Unknown flag prefix '" + prefix + "' in expression '" + term +
-                        "'. Register a provider with PhoenixQuestFlags.registerProvider().");
+                        "'. Register a provider with PhoenixQuestFlags.registerProvider()." + ctxSuffix1);
             }
             return false;
         }
@@ -98,10 +117,12 @@ public final class PhoenixQuestFlags {
         BooleanSupplier dyn = conditions.get(name);
         if (dyn != null) return dyn.getAsBoolean();
 
-        if (warnedUnknown.add(name)) {
+        String ctxSuffix = currentContext != null ? " [" + currentContext + "]" : "";
+        if (warnedUnknown.add(name + ctxSuffix)) {
             System.err.println("[Phoenix Chronicles] Unknown quest flag '" + name +
-                    "' â€” defaulting to true. Use PhoenixQuestFlags.setFlag() or" +
-                    " registerCondition() to register it, or use a provider prefix" + " (mod:, config:, rule:, kjs:).");
+                    "' — defaulting to true. Use PhoenixQuestFlags.setFlag() or" +
+                    " registerCondition() to register it, or use a provider prefix" + " (mod:, config:, rule:, kjs:)." +
+                    ctxSuffix);
         }
         return true;
     }
@@ -111,4 +132,3 @@ public final class PhoenixQuestFlags {
         KJS.invalidate();
     }
 }
-

@@ -32,7 +32,7 @@ public class FluidPickerScreen extends Screen {
     private static final int ROW_H = 20;
 
     private final Screen parent;
-    private final Consumer<String> onPick; 
+    private final Consumer<String> onPick;
 
     private final List<Fluid> displayFluids = new ArrayList<>();
     private int scrollOffset = 0;
@@ -59,7 +59,7 @@ public class FluidPickerScreen extends Screen {
         int searchY = panelTop + HEADER_H + 2;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
-        searchBox.setHint(Component.literal("§8Search fluidsâ€¦"));
+        searchBox.setHint(Component.literal("§8Search fluids…"));
         searchBox.setValue(searchQuery);
         searchBox.setResponder(q -> {
             searchQuery = q;
@@ -84,7 +84,7 @@ public class FluidPickerScreen extends Screen {
             if (fluid == Fluids.EMPTY) continue;
             ResourceLocation id = ForgeRegistries.FLUIDS.getKey(fluid);
             if (id == null) continue;
-            
+
             if (id.getPath().contains("flowing")) continue;
             if (!q.isEmpty() && !id.toString().contains(q) &&
                     !fluid.getFluidType().getDescription().getString().toLowerCase().contains(q))
@@ -94,11 +94,10 @@ public class FluidPickerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(@NotNull GuiGraphics g) {  }
+    public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-
         if (parent != null) parent.render(g, -1, -1, partial);
         g.flush();
 
@@ -155,7 +154,7 @@ public class FluidPickerScreen extends Screen {
             String idStr = id != null ? "§8" + id : "";
             int labelX = panelLeft + 24;
             int maxW = PANEL_W - 28;
-            if (font.width(name) > maxW) name = font.plainSubstrByWidth(name, maxW - 4) + "â€¦";
+            if (font.width(name) > maxW) name = font.plainSubstrByWidth(name, maxW - 4) + "…";
             g.drawString(font, (sel ? "§f" : "§7") + name, labelX, ry + 3, ChroniclesThemePalette.TEXT_DIM);
             if (font.width(idStr) <= maxW)
                 g.drawString(font, idStr, labelX, ry + 12, ChroniclesThemePalette.TEXT_FAINT);
@@ -193,7 +192,7 @@ public class FluidPickerScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) { 
+        if (key == 256) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
@@ -219,4 +218,3 @@ public class FluidPickerScreen extends Screen {
         if (minecraft != null) minecraft.setScreen(parent);
     }
 }
-

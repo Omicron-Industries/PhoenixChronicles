@@ -83,4 +83,3 @@ public final class QuestToastPresetRegistry {
                 .resolve("config").resolve("phoenix_chronicles").resolve("toast_presets.json");
     }
 }
-

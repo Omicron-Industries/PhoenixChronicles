@@ -19,7 +19,6 @@ public class PhoenixChroniclesKubeJSPlugin extends KubeJSPlugin {
 
     @Override
     public void registerClasses(ScriptType type, ClassFilter filter) {
-        
         filter.allow(QuestAPI.class);
         filter.allow(QuestState.class);
         filter.allow(QuestNode.class);
@@ -37,10 +36,8 @@ public class PhoenixChroniclesKubeJSPlugin extends KubeJSPlugin {
 
     @Override
     public void registerBindings(BindingsEvent event) {
-
         event.add("QuestAPI", QuestAPI.class);
         event.add("PhoenixTaskRegistry", PhoenixTaskRegistry.class);
         event.add("PhoenixQuestFlags", PhoenixQuestFlags.class);
     }
 }
-

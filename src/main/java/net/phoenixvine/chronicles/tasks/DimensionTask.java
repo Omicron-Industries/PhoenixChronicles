@@ -46,7 +46,7 @@ public class DimensionTask extends QuestTask {
         tag.putString("type", "dimension");
         tag.putString("target",
                 targetDimension != null ? targetDimension.location().toString() : "minecraft:overworld");
-        
+
         return tag;
     }
 
@@ -58,4 +58,3 @@ public class DimensionTask extends QuestTask {
         }
     }
 }
-

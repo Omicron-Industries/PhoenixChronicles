@@ -28,4 +28,3 @@ public final class GTCEuCompat {
         GTCEuAPI.materialManager.createRegistry(PhoenixChronicles.MOD_ID);
     }
 }
-

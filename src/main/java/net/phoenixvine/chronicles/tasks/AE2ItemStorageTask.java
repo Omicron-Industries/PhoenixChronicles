@@ -15,7 +15,7 @@ public class AE2ItemStorageTask extends QuestTask {
     private Item item;
     private long requiredCount;
     private boolean consume;
-    
+
     private boolean sticky = true;
 
     public AE2ItemStorageTask(ResourceLocation taskId, Component description, Item item, long requiredCount,
@@ -99,4 +99,3 @@ public class AE2ItemStorageTask extends QuestTask {
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
     }
 }
-

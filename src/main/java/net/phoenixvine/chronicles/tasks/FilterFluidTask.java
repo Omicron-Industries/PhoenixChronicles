@@ -19,7 +19,7 @@ public class FilterFluidTask extends QuestTask {
     private IFluidFilter filter;
     private int amount;
     private boolean consume;
-    
+
     private boolean sticky = true;
 
     public FilterFluidTask(ResourceLocation taskId, Component description,
@@ -45,7 +45,7 @@ public class FilterFluidTask extends QuestTask {
                 }
             }
         }
-        
+
         for (ItemStack stack : player.getInventory().offhand) {
             if (stack.isEmpty()) continue;
             var cap = stack.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM);
@@ -69,7 +69,6 @@ public class FilterFluidTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (getTotalMatchingFluid(player) >= amount) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
@@ -107,7 +106,7 @@ public class FilterFluidTask extends QuestTask {
             var cap = stack.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM);
             if (!cap.isPresent()) continue;
             IFluidHandlerItem handler = cap.orElseThrow(IllegalStateException::new);
-            
+
             for (int t = 0; t < handler.getTanks() && remaining > 0; t++) {
                 FluidStack fluid = handler.getFluidInTank(t);
                 if (fluid.isEmpty() || !filter.test(fluid)) continue;
@@ -172,4 +171,3 @@ public class FilterFluidTask extends QuestTask {
         this.sticky = v;
     }
 }
-

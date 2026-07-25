@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 public class QuestFileSaver {
 
     public static void saveOneQuestToDisk(QuestNode node) {
+        QuestFileWatcher.suppressNextReload();
         Path base = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
         try {
@@ -47,6 +48,7 @@ public class QuestFileSaver {
     }
 
     public static void saveAllQuestsToDisk() {
+        QuestFileWatcher.suppressNextReload();
         Path base = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
 
@@ -79,9 +81,11 @@ public class QuestFileSaver {
 
         cleanupStaleQuestFiles(base);
 
-        saveCategoryJsons(base);
+        saveChapterJsons(base);
 
-        saveStubCategories(base);
+        saveStubChapters(base);
+
+        QuestFileWatcher.suppressNextReload();
 
         System.out.println("[Phoenix Chronicles] Saved " + saved + " quest(s) to disk.");
     }
@@ -111,16 +115,16 @@ public class QuestFileSaver {
 
         String title = node.getTitleRaw().getString();
         String desc = node.getDescriptionRaw().getString();
-        String category = node.getCategory() != null ? node.getCategory() : "MAIN";
+        String chapter = node.getChapter() != null ? node.getChapter() : "MAIN";
         String shape = node.getShapeType() != null ? node.getShapeType() : "SQUARE";
-        String iconItem = node.getIconItemId();        
+        String iconItem = node.getIconItemId();
         String parent = parentId != null ? parentId.getPath() : "none";
 
         CompoundTag tag = new CompoundTag();
         tag.putString("id", id);
         tag.putString("title", title);
         tag.putString("description", desc);
-        tag.putString("category", category);
+        tag.putString("chapter", chapter);
         tag.putString("shape", shape);
         if (node.getNodeSize() != QuestNode.NodeSize.NORMAL) tag.putString("node_size", node.getNodeSize().name());
         if (node.getSizeOverridePx() > 0) tag.putInt("node_size_px", node.getSizeOverridePx());
@@ -235,12 +239,12 @@ public class QuestFileSaver {
             tag.put("emergency_items", node.serializeEmergencyItems());
         }
 
-        Path categoryFolder = base.resolve("quests").resolve(category.toLowerCase(Locale.ROOT));
-        Path snbtPath = categoryFolder.resolve(id + ".snbt");
+        Path chapterFolder = base.resolve("quests").resolve(chapter.toLowerCase(Locale.ROOT));
+        Path snbtPath = chapterFolder.resolve(id + ".snbt");
         Files.createDirectories(snbtPath.getParent());
         Files.writeString(snbtPath, tag.toString(), StandardCharsets.UTF_8);
 
-        Path mdPath = categoryFolder.resolve(id + ".md");
+        Path mdPath = chapterFolder.resolve(id + ".md");
 
         Files.writeString(mdPath,
                 "# " + title + "\n\n" + (desc.isEmpty() ? "" : desc + "\n"),
@@ -250,8 +254,8 @@ public class QuestFileSaver {
     private static void cleanupStaleQuestFiles(Path base) {
         Map<String, Path> expected = new HashMap<>();
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-            String category = node.getCategory() != null ? node.getCategory() : "MAIN";
-            Path folder = base.resolve("quests").resolve(category.toLowerCase(Locale.ROOT));
+            String chapter = node.getChapter() != null ? node.getChapter() : "MAIN";
+            Path folder = base.resolve("quests").resolve(chapter.toLowerCase(Locale.ROOT));
             expected.put(node.getId().getPath(), folder.resolve(node.getId().getPath() + ".snbt"));
         }
         if (expected.isEmpty()) return;
@@ -274,33 +278,33 @@ public class QuestFileSaver {
         }
     }
 
-    private static void saveCategoryJsons(Path base) {
+    private static void saveChapterJsons(Path base) {
         Map<String, QuestNode> representative = new HashMap<>();
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-            String category = node.getCategory() != null ? node.getCategory() : "MAIN";
-            representative.putIfAbsent(category, node);
-            if (!node.getIconItemId().isEmpty() && representative.get(category).getIconItemId().isEmpty()) {
-                representative.put(category, node);
+            String chapter = node.getChapter() != null ? node.getChapter() : "MAIN";
+            representative.putIfAbsent(chapter, node);
+            if (!node.getIconItemId().isEmpty() && representative.get(chapter).getIconItemId().isEmpty()) {
+                representative.put(chapter, node);
             }
         }
 
         Path questsBase = base.resolve("quests");
         for (Map.Entry<String, QuestNode> e : representative.entrySet()) {
-            String category = e.getKey();
-            Path categoryFolder = questsBase.resolve(category.toLowerCase(Locale.ROOT));
+            String chapter = e.getKey();
+            Path chapterFolder = questsBase.resolve(chapter.toLowerCase(Locale.ROOT));
             try {
-                Files.createDirectories(categoryFolder);
-                writeCategoryJson(categoryFolder, category, e.getValue());
+                Files.createDirectories(chapterFolder);
+                writeChapterJson(chapterFolder, chapter, e.getValue());
             } catch (IOException ex) {
                 System.err.println(
-                        "[Phoenix Chronicles] Failed to save category json for '" + category + "': " + ex.getMessage());
+                        "[Phoenix Chronicles] Failed to save chapter json for '" + chapter + "': " + ex.getMessage());
             }
         }
     }
 
-    private static void writeCategoryJson(Path categoryFolder, String category,
-                                          QuestNode representative) throws IOException {
-        Path jsonPath = categoryFolder.resolve(category.toLowerCase(Locale.ROOT) + ".json");
+    private static void writeChapterJson(Path chapterFolder, String chapter,
+                                         QuestNode representative) throws IOException {
+        Path jsonPath = chapterFolder.resolve(chapter.toLowerCase(Locale.ROOT) + ".json");
 
         JsonObject json = new JsonObject();
         if (Files.exists(jsonPath)) {
@@ -310,8 +314,8 @@ public class QuestFileSaver {
             } catch (Exception ignored) {}
         }
 
-        json.addProperty("id", category.toLowerCase(Locale.ROOT));
-        if (!json.has("name")) json.addProperty("name", humanizeCategory(category));
+        json.addProperty("id", chapter.toLowerCase(Locale.ROOT));
+        if (!json.has("name")) json.addProperty("name", humanizeChapter(chapter));
         if (!json.has("icon")) {
             String icon = representative != null && !representative.getIconItemId().isEmpty() ?
                     representative.getIconItemId() : "minecraft:book";
@@ -324,7 +328,7 @@ public class QuestFileSaver {
         Files.writeString(jsonPath, json.toString(), StandardCharsets.UTF_8);
     }
 
-    private static String humanizeCategory(String raw) {
+    private static String humanizeChapter(String raw) {
         if (raw == null || raw.isBlank()) return "Quests";
         String[] words = raw.replace('_', ' ').replace('-', ' ').trim().toLowerCase(Locale.ROOT).split("\\s+");
         StringBuilder sb = new StringBuilder();
@@ -336,39 +340,40 @@ public class QuestFileSaver {
         return sb.length() == 0 ? "Quests" : sb.toString();
     }
 
-    private static void saveStubCategories(Path base) {
+    private static void saveStubChapters(Path base) {
         try {
-            
-            Set<String> questCats = new HashSet<>();
-            questCats.add("ALL");
+
+            Set<String> questChaps = new HashSet<>();
+            questChaps.add("ALL");
             for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
-                if (n.getCategory() != null) questCats.add(n.getCategory());
+                if (n.getChapter() != null) questChaps.add(n.getChapter());
             }
 
-            Path catFile = base.resolve("categories.txt");
+            Path chapFile = base.resolve("chapters.txt");
             java.util.List<String> stubs = new java.util.ArrayList<>();
-            if (Files.exists(catFile)) {
-                for (String line : Files.readAllLines(catFile, StandardCharsets.UTF_8)) {
+            if (Files.exists(chapFile)) {
+                for (String line : Files.readAllLines(chapFile, StandardCharsets.UTF_8)) {
                     String c = line.trim().toUpperCase();
-                    if (!c.isEmpty() && !questCats.contains(c)) stubs.add(c);
+                    if (!c.isEmpty() && !questChaps.contains(c)) stubs.add(c);
                 }
             }
 
-            Files.writeString(catFile, String.join("\n", stubs), StandardCharsets.UTF_8);
+            Files.writeString(chapFile, String.join("\n", stubs), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            System.err.println("[Phoenix Chronicles] Failed to save categories.txt: " + e.getMessage());
+            System.err.println("[Phoenix Chronicles] Failed to save chapters.txt: " + e.getMessage());
         }
     }
 
     public static Path getQuestSnbtPath(QuestNode node) {
-        String category = node.getCategory() != null ? node.getCategory() : "MAIN";
+        String chapter = node.getChapter() != null ? node.getChapter() : "MAIN";
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles")
-                .resolve("quests").resolve(category.toLowerCase(Locale.ROOT))
+                .resolve("quests").resolve(chapter.toLowerCase(Locale.ROOT))
                 .resolve(node.getId().getPath() + ".snbt");
     }
 
     public static void patchNodeTag(QuestNode node, java.util.function.Consumer<CompoundTag> mutator) {
+        QuestFileWatcher.suppressNextReload();
         try {
             Path p = getQuestSnbtPath(node);
             if (!Files.exists(p)) return;
@@ -401,8 +406,11 @@ public class QuestFileSaver {
         });
     }
 
-    public static void updateNodeCategory(QuestNode node, String cat) {
-        patchNodeTag(node, tag -> tag.putString("category", cat));
+    public static void updateNodeChapter(QuestNode node, String chapter) {
+        patchNodeTag(node, tag -> {
+            tag.putString("chapter", chapter);
+            tag.remove("category");
+        });
     }
 
     public static void updateNodeIconAll(QuestNode node) {
@@ -427,6 +435,7 @@ public class QuestFileSaver {
     }
 
     public static void deleteQuestFiles(QuestNode node) {
+        QuestFileWatcher.suppressNextReload();
         try {
             Path snbt = getQuestSnbtPath(node);
             Files.deleteIfExists(snbt);
@@ -474,11 +483,11 @@ public class QuestFileSaver {
         });
     }
 
-    public static Path getQuestCategoryFolder(QuestNode node) {
-        String category = node.getCategory() != null ? node.getCategory() : "MAIN";
+    public static Path getQuestChapterFolder(QuestNode node) {
+        String chapter = node.getChapter() != null ? node.getChapter() : "MAIN";
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles")
-                .resolve("quests").resolve(category.toLowerCase(Locale.ROOT));
+                .resolve("quests").resolve(chapter.toLowerCase(Locale.ROOT));
     }
 
     public static String readRawSnbt(QuestNode node) {
@@ -500,24 +509,52 @@ public class QuestFileSaver {
     }
 
     public static String pasteQuestFromSnbt(String src) throws IOException {
+        return pasteQuestFromSnbt(src, null);
+    }
+
+    public static String pasteQuestFromSnbt(String src, String targetChapter) throws IOException {
         Path base = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
 
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("id:\\s*\"([^\"]+)\"").matcher(src);
         String srcPath = m.find() ? m.group(1) : "pasted_quest";
 
+        java.util.regex.Matcher chapM = java.util.regex.Pattern.compile("chapter:\\s*\"([^\"]+)\"").matcher(src);
+        boolean hasChapterField = chapM.find();
+        java.util.regex.Matcher legacyCatM = hasChapterField ? null :
+                java.util.regex.Pattern.compile("category:\\s*\"([^\"]+)\"").matcher(src);
+        boolean hasLegacyCategoryField = legacyCatM != null && legacyCatM.find();
+        String chapter = (targetChapter != null && !targetChapter.isBlank()) ?
+                targetChapter.trim().toUpperCase(java.util.Locale.ROOT) :
+                (hasChapterField ? chapM.group(1).toUpperCase(java.util.Locale.ROOT) :
+                        (hasLegacyCategoryField ? legacyCatM.group(1).toUpperCase(java.util.Locale.ROOT) : "MAIN"));
+
+        Path chapterFolder = base.resolve("quests").resolve(chapter.toLowerCase(java.util.Locale.ROOT));
+        Files.createDirectories(chapterFolder);
+
         String newPath = srcPath + "_copy";
-        for (int i = 2; Files.exists(base.resolve(newPath + ".snbt")); i++) {
+        for (int i = 2; Files.exists(chapterFolder.resolve(newPath + ".snbt")); i++) {
             newPath = srcPath + "_copy" + i;
         }
 
         String content = src.replaceFirst("id:\\s*\"[^\"]*\"", "id: \"" + newPath + "\"");
+        if (hasChapterField) {
+            content = content.replaceFirst("chapter:\\s*\"[^\"]*\"", "chapter: \"" + chapter + "\"");
+        } else if (hasLegacyCategoryField) {
+            content = content.replaceFirst("category:\\s*\"[^\"]*\"", "chapter: \"" + chapter + "\"");
+        } else {
+
+            int last = content.lastIndexOf('}');
+            if (last >= 0)
+                content = content.substring(0, last) + "  chapter: \"" + chapter + "\"\n" + content.substring(last);
+        }
 
         content = offsetSnbtCoord(content, "positionX", 56);
         content = offsetSnbtCoord(content, "positionY", 56);
 
-        Files.writeString(base.resolve(newPath + ".snbt"), content, StandardCharsets.UTF_8);
-        QuestFileLoader.loadAdditiveFromDisk(base);
+        Files.writeString(chapterFolder.resolve(newPath + ".snbt"), content, StandardCharsets.UTF_8);
+
+        QuestFileLoader.loadAdditiveFromDisk(chapterFolder);
 
         return newPath;
     }
@@ -532,7 +569,7 @@ public class QuestFileSaver {
     }
 
     public static Path getQuestMarkdownPath(QuestNode node) {
-        return getQuestCategoryFolder(node).resolve(node.getId().getPath() + ".md");
+        return getQuestChapterFolder(node).resolve(node.getId().getPath() + ".md");
     }
 
     public static void updateNodeHideDepLine(QuestNode node) {
@@ -589,4 +626,3 @@ public class QuestFileSaver {
         }
     }
 }
-

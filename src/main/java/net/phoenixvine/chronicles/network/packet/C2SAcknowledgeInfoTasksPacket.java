@@ -58,4 +58,3 @@ public class C2SAcknowledgeInfoTasksPacket {
         ctx.get().setPacketHandled(true);
     }
 }
-

@@ -27,22 +27,21 @@ public class ChroniclesThemeRenderer {
 
     public static void drawCodeBlock(GuiGraphics g, Font font, String text, int x, int y, int width, int height,
                                      int mx, int my, int borderColor, int accentColor, boolean isHovered) {
-        
         g.fill(x, y, x + width, y + height, 0xFF0A0A12);
         g.fill(x, y, x + 1, y + height, borderColor);
 
-        int btnW = font.width("âŽ˜") + 8;
+        int btnW = font.width("⎘") + 8;
         int btnX = x + width - btnW - 2;
         int btnY = y + 1;
         int btnH = height - 2;
 
         g.fill(btnX, btnY, btnX + btnW, btnY + btnH, isHovered ? 0x44FFFFFF : 0x22FFFFFF);
-        g.drawCenteredString(font, isHovered ? "§fâŽ˜" : "§7âŽ˜", btnX + btnW / 2,
+        g.drawCenteredString(font, isHovered ? "§f⎘" : "§7⎘", btnX + btnW / 2,
                 btnY + (height / 2) - (font.lineHeight / 2), 0xFFFFFFFF);
 
         int maxTextWidth = btnX - x - 6;
         String renderedText = font.width(text) <= maxTextWidth ? text :
-                font.plainSubstrByWidth(text, maxTextWidth - 4) + "â€¦";
+                font.plainSubstrByWidth(text, maxTextWidth - 4) + "…";
         g.drawString(font, renderedText, x + 4, y + (height / 2) - (font.lineHeight / 2), 0xFFFFFFFF, false);
     }
 
@@ -65,7 +64,7 @@ public class ChroniclesThemeRenderer {
 
     public static void drawHeading(GuiGraphics g, Font font, String text, int x, int y, int w, int accentColor,
                                    int textColor) {
-        g.fill(x, y + 13, x + w, y + 14, accentColor); 
+        g.fill(x, y + 13, x + w, y + 14, accentColor);
         g.drawString(font, "§f" + text, x, y + 2, textColor, false);
     }
 
@@ -82,7 +81,7 @@ public class ChroniclesThemeRenderer {
         if (font.width(value) <= maxVW) {
             g.drawString(font, value, x + kw, y, textColorDim, false);
         } else {
-            String clipped = font.plainSubstrByWidth(value, maxVW - 6) + "â€¦";
+            String clipped = font.plainSubstrByWidth(value, maxVW - 6) + "…";
             g.drawString(font, clipped, x + kw, y, textColorDim, false);
         }
     }
@@ -92,11 +91,10 @@ public class ChroniclesThemeRenderer {
     }
 
     public static void drawBulletPoint(GuiGraphics g, Font font, String text, int x, int y, int textColorDim) {
-        g.drawString(font, "â€¢ " + text, x + 8, y, textColorDim, false);
+        g.drawString(font, "• " + text, x + 8, y, textColorDim, false);
     }
 
     public static void drawDivider(GuiGraphics g, int x, int y, int w, int borderColor) {
         g.fill(x, y + 3, x + w, y + 4, borderColor);
     }
 }
-

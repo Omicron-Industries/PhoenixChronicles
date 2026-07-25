@@ -67,4 +67,3 @@ public class BlockBreakTask extends QuestTask {
         if (nbt.contains("required")) this.required = Math.max(1, nbt.getInt("required"));
     }
 }
-

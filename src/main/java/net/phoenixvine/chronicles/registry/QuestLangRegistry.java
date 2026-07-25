@@ -14,7 +14,7 @@ import java.util.Map;
 public class QuestLangRegistry {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final int PACK_FORMAT = 15; 
+    private static final int PACK_FORMAT = 15;
 
     public static Path langDir(Path configDir) {
         return configDir.resolve("assets").resolve("phoenix_chronicles").resolve("lang");
@@ -79,4 +79,3 @@ public class QuestLangRegistry {
         }
     }
 }
-

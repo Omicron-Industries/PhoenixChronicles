@@ -14,28 +14,28 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-public class CategoryConfig {
+public class ChapterConfig {
 
     public enum BgStyle {
-        DOT_GRID,       
-        GRID_LINES,     
-        HEX_GRID,       
-        DIAGONAL_LINES, 
-        SOLID,          
-        CUSTOM          
+        DOT_GRID,
+        GRID_LINES,
+        HEX_GRID,
+        DIAGONAL_LINES,
+        SOLID,
+        CUSTOM
     }
 
     private BgStyle style = BgStyle.DOT_GRID;
-    
+
     private int color = 0;
-    
+
     private String texture = "";
-    
+
     private String displayName = "";
-    
+
     private String icon = "";
-    
-    private String parentCategory = "";
+
+    private String parentChapter = "";
 
     public BgStyle getStyle() {
         return style;
@@ -57,12 +57,12 @@ public class CategoryConfig {
         return icon;
     }
 
-    public String getParentCategory() {
-        return parentCategory;
+    public String getParentChapter() {
+        return parentChapter;
     }
 
-    public void setParentCategory(String parent) {
-        this.parentCategory = parent == null ? "" : parent.trim().toUpperCase();
+    public void setParentChapter(String parent) {
+        this.parentChapter = parent == null ? "" : parent.trim().toUpperCase();
     }
 
     public net.minecraft.world.item.Item getIconItem() {
@@ -103,12 +103,12 @@ public class CategoryConfig {
         if (!texture.isEmpty()) o.addProperty("texture", texture);
         if (!displayName.isEmpty()) o.addProperty("display_name", displayName);
         if (!icon.isEmpty()) o.addProperty("icon", icon);
-        if (!parentCategory.isEmpty()) o.addProperty("parent", parentCategory);
+        if (!parentChapter.isEmpty()) o.addProperty("parent", parentChapter);
         return o;
     }
 
-    public static CategoryConfig fromJson(JsonObject o) {
-        CategoryConfig cfg = new CategoryConfig();
+    public static ChapterConfig fromJson(JsonObject o) {
+        ChapterConfig cfg = new ChapterConfig();
         if (o.has("style")) {
             try {
                 cfg.style = BgStyle.valueOf(o.get("style").getAsString().toUpperCase());
@@ -122,48 +122,77 @@ public class CategoryConfig {
         if (o.has("texture")) cfg.texture = o.get("texture").getAsString();
         if (o.has("display_name")) cfg.displayName = o.get("display_name").getAsString();
         if (o.has("icon")) cfg.icon = o.get("icon").getAsString();
-        if (o.has("parent")) cfg.parentCategory = o.get("parent").getAsString().toUpperCase();
+        if (o.has("parent")) cfg.parentChapter = o.get("parent").getAsString().toUpperCase();
         return cfg;
     }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Map<String, CategoryConfig> CACHE = new HashMap<>();
+    private static final Map<String, ChapterConfig> CACHE = new HashMap<>();
     private static boolean loaded = false;
 
-    public static CategoryConfig get(String category) {
+    public static ChapterConfig get(String chapter) {
         if (!loaded) load();
-        return CACHE.getOrDefault(category, new CategoryConfig());
+        return CACHE.getOrDefault(chapter, new ChapterConfig());
     }
 
-    public static CategoryConfig getEffective(String category) {
-        return getEffective(category, new java.util.HashSet<>());
+    public static ChapterConfig getEffective(String chapter) {
+        return getEffective(chapter, new java.util.HashSet<>());
     }
 
-    private static CategoryConfig getEffective(String category, java.util.Set<String> visited) {
-        CategoryConfig own = get(category);
+    private static ChapterConfig getEffective(String chapter, java.util.Set<String> visited) {
+        ChapterConfig own = get(chapter);
         boolean hasOwnTheme = own.style != BgStyle.DOT_GRID || own.color != 0 || !own.texture.isEmpty();
-        if (hasOwnTheme || own.parentCategory.isEmpty() || !visited.add(category)) return own;
-        return getEffective(own.parentCategory, visited);
+        if (hasOwnTheme || own.parentChapter.isEmpty() || !visited.add(chapter)) return own;
+        return getEffective(own.parentChapter, visited);
     }
 
-    public static String getResolvedDisplayName(String category) {
-        if (category == null) return null;
-        String key = "phoenix_chronicles.category." + category.toLowerCase() + ".name";
+    public static String getResolvedDisplayName(String chapter) {
+        if (chapter == null) return null;
+        String key = "phoenix_chronicles.chapter." + chapter.toLowerCase() + ".name";
+        String legacyKey = "phoenix_chronicles.category." + chapter.toLowerCase() + ".name";
+
+        String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(key);
+        if (override == null) override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(legacyKey);
+        if (override != null) return override;
         if (net.minecraft.client.resources.language.I18n.exists(key)) {
             return net.minecraft.network.chat.Component.translatable(key).getString();
         }
-        String raw = get(category).getDisplayName();
-        return raw.isEmpty() ? null : raw;
+
+        if (net.minecraft.client.resources.language.I18n.exists(legacyKey)) {
+            return net.minecraft.network.chat.Component.translatable(legacyKey).getString();
+        }
+        String raw = get(chapter).getDisplayName();
+        if (!raw.isEmpty()) return raw;
+
+        try {
+            Path p = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles")
+                    .resolve("quests").resolve(chapter.toLowerCase())
+                    .resolve(chapter.toLowerCase() + ".json");
+            if (Files.exists(p)) {
+                com.google.gson.JsonObject o = GSON.fromJson(Files.readString(p, StandardCharsets.UTF_8),
+                        com.google.gson.JsonObject.class);
+                if (o != null && o.has("name")) {
+                    String fileName = o.get("name").getAsString();
+                    if (!fileName.isBlank()) return fileName;
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
-    public static void put(String category, CategoryConfig cfg) {
+    public static void put(String chapter, ChapterConfig cfg) {
         if (!loaded) load();
-        CACHE.put(category, cfg);
+        CACHE.put(chapter, cfg);
     }
 
     public static void invalidate() {
         loaded = false;
         CACHE.clear();
+    }
+
+    public static void remove(String chapter) {
+        if (!loaded) load();
+        CACHE.remove(chapter);
     }
 
     public static void load() {
@@ -180,26 +209,25 @@ public class CategoryConfig {
                     CACHE.put(e.getKey().toUpperCase(), fromJson(e.getValue().getAsJsonObject()));
             }
         } catch (Exception e) {
-            System.err.println("[Phoenix Chronicles] Failed to load categories.json: " + e.getMessage());
+            System.err.println("[Phoenix Chronicles] Failed to load chapters.json: " + e.getMessage());
         }
     }
 
     public static void save() {
         JsonObject root = new JsonObject();
-        for (Map.Entry<String, CategoryConfig> e : CACHE.entrySet())
+        for (Map.Entry<String, ChapterConfig> e : CACHE.entrySet())
             root.add(e.getKey(), e.getValue().toJson());
         try {
             Path p = configPath();
             Files.createDirectories(p.getParent());
             Files.writeString(p, GSON.toJson(root), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            System.err.println("[Phoenix Chronicles] Failed to save categories.json: " + e.getMessage());
+            System.err.println("[Phoenix Chronicles] Failed to save chapters.json: " + e.getMessage());
         }
     }
 
     private static Path configPath() {
         return Minecraft.getInstance().gameDirectory.toPath()
-                .resolve("config").resolve("phoenix_chronicles").resolve("categories.json");
+                .resolve("config").resolve("phoenix_chronicles").resolve("chapters.json");
     }
 }
-

@@ -10,7 +10,7 @@ import net.phoenixvine.chronicles.model.QuestTask;
 public class LocationOrTerminalTask extends QuestTask {
 
     private ResourceLocation targetTerminalId;
-    private boolean consume; 
+    private boolean consume;
 
     public LocationOrTerminalTask(ResourceLocation taskId, Component description, ResourceLocation targetTerminalId,
                                   boolean consume) {
@@ -44,7 +44,7 @@ public class LocationOrTerminalTask extends QuestTask {
 
     @Override
     public void tryConsume(Player player) {
-        if (!consume) return; 
+        if (!consume) return;
 
         TaskProgressAccess.with(player, this.getTaskId(), nbt -> nbt.putBoolean("completed", false));
     }
@@ -55,7 +55,7 @@ public class LocationOrTerminalTask extends QuestTask {
         nbt.putString("type", "location_terminal");
         nbt.putString("TargetTerminal",
                 this.targetTerminalId != null ? this.targetTerminalId.toString() : "minecraft:air");
-        nbt.putBoolean("consume", consume); 
+        nbt.putBoolean("consume", consume);
         return nbt;
     }
 
@@ -64,7 +64,6 @@ public class LocationOrTerminalTask extends QuestTask {
         if (nbt.contains("TargetTerminal")) {
             this.targetTerminalId = new ResourceLocation(nbt.getString("TargetTerminal"));
         }
-        this.consume = nbt.getBoolean("consume"); 
+        this.consume = nbt.getBoolean("consume");
     }
 }
-

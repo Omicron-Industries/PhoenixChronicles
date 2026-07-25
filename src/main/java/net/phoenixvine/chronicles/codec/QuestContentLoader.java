@@ -26,7 +26,6 @@ public class QuestContentLoader {
     }
 
     public static void reloadAllQuestsFromDisk() {
-
         Path questsFolder = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("quests");
 
@@ -50,7 +49,7 @@ public class QuestContentLoader {
         try {
             String fileName = file.getFileName().toString();
             String id = fileName.substring(0, fileName.lastIndexOf('.'));
-            ResourceLocation questId = new ResourceLocation("phoenixcore", id.toLowerCase());
+            ResourceLocation questId = new ResourceLocation("phoenix_chronicles", id.toLowerCase());
 
             Path resolvedFile = resolveLocaleFile(file, id);
             QuestContent content = parseQuestFile(resolvedFile);
@@ -100,7 +99,7 @@ public class QuestContentLoader {
                 .loadMarkdownContent(file);
         Component title = data.title();
         if (title == null || title.getString().isBlank()) {
-            
+
             String name = file.getFileName().toString();
             title = Component.literal(name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name);
         }
@@ -128,4 +127,3 @@ public class QuestContentLoader {
 
     public record QuestContent(Component title, Component description) {}
 }
-

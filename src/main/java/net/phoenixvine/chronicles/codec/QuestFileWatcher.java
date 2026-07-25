@@ -4,8 +4,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.network.PacketDistributor;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
-import net.phoenixvine.chronicles.registry.CategoryFlagRegistry;
-import net.phoenixvine.chronicles.registry.ChapterFolderRegistry;
+import net.phoenixvine.chronicles.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.registry.RewardTableRegistry;
 
@@ -24,11 +24,16 @@ public final class QuestFileWatcher {
     private static final AtomicLong lastEventMs = new AtomicLong(0);
     private static volatile Supplier<MinecraftServer> serverRef = null;
     private static volatile Path watchedDir = null;
+    private static volatile long suppressUntilMs = 0;
 
     private QuestFileWatcher() {}
 
+    public static void suppressNextReload() {
+        suppressUntilMs = System.currentTimeMillis() + 1500;
+    }
+
     public static void start(MinecraftServer server, Path configDir) {
-        stop(); 
+        stop();
 
         serverRef = () -> server;
         watchedDir = configDir;
@@ -36,7 +41,7 @@ public final class QuestFileWatcher {
 
         watchThread = new Thread(() -> {
             try (WatchService ws = FileSystems.getDefault().newWatchService()) {
-                
+
                 registerRecursive(ws, configDir);
 
                 while (running.get()) {
@@ -51,10 +56,10 @@ public final class QuestFileWatcher {
                         if (kind == StandardWatchEventKinds.OVERFLOW) continue;
                         Path changed = ((WatchEvent<Path>) event).context();
                         String name = changed.toString();
-                        if (name.endsWith(".snbt") || name.endsWith(".txt")) {
+                        if (name.endsWith(".snbt") || name.endsWith(".txt") || name.endsWith(".yml")) {
                             relevant = true;
                         }
-                        
+
                         if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
                             Path full = ((Path) key.watchable()).resolve(changed);
                             if (Files.isDirectory(full)) {
@@ -96,7 +101,8 @@ public final class QuestFileWatcher {
         long last = lastEventMs.get();
         if (last == 0) return;
         if (System.currentTimeMillis() - last < DEBOUNCE_MS) return;
-        lastEventMs.set(0); 
+        lastEventMs.set(0);
+        if (System.currentTimeMillis() < suppressUntilMs) return;
 
         MinecraftServer server = serverRef != null ? serverRef.get() : null;
         if (server == null || !server.isRunning()) return;
@@ -106,11 +112,11 @@ public final class QuestFileWatcher {
             if (configDir == null) return;
 
             QuestTreeRegistry.clearConfigQuests();
-            CategoryFlagRegistry.load(configDir);
-            net.phoenixvine.chronicles.registry.CategoryPrereqDefaults.load(configDir);
+            ChapterFlagRegistry.load(configDir);
+            net.phoenixvine.chronicles.registry.ChapterPrereqDefaults.load(configDir);
             net.phoenixvine.chronicles.registry.QuestEngineConfig.load(configDir);
             RewardTableRegistry.load(configDir);
-            ChapterFolderRegistry.load(configDir);
+            CategoryRegistry.load(configDir);
             QuestFileLoader.loadAdditiveFromDisk(configDir);
 
             int questCount = QuestTreeRegistry.getAllQuests().size();
@@ -150,4 +156,3 @@ public final class QuestFileWatcher {
                 });
     }
 }
-

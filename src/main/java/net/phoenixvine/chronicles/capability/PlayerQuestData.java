@@ -15,13 +15,13 @@ import java.util.Set;
 public class PlayerQuestData {
 
     private final Map<ResourceLocation, QuestState> questStates = new HashMap<>();
-    
+
     private final Map<ResourceLocation, CompoundTag> taskProgress = new HashMap<>();
-    
+
     private final Map<ResourceLocation, Long> lastCompleted = new HashMap<>();
-    
+
     private final Set<ResourceLocation> claimedRewards = new HashSet<>();
-    
+
     private final Map<ResourceLocation, Integer> chosenRewardIndex = new HashMap<>();
 
     private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
@@ -206,7 +206,7 @@ public class PlayerQuestData {
                 pinnedQuestIds.add(new ResourceLocation(e.getString("id")));
             } catch (Exception ignored) {}
         }
-        
+
         if (root.contains("PinnedQuest")) {
             try {
                 pinnedQuestIds.add(new ResourceLocation(root.getString("PinnedQuest")));
@@ -214,4 +214,3 @@ public class PlayerQuestData {
         }
     }
 }
-

@@ -21,4 +21,3 @@ public sealed interface RichSpan
         }
     }
 }
-

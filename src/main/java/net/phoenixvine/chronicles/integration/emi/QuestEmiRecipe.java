@@ -98,7 +98,8 @@ public class QuestEmiRecipe implements EmiRecipe {
                 if (reward instanceof QuestReward.LootTableReward || reward instanceof QuestReward.RewardTableReward) {
                     dynamicOutputs.add(EmiStack.of(Items.BUNDLE, 1));
                 } else if (reward instanceof QuestReward.LootCrateReward) {
-                    Item crate = ForgeRegistries.ITEMS.getValue(new ResourceLocation("phoenixcore", "loot_crate"));
+                    Item crate = ForgeRegistries.ITEMS
+                            .getValue(new ResourceLocation("phoenix_chronicles", "loot_crate"));
                     dynamicOutputs.add(EmiStack.of(crate != null && crate != Items.AIR ? crate : Items.CHEST, 1));
                 } else if (reward instanceof QuestReward.CommandReward ||
                         reward instanceof QuestReward.ScriptEventReward) {
@@ -177,4 +178,3 @@ public class QuestEmiRecipe implements EmiRecipe {
         }
     }
 }
-

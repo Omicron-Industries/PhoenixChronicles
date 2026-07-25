@@ -2,7 +2,7 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.client.CategoryConfig;
+import net.phoenixvine.chronicles.client.ChapterConfig;
 import net.phoenixvine.chronicles.client.FrameProfiler;
 
 public final class CanvasBackgroundRenderer {
@@ -12,9 +12,9 @@ public final class CanvasBackgroundRenderer {
     private CanvasBackgroundRenderer() {}
 
     public static void drawBackground(GuiGraphics g, int x1, int y1, int x2, int y2,
-                                      String selectedCategory, float zoom, int viewOffX, int viewOffY) {
-        CategoryConfig cfg = selectedCategory.isEmpty() ? new CategoryConfig() :
-                CategoryConfig.getEffective(selectedCategory);
+                                      String selectedChapter, float zoom, int viewOffX, int viewOffY) {
+        ChapterConfig cfg = selectedChapter.isEmpty() ? new ChapterConfig() :
+                ChapterConfig.getEffective(selectedChapter);
         int tint = cfg.getColor();
         FrameProfiler.begin("background:tint");
         if (tint != 0) g.fill(x1, y1, x2, y2, 0xCC000000 | (tint & 0x00FFFFFF));
@@ -25,7 +25,7 @@ public final class CanvasBackgroundRenderer {
             case GRID_LINES -> drawGridLines(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY);
             case HEX_GRID -> drawHexGrid(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY);
             case DIAGONAL_LINES -> drawDiagonalLines(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY);
-            case SOLID -> {} 
+            case SOLID -> {}
             case CUSTOM -> drawCustomBg(g, x1, y1, x2, y2, cfg.getTexture());
         }
 
@@ -35,7 +35,6 @@ public final class CanvasBackgroundRenderer {
 
     private static void drawDotGrid(GuiGraphics g, int x1, int y1, int x2, int y2,
                                     float zoom, int viewOffX, int viewOffY) {
-
         int sp = Math.max(22, (int) (18 * zoom));
         int sx = x1 + ((viewOffX % sp + sp) % sp);
         int sy = y1 + ((viewOffY % sp + sp) % sp);
@@ -61,7 +60,7 @@ public final class CanvasBackgroundRenderer {
     private static void drawHexGrid(GuiGraphics g, int x1, int y1, int x2, int y2,
                                     float zoom, int viewOffX, int viewOffY) {
         float r = Math.max(10f, 28f * zoom);
-        float w = r * 1.732f; 
+        float w = r * 1.732f;
         float h = r * 2f;
         float offX = viewOffX % (int) w;
         float offY = viewOffY % (int) (h * 0.75f);
@@ -95,7 +94,7 @@ public final class CanvasBackgroundRenderer {
         for (int d = -sp + startOff; d < total + sp; d += sp) {
             int ax = x1 + d, ay = y1;
             int bx = x1, by = y1 + d;
-            
+
             int cx0 = Math.max(x1, Math.min(x2, ax));
             int cy0 = ay + (cx0 - ax);
             int cx1 = Math.max(x1, Math.min(x2, bx));
@@ -128,7 +127,6 @@ public final class CanvasBackgroundRenderer {
                     new ResourceLocation(textureLoc));
             int w = x2 - x1, h = y2 - y1;
             g.blit(loc, x1, y1, 0, 0, w, h, w, h);
-        } catch (Exception ignored) {} 
+        } catch (Exception ignored) {}
     }
 }
-

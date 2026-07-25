@@ -24,6 +24,7 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
     private record CachedFile(Map<String, String> flat, long loadedAt) {}
 
     private final Map<String, CachedFile> cache = new ConcurrentHashMap<>();
+    private final Set<String> warnedMalformed = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Override
     public String prefix() {
@@ -34,7 +35,13 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
     public boolean evaluate(String expression, @Nullable MinecraftServer server) {
         int hash = expression.indexOf('#');
         if (hash < 0) {
-            System.err.println("[Phoenix Chronicles] config flag missing '#': " + expression);
+            String context = PhoenixQuestFlags.currentContext();
+            String warnKey = expression + "|" + context;
+            if (warnedMalformed.add(warnKey)) {
+                System.err.println("[Phoenix Chronicles] Malformed config flag expression '" + expression +
+                        "' — expected 'config:<filename>#<key>=<value>' (missing '#')" +
+                        (context != null ? " [" + context + "]" : "") + ".");
+            }
             return false;
         }
         String filename = expression.substring(0, hash).trim();
@@ -58,7 +65,8 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
         try {
             Files.createDirectories(chroniclesConfigDir);
         } catch (IOException e) {
-            System.err.println("[Phoenix Chronicles] Could not create phoenix_chronicles config directory: " + e.getMessage());
+            System.err.println(
+                    "[Phoenix Chronicles] Could not create phoenix_chronicles config directory: " + e.getMessage());
             return Map.of();
         }
 
@@ -103,7 +111,7 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
             if (v.isJsonObject()) {
                 flattenJsonObject(v.getAsJsonObject(), key, out);
             } else if (v.isJsonArray()) {
-                out.put(key, v.toString()); 
+                out.put(key, v.toString());
             } else {
                 String raw = v.getAsString();
                 out.put(key, raw);
@@ -135,10 +143,9 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
     }
 
     private String stripTomlValue(String raw) {
-        
         int comment = raw.indexOf('#');
         if (comment > 0) raw = raw.substring(0, comment).trim();
-        
+
         if ((raw.startsWith("\"") && raw.endsWith("\"")) || (raw.startsWith("'") && raw.endsWith("'"))) {
             raw = raw.substring(1, raw.length() - 1);
         }
@@ -157,4 +164,3 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
         return out;
     }
 }
-

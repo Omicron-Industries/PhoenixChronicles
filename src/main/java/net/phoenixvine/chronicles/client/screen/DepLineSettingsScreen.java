@@ -8,7 +8,7 @@ import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.CategoryPrereqDefaults;
+import net.phoenixvine.chronicles.registry.ChapterPrereqDefaults;
 import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
@@ -21,20 +21,20 @@ import java.util.List;
 public class DepLineSettingsScreen extends Screen {
 
     private final ChronicleOverviewScreen parent;
-    private final String category;
-    
+    private final String chapter;
+
     private final net.minecraft.resources.ResourceLocation focusNodeId;
 
     private int C_BG, C_PANEL, C_HEADER, C_BORDER, C_ACCENT, C_TEXT, C_TEXT_DIM, C_TEXT_FAINT, C_DONE, C_ACTIVE;
 
     private static final int MARGIN = 8;
     private static final int HEADER_H = 28;
-    private static final int SEARCH_H = 22;   
+    private static final int SEARCH_H = 22;
     private static final int FOOTER_H = 28;
     private static final int ROW_H = 22;
     private static final int ROW_GAP = 3;
     private static final int ARROW_W = 16;
-    
+
     private static final int LEGEND_W = 118;
 
     private LineStyle lineShape;
@@ -43,7 +43,7 @@ public class DepLineSettingsScreen extends Screen {
     private boolean lineArrows;
 
     private Boolean catRequireAllDefault;
-    
+
     private Integer catOptionalMinDefault;
     private static final Integer[] MIN_COUNT_STEPS = { null, -1, 0, 1, 2, 3, 4, 5 };
 
@@ -52,15 +52,16 @@ public class DepLineSettingsScreen extends Screen {
 
     private int scrollY = 0;
 
-    public DepLineSettingsScreen(ChronicleOverviewScreen parent, String category) {
-        this(parent, category, null);
+    public DepLineSettingsScreen(ChronicleOverviewScreen parent, String chapter) {
+        this(parent, chapter, null);
     }
 
-    public DepLineSettingsScreen(ChronicleOverviewScreen parent, String category, QuestNode focusNode) {
+    public DepLineSettingsScreen(ChronicleOverviewScreen parent, String chapter, QuestNode focusNode) {
         super(Component.literal(
-                focusNode != null ? "Dependencies â€” " + focusNode.getTitle().getString() : "Dependency Line Settings"));
+                focusNode != null ? "Dependencies — " + focusNode.getTitle().getString() :
+                        "Dependency Line Settings"));
         this.parent = parent;
-        this.category = category;
+        this.chapter = chapter;
         this.focusNodeId = focusNode != null ? focusNode.getId() : null;
     }
 
@@ -89,12 +90,12 @@ public class DepLineSettingsScreen extends Screen {
         lineAnimSpeed = s.getLineAnimSpeed();
         lineArrows = s.isShowLineArrows();
 
-        catRequireAllDefault = CategoryPrereqDefaults.getRequireAll(category);
-        catOptionalMinDefault = CategoryPrereqDefaults.getOptionalMinCount(category);
+        catRequireAllDefault = ChapterPrereqDefaults.getRequireAll(chapter);
+        catOptionalMinDefault = ChapterPrereqDefaults.getOptionalMinCount(chapter);
 
         searchBox = new EditBox(font, MARGIN, HEADER_H + 3, width - MARGIN * 2, SEARCH_H - 6, Component.empty());
         searchBox.setHint(Component.literal(
-                focusNodeId != null ? "§8Filter dependentsâ€¦" : "§8Filter questsâ€¦"));
+                focusNodeId != null ? "§8Filter dependents…" : "§8Filter quests…"));
         searchBox.setMaxLength(64);
         searchBox.setValue(searchQuery);
         searchBox.setResponder(v -> {
@@ -117,23 +118,24 @@ public class DepLineSettingsScreen extends Screen {
         return GLOBAL_SECTION_LABEL_H + GLOBAL_ROW_COUNT * (ROW_H + ROW_GAP) + 4 + PREVIEW_H + PREVIEW_GAP;
     }
 
-    private int categoryEnd() {
+    private int chapterEnd() {
         return globalEnd() + DIVIDER_H + CATEGORY_LABEL_H + CATEGORY_ROW_COUNT * (ROW_H + ROW_GAP);
     }
 
     private int perQuestStart() {
-        return categoryEnd() + DIVIDER_H + PER_QUEST_LABEL_H;
+        return chapterEnd() + DIVIDER_H + PER_QUEST_LABEL_H;
     }
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float partial) {
+        pendingTooltip = null;
         g.fill(0, 0, width, height, C_BG);
 
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         QuestNode focusForHeader = focusNode();
         g.drawCenteredString(font,
-                focusForHeader != null ? "§fDependencies â€” " + focusForHeader.getTitle().getString() :
+                focusForHeader != null ? "§fDependencies — " + focusForHeader.getTitle().getString() :
                         "§fDependency Line Settings",
                 width / 2, 9, C_TEXT);
 
@@ -150,13 +152,16 @@ public class DepLineSettingsScreen extends Screen {
         int y = contentTop - scrollY;
 
         if (focusNodeId == null) {
-            
+
             g.drawString(font, "§8GLOBAL APPEARANCE:", x, y, C_TEXT_FAINT, false);
             y += GLOBAL_SECTION_LABEL_H;
 
-            y = renderCycleRow(g, x, y, w, "§fLine Shape", lineShape.name(), mx, my) + ROW_GAP;
-            y = renderCycleRow(g, x, y, w, "§fLine Style", lineVisual.name(), mx, my) + ROW_GAP;
-            y = renderCycleRow(g, x, y, w, "§fDot Speed", lineAnimSpeed.name(), mx, my) + ROW_GAP;
+            y = renderCycleRow(g, x, y, w, "§fLine Shape", lineShape.name(), mx, my,
+                    "STRAIGHT/SPLINE/etc - the path a dependency line follows between two quest nodes") + ROW_GAP;
+            y = renderCycleRow(g, x, y, w, "§fLine Style", lineVisual.name(), mx, my,
+                    "The line's visual treatment (solid, dashed, glowing, etc.)") + ROW_GAP;
+            y = renderCycleRow(g, x, y, w, "§fDot Speed", lineAnimSpeed.name(), mx, my,
+                    "How fast the animated flow dots travel along a dependency line") + ROW_GAP;
             y = renderCycleRow(g, x, y, w, "§fDirectional Arrows", lineArrows ? "ON" : "OFF", mx, my) + ROW_GAP;
 
             y += 4;
@@ -171,7 +176,7 @@ public class DepLineSettingsScreen extends Screen {
 
             g.fill(x, y, x + w, y + 1, C_BORDER);
             y += DIVIDER_H;
-            g.drawString(font, "§8CATEGORY DEFAULTS  §7(" + category + ")", x, y, C_TEXT_FAINT, false);
+            g.drawString(font, "§8CHAPTER DEFAULTS  §7(" + chapter + ")", x, y, C_TEXT_FAINT, false);
             y += CATEGORY_LABEL_H;
 
             String requireAllLabel = catRequireAllDefault == null ? "No default (ALL)" :
@@ -191,12 +196,12 @@ public class DepLineSettingsScreen extends Screen {
         if (focusNodeId != null) {
             QuestNode fn = focusNode();
             String anchor = fn != null ? fn.getTitle().getString() : focusNodeId.getPath();
-            int depCount = Math.max(0, quests.size() - 1); 
+            int depCount = Math.max(0, quests.size() - 1);
             countHint = searchQuery.isEmpty() ? "(" + anchor + " + dependents)" :
                     "(" + anchor + " + " + depCount + " matching dependent" + (depCount == 1 ? "" : "s") + ")";
         } else {
-            countHint = searchQuery.isEmpty() ? "(" + category + ")" :
-                    "(" + quests.size() + " match" + (quests.size() == 1 ? "" : "es") + " in " + category + ")";
+            countHint = searchQuery.isEmpty() ? "(" + chapter + ")" :
+                    "(" + quests.size() + " match" + (quests.size() == 1 ? "" : "es") + " in " + chapter + ")";
         }
         g.drawString(font, "§8PER-QUEST  §7" + countHint, x, y, C_TEXT_FAINT, false);
         y += PER_QUEST_LABEL_H;
@@ -221,12 +226,16 @@ public class DepLineSettingsScreen extends Screen {
 
             String name = quest.getTitle().getString();
             int nameMaxW = shapeX - x - 8;
-            if (font.width(name) > nameMaxW) name = font.plainSubstrByWidth(name, Math.max(0, nameMaxW - 6)) + "â€¦";
+            if (font.width(name) > nameMaxW) name = font.plainSubstrByWidth(name, Math.max(0, nameMaxW - 6)) + "…";
             g.drawString(font, "§7" + name, x + 4, y + 7, C_TEXT_DIM, false);
 
             drawMiniButton(g, shapeX, btnY, miniW, "Shape", rowShapeLabel(quest), hasEdges, shapeHov);
             drawMiniButton(g, styleX, btnY, miniW, "Style", rowVisualLabel(quest), hasEdges, styleHov);
             drawMiniButton(g, speedX, btnY, miniW, "Speed", rowSpeedLabel(quest), hasEdges, speedHov);
+            if (shapeHov) pendingTooltip = "The path this quest's own dependency line(s) follow - click to cycle";
+            else if (styleHov) pendingTooltip = "This quest's dependency line's visual treatment - click to cycle";
+            else if (speedHov)
+                pendingTooltip = "How fast the flow dots move on this quest's dependency line(s) - click to cycle";
 
             g.fill(hideX, btnY, hideX + hideW, btnY + ROW_H - 4, hideHov ? 0x33FFFFFF : 0x11FFFFFF);
             g.fill(hideX, btnY, hideX + hideW, btnY + 1, hidden ? 0xFF444455 : C_DONE);
@@ -237,7 +246,7 @@ public class DepLineSettingsScreen extends Screen {
         }
 
         if (quests.isEmpty()) {
-            String emptyMsg = searchQuery.isEmpty() ? "§8(no quests in this category)" :
+            String emptyMsg = searchQuery.isEmpty() ? "§8(no quests in this chapter)" :
                     "§8No quests match \"" + searchQuery + "\"";
             g.drawString(font, emptyMsg, x + 4, y, C_TEXT_FAINT, false);
         }
@@ -257,13 +266,17 @@ public class DepLineSettingsScreen extends Screen {
 
         g.fill(saveX, fbtnY, saveX + fbtnW, fbtnY + 18, saveHov ? 0xFF2A4A2A : 0xFF1A2A1A);
         if (saveHov) g.fill(saveX, fbtnY, saveX + fbtnW, fbtnY + 1, C_DONE);
-        g.drawCenteredString(font, "§aâœ“ Save", saveX + fbtnW / 2, fbtnY + 6, saveHov ? C_DONE : C_TEXT);
+        g.drawCenteredString(font, "§a✓ Save", saveX + fbtnW / 2, fbtnY + 6, saveHov ? C_DONE : C_TEXT);
 
         g.fill(closeX, fbtnY, closeX + fbtnW, fbtnY + 18, closeHov ? 0xFF3A3A3A : 0xFF2A2A2A);
         if (closeHov) g.fill(closeX, fbtnY, closeX + fbtnW, fbtnY + 1, 0xFF888898);
-        g.drawCenteredString(font, "§7âœ• Close", closeX + fbtnW / 2, fbtnY + 6, closeHov ? 0xFFCCCCCC : C_TEXT);
+        g.drawCenteredString(font, "§7✕ Close", closeX + fbtnW / 2, fbtnY + 6, closeHov ? 0xFFCCCCCC : C_TEXT);
 
         super.render(g, mx, my, partial);
+
+        if (pendingTooltip != null) {
+            g.renderTooltip(font, net.minecraft.network.chat.Component.literal(pendingTooltip), mx, my);
+        }
     }
 
     private void renderLegend(GuiGraphics g, int lx, int ly) {
@@ -280,7 +293,7 @@ public class DepLineSettingsScreen extends Screen {
                 "",
                 "§fSpeed",
                 "§7Hover-arrow flow",
-                "§7Slowestâ€¦Very Fast",
+                "§7Slowest…Very Fast",
                 "",
                 "§7\"Inherit\" = use the",
                 "§7Global Appearance",
@@ -312,8 +325,8 @@ public class DepLineSettingsScreen extends Screen {
         drawPreviewLine(g, x, ty, midX, by, 0xFF00CC66, spline);
         drawPreviewLine(g, midX, by, x + w, ty, 0xFFFFAA00, spline);
 
-        g.drawString(font, "§8" + lineShape.name() + "  Â·  " + lineVisual.name(),
-                x + w - font.width(lineShape.name() + "  Â·  " + lineVisual.name()), y - 10, C_TEXT_FAINT, false);
+        g.drawString(font, "§8" + lineShape.name() + "  ·  " + lineVisual.name(),
+                x + w - font.width(lineShape.name() + "  ·  " + lineVisual.name()), y - 10, C_TEXT_FAINT, false);
     }
 
     private void drawPreviewLine(GuiGraphics g, int x1, int y1, int x2, int y2, int col, boolean spline) {
@@ -360,7 +373,7 @@ public class DepLineSettingsScreen extends Screen {
                     g.fill(px - 2, py - 2, px + 3, py + 3, rgb | 0xAA000000);
                     g.fill(px - 1, py - 1, px + 2, py + 2, col);
                 }
-                default -> {  
+                default -> {
                     g.fill(px - 1, py - 1, px + 2, py + 2, col);
                     g.fill(px - 2, py - 1, px - 1, py + 2, rgb | 0x33000000);
                     g.fill(px + 2, py - 1, px + 3, py + 2, rgb | 0x33000000);
@@ -370,11 +383,17 @@ public class DepLineSettingsScreen extends Screen {
     }
 
     private int renderCycleRow(GuiGraphics g, int x, int y, int w, String label, String value, int mx, int my) {
+        return renderCycleRow(g, x, y, w, label, value, mx, my, null);
+    }
+
+    private int renderCycleRow(GuiGraphics g, int x, int y, int w, String label, String value, int mx, int my,
+                               String tooltip) {
         int textY = y + (ROW_H - 8) / 2;
         int rArrowX = x + w - ARROW_W;
         int lArrowX = rArrowX - 2 - ARROW_W;
         boolean leftH = mx >= lArrowX && mx < lArrowX + ARROW_W && my >= y && my < y + ROW_H;
         boolean rightH = mx >= rArrowX && mx < rArrowX + ARROW_W && my >= y && my < y + ROW_H;
+        boolean rowHov = mx >= x && mx < x + w && my >= y && my < y + ROW_H;
 
         if (leftH) g.fill(lArrowX, y, lArrowX + ARROW_W, y + ROW_H, 0x33FFFFFF);
         if (rightH) g.fill(rArrowX, y, rArrowX + ARROW_W, y + ROW_H, 0x33FFFFFF);
@@ -385,8 +404,12 @@ public class DepLineSettingsScreen extends Screen {
         int valX = lArrowX - 6 - font.width(value);
         g.drawString(font, "§7" + value, valX, textY, C_TEXT_DIM, false);
 
+        if (tooltip != null && rowHov) pendingTooltip = tooltip;
+
         return y + ROW_H;
     }
+
+    private String pendingTooltip = null;
 
     private static String minCountStepLabel(Integer v) {
         if (v == null) return "No default";
@@ -418,7 +441,7 @@ public class DepLineSettingsScreen extends Screen {
             return result;
         }
         return QuestTreeRegistry.getAllQuests().values().stream()
-                .filter(n -> category.equals(n.getCategory()))
+                .filter(n -> chapter.equals(n.getChapter()))
                 .filter(n -> searchQuery.isEmpty() || n.getTitle().getString().toLowerCase().contains(searchQuery) ||
                         n.getId().getPath().toLowerCase().contains(searchQuery))
                 .sorted(Comparator.comparing(n -> n.getTitle().getString()))
@@ -434,7 +457,7 @@ public class DepLineSettingsScreen extends Screen {
 
     private String rowShapeLabel(QuestNode row) {
         List<net.minecraft.resources.ResourceLocation> parents = edgeParentsFor(row);
-        if (parents.isEmpty()) return "â€”";
+        if (parents.isEmpty()) return "—";
         LineStyle first = row.getPrereqLineShape(parents.get(0));
         for (net.minecraft.resources.ResourceLocation p : parents)
             if (row.getPrereqLineShape(p) != first) return "Mixed";
@@ -443,7 +466,7 @@ public class DepLineSettingsScreen extends Screen {
 
     private String rowVisualLabel(QuestNode row) {
         List<net.minecraft.resources.ResourceLocation> parents = edgeParentsFor(row);
-        if (parents.isEmpty()) return "â€”";
+        if (parents.isEmpty()) return "—";
         LineVisualStyle first = row.getPrereqLineVisual(parents.get(0));
         for (net.minecraft.resources.ResourceLocation p : parents)
             if (row.getPrereqLineVisual(p) != first) return "Mixed";
@@ -452,7 +475,7 @@ public class DepLineSettingsScreen extends Screen {
 
     private String rowSpeedLabel(QuestNode row) {
         List<net.minecraft.resources.ResourceLocation> parents = edgeParentsFor(row);
-        if (parents.isEmpty()) return "â€”";
+        if (parents.isEmpty()) return "—";
         QuestChroniclesSettings.LineAnimSpeed first = row.getPrereqLineSpeed(parents.get(0));
         for (net.minecraft.resources.ResourceLocation p : parents)
             if (row.getPrereqLineSpeed(p) != first) return "Mixed";
@@ -571,7 +594,7 @@ public class DepLineSettingsScreen extends Screen {
         int y = contentTop - scrollY;
 
         if (focusNodeId == null) {
-            
+
             y += GLOBAL_SECTION_LABEL_H;
 
             if (hitArrows(x, y, w, mx, my)) {
@@ -607,7 +630,7 @@ public class DepLineSettingsScreen extends Screen {
             y += DIVIDER_H + CATEGORY_LABEL_H;
 
             if (hitArrows(x, y, w, mx, my)) {
-                
+
                 if (catRequireAllDefault == null) catRequireAllDefault = true;
                 else if (catRequireAllDefault) catRequireAllDefault = false;
                 else catRequireAllDefault = null;
@@ -673,15 +696,15 @@ public class DepLineSettingsScreen extends Screen {
             s.setLineAnimSpeed(lineAnimSpeed);
             s.setShowLineArrows(lineArrows);
             s.save();
-            saveCategoryPrereqDefaults();
+            saveChapterPrereqDefaults();
         }
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
-    private void saveCategoryPrereqDefaults() {
+    private void saveChapterPrereqDefaults() {
         Path configDir = net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
-        Path file = configDir.resolve("category_prereq_defaults.snbt");
+        Path file = configDir.resolve("chapter_prereq_defaults.snbt");
         try {
             net.minecraft.nbt.CompoundTag root;
             if (Files.exists(file)) {
@@ -694,16 +717,16 @@ public class DepLineSettingsScreen extends Screen {
             if (catRequireAllDefault != null) entry.putBoolean("require_all", catRequireAllDefault);
             if (catOptionalMinDefault != null) entry.putInt("optional_min_count", catOptionalMinDefault);
 
-            if (entry.isEmpty()) root.remove(category);
-            else root.put(category, entry);
+            if (entry.isEmpty()) root.remove(chapter);
+            else root.put(chapter, entry);
 
             Files.createDirectories(configDir);
             Files.writeString(file, root.toString(), StandardCharsets.UTF_8);
 
-            CategoryPrereqDefaults.load(configDir);
+            ChapterPrereqDefaults.load(configDir);
             parent.rebuildFromExternal();
         } catch (Exception e) {
-            System.err.println("[Phoenix Chronicles] Failed to save category_prereq_defaults.snbt: " + e.getMessage());
+            System.err.println("[Phoenix Chronicles] Failed to save chapter_prereq_defaults.snbt: " + e.getMessage());
         }
     }
 
@@ -725,7 +748,7 @@ public class DepLineSettingsScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        if (key == 256) {  
+        if (key == 256) {
             if (searchBox != null && searchBox.isFocused() && !searchQuery.isEmpty()) {
                 searchBox.setValue("");
                 return true;
@@ -746,4 +769,3 @@ public class DepLineSettingsScreen extends Screen {
         return false;
     }
 }
-

@@ -13,7 +13,7 @@ import net.phoenixvine.chronicles.model.QuestTask;
 public class BlockInteractTask extends QuestTask {
 
     private Block targetBlock;
-    private String mode; 
+    private String mode;
 
     public BlockInteractTask(ResourceLocation taskId, Component description, Block targetBlock, String mode) {
         super(taskId, description);
@@ -53,7 +53,7 @@ public class BlockInteractTask extends QuestTask {
         ResourceLocation id = ForgeRegistries.BLOCKS.getKey(targetBlock);
         tag.putString("block_id", id != null ? id.toString() : "minecraft:air");
         tag.putString("mode", mode != null ? mode : "PLACE");
-        
+
         return tag;
     }
 
@@ -67,4 +67,3 @@ public class BlockInteractTask extends QuestTask {
         this.mode = nbt.getString("mode").toUpperCase();
     }
 }
-

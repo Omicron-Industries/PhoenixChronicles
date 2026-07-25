@@ -10,4 +10,3 @@ public interface QuestFlagProvider {
 
     boolean evaluate(String expression, @Nullable MinecraftServer server);
 }
-

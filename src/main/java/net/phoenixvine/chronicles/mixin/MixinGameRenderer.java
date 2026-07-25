@@ -6,4 +6,3 @@ import org.spongepowered.asm.mixin.Mixin;
 
 @Mixin(GameRenderer.class)
 public abstract class MixinGameRenderer {}
-

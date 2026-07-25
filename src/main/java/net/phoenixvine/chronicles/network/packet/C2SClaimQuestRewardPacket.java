@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 public class C2SClaimQuestRewardPacket {
 
     private final ResourceLocation questId;
-    private final int choiceIndex; 
+    private final int choiceIndex;
 
     public C2SClaimQuestRewardPacket(ResourceLocation questId, int choiceIndex) {
         this.questId = questId;
@@ -51,4 +51,3 @@ public class C2SClaimQuestRewardPacket {
         ctx.get().setPacketHandled(true);
     }
 }
-

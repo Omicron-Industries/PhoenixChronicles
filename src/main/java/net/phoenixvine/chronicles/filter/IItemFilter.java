@@ -2,7 +2,6 @@ package net.phoenixvine.chronicles.filter;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
-import net.phoenixvine.chronicles.tasks.FilterItemTask;
 
 public interface IItemFilter {
 
@@ -16,4 +15,3 @@ public interface IItemFilter {
         return ItemStack.EMPTY;
     }
 }
-
