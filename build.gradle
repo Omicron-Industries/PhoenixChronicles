@@ -85,12 +85,7 @@ repositories {
     flatDir {
         dir 'libs'
     }
-    // TEMPORARY: local Phantasia dev build (see the phantasia dependency below) - flatDir gives
-    // Gradle a real resolvable coordinate for it instead of a raw files() collection, which
-    // writeClientLegacyClasspath's dependency-constraint code can't handle.
-    flatDir {
-        dirs "${rootDir}/../Phantasia/build/libs"
-    }
+
 }
 
 version = mod_version
@@ -167,47 +162,28 @@ dependencies {
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
     modCompileOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
-    modCompileOnly("phantasia:Phantasia:1.0.0")
-    modRuntimeOnly("phantasia:Phantasia:1.0.0")
+    modCompileOnly("curse.maven:phantasia-1589286:8421625")
+    modRuntimeOnly("curse.maven:phantasia-1589286:8421625")
 
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
     modCompileOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
 
-    // KubeJS - compile-time only, same as JEI/EMI above: the plugin class is only ever
-    // instantiated by KubeJS itself (via kubejs.plugins.txt), and only if KubeJS is actually
-    // installed, so this mod works fine without it at runtime. Not added as modRuntimeOnly since
-    // packs that DO run KubeJS already provide it themselves - bundling/requiring our own copy
-    // would just be redundant (and risk a version clash with whatever the pack ships).
+
     modCompileOnly("dev.latvian.mods:kubejs-forge:${kubejs_version}")
 
-    // Applied Energistics 2 - soft dependency, same pattern as GTCEu/phoenix_guilds (see
-    // AE2Compat): guarded behind ModList.isLoaded("ae2") everywhere, only needs to be on the
-    // classpath to compile against.
+
     modCompileOnly("appeng:appliedenergistics2-forge:${appeng_version}")
     modRuntimeOnly("appeng:appliedenergistics2-forge:${appeng_version}")
 
     modRuntimeOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
     modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
 
-    // Optional compat, not a hard dependency - QuestProgressTracker/TeamKeyResolver both guard
-    // every GuildManager call behind ModList.isLoaded("phoenix_guilds") now, so this only needs
-    // to be on the classpath to COMPILE against; modImplementation was wrong here, since that
-    // marks it as something this mod always requires/ships with, same mistake GTCEu currently
-    // has (see the comment below it) just smaller in scope - phoenix_guilds is a 2-call-site,
-    // already-guarded integration, not something baked into core registration like GTCEu is.
-    modCompileOnly('local:phoenix_guilds:0.1.0')
-    modRuntimeOnly('local:phoenix_guilds:0.1.0')
 
-    // GregTech and dependencies - soft, same as phoenix_guilds above. GTCEuCompat now guards
-    // every GTCEu-touching call (registrate setup, the material-registry listener, the
-    // energy_check task's block-reading, the multiblock-formed mixin), so this only needs to be
-    // on the classpath to COMPILE against. Was modImplementation - a hard requirement - which
-    // contradicted mods.toml's own "mandatory = false" for gtceu and meant the mod crashed on
-    // construction (a static field eagerly resolved GTRegistrate) for anyone running without it.
-    // LDLib/Registrate/configuration aren't independently used by this mod's own code at all -
-    // they're only here because GTCEu's slim jar (transitive = false) needs them; their
-    // optionality is entirely inherited from GTCEu's.
+    modCompileOnly('curse.maven:phoenix-guilds-1612085:8460956')
+    modRuntimeOnly('curse.maven:phoenix-guilds-1612085:8460956')
+
+
     modCompileOnly("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}:slim") { transitive = false }
     modCompileOnly("com.lowdragmc.ldlib:ldlib-forge-${minecraft_version}:${ldlib_version}") { transitive = false }
     modCompileOnly("com.tterrag.registrate:Registrate:${registrate_version}")
@@ -217,7 +193,6 @@ dependencies {
     modRuntimeOnly("com.tterrag.registrate:Registrate:${registrate_version}")
     modRuntimeOnly("dev.toma.configuration:configuration-forge-${minecraft_version}:${configuration_version}")
 
-    // lombok
     compileOnly 'org.projectlombok:lombok:1.18.24'
     annotationProcessor 'org.projectlombok:lombok:1.18.24'
 }
@@ -233,7 +208,7 @@ tasks.named('processResources', ProcessResources).configure {
             "mod_name": mod_name,
             "mod_url": mod_url,
             "mod_author": mod_author,
-            "forge_version": forge_version.split("\\.")[0], // only specify major version of forge
+            "forge_version": forge_version.split("\\.")[0],
             "minecraft_version": minecraft_version,
             "gtceu_version": gtceu_version,
     ]
@@ -246,13 +221,10 @@ tasks.named('processResources', ProcessResources).configure {
 
 tasks.named('jar', Jar).configure { finalizedBy 'reobfJar' }
 tasks.withType(JavaCompile).configureEach {
-    // ensure that the encoding is set to UTF-8, no matter what the system default is
-    // this fixes some edge cases with special characters not displaying correctly
-    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-    // If Javadoc is generated, this must be specified in that task too.
+
     options.encoding = "UTF-8"
     options.release.set(17)
-    options.compilerArgs << "-Aquiet=true" // Suppress mixin notes
+    options.compilerArgs << "-Aquiet=true"
 }
 
 tasks.register('publishToDomains', Copy) {
