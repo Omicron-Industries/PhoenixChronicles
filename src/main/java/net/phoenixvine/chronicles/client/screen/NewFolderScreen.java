@@ -23,15 +23,23 @@ public class NewFolderScreen extends Screen {
 
     private final Screen parent;
     private final Consumer<String> onCreated;
+
+    private final String renameCategoryId;
     private String name = "";
 
     private EditBox nameBox;
     private int panelLeft, panelTop;
 
     public NewFolderScreen(Screen parent, Consumer<String> onCreated) {
-        super(Component.literal("New Category"));
+        this(parent, null, "", onCreated);
+    }
+
+    public NewFolderScreen(Screen parent, String renameCategoryId, String currentLabel, Consumer<String> onDone) {
+        super(Component.literal(renameCategoryId != null ? "Rename Category" : "New Category"));
         this.parent = parent;
-        this.onCreated = onCreated;
+        this.renameCategoryId = renameCategoryId;
+        this.onCreated = onDone;
+        this.name = currentLabel == null ? "" : currentLabel;
     }
 
     @Override
@@ -45,14 +53,15 @@ public class NewFolderScreen extends Screen {
         nameBox = new EditBox(font, fx, y, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(40);
         nameBox.setHint(Component.literal("§8e.g. Progression"));
+        nameBox.setValue(name);
         nameBox.setResponder(v -> name = v);
         addRenderableWidget(nameBox);
         setInitialFocus(nameBox);
 
         int btnY = panelTop + PANEL_H - 10 - 18;
         int half = (fw - 6) / 2;
-        addRenderableWidget(Button.builder(Component.literal("§aCreate"), b -> create())
-                .bounds(fx, btnY, half, 18).build());
+        addRenderableWidget(Button.builder(Component.literal(renameCategoryId != null ? "§aRename" : "§aCreate"),
+                b -> create()).bounds(fx, btnY, half, 18).build());
         addRenderableWidget(Button.builder(Component.literal("§7Cancel"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(parent);
@@ -64,10 +73,15 @@ public class NewFolderScreen extends Screen {
         String label = name.trim();
         if (label.isEmpty()) return;
 
-        String id = label.toLowerCase().replaceAll("[^a-z0-9_]", "_");
-        CategoryRegistry.addCategory(id, label);
-        CategoryRegistry.save();
-        onCreated.accept(id);
+        if (renameCategoryId != null) {
+            CategoryRegistry.renameCategory(renameCategoryId, label);
+            onCreated.accept(renameCategoryId);
+        } else {
+            String id = label.toLowerCase().replaceAll("[^a-z0-9_]", "_");
+            CategoryRegistry.addCategory(id, label);
+            CategoryRegistry.save();
+            onCreated.accept(id);
+        }
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
@@ -76,15 +90,14 @@ public class NewFolderScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        if (parent != null) parent.render(g, -1, -1, partial);
         g.flush();
 
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
 
         ChroniclesUIKit.drawModalChrome(g, font, width, height, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
-                "§bNew Category", ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
-                ACCENT, ChroniclesThemePalette.TEXT);
+                renameCategoryId != null ? "§bRename Category" : "§bNew Category", ChroniclesThemePalette.PANEL,
+                ChroniclesThemePalette.HEADER, ACCENT, ChroniclesThemePalette.TEXT);
 
         g.drawString(font, "§8Category name", panelLeft + MARGIN, panelTop + 24, ChroniclesThemePalette.TEXT_FAINT,
                 false);

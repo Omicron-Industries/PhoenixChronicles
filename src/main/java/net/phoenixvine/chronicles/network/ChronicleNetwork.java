@@ -8,8 +8,10 @@ import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.network.packet.C2SCompleteCheckmarkTaskPacket;
 import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
+import net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket;
 import net.phoenixvine.chronicles.network.packet.C2SSetQuestStatePacket;
 import net.phoenixvine.chronicles.network.packet.C2STogglePinPacket;
+import net.phoenixvine.chronicles.network.packet.S2COpenExternalScreenPacket;
 import net.phoenixvine.chronicles.network.packet.S2CReloadQuestsFromDiskPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
@@ -92,5 +94,19 @@ public class ChronicleNetwork {
                 C2SPhantasiaTaskCompletePacket::new,
                 C2SPhantasiaTaskCompletePacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                C2SScreenOpenedTaskPacket.class,
+                C2SScreenOpenedTaskPacket::encode,
+                C2SScreenOpenedTaskPacket::new,
+                C2SScreenOpenedTaskPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                S2COpenExternalScreenPacket.class,
+                S2COpenExternalScreenPacket::encode,
+                S2COpenExternalScreenPacket::new,
+                S2COpenExternalScreenPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

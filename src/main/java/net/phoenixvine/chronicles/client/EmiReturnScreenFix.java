@@ -7,29 +7,28 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 
-import java.lang.ref.WeakReference;
-
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class EmiReturnScreenFix {
 
     private EmiReturnScreenFix() {}
 
-    private static WeakReference<Screen> armedEphemeralScreen = new WeakReference<>(null);
-    private static WeakReference<Screen> armedReturnToScreen = new WeakReference<>(null);
+    private static Screen armedEphemeralScreen = null;
+    private static Screen armedReturnToScreen = null;
 
     public static void armReturnTo(Screen ephemeralScreen, Screen returnToScreen) {
-        armedEphemeralScreen = new WeakReference<>(ephemeralScreen);
-        armedReturnToScreen = new WeakReference<>(returnToScreen);
+        armedEphemeralScreen = ephemeralScreen;
+        armedReturnToScreen = returnToScreen;
     }
 
     @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
-        Screen ephemeral = armedEphemeralScreen.get();
+        Screen ephemeral = armedEphemeralScreen;
         if (ephemeral == null) return;
         if (event.getNewScreen() == ephemeral) {
-            event.setNewScreen(armedReturnToScreen.get());
-            armedEphemeralScreen = new WeakReference<>(null);
-            armedReturnToScreen = new WeakReference<>(null);
+            Screen returnTo = armedReturnToScreen;
+            armedEphemeralScreen = null;
+            armedReturnToScreen = null;
+            if (returnTo != null) event.setNewScreen(returnTo);
         }
     }
 }

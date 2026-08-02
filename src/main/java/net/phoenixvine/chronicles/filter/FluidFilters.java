@@ -29,14 +29,7 @@ public final class FluidFilters {
         public boolean test(FluidStack stack) {
             ResourceLocation id = ForgeRegistries.FLUIDS.getKey(stack.getFluid());
             if (!fluidId.equals(id)) return false;
-            if (nbt == null || nbt.isEmpty()) return true;
-            CompoundTag stackTag = stack.getTag();
-            if (stackTag == null) return false;
-            for (String key : nbt.getAllKeys()) {
-                if (!stackTag.contains(key)) return false;
-                if (!stackTag.get(key).equals(nbt.get(key))) return false;
-            }
-            return true;
+            return NbtMatchUtil.matches(stack.getTag(), nbt);
         }
 
         @Override

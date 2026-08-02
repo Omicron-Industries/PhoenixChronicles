@@ -197,7 +197,7 @@ public class TerminalScreen extends Screen {
             case "theme" -> cmdTheme(parts);
             case "whoami" -> cmdWhoami();
             case "progress" -> cmdProgress(parts);
-            default -> consoleHistory.add("§cERR: Unknown directive '§f" + cmd + "§c' — type §fhelp§c for commands.");
+            default -> consoleHistory.add("§cERR: Unknown directive '§f" + cmd + "§c': type §fhelp§c for commands.");
         }
 
         inputBuffer = "";
@@ -242,14 +242,14 @@ public class TerminalScreen extends Screen {
             }
         }
         consoleHistory.add("§aAvailable directives:");
-        consoleHistory.add("§f  quests [active|all|done]    §8— list quest nodes");
-        consoleHistory.add("§f  quest <id>                  §8— inspect a quest");
-        consoleHistory.add("§f  progress <id>               §8— per-task progress");
-        consoleHistory.add("§f  activate / deactivate <id>  §8— toggle tracking");
-        consoleHistory.add("§f  claim <id>                  §8— claim rewards");
-        consoleHistory.add("§f  theme <name>                §8— switch UI theme");
-        consoleHistory.add("§f  whoami                      §8— player identity");
-        consoleHistory.add("§f  clear                       §8— clear terminal");
+        consoleHistory.add("§f  quests [active|all|done]    §8: list quest nodes");
+        consoleHistory.add("§f  quest <id>                  §8: inspect a quest");
+        consoleHistory.add("§f  progress <id>               §8: per-task progress");
+        consoleHistory.add("§f  activate / deactivate <id>  §8: toggle tracking");
+        consoleHistory.add("§f  claim <id>                  §8: claim rewards");
+        consoleHistory.add("§f  theme <name>                §8: switch UI theme");
+        consoleHistory.add("§f  whoami                      §8: player identity");
+        consoleHistory.add("§f  clear                       §8: clear terminal");
         consoleHistory.add("§8Type §fhelp <cmd>§8 for details.");
     }
 
@@ -266,7 +266,7 @@ public class TerminalScreen extends Screen {
             Map<ResourceLocation, QuestState> states = data.getAllStates();
             long active = states.values().stream().filter(s -> s == QuestState.ACTIVE).count();
             long done = states.values().stream().filter(s -> s == QuestState.COMPLETED).count();
-            consoleHistory.add("§8  Quests — §aactive: §f" + active + "  §adone: §f" + done);
+            consoleHistory.add("§8  Quests: §aactive: §f" + active + "  §adone: §f" + done);
         }
     }
 

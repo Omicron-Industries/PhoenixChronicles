@@ -4,6 +4,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.phoenixvine.chronicles.client.render.NodeShapeRenderer;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
@@ -160,8 +161,8 @@ public class DepLineSettingsScreen extends Screen {
                     "STRAIGHT/SPLINE/etc - the path a dependency line follows between two quest nodes") + ROW_GAP;
             y = renderCycleRow(g, x, y, w, "§fLine Style", lineVisual.name(), mx, my,
                     "The line's visual treatment (solid, dashed, glowing, etc.)") + ROW_GAP;
-            y = renderCycleRow(g, x, y, w, "§fDot Speed", lineAnimSpeed.name(), mx, my,
-                    "How fast the animated flow dots travel along a dependency line") + ROW_GAP;
+            y = renderCycleRow(g, x, y, w, "§fArrow Speed", lineAnimSpeed.name(), mx, my,
+                    "How fast the animated arrows travel along a dependency line") + ROW_GAP;
             y = renderCycleRow(g, x, y, w, "§fDirectional Arrows", lineArrows ? "ON" : "OFF", mx, my) + ROW_GAP;
 
             y += 4;
@@ -325,9 +326,13 @@ public class DepLineSettingsScreen extends Screen {
         drawPreviewLine(g, x, ty, midX, by, 0xFF00CC66, spline);
         drawPreviewLine(g, midX, by, x + w, ty, 0xFFFFAA00, spline);
 
+        NodeShapeRenderer.flushFillQueue(g);
+
         g.drawString(font, "§8" + lineShape.name() + "  ·  " + lineVisual.name(),
                 x + w - font.width(lineShape.name() + "  ·  " + lineVisual.name()), y - 10, C_TEXT_FAINT, false);
     }
+
+    private static final float PREVIEW_ARROW_SPEED_PX_PER_MS = 0.15f;
 
     private void drawPreviewLine(GuiGraphics g, int x1, int y1, int x2, int y2, int col, boolean spline) {
         int steps = Math.max(16, Math.abs(x2 - x1) / 2 + Math.abs(y2 - y1) / 2);
@@ -349,24 +354,22 @@ public class DepLineSettingsScreen extends Screen {
             switch (lineVisual) {
                 case THIN -> g.fill(px, py, px + 1, py + 1, col);
                 case BOLD -> {
-                    g.fill(px - 2, py - 2, px + 3, py + 3, col);
+
+                    g.fill(px - 2, py - 2, px + 3, py + 3, rgb | 0x99000000);
                     g.fill(px - 3, py - 2, px - 2, py + 3, rgb | 0x33000000);
                     g.fill(px + 3, py - 2, px + 4, py + 3, rgb | 0x33000000);
                     g.fill(px - 2, py - 3, px + 3, py - 2, rgb | 0x33000000);
                     g.fill(px - 2, py + 3, px + 3, py + 4, rgb | 0x33000000);
                 }
                 case THICK -> {
+
                     g.fill(px - 4, py - 4, px + 5, py + 5, rgb | 0x1C000000);
                     g.fill(px - 3, py - 3, px + 4, py + 4, rgb | 0x55000000);
-                    g.fill(px - 3, py - 3, px + 4, py + 4, col);
-                    g.fill(px - 1, py - 1, px + 2, py + 2, rgb | 0xFF000000);
                 }
                 case WIDE -> {
                     g.fill(px - 6, py - 6, px + 7, py + 7, rgb | 0x0F000000);
                     g.fill(px - 5, py - 5, px + 6, py + 6, rgb | 0x1E000000);
                     g.fill(px - 4, py - 4, px + 5, py + 5, rgb | 0x32000000);
-                    g.fill(px - 4, py - 4, px + 5, py + 5, col);
-                    g.fill(px - 2, py - 2, px + 3, py + 3, rgb | 0xFF000000);
                 }
                 case GLOW -> {
                     g.fill(px - 3, py - 3, px + 4, py + 4, rgb | 0x44000000);
@@ -374,12 +377,60 @@ public class DepLineSettingsScreen extends Screen {
                     g.fill(px - 1, py - 1, px + 2, py + 2, col);
                 }
                 default -> {
-                    g.fill(px - 1, py - 1, px + 2, py + 2, col);
+                    g.fill(px - 1, py - 1, px + 2, py + 2, rgb | 0x99000000);
                     g.fill(px - 2, py - 1, px - 1, py + 2, rgb | 0x33000000);
                     g.fill(px + 2, py - 1, px + 3, py + 2, rgb | 0x33000000);
                 }
             }
         }
+
+        if (!lineArrows) return;
+
+        float dist = (float) Math.sqrt((double) dx * dx + (double) dy * dy);
+        if (dist < 1f) return;
+
+        float arrowSize = 5f;
+        int arrowCount = Math.max(1, Math.min(10, Math.round(dist / (arrowSize * 2.1f))));
+
+        float basePeriodMs = Math.min(2200f, Math.max(350f, dist / PREVIEW_ARROW_SPEED_PX_PER_MS));
+        long periodMs = Math.max(80L, Math.min(8000L, Math.round(basePeriodMs * (lineAnimSpeed.divisor / 35.0))));
+
+        boolean reduceMotion = QuestChroniclesSettings.get().isReduceMotion();
+        long now = System.currentTimeMillis();
+        float phase = reduceMotion ? 0f : (now % periodMs) / (float) periodMs;
+
+        for (int i = 0; i < arrowCount; i++) {
+            float f = 0.02f + ((phase + (float) i / arrowCount) % 1f) * 0.96f;
+            float px, py, dirX, dirY;
+            if (spline) {
+                float u = 1 - f;
+                px = u * u * u * x1 + 3 * u * u * f * cx1 + 3 * u * f * f * cx2 + f * f * f * x2;
+                py = u * u * u * y1 + 3 * u * u * f * cy1 + 3 * u * f * f * cy2 + f * f * f * y2;
+                dirX = 3 * u * u * (cx1 - x1) + 6 * u * f * (cx2 - cx1) + 3 * f * f * (x2 - cx2);
+                dirY = 3 * u * u * (cy1 - y1) + 6 * u * f * (cy2 - cy1) + 3 * f * f * (y2 - cy2);
+            } else {
+                px = x1 + f * dx;
+                py = y1 + f * dy;
+                dirX = dx;
+                dirY = dy;
+            }
+            drawArrowhead(g, px, py, dirX, dirY, col);
+        }
+    }
+
+    private void drawArrowhead(GuiGraphics g, float px, float py, float dirX, float dirY, int color) {
+        float len = (float) Math.sqrt(dirX * dirX + dirY * dirY);
+        if (len < 0.001f) return;
+        float ux = dirX / len, uy = dirY / len;
+        float perpX = -uy, perpY = ux;
+        float size = 5f;
+        float tipX = px + ux * size, tipY = py + uy * size;
+        float baseX = px - ux * size, baseY = py - uy * size;
+        float[] vx = { tipX, baseX + perpX * size * 0.6f, baseX - perpX * size * 0.6f };
+        float[] vy = { tipY, baseY + perpY * size * 0.6f, baseY - perpY * size * 0.6f };
+        int yMin = (int) Math.floor(Math.min(vy[0], Math.min(vy[1], vy[2])));
+        int yMax = (int) Math.ceil(Math.max(vy[0], Math.max(vy[1], vy[2])));
+        NodeShapeRenderer.fillPolygon(g, vx, vy, yMin, yMax, color);
     }
 
     private int renderCycleRow(GuiGraphics g, int x, int y, int w, String label, String value, int mx, int my) {
@@ -733,16 +784,31 @@ public class DepLineSettingsScreen extends Screen {
     private boolean hitArrows(int x, int y, int w, double mx, double my) {
         int rArrowX = x + w - ARROW_W;
         int lArrowX = rArrowX - 2 - ARROW_W;
-        return my >= y && my < y + ROW_H && mx >= lArrowX;
+        return my >= y && my < y + ROW_H && mx >= lArrowX && mx < rArrowX + ARROW_W;
     }
 
     private boolean isRight(int x, int w, double mx) {
-        return mx >= x + w - ARROW_W;
+        int rArrowX = x + w - ARROW_W;
+        return mx >= rArrowX;
+    }
+
+    private int contentAreaHeight() {
+        return height - HEADER_H - SEARCH_H - MARGIN - FOOTER_H - MARGIN;
+    }
+
+    private int totalContentHeight(List<QuestNode> quests) {
+        int start = focusNodeId == null ? perQuestStart() : PER_QUEST_LABEL_H;
+        int rows = quests.isEmpty() ? 10 : quests.size() * (ROW_H + ROW_GAP);
+        return start + rows;
+    }
+
+    private int maxScroll() {
+        return Math.max(0, totalContentHeight(questList()) - contentAreaHeight());
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        scrollY = Math.max(0, (int) (scrollY - delta * 12));
+        scrollY = Math.max(0, Math.min(maxScroll(), (int) (scrollY - delta * 12)));
         return true;
     }
 

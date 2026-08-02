@@ -22,24 +22,26 @@ public class S2CSyncPlayerProgressPacket {
 
     private final CompoundTag progressNbt;
 
+    private final boolean initialSync;
+
     public S2CSyncPlayerProgressPacket(PlayerQuestData data) {
+        this(data, false);
+    }
+
+    public S2CSyncPlayerProgressPacket(PlayerQuestData data, boolean initialSync) {
         this.progressNbt = data.serializeNBT();
+        this.initialSync = initialSync;
     }
 
     public S2CSyncPlayerProgressPacket(FriendlyByteBuf buf) {
         this.progressNbt = buf.readNbt();
+        this.initialSync = buf.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeNbt(progressNbt);
+        buf.writeBoolean(initialSync);
     }
-
-    private static boolean receivedFirstSync = false;
-
-    private static long graceDeadlineMs = 0;
-    private static long firstSyncTimeMs = 0;
-    private static final long LOGIN_GRACE_MS = 3000;
-    private static final long MAX_GRACE_MS = 15000;
 
     private static volatile int version = 0;
 
@@ -47,24 +49,22 @@ public class S2CSyncPlayerProgressPacket {
         return version;
     }
 
-    public static void resetForNewSession() {
-        receivedFirstSync = false;
-        graceDeadlineMs = 0;
-        firstSyncTimeMs = 0;
-    }
-
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> applyOnClient(progressNbt)));
+                () -> () -> applyOnClient(progressNbt, initialSync)));
         ctx.get().setPacketHandled(true);
     }
 
-    private static void applyOnClient(CompoundTag nbt) {
+    private static void applyOnClient(CompoundTag nbt, boolean initialSync) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         mc.player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            boolean isFirstSync = !receivedFirstSync;
-            receivedFirstSync = true;
+            if (initialSync) {
+
+                data.deserializeNBT(nbt);
+                version++;
+                return;
+            }
 
             Map<ResourceLocation, QuestState> oldStates = new HashMap<>();
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
@@ -73,18 +73,6 @@ public class S2CSyncPlayerProgressPacket {
 
             data.deserializeNBT(nbt);
             version++;
-
-            long now = System.currentTimeMillis();
-            if (isFirstSync) {
-                firstSyncTimeMs = now;
-                graceDeadlineMs = now + LOGIN_GRACE_MS;
-                return;
-            }
-            if (now < graceDeadlineMs) {
-
-                graceDeadlineMs = Math.min(now + LOGIN_GRACE_MS, firstSyncTimeMs + MAX_GRACE_MS);
-                return;
-            }
 
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 QuestState oldState = oldStates.getOrDefault(node.getId(), QuestState.LOCKED);

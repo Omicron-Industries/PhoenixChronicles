@@ -236,10 +236,12 @@ public final class PhoenixTaskRegistry {
             return t;
         }).icon("§e■").label("Collect Item")
                 .tooltip(
-                        "Have a specific item in your inventory.\nTarget: item registry id. Consume: remove items on complete.")
+                        "Have a specific item in your inventory.\nTarget: item registry id. Consume: remove items on complete.\n" +
+                                "If AE2 is installed, also counts items stored in your linked ME network (toggle: check_ae2_storage).")
                 .field(FieldDef.itemId("item_id", "Item ID"))
                 .field(FieldDef.integer("count", "Count"))
                 .field(FieldDef.bool("consume", "Consume"))
+                .field(FieldDef.bool("check_ae2_storage", "Check AE2 Storage"))
                 .register();
 
         register("craft_item", tag -> {
@@ -302,10 +304,12 @@ public final class PhoenixTaskRegistry {
             t.deserializeNBT(tag);
             return t;
         }).icon("§3≋").label("Fluid Check")
-                .tooltip("Have a fluid amount in a tank.\nTarget: fluid id. Count: amount in mB.")
+                .tooltip("Have a fluid amount in a tank.\nTarget: fluid id. Count: amount in mB.\n" +
+                        "If AE2 is installed, also counts fluid stored in your linked ME network (toggle: check_ae2_storage).")
                 .field(FieldDef.fluidId("fluid_id", "Fluid ID"))
                 .field(FieldDef.integer("amount", "Amount (mB)"))
                 .field(FieldDef.bool("consume", "Consume"))
+                .field(FieldDef.bool("check_ae2_storage", "Check AE2 Storage"))
                 .register();
 
         register("stat", tag -> {
@@ -383,6 +387,18 @@ public final class PhoenixTaskRegistry {
                 .field(FieldDef.text("body", "Body Text"))
                 .register();
 
+        register("timer", tag -> {
+            net.phoenixvine.chronicles.tasks.TimerTask t = new net.phoenixvine.chronicles.tasks.TimerTask(taskId(tag),
+                    desc(tag), 300);
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b⏱").label("Timer")
+                .tooltip(
+                        "Completes automatically once the configured duration has elapsed since the quest became " +
+                                "active for the player.\nNo target needed — set Duration (seconds).")
+                .field(FieldDef.integer("duration_seconds", "Duration (seconds)"))
+                .register();
+
         register("energy_check", tag -> {
             EnergyStorageTask t = new EnergyStorageTask(taskId(tag), desc(tag),
                     10000L, EnergyStorageTask.EnergyType.FE, EnergyStorageTask.Source.INVENTORY);
@@ -397,34 +413,20 @@ public final class PhoenixTaskRegistry {
                 .register();
 
         register("ae2_item_storage", tag -> {
-            net.phoenixvine.chronicles.tasks.AE2ItemStorageTask t = new net.phoenixvine.chronicles.tasks.AE2ItemStorageTask(
-                    taskId(tag), desc(tag),
+            ItemRequirementTask t = new ItemRequirementTask(taskId(tag), desc(tag),
                     net.minecraft.world.item.Items.DIRT, 1, false);
             t.deserializeNBT(tag);
+            t.setCheckAe2Storage(true);
             return t;
-        }).icon("§b◆").label("AE2 Item Storage")
-                .tooltip("Have an item amount stored in your Applied Energistics 2 network.\n" +
-                        "Read through whichever wireless terminal you're currently holding.\n" +
-                        "Target: item registry id. Consume: withdraw items on complete.")
-                .field(FieldDef.itemId("item_id", "Item ID"))
-                .field(FieldDef.integer("count", "Count"))
-                .field(FieldDef.bool("consume", "Consume"))
-                .register();
+        }).register();
 
         register("ae2_fluid_storage", tag -> {
-            net.phoenixvine.chronicles.tasks.AE2FluidStorageTask t = new net.phoenixvine.chronicles.tasks.AE2FluidStorageTask(
-                    taskId(tag), desc(tag),
+            FluidRequirementTask t = new FluidRequirementTask(taskId(tag), desc(tag),
                     new net.minecraft.resources.ResourceLocation("minecraft", "water"), 1000, false);
             t.deserializeNBT(tag);
+            t.setCheckAe2Storage(true);
             return t;
-        }).icon("§b≋").label("AE2 Fluid Storage")
-                .tooltip("Have a fluid amount stored in your Applied Energistics 2 network.\n" +
-                        "Read through whichever wireless terminal you're currently holding.\n" +
-                        "Target: fluid id. Count: amount in mB.")
-                .field(FieldDef.fluidId("fluid_id", "Fluid ID"))
-                .field(FieldDef.integer("amount", "Amount (mB)"))
-                .field(FieldDef.bool("consume", "Consume"))
-                .register();
+        }).register();
 
         register("filter_item", tag -> {
             FilterItemTask t = new FilterItemTask(taskId(tag), desc(tag),
@@ -435,10 +437,12 @@ public final class PhoenixTaskRegistry {
                 .tooltip("Have items matching a composable filter in inventory.\n" +
                         "Filter types: exact, tag, mod, any_of, all_of, not.\n" +
                         "Consume: remove matching items on completion.\n" +
-                        "Example: any_of [ {tag: forge:ingots/copper}, {tag: forge:ingots/gold} ]")
+                        "Example: any_of [ {tag: forge:ingots/copper}, {tag: forge:ingots/gold} ]\n" +
+                        "If AE2 is installed, also counts matching items stored in your linked ME network (toggle: check_ae2_storage).")
                 .field(FieldDef.itemFilter("filter", "Item Filter"))
                 .field(FieldDef.integer("count", "Count"))
                 .field(FieldDef.bool("consume", "Consume"))
+                .field(FieldDef.bool("check_ae2_storage", "Check AE2 Storage"))
                 .register();
 
         register("filter_fluid", tag -> {
@@ -451,10 +455,12 @@ public final class PhoenixTaskRegistry {
                 .tooltip("Have a fluid amount in inventory matching a composable filter.\n" +
                         "Filter types: exact, tag, mod, any_of, all_of, not.\n" +
                         "Supports fluid tags (e.g. forge:milk, minecraft:water).\n" +
-                        "Amount in mB. Consume: drain fluid on completion.")
+                        "Amount in mB. Consume: drain fluid on completion.\n" +
+                        "If AE2 is installed, also counts matching fluid stored in your linked ME network (toggle: check_ae2_storage).")
                 .field(FieldDef.fluidFilter("filter", "Fluid Filter"))
                 .field(FieldDef.integer("amount", "Amount (mB)"))
                 .field(FieldDef.bool("consume", "Consume"))
+                .field(FieldDef.bool("check_ae2_storage", "Check AE2 Storage"))
                 .register();
 
         register("block_break", tag -> {
@@ -512,6 +518,29 @@ public final class PhoenixTaskRegistry {
                         "Completes when an external mod/script fires QuestAPI.fireExternalEvent() with the matching trigger ID.\nTarget: trigger id (e.g. mymod:sun_eaten).\nCount: how many times the event must fire.")
                 .field(FieldDef.text("trigger_id", "Trigger ID", "e.g. mymod:sun_eaten"))
                 .field(FieldDef.integer("required", "Count (times fired)"))
+                .register();
+
+        register("conflux_research", tag -> {
+            net.phoenixvine.chronicles.tasks.ConfluxResearchTask t = new net.phoenixvine.chronicles.tasks.ConfluxResearchTask(
+                    taskId(tag), desc(tag));
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b☉").label("Conflux Research (PhoenixCore)")
+                .tooltip(
+                        "Completes when the player's Conflux research team has unlocked a specific research node or flag.\nNo effect if PhoenixCore isn't loaded.")
+                .field(FieldDef.bool("flag_mode", "Check Flag Instead of Node"))
+                .field(FieldDef.text("node_id", "Research Node ID", "e.g. phoenixcore:some_node"))
+                .field(FieldDef.text("flag", "Research Flag"))
+                .register();
+
+        register("screen_opened", tag -> {
+            net.phoenixvine.chronicles.tasks.ScreenOpenedTask t = new net.phoenixvine.chronicles.tasks.ScreenOpenedTask(
+                    taskId(tag), desc(tag));
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§d▣").label("Screen Opened")
+                .tooltip(
+                        "Completes when the player opens this quest's external screen (set via the quest's \"External Screen ID\" field).")
                 .register();
     }
 

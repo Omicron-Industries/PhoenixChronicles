@@ -105,8 +105,6 @@ public class QuestbookTitleScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        if (parent != null) parent.render(g, -1, -1, partial);
-
         g.flush();
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);

@@ -54,6 +54,7 @@ public class QuestFileLoader {
                                Map<String, String> prereqLineVisual,
                                Map<String, String> prereqLineSpeed,
                                Map<String, Boolean> prereqLineArrow,
+                               Map<String, String> prereqLineStyleId,
                                boolean hideDepLine,
                                boolean disabledBlocksChildren,
                                boolean shared,
@@ -70,7 +71,9 @@ public class QuestFileLoader {
                                String shapeTexture,
                                List<QuestNode.QuestVariant> variants,
                                String previewMachineId,
-                               String iconFluid) {}
+                               String iconFluid,
+                               String backgroundType,
+                               String externalScreenId) {}
 
     private static void applyLineOverrides(QuestNode node, QuestNode prereq, QuestRecord rec, String pid) {
         String shape = rec.prereqLineShape().get(pid);
@@ -93,6 +96,8 @@ public class QuestFileLoader {
         }
         Boolean arrow = rec.prereqLineArrow().get(pid);
         if (arrow != null) node.setPrereqLineArrow(prereq.getId(), arrow);
+        String styleId = rec.prereqLineStyleId().get(pid);
+        if (styleId != null) node.setPrereqLineStyleId(prereq.getId(), styleId);
     }
 
     public static void loadAdditiveFromDisk(Path configDir) {
@@ -182,6 +187,8 @@ public class QuestFileLoader {
             node.setIconTexture(rec.iconTexture());
             node.setIconFluid(rec.iconFluid());
             node.setShapeTexture(rec.shapeTexture());
+            node.setBackgroundType(rec.backgroundType());
+            node.setExternalScreenId(rec.externalScreenId());
             if (!rec.iconItemId().isEmpty()) node.setIconItemById(rec.iconItemId());
             node.setRepeatMode(rec.repeatMode());
             node.setRepeatCooldownHours(rec.repeatCooldownHours());
@@ -204,7 +211,7 @@ public class QuestFileLoader {
                     parent.addChild(node);
                 } else {
                     System.err.println("[Phoenix Chronicles] Parent '" + rec.parentId() + "' not found for '" +
-                            rec.id() + "' — treating as root.");
+                            rec.id() + "' : treating as root.");
                     QuestTreeRegistry.registerRootChapter(node);
                 }
             } else {
@@ -252,12 +259,40 @@ public class QuestFileLoader {
             for (QuestTask task : node.getTasks()) {
                 ResourceLocation tid = task.getTaskId();
                 if (taskIdToQuest.containsKey(tid)) {
+
+                    ResourceLocation newId = regenerateCollidedTaskId(tid);
                     LOAD_ERRORS.add("Duplicate task_id '" + tid + "' in quest '" + node.getId().getPath() +
-                            "' (also in '" + taskIdToQuest.get(tid) + "').");
+                            "' (also in '" + taskIdToQuest.get(tid) +
+                            "') - auto-regenerated to '" + newId + "' and saved.");
+                    forceTaskId(task, newId);
+                    QuestTreeRegistry.reindexTask(newId, node);
+                    try {
+                        QuestFileSaver.saveOneQuestToDisk(node);
+                    } catch (Exception e) {
+                        LOAD_ERRORS.add("Failed to persist regenerated task_id for quest '" +
+                                node.getId().getPath() + "': " + e.getMessage());
+                    }
+                    taskIdToQuest.put(newId, node.getId().getPath());
                 } else {
                     taskIdToQuest.put(tid, node.getId().getPath());
                 }
             }
+        }
+    }
+
+    private static ResourceLocation regenerateCollidedTaskId(ResourceLocation original) {
+        String newId = original.getPath() + "_fixed_" +
+                java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        return new ResourceLocation(original.getNamespace(), newId);
+    }
+
+    private static void forceTaskId(QuestTask task, ResourceLocation newId) {
+        try {
+            java.lang.reflect.Field field = QuestTask.class.getDeclaredField("taskId");
+            field.setAccessible(true);
+            field.set(task, newId);
+        } catch (Exception e) {
+            LOAD_ERRORS.add("Failed to regenerate task_id on task instance: " + e.getMessage());
         }
     }
 
@@ -281,6 +316,8 @@ public class QuestFileLoader {
             String iconTexture = tag.contains("icon_texture") ? tag.getString("icon_texture") : "";
             String iconFluid = tag.contains("icon_fluid") ? tag.getString("icon_fluid") : "";
             String shapeTexture = tag.contains("shape_texture") ? tag.getString("shape_texture") : "";
+            String backgroundType = tag.contains("background") ? tag.getString("background") : "";
+            String externalScreenId = tag.contains("external_screen") ? tag.getString("external_screen") : "";
             int posX = tag.contains("positionX") ? tag.getInt("positionX") : 40;
             int posY = tag.contains("positionY") ? tag.getInt("positionY") : 70;
 
@@ -344,6 +381,7 @@ public class QuestFileLoader {
             Map<String, String> prereqLineVisual = new LinkedHashMap<>();
             Map<String, String> prereqLineSpeed = new LinkedHashMap<>();
             Map<String, Boolean> prereqLineArrow = new LinkedHashMap<>();
+            Map<String, String> prereqLineStyleId = new LinkedHashMap<>();
             if (tag.contains("prerequisites")) {
                 ListTag pList = tag.getList("prerequisites", Tag.TAG_COMPOUND);
                 for (int pi = 0; pi < pList.size(); pi++) {
@@ -362,6 +400,7 @@ public class QuestFileLoader {
                     if (pTag.contains("line_style")) prereqLineVisual.put(pid, pTag.getString("line_style"));
                     if (pTag.contains("line_speed")) prereqLineSpeed.put(pid, pTag.getString("line_speed"));
                     if (pTag.contains("line_arrow")) prereqLineArrow.put(pid, pTag.getBoolean("line_arrow"));
+                    if (pTag.contains("line_style_id")) prereqLineStyleId.put(pid, pTag.getString("line_style_id"));
                 }
             }
             Integer optionalPrereqMinCount = tag.contains("optional_prereq_min_count") ?
@@ -408,10 +447,10 @@ public class QuestFileLoader {
                     iconItem, posX, posY, visibility, taskMinCount, parentId,
                     repeatMode, repeatCooldownHours, requireAllPrereqs, rewards, tasks, emergencyTag,
                     prereqRequired, optionalPrereqMinCount, enableIf, prereqForbidden, prereqLink, prereqCosmetic,
-                    prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, hideDepLine,
-                    disabledBlocksChildren, shared, pooledProgress, tutorialSteps, autoClaimRewards, rewardChoice,
-                    rewardChoiceCount, devNotes, nodeSize, sizeOverridePx, linkTarget, iconTexture, shapeTexture,
-                    variants, previewMachineId, iconFluid);
+                    prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, prereqLineStyleId,
+                    hideDepLine, disabledBlocksChildren, shared, pooledProgress, tutorialSteps, autoClaimRewards,
+                    rewardChoice, rewardChoiceCount, devNotes, nodeSize, sizeOverridePx, linkTarget, iconTexture,
+                    shapeTexture, variants, previewMachineId, iconFluid, backgroundType, externalScreenId);
 
         } catch (Exception e) {
             String msg = "Failed to parse '" + file.getFileName() + "': " + e.getMessage();

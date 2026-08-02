@@ -20,10 +20,9 @@ public class ParentSelectorScreen extends Screen {
 
     private final Screen parentScreen;
     private final QuestNode editingNode;
-    private final boolean multiSelect;
-    private final Consumer<QuestNode> onSelectionComplete;
-    private final Consumer<List<QuestNode>> onMultiSelectionComplete;
+    private final Consumer<List<QuestNode>> onSelectionComplete;
     private final List<QuestNode> selected = new ArrayList<>();
+    private final boolean singleSelect;
 
     private EditBox searchBox;
     private String pendingQuery = "";
@@ -42,25 +41,27 @@ public class ParentSelectorScreen extends Screen {
         return Math.max(1, (footerTop - LIST_TOP) / ROW_STRIDE);
     }
 
-    public ParentSelectorScreen(Screen parentScreen, QuestNode editingNode, Consumer<QuestNode> onSelectionComplete) {
-        this(parentScreen, editingNode, List.of(), false, onSelectionComplete, null);
-    }
-
     public static ParentSelectorScreen multiSelect(Screen parentScreen, QuestNode editingNode,
                                                    List<QuestNode> initiallySelected,
                                                    Consumer<List<QuestNode>> onDone) {
-        return new ParentSelectorScreen(parentScreen, editingNode, initiallySelected, true, null, onDone);
+        return new ParentSelectorScreen(parentScreen, editingNode, initiallySelected, onDone, false);
+    }
+
+    public static ParentSelectorScreen singleSelect(Screen parentScreen, QuestNode editingNode,
+                                                    Consumer<QuestNode> onDone) {
+        return new ParentSelectorScreen(parentScreen, editingNode, List.of(),
+                list -> {
+                    if (!list.isEmpty()) onDone.accept(list.get(0));
+                }, true);
     }
 
     private ParentSelectorScreen(Screen parentScreen, QuestNode editingNode, List<QuestNode> initiallySelected,
-                                 boolean multiSelect, Consumer<QuestNode> onSelectionComplete,
-                                 Consumer<List<QuestNode>> onMultiSelectionComplete) {
-        super(Component.literal(multiSelect ? "Select Prerequisites" : "Select Parent Dependency Node"));
+                                 Consumer<List<QuestNode>> onSelectionComplete, boolean singleSelect) {
+        super(Component.literal(singleSelect ? "Select Quest" : "Select Prerequisites"));
         this.parentScreen = parentScreen;
         this.editingNode = editingNode;
-        this.multiSelect = multiSelect;
         this.onSelectionComplete = onSelectionComplete;
-        this.onMultiSelectionComplete = onMultiSelectionComplete;
+        this.singleSelect = singleSelect;
         this.selected.addAll(initiallySelected);
 
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
@@ -69,6 +70,21 @@ public class ParentSelectorScreen extends Screen {
             }
         }
         this.filteredNodes.addAll(this.allAvailableNodes);
+        sortSelectedFirst();
+    }
+
+    private void sortSelectedFirst() {
+        this.filteredNodes.sort(java.util.Comparator
+                .comparing((QuestNode n) -> !this.selected.contains(n))
+                .thenComparing(this::categoryLabelOf, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(QuestNode::getChapter, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(n -> n.getTitle().getString(), String.CASE_INSENSITIVE_ORDER));
+    }
+
+    private String categoryLabelOf(QuestNode node) {
+        net.phoenixvine.chronicles.model.CategoryDefinition cat = net.phoenixvine.chronicles.registry.CategoryRegistry
+                .categoryFor(node.getChapter());
+        return cat != null ? cat.displayName() : "￿";
     }
 
     @Override
@@ -84,19 +100,19 @@ public class ParentSelectorScreen extends Screen {
         this.addRenderableWidget(this.searchBox);
         this.setInitialFocus(this.searchBox);
 
-        if (multiSelect) {
-            int midXf = this.width / 2;
+        int midXf = this.width / 2;
+        if (singleSelect) {
+            this.addRenderableWidget(Button.builder(Component.literal("§7[ CANCEL ]"), b -> {
+                if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
+            }).bounds(midXf - 50, this.height - 28, 100, 20).build());
+        } else {
             this.addRenderableWidget(Button.builder(Component.literal("§a[ DONE ]"), b -> {
                 if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
-                this.onMultiSelectionComplete.accept(new ArrayList<>(this.selected));
+                this.onSelectionComplete.accept(new ArrayList<>(this.selected));
             }).bounds(midXf - 105, this.height - 28, 100, 20).build());
             this.addRenderableWidget(Button.builder(Component.literal("§7[ CANCEL ]"), b -> {
                 if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
             }).bounds(midXf + 5, this.height - 28, 100, 20).build());
-        } else {
-            this.addRenderableWidget(Button.builder(Component.literal("§c[ CANCEL ]"), b -> {
-                if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
-            }).bounds(midX - 50, this.height - 28, 100, 20).build());
         }
 
         rebuildResultButtons();
@@ -118,21 +134,18 @@ public class ParentSelectorScreen extends Screen {
             QuestNode targetNode = this.filteredNodes.get(this.scrollOffset + i);
             String base = targetNode.getId().getPath() + " (" + targetNode.getTitle().getString() + ")";
 
-            Button btn;
-            if (multiSelect) {
-                boolean isSel = selected.contains(targetNode);
-                String label = (isSel ? "§a[x] " : "§7[ ] ") + base;
-                btn = Button.builder(Component.literal(label), b -> {
-                    if (!selected.remove(targetNode)) selected.add(targetNode);
-                    rebuildResultButtons();
-                }).bounds(midX - 150, LIST_TOP + (i * ROW_STRIDE), 300, 18).build();
-            } else {
-                String label = "§7" + base;
-                btn = Button.builder(Component.literal(label), b -> {
-                    this.onSelectionComplete.accept(targetNode);
+            boolean isSel = selected.contains(targetNode);
+            String label = singleSelect ? base : (isSel ? "§a[x] " : "§7[ ] ") + base;
+            Button btn = Button.builder(Component.literal(label), b -> {
+                if (singleSelect) {
                     if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
-                }).bounds(midX - 110, LIST_TOP + (i * ROW_STRIDE), 220, 18).build();
-            }
+                    this.onSelectionComplete.accept(List.of(targetNode));
+                    return;
+                }
+                if (!selected.remove(targetNode)) selected.add(targetNode);
+                sortSelectedFirst();
+                rebuildResultButtons();
+            }).bounds(midX - 150, LIST_TOP + (i * ROW_STRIDE), 300, 18).build();
             this.addRenderableWidget(btn);
             this.resultButtons.add(btn);
         }
@@ -152,6 +165,7 @@ public class ParentSelectorScreen extends Screen {
             }
         }
 
+        sortSelectedFirst();
         this.scrollOffset = 0;
         rebuildResultButtons();
     }
@@ -204,14 +218,13 @@ public class ParentSelectorScreen extends Screen {
         ChroniclesUIKit.drawBorder(graphics, midX - 170, 10, 340, this.height - 16, ChroniclesThemePalette.BORDER_LIT);
 
         graphics.drawCenteredString(this.font,
-                multiSelect ? "§dSelect Prerequisites  §8(" + selected.size() + " picked)" :
-                        "§dSelect Parent Dependency",
+                singleSelect ? "§dSelect a Quest" : "§dSelect Prerequisites  §8(" + selected.size() + " picked)",
                 midX, 18, ChroniclesThemePalette.TEXT);
 
-        if (multiSelect) {
-            graphics.drawCenteredString(this.font, "§7Click any number of rows to toggle them - §a[x]§7 = selected",
-                    midX, 30, ChroniclesThemePalette.TEXT_FAINT);
-        }
+        graphics.drawCenteredString(this.font,
+                singleSelect ? "§7Click a quest to select it" :
+                        "§7Click any number of rows to toggle them - §a[x]§7 = selected",
+                midX, 30, ChroniclesThemePalette.TEXT_FAINT);
 
         int visibleRows = visibleRows();
         if (this.filteredNodes.isEmpty()) {

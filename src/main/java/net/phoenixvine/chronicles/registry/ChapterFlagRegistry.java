@@ -15,8 +15,13 @@ public final class ChapterFlagRegistry {
 
     private static final Map<String, String> chapterExpressions = new ConcurrentHashMap<>();
 
+    private static final Map<String, Boolean> enabledCache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_MS = 1000;
+    private static volatile long cacheExpiryMs = 0;
+
     public static void load(Path configDir) {
         chapterExpressions.clear();
+        invalidateCache();
         Path file = configDir.resolve("chapter_flags.snbt");
         if (!Files.exists(file)) return;
 
@@ -39,12 +44,32 @@ public final class ChapterFlagRegistry {
 
     public static boolean isChapterEnabled(String chapter) {
         if (chapter == null) return true;
-        String expr = chapterExpressions.get(chapter.toUpperCase());
-        if (expr == null) return true;
-        return PhoenixQuestFlags.evaluate(expr, null, "chapter " + chapter + " flag");
+
+        if (chapterExpressions.isEmpty()) return true;
+
+        long now = System.currentTimeMillis();
+        if (now >= cacheExpiryMs) {
+            enabledCache.clear();
+            cacheExpiryMs = now + CACHE_TTL_MS;
+        }
+
+        String key = chapter.toUpperCase();
+        Boolean cached = enabledCache.get(key);
+        if (cached != null) return cached;
+
+        String expr = chapterExpressions.get(key);
+        boolean result = expr == null || PhoenixQuestFlags.evaluate(expr, null, "chapter " + chapter + " flag");
+        enabledCache.put(key, result);
+        return result;
+    }
+
+    private static void invalidateCache() {
+        enabledCache.clear();
+        cacheExpiryMs = 0;
     }
 
     public static void clear() {
         chapterExpressions.clear();
+        invalidateCache();
     }
 }

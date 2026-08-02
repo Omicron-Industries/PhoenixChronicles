@@ -44,6 +44,8 @@ public class C2SCompleteCheckmarkTaskPacket {
 
             CheckmarkTask.complete(player, taskId);
             QuestProgressTracker.checkAndTryComplete(player, node);
+
+            QuestProgressTracker.sendProgressSync(player);
         });
         ctx.get().setPacketHandled(true);
     }

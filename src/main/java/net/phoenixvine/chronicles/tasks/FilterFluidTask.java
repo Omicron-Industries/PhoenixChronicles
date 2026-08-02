@@ -12,6 +12,8 @@ import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.filter.FluidFilters;
 import net.phoenixvine.chronicles.filter.IFluidFilter;
+import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 public class FilterFluidTask extends QuestTask {
@@ -21,6 +23,8 @@ public class FilterFluidTask extends QuestTask {
     private boolean consume;
 
     private boolean sticky = true;
+
+    private boolean checkAe2Storage = AE2Compat.isAvailable();
 
     public FilterFluidTask(ResourceLocation taskId, Component description,
                            IFluidFilter filter, int amount, boolean consume) {
@@ -59,18 +63,41 @@ public class FilterFluidTask extends QuestTask {
                 }
             }
         }
+
+        for (ItemStack stack : CuriosCompat.getEquippedCurios(player)) {
+            if (stack.isEmpty()) continue;
+            var cap = stack.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM);
+            if (!cap.isPresent()) continue;
+            IFluidHandlerItem handler = cap.orElseThrow(IllegalStateException::new);
+            for (int i = 0; i < handler.getTanks(); i++) {
+                FluidStack fluid = handler.getFluidInTank(i);
+                if (!fluid.isEmpty() && filter.test(fluid)) {
+                    total += fluid.getAmount();
+                    if (total >= amount) return total;
+                }
+            }
+        }
         return total;
+    }
+
+    private boolean checksAe2Storage() {
+        return checkAe2Storage && AE2Compat.isAvailable();
+    }
+
+    private long getTotalMatchingFluidWithAe2(Player player) {
+        long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, filter) : 0;
+        return found + getTotalMatchingFluid(player);
     }
 
     @Override
     public boolean dependsOnInventory() {
-        return true;
+        return !checksAe2Storage();
     }
 
     @Override
     public boolean isCompletedFor(Player player) {
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
-        if (getTotalMatchingFluid(player) >= amount) {
+        if (getTotalMatchingFluidWithAe2(player) >= amount) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
             return true;
         }
@@ -81,7 +108,7 @@ public class FilterFluidTask extends QuestTask {
     public String getProgressString(Player player) {
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
             return String.format("%,d / %,d mB", amount, amount);
-        int found = Math.min(getTotalMatchingFluid(player), amount);
+        long found = Math.min(getTotalMatchingFluidWithAe2(player), amount);
         return String.format("%,d / %,d mB", found, amount);
     }
 
@@ -99,9 +126,18 @@ public class FilterFluidTask extends QuestTask {
     public void tryConsume(Player player) {
         if (!consume) return;
         int remaining = amount;
-        var items = player.getInventory().items;
-        for (int i = 0; i < items.size() && remaining > 0; i++) {
-            ItemStack stack = items.get(i);
+        remaining = consumeFromList(player.getInventory().items, remaining);
+        remaining = consumeFromList(player.getInventory().offhand, remaining);
+        player.getInventory().setChanged();
+
+        if (remaining > 0 && checksAe2Storage()) {
+            AE2Compat.tryConsume(player, filter, remaining);
+        }
+    }
+
+    private int consumeFromList(java.util.List<ItemStack> list, int remaining) {
+        for (int i = 0; i < list.size() && remaining > 0; i++) {
+            ItemStack stack = list.get(i);
             if (stack.isEmpty()) continue;
             var cap = stack.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM);
             if (!cap.isPresent()) continue;
@@ -110,14 +146,16 @@ public class FilterFluidTask extends QuestTask {
             for (int t = 0; t < handler.getTanks() && remaining > 0; t++) {
                 FluidStack fluid = handler.getFluidInTank(t);
                 if (fluid.isEmpty() || !filter.test(fluid)) continue;
-                FluidStack drained = handler.drain(remaining, IFluidHandler.FluidAction.EXECUTE);
+                int amountToDrain = Math.min(remaining, fluid.getAmount());
+                FluidStack toDrain = new FluidStack(fluid.getFluid(), amountToDrain, fluid.getTag());
+                FluidStack drained = handler.drain(toDrain, IFluidHandler.FluidAction.EXECUTE);
                 if (!drained.isEmpty()) {
                     remaining -= drained.getAmount();
-                    items.set(i, handler.getContainer());
+                    list.set(i, handler.getContainer());
                 }
             }
         }
-        player.getInventory().setChanged();
+        return remaining;
     }
 
     @Override
@@ -127,6 +165,7 @@ public class FilterFluidTask extends QuestTask {
         tag.putInt("amount", amount);
         tag.putBoolean("consume", consume);
         tag.putBoolean("sticky", sticky);
+        tag.putBoolean("check_ae2_storage", checkAe2Storage);
         tag.put("filter", filter.serialize());
         return tag;
     }
@@ -136,6 +175,7 @@ public class FilterFluidTask extends QuestTask {
         this.amount = Math.max(1, nbt.getInt("amount"));
         this.consume = nbt.getBoolean("consume");
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
+        this.checkAe2Storage = !nbt.contains("check_ae2_storage") || nbt.getBoolean("check_ae2_storage");
         if (nbt.contains("filter")) this.filter = FluidFilters.deserialize(nbt.getCompound("filter"));
     }
 
@@ -169,5 +209,13 @@ public class FilterFluidTask extends QuestTask {
 
     public void setSticky(boolean v) {
         this.sticky = v;
+    }
+
+    public boolean isCheckAe2Storage() {
+        return checkAe2Storage;
+    }
+
+    public void setCheckAe2Storage(boolean v) {
+        this.checkAe2Storage = v;
     }
 }

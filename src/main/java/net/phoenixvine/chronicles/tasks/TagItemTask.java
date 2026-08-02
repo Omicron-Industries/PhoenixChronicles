@@ -10,6 +10,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 public class TagItemTask extends QuestTask {
@@ -47,6 +48,9 @@ public class TagItemTask extends QuestTask {
         int count = 0;
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
+            if (!stack.isEmpty() && stack.is(tag)) count += stack.getCount();
+        }
+        for (ItemStack stack : CuriosCompat.getEquippedCurios(player)) {
             if (!stack.isEmpty() && stack.is(tag)) count += stack.getCount();
         }
         return count;

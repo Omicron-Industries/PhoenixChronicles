@@ -29,16 +29,27 @@ public class PhoenixChronicles {
     public PhoenixChronicles() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
+        net.phoenixvine.chronicles.item.ChronicleItems.ITEMS.register(modEventBus);
+
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::clientSetup);
 
         modEventBus.addListener(this::addPackFinders);
+        modEventBus.addListener(this::buildCreativeTab);
 
         MinecraftForge.EVENT_BUS.register(this);
 
         if (net.phoenixvine.chronicles.integration.gtceu.GTCEuCompat.isAvailable()) {
             net.phoenixvine.chronicles.integration.gtceu.GTCEuCompat.init(modEventBus);
         }
+
+        if (net.minecraftforge.fml.loading.FMLLoader.getDist().isClient()) {
+            modEventBus.addListener(net.phoenixvine.chronicles.client.ChronicleShaders::onRegisterShaders);
+        }
+    }
+
+    public static ResourceLocation id(String path) {
+        return new ResourceLocation(MOD_ID, path);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -67,14 +78,23 @@ public class PhoenixChronicles {
         if (net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isAlwaysProfilerEnabled()) {
             net.phoenixvine.chronicles.client.FrameProfiler.setEnabled(true);
         }
-    }
+        net.phoenixvine.chronicles.registry.DependencyLineStyleRegistry.registerBuiltins();
+        net.phoenixvine.chronicles.registry.QuestBackgroundRegistry.registerBuiltins();
 
-    public static ResourceLocation id(String path) {
-        return new ResourceLocation(MOD_ID, path);
+        net.phoenixvine.chronicles.client.render.ChroniclesThemePalette.refresh(
+                net.phoenixvine.chronicles.registry.ChroniclesTheme.current());
     }
 
     private void addPackFinders(net.minecraftforge.event.AddPackFindersEvent event) {
         if (event.getPackType() != net.minecraft.server.packs.PackType.CLIENT_RESOURCES) return;
         net.phoenixvine.chronicles.client.ChroniclesLangPack.register(event);
+    }
+
+    private void buildCreativeTab(net.minecraftforge.event.BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() != net.minecraft.world.item.CreativeModeTabs.TOOLS_AND_UTILITIES) return;
+        event.accept(net.phoenixvine.chronicles.item.ChronicleItems.CHRONICLE_BOOK);
+        event.accept(net.phoenixvine.chronicles.item.ChronicleItems.CHRONICLE_LOOT_CRATE);
+        event.accept(net.phoenixvine.chronicles.item.ChronicleItems.ITEM_FILTER_TOKEN);
+        event.accept(net.phoenixvine.chronicles.item.ChronicleItems.FLUID_FILTER_TOKEN);
     }
 }

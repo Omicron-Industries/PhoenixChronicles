@@ -15,9 +15,11 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.client.render.ChroniclesThemeRenderer;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.filter.IItemFilter;
 import net.phoenixvine.chronicles.filter.ItemFilters;
+import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
@@ -76,7 +78,9 @@ public class TaskRewardEditorScreen extends Screen {
     private boolean taskOptional = false;
 
     private boolean taskSticky = true;
+    private boolean taskCheckAe2Storage = AE2Compat.isAvailable();
     private boolean taskTypeDropOpen = false;
+    private int taskTypeDropScroll = 0;
     private EditBox taskDescBox, taskTargetBox, taskCountBox, taskSecondaryBox, taskNbtBox;
 
     private int editingTaskIndex = -1;
@@ -198,6 +202,7 @@ public class TaskRewardEditorScreen extends Screen {
                 Component.literal("§8Type: §7" + (curMeta != null ? curMeta.editorLabel() : taskType) + " §8▾"),
                 b -> {
                     taskTypeDropOpen = !taskTypeDropOpen;
+                    taskTypeDropScroll = 0;
                     rewardTypeDropOpen = false;
                 })
                 .bounds(tx, fy, colW, FIELD_H)
@@ -227,12 +232,17 @@ public class TaskRewardEditorScreen extends Screen {
             }
         };
         boolean showConsume = switch (taskType) {
-            case "kill_entity", "item_check", "craft_item", "fluid_check", "location_terminal", "stat", "block_interact", "filter_item" -> true;
+            case "kill_entity", "item_check", "craft_item", "fluid_check", "location_terminal", "stat", "block_interact", "filter_item", "filter_fluid" -> true;
             default -> false;
         };
 
         boolean showSticky = switch (taskType) {
-            case "item_check", "tag_item", "fluid_check", "energy_check", "filter_item" -> true;
+            case "item_check", "tag_item", "fluid_check", "energy_check", "filter_item", "filter_fluid" -> true;
+            default -> false;
+        };
+
+        boolean showAe2Toggle = AE2Compat.isAvailable() && switch (taskType) {
+            case "item_check", "fluid_check", "filter_item", "filter_fluid" -> true;
             default -> false;
         };
 
@@ -257,6 +267,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "tag_item" -> "§8Item tag  (e.g. c:ores/iron)";
                 case "energy_check" -> "§8FE / EU / ANY";
                 case "filter_item" -> "§8Item id(s), semicolon-separated — ANY match  (e.g. wire;cable)";
+                case "filter_fluid" -> "§8Fluid id(s), semicolon-separated — ANY match  (e.g. water;lava)";
                 case "external_trigger" -> "§8Trigger id";
                 case "view_machine" -> "§8Machine id  (Phantasia multiblock definition id)";
                 case "view_scene" -> "§8Scene id  (Phantasia scene definition id)";
@@ -276,7 +287,8 @@ public class TaskRewardEditorScreen extends Screen {
 
             boolean hasItemListPicker = taskType.equals("filter_item");
             boolean hasFluidPicker = taskType.equals("fluid_check");
-            int tw = (hasItemPicker || hasItemListPicker || hasFluidPicker) ? colW - 18 : colW;
+            boolean hasFluidListPicker = taskType.equals("filter_fluid");
+            int tw = (hasItemPicker || hasItemListPicker || hasFluidPicker || hasFluidListPicker) ? colW - 18 : colW;
             int tmaxLen = isInfo ? 512 : 160;
             taskTargetBox = new EditBox(font, tx, fy, tw, FIELD_H, Component.empty());
             taskTargetBox.setHint(Component.literal(hint));
@@ -307,6 +319,16 @@ public class TaskRewardEditorScreen extends Screen {
                         if (taskTargetBox != null) taskTargetBox.setValue(fluidId);
                     }));
                 }).bounds(tx + tw, fy, 16, FIELD_H).build());
+            } else if (hasFluidListPicker) {
+                addRenderableWidget(Button.builder(Component.literal("§3⊞"), b -> {
+                    if (minecraft != null) minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
+                        if (taskTargetBox == null) return;
+                        String cur = taskTargetBox.getValue().trim();
+                        taskTargetBox.setValue(cur.isEmpty() ? fluidId : cur + ";" + fluidId);
+                    }));
+                }).bounds(tx + tw, fy, 16, FIELD_H)
+                        .tooltip(Tooltip.create(Component.literal("Add another fluid to the ANY-match list")))
+                        .build());
             }
             fy += FIELD_H + FIELD_GAP;
         }
@@ -373,6 +395,21 @@ public class TaskRewardEditorScreen extends Screen {
                     .bounds(cx2, rowY, 54, FIELD_H)
                     .tooltip(Tooltip.create(
                             Component.literal("Remove the item/fluid from the player's inventory on completion")))
+                    .build());
+        }
+        if (showAe2Toggle) {
+            int cx3 = (needsCount ? tx + 56 : tx) + 58;
+            addRenderableWidget(Button.builder(
+                    Component.literal(taskCheckAe2Storage ? "§bAE2" : "§8AE2"),
+                    b -> {
+                        taskCheckAe2Storage = !taskCheckAe2Storage;
+                        rebuildWidgets();
+                    })
+                    .bounds(cx3, rowY, 40, FIELD_H)
+                    .tooltip(Tooltip.create(Component.literal(
+                            "ON (default when AE2 is installed): also count/withdraw matching items or\n" +
+                                    "fluid stored in your linked Applied Energistics 2 ME network, in addition\n" +
+                                    "to the player's inventory.")))
                     .build());
         }
         if (showSticky) {
@@ -532,12 +569,13 @@ public class TaskRewardEditorScreen extends Screen {
         }
 
         boolean needsTarget = !taskType.equals("experience") && !taskType.equals("dimension") &&
-                !taskType.equals("checkmark");
+                !taskType.equals("checkmark") && !taskType.equals("timer");
         if (desc.isEmpty() || (needsTarget && !taskType.equals("info") && target.isEmpty())) return;
 
         ResourceLocation taskId = (editingTaskIndex >= 0 && editingTaskIndex < tasks.size()) ?
                 tasks.get(editingTaskIndex).getTaskId() :
-                new ResourceLocation("phoenix_chronicles", "task_" + taskType + "_" + System.currentTimeMillis());
+                new ResourceLocation("phoenix_chronicles", "task_" + taskType + "_" +
+                        java.util.UUID.randomUUID().toString().replace("-", ""));
         Component descComp = Component.literal(desc);
         QuestTask task = null;
         try {
@@ -554,6 +592,7 @@ public class TaskRewardEditorScreen extends Screen {
                             irt.setNbtFilter(net.minecraft.nbt.TagParser.parseTag(nbtStr));
                         } catch (Exception e) {}
                     }
+                    irt.setCheckAe2Storage(taskCheckAe2Storage);
                     yield irt;
                 }
                 case "craft_item" -> new CraftItemTask(taskId, descComp, new ResourceLocation(target), count);
@@ -572,7 +611,26 @@ public class TaskRewardEditorScreen extends Screen {
                     if (alts.isEmpty()) yield null;
                     IItemFilter filter = alts.size() == 1 ? alts.get(0) :
                             ItemFilters.anyOf(alts.toArray(new IItemFilter[0]));
-                    yield new FilterItemTask(taskId, descComp, filter, count, taskConsume);
+                    FilterItemTask fit = new FilterItemTask(taskId, descComp, filter, count, taskConsume);
+                    fit.setCheckAe2Storage(taskCheckAe2Storage);
+                    yield fit;
+                }
+                case "filter_fluid" -> {
+                    List<net.phoenixvine.chronicles.filter.IFluidFilter> alts = new ArrayList<>();
+                    for (String part : target.split(";")) {
+                        String id = part.trim();
+                        if (id.isEmpty()) continue;
+                        var fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(id));
+                        if (fluid != null && fluid != net.minecraft.world.level.material.Fluids.EMPTY)
+                            alts.add(net.phoenixvine.chronicles.filter.FluidFilters.exact(new ResourceLocation(id)));
+                    }
+                    if (alts.isEmpty()) yield null;
+                    net.phoenixvine.chronicles.filter.IFluidFilter filter = alts.size() == 1 ? alts.get(0) :
+                            net.phoenixvine.chronicles.filter.FluidFilters
+                                    .anyOf(alts.toArray(new net.phoenixvine.chronicles.filter.IFluidFilter[0]));
+                    FilterFluidTask fft = new FilterFluidTask(taskId, descComp, filter, count, taskConsume);
+                    fft.setCheckAe2Storage(taskCheckAe2Storage);
+                    yield fft;
                 }
                 case "block_interact" -> {
                     var block = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(target));
@@ -584,8 +642,12 @@ public class TaskRewardEditorScreen extends Screen {
                     yield block != null ? new BlockBreakTask(taskId, descComp, block, count) : null;
                 }
                 case "enchantment" -> new EnchantmentTask(taskId, descComp, new ResourceLocation(target), count);
-                case "fluid_check" -> new FluidRequirementTask(taskId, descComp, new ResourceLocation(target), count,
-                        taskConsume);
+                case "fluid_check" -> {
+                    FluidRequirementTask frt = new FluidRequirementTask(taskId, descComp, new ResourceLocation(target),
+                            count, taskConsume);
+                    frt.setCheckAe2Storage(taskCheckAe2Storage);
+                    yield frt;
+                }
                 case "stat" -> new StatTrackerTask(taskId, descComp, new ResourceLocation(target), count, taskConsume);
                 case "dimension" -> {
                     String dim = second.isEmpty() ? "minecraft:overworld" : second;
@@ -595,6 +657,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "biome" -> new BiomeTask(taskId, descComp, new ResourceLocation(target));
                 case "structure" -> new StructureTask(taskId, descComp, new ResourceLocation(target));
                 case "checkmark" -> new CheckmarkTask(taskId, descComp);
+                case "timer" -> new TimerTask(taskId, descComp, count);
                 case "tag_item" -> new TagItemTask(taskId, descComp, ItemTags.create(new ResourceLocation(target)),
                         count);
                 case "info" -> new InfoTask(taskId, descComp, target);
@@ -644,6 +707,7 @@ public class TaskRewardEditorScreen extends Screen {
             taskOptional = false;
             taskSticky = true;
             taskConsume = false;
+            taskCheckAe2Storage = AE2Compat.isAvailable();
             pendingTaskDesc = pendingTaskTarget = pendingTaskSecondary = pendingTaskNbt = "";
             pendingTaskCount = "1";
             forcePendingTaskValues = true;
@@ -659,12 +723,17 @@ public class TaskRewardEditorScreen extends Screen {
         taskOptional = t.isOptional();
         taskConsume = true;
         taskSticky = true;
+        taskCheckAe2Storage = AE2Compat.isAvailable();
         if (t instanceof ItemRequirementTask x) taskSticky = x.isSticky();
         else if (t instanceof TagItemTask x) taskSticky = x.isSticky();
         else if (t instanceof FilterItemTask x) taskSticky = x.isSticky();
         else if (t instanceof FluidRequirementTask x) taskSticky = x.isSticky();
         else if (t instanceof FilterFluidTask x) taskSticky = x.isSticky();
         else if (t instanceof EnergyStorageTask x) taskSticky = x.isSticky();
+        if (t instanceof ItemRequirementTask x) taskCheckAe2Storage = x.isCheckAe2Storage();
+        else if (t instanceof FluidRequirementTask x) taskCheckAe2Storage = x.isCheckAe2Storage();
+        else if (t instanceof FilterItemTask x) taskCheckAe2Storage = x.isCheckAe2Storage();
+        else if (t instanceof FilterFluidTask x) taskCheckAe2Storage = x.isCheckAe2Storage();
         pendingTaskDesc = t.getDescriptionRaw().getString();
         pendingTaskTarget = "";
         pendingTaskSecondary = "";
@@ -721,6 +790,8 @@ public class TaskRewardEditorScreen extends Screen {
             pendingTaskCount = String.valueOf(tit.getRequired());
         } else if (t instanceof InfoTask ift) {
             pendingTaskTarget = ift.getBody();
+        } else if (t instanceof TimerTask timt) {
+            pendingTaskCount = String.valueOf(timt.getDurationSeconds());
         } else if (t instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask vmt) {
             pendingTaskTarget = vmt.getMachineId();
             pendingTaskCount = String.valueOf((int) vmt.getMinSeconds());
@@ -738,6 +809,10 @@ public class TaskRewardEditorScreen extends Screen {
             pendingTaskTarget = describeItemFilterAsIdList(fit.getFilter());
             pendingTaskCount = String.valueOf(fit.getCount());
             taskConsume = fit.isConsume();
+        } else if (t instanceof FilterFluidTask fft) {
+            pendingTaskTarget = describeFluidFilterAsIdList(fft.getFilter());
+            pendingTaskCount = String.valueOf(fft.getAmount());
+            taskConsume = fft.isConsume();
         }
 
         forcePendingTaskValues = true;
@@ -755,6 +830,21 @@ public class TaskRewardEditorScreen extends Screen {
             List<String> ids = new ArrayList<>();
             for (IItemFilter child : any.children()) {
                 String s = describeItemFilterAsIdList(child);
+                if (!s.isEmpty()) ids.add(s);
+            }
+            return String.join(";", ids);
+        }
+        return f.describe();
+    }
+
+    private static String describeFluidFilterAsIdList(net.phoenixvine.chronicles.filter.IFluidFilter f) {
+        if (f instanceof net.phoenixvine.chronicles.filter.FluidFilters.ExactFluid ex) {
+            return ex.fluidId().toString();
+        }
+        if (f instanceof net.phoenixvine.chronicles.filter.FluidFilters.AnyOf any) {
+            List<String> ids = new ArrayList<>();
+            for (var child : any.children()) {
+                String s = describeFluidFilterAsIdList(child);
                 if (!s.isEmpty()) ids.add(s);
             }
             return String.join(";", ids);
@@ -789,18 +879,21 @@ public class TaskRewardEditorScreen extends Screen {
         if (t instanceof BiomeTask) return "biome";
         if (t instanceof StructureTask) return "structure";
         if (t instanceof CheckmarkTask) return "checkmark";
+        if (t instanceof TimerTask) return "timer";
         if (t instanceof TagItemTask) return "tag_item";
         if (t instanceof InfoTask) return "info";
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "view_machine";
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "view_scene";
         if (t instanceof EnergyStorageTask) return "energy_check";
         if (t instanceof FilterItemTask) return "filter_item";
+        if (t instanceof FilterFluidTask) return "filter_fluid";
         return "checkmark";
     }
 
     private void cancelTaskEdit() {
         editingTaskIndex = -1;
         taskOptional = false;
+        taskCheckAe2Storage = AE2Compat.isAvailable();
         pendingTaskDesc = pendingTaskTarget = pendingTaskSecondary = pendingTaskCount = pendingTaskNbt = "";
         forcePendingTaskValues = true;
         rebuildWidgets();
@@ -1092,15 +1185,23 @@ public class TaskRewardEditorScreen extends Screen {
         if (taskTypeDropOpen) {
             List<PhoenixTaskRegistry.TaskEntry> editorTypes = PhoenixTaskRegistry.getEditorTypes();
             int rowH = FIELD_H;
-            int dropH = editorTypes.size() * rowH;
+            int totalH = editorTypes.size() * rowH;
+            int maxDropH = Math.max(rowH, (formTop - 2) - listTop);
+            int dropH = Math.min(totalH, maxDropH);
             int dy = Math.max(listTop, formTop - dropH - 2);
+            int maxScroll = Math.max(0, totalH - dropH);
+            taskTypeDropScroll = Math.max(0, Math.min(taskTypeDropScroll, maxScroll));
+
             g.fill(MARGIN, dy, MARGIN + colW, dy + dropH, C_PANEL);
             drawBorder(g, MARGIN, dy, colW, dropH, C_ACCENT);
+            g.enableScissor(MARGIN, dy, MARGIN + colW, dy + dropH);
             hoveredDropRow = -1;
             for (int i = 0; i < editorTypes.size(); i++) {
+                int dropRowY = dy - taskTypeDropScroll + i * rowH;
+                if (dropRowY + rowH <= dy || dropRowY >= dy + dropH) continue;
                 PhoenixTaskRegistry.TaskEntry m = editorTypes.get(i);
-                int dropRowY = dy + i * rowH;
-                boolean hov = mx >= MARGIN && mx < MARGIN + colW && my >= dropRowY && my < dropRowY + rowH;
+                boolean hov = mx >= MARGIN && mx < MARGIN + colW && my >= dropRowY && my < dropRowY + rowH &&
+                        my >= dy && my < dy + dropH;
                 if (hov) {
                     g.fill(MARGIN + 1, dropRowY, MARGIN + colW - 1, dropRowY + rowH, 0xFF1E1E2A);
                     hoveredDropRow = i;
@@ -1108,21 +1209,30 @@ public class TaskRewardEditorScreen extends Screen {
                 g.drawString(font, m.editorIcon() + " §7" + m.editorLabel(), MARGIN + 5, dropRowY + 3,
                         hov ? C_TEXT : C_TEXT_DIM, false);
             }
+            g.disableScissor();
+            ChroniclesThemeRenderer.drawScrollbar(g, MARGIN + colW, dy, dy + dropH, taskTypeDropScroll, totalH);
+
             if (hoveredDropRow >= 0 && hoveredDropRow < editorTypes.size()) {
                 PhoenixTaskRegistry.TaskEntry hm = editorTypes.get(hoveredDropRow);
                 String tooltip = hm.editorTooltip() != null ? hm.editorTooltip() : hm.editorLabel();
-                String[] lines = tooltip.split("\n");
+                int maxTipTextW = 220;
+                String[] rawLines = tooltip.split("\n");
+                List<net.minecraft.util.FormattedCharSequence> wrappedLines = new ArrayList<>();
+                for (int rli = 0; rli < rawLines.length; rli++) {
+                    Component lineComp = Component.literal((rli == 0 ? "§f" : "§8") + rawLines[rli]);
+                    wrappedLines.addAll(font.split(lineComp, maxTipTextW));
+                }
                 int maxLw = 0;
-                for (String l : lines) maxLw = Math.max(maxLw, font.width(l));
-                int tipW = maxLw + 10, tipH = lines.length * 10 + 6;
+                for (var l : wrappedLines) maxLw = Math.max(maxLw, font.width(l));
+                int tipW = maxLw + 10, tipH = wrappedLines.size() * 10 + 6;
                 int tipX = MARGIN + colW + 4;
-                int tipY = Math.min(Math.max(dy + hoveredDropRow * rowH, 2), height - tipH - 2);
-                if (tipX + tipW > width - 2) tipX = MARGIN - tipW - 4;
+                int dropRowY = dy - taskTypeDropScroll + hoveredDropRow * rowH;
+                int tipY = Math.min(Math.max(dropRowY, 2), height - tipH - 2);
+                if (tipX + tipW > width - 2) tipX = Math.max(2, width - 2 - tipW);
                 g.fill(tipX, tipY, tipX + tipW, tipY + tipH, C_TOOLTIP_BG);
                 drawBorder(g, tipX, tipY, tipW, tipH, C_ACCENT);
-                for (int li = 0; li < lines.length; li++)
-                    g.drawString(font, (li == 0 ? "§f" : "§8") + lines[li], tipX + 5, tipY + 3 + li * 10, 0xFFFFFFFF,
-                            false);
+                for (int li = 0; li < wrappedLines.size(); li++)
+                    g.drawString(font, wrappedLines.get(li), tipX + 5, tipY + 3 + li * 10, 0xFFFFFFFF, false);
             }
         }
 
@@ -1154,7 +1264,7 @@ public class TaskRewardEditorScreen extends Screen {
         if (ctrl && key == 86 && copiedTaskNBT != null) {
             QuestTask pasted = deserializeTask(copiedTaskNBT.copy());
             if (pasted != null) {
-                pasted = retaskId(pasted, "task_paste_" + System.currentTimeMillis());
+                pasted = retaskId(pasted, "task_paste_" + java.util.UUID.randomUUID().toString().replace("-", ""));
                 tasks.add(pasted);
             }
             return true;
@@ -1163,19 +1273,38 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mx, double my, double delta) {
+        if (taskTypeDropOpen) {
+            List<PhoenixTaskRegistry.TaskEntry> edTypes = PhoenixTaskRegistry.getEditorTypes();
+            int totalH = edTypes.size() * FIELD_H;
+            int maxDropH = Math.max(FIELD_H, (formTop - 2) - listTop);
+            int dropH = Math.min(totalH, maxDropH);
+            int maxScroll = Math.max(0, totalH - dropH);
+            taskTypeDropScroll = Math.max(0, Math.min(maxScroll, (int) (taskTypeDropScroll - delta * FIELD_H)));
+            return true;
+        }
+        return super.mouseScrolled(mx, my, delta);
+    }
+
+    @Override
     public boolean mouseClicked(double mx, double my, int btn) {
         if (btn == 0) {
             if (taskTypeDropOpen) {
                 List<PhoenixTaskRegistry.TaskEntry> edTypes = PhoenixTaskRegistry.getEditorTypes();
-                int dropH = edTypes.size() * FIELD_H;
+                int totalH = edTypes.size() * FIELD_H;
+                int maxDropH = Math.max(FIELD_H, (formTop - 2) - listTop);
+                int dropH = Math.min(totalH, maxDropH);
                 int dy = Math.max(listTop, formTop - dropH - 2);
-                for (int i = 0; i < edTypes.size(); i++) {
-                    int ry2 = dy + i * FIELD_H;
-                    if (mx >= MARGIN && mx < MARGIN + colW && my >= ry2 && my < ry2 + FIELD_H) {
-                        taskType = edTypes.get(i).typeId();
-                        taskTypeDropOpen = false;
-                        rebuildWidgets();
-                        return true;
+                if (my >= dy && my < dy + dropH) {
+                    for (int i = 0; i < edTypes.size(); i++) {
+                        int ry2 = dy - taskTypeDropScroll + i * FIELD_H;
+                        if (ry2 + FIELD_H <= dy || ry2 >= dy + dropH) continue;
+                        if (mx >= MARGIN && mx < MARGIN + colW && my >= ry2 && my < ry2 + FIELD_H) {
+                            taskType = edTypes.get(i).typeId();
+                            taskTypeDropOpen = false;
+                            rebuildWidgets();
+                            return true;
+                        }
                     }
                 }
                 taskTypeDropOpen = false;
@@ -1279,7 +1408,13 @@ public class TaskRewardEditorScreen extends Screen {
         ResourceLocation id = task.getDisplayItemId();
         if (id == null) return ItemStack.EMPTY;
         Item item = ForgeRegistries.ITEMS.getValue(id);
-        return (item != null && item != Items.AIR) ? new ItemStack(item) : ItemStack.EMPTY;
+        if (item == null || item == Items.AIR) return ItemStack.EMPTY;
+        ItemStack stack = new ItemStack(item);
+
+        if (task instanceof ItemRequirementTask t && t.getNbtFilter() != null && !t.getNbtFilter().isEmpty()) {
+            stack.setTag(t.getNbtFilter().copy());
+        }
+        return stack;
     }
 
     @Nullable

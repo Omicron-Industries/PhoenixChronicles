@@ -135,6 +135,8 @@ public class QuestFileSaver {
         if (!node.getIconTexture().isEmpty()) tag.putString("icon_texture", node.getIconTexture());
         if (!node.getIconFluid().isEmpty()) tag.putString("icon_fluid", node.getIconFluid());
         if (!node.getShapeTexture().isEmpty()) tag.putString("shape_texture", node.getShapeTexture());
+        if (!node.getBackgroundType().isEmpty()) tag.putString("background", node.getBackgroundType());
+        if (!node.getExternalScreenId().isEmpty()) tag.putString("external_screen", node.getExternalScreenId());
 
         if (!node.getSubtitleRaw().isEmpty()) tag.putString("subtitle", node.getSubtitleRaw());
         tag.putString("visibility", node.getVisibility().name());
@@ -179,6 +181,8 @@ public class QuestFileSaver {
                     pTag.putString("line_speed", node.getPrereqLineSpeed(p.getId()).name());
                 if (node.getPrereqLineArrow(p.getId()) != null)
                     pTag.putBoolean("line_arrow", node.getPrereqLineArrow(p.getId()));
+                if (node.getPrereqLineStyleId(p.getId()) != null)
+                    pTag.putString("line_style_id", node.getPrereqLineStyleId(p.getId()));
                 prereqList.add(pTag);
             }
             tag.put("prerequisites", prereqList);
@@ -549,6 +553,8 @@ public class QuestFileSaver {
                 content = content.substring(0, last) + "  chapter: \"" + chapter + "\"\n" + content.substring(last);
         }
 
+        content = regenerateTaskIds(content);
+
         content = offsetSnbtCoord(content, "positionX", 56);
         content = offsetSnbtCoord(content, "positionY", 56);
 
@@ -605,6 +611,8 @@ public class QuestFileSaver {
 
         content = content.replaceFirst("id:\\s*\"[^\"]*\"", "id: \"" + newPath + "\"");
 
+        content = regenerateTaskIds(content);
+
         content = offsetSnbtCoord(content, "positionX", 48);
         content = offsetSnbtCoord(content, "positionY", 48);
 
@@ -616,6 +624,29 @@ public class QuestFileSaver {
         QuestFileLoader.loadAdditiveFromDisk(base);
 
         return newPath;
+    }
+
+    private static String regenerateTaskIds(String content) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "task_id:\\s*\"([^\"]*)\"");
+        java.util.regex.Matcher matcher = pattern.matcher(content);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            String original = matcher.group(1);
+            String namespace = "phoenix_chronicles";
+            String path = original;
+            int colon = original.indexOf(':');
+            if (colon >= 0) {
+                namespace = original.substring(0, colon);
+                path = original.substring(colon + 1);
+            }
+            String newId = namespace + ":" + path + "_copy_" +
+                    java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+            matcher.appendReplacement(result,
+                    java.util.regex.Matcher.quoteReplacement("task_id: \"" + newId + "\""));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     public static boolean doesQuestFileExist(QuestNode node) {

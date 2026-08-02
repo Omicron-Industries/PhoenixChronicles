@@ -67,8 +67,9 @@ public class QuestNode {
     private String enableIf = null;
 
     public boolean isFlagEnabled() {
-        return PhoenixQuestFlags.evaluate(enableIf, null, "quest " + id + " enableIf") &&
-                ChapterFlagRegistry.isChapterEnabled(chapter);
+        if (enableIf != null && !PhoenixQuestFlags.evaluate(enableIf, null, "quest " + id + " enableIf"))
+            return false;
+        return ChapterFlagRegistry.isChapterEnabled(chapter);
     }
 
     public void setEnableIf(String expr) {
@@ -210,6 +211,8 @@ public class QuestNode {
 
     private final Map<ResourceLocation, Boolean> prereqLineArrow = new HashMap<>();
 
+    private final Map<ResourceLocation, String> prereqLineStyleId = new HashMap<>();
+
     private Integer optionalPrereqMinCount = null;
 
     private final List<ItemStack> emergencyItems = new ArrayList<>();
@@ -335,6 +338,26 @@ public class QuestNode {
 
     public void setShapeTexture(String texture) {
         this.shapeTexture = texture == null ? "" : texture.trim();
+    }
+
+    private String backgroundType = "";
+
+    public String getBackgroundType() {
+        return backgroundType;
+    }
+
+    public void setBackgroundType(String type) {
+        this.backgroundType = type == null ? "" : type.trim();
+    }
+
+    private String externalScreenId = "";
+
+    public String getExternalScreenId() {
+        return externalScreenId;
+    }
+
+    public void setExternalScreenId(String id) {
+        this.externalScreenId = id == null ? "" : id.trim();
     }
 
     public NodeSize getNodeSize() {
@@ -597,6 +620,15 @@ public class QuestNode {
         else prereqLineArrow.put(prereqId, showArrow);
     }
 
+    public String getPrereqLineStyleId(ResourceLocation prereqId) {
+        return prereqLineStyleId.get(prereqId);
+    }
+
+    public void setPrereqLineStyleId(ResourceLocation prereqId, String styleId) {
+        if (styleId == null || styleId.isBlank()) prereqLineStyleId.remove(prereqId);
+        else prereqLineStyleId.put(prereqId, styleId);
+    }
+
     public Integer getOptionalPrereqMinCount() {
         return optionalPrereqMinCount;
     }
@@ -638,6 +670,7 @@ public class QuestNode {
             prereqLineVisual.remove(p.getId());
             prereqLineSpeed.remove(p.getId());
             prereqLineArrow.remove(p.getId());
+            prereqLineStyleId.remove(p.getId());
         }
     }
 

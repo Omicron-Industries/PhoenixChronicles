@@ -26,7 +26,9 @@ public abstract class QuestReward {
         LOOT_TABLE,
         SCRIPT_EVENT,
         REWARD_TABLE,
-        LOOT_CRATE
+        LOOT_CRATE,
+        CONFLUX_UNLOCK,
+        OPEN_SCREEN
     }
 
     public abstract RewardType getType();
@@ -64,6 +66,20 @@ public abstract class QuestReward {
         return picked;
     }
 
+    public static void giveItem(ServerPlayer player, Item item, int count, CompoundTag nbt) {
+        int remaining = Math.max(1, count);
+        int maxStack = Math.max(1, item.getMaxStackSize());
+        while (remaining > 0) {
+            int batch = Math.min(remaining, maxStack);
+            ItemStack stack = new ItemStack(item, batch);
+            if (nbt != null) stack.setTag(nbt.copy());
+            if (!player.addItem(stack)) {
+                player.drop(stack, false);
+            }
+            remaining -= batch;
+        }
+    }
+
     public static QuestReward deserializeNBT(CompoundTag tag) {
         String type = tag.getString("type");
         return switch (type) {
@@ -74,6 +90,8 @@ public abstract class QuestReward {
             case "script_event" -> ScriptEventReward.fromNBT(tag);
             case "reward_table" -> RewardTableReward.fromNBT(tag);
             case "loot_crate" -> LootCrateReward.fromNBT(tag);
+            case "conflux_unlock" -> ConfluxUnlockReward.fromNBT(tag);
+            case "open_screen" -> OpenScreenReward.fromNBT(tag);
             default -> null;
         };
     }
@@ -82,10 +100,16 @@ public abstract class QuestReward {
 
         private final Item item;
         private final int count;
+        private final CompoundTag nbt;
 
         public ItemReward(Item item, int count) {
+            this(item, count, null);
+        }
+
+        public ItemReward(Item item, int count, CompoundTag nbt) {
             this.item = item;
             this.count = Math.max(1, count);
+            this.nbt = (nbt != null && !nbt.isEmpty()) ? nbt : null;
         }
 
         public Item getItem() {
@@ -94,6 +118,10 @@ public abstract class QuestReward {
 
         public int getCount() {
             return count;
+        }
+
+        public CompoundTag getNbt() {
+            return nbt;
         }
 
         @Override
@@ -108,11 +136,7 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
-            ItemStack stack = new ItemStack(item, count);
-            if (!player.addItem(stack)) {
-
-                player.drop(stack, false);
-            }
+            giveItem(player, item, count, nbt);
         }
 
         @Override
@@ -122,6 +146,7 @@ public abstract class QuestReward {
             ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
             tag.putString("item_id", id != null ? id.toString() : "minecraft:air");
             tag.putInt("count", count);
+            if (nbt != null) tag.put("nbt", nbt.copy());
             return tag;
         }
 
@@ -132,7 +157,8 @@ public abstract class QuestReward {
             Item item = ForgeRegistries.ITEMS.getValue(itemId);
             if (item == null) return null;
             int count = tag.contains("count") ? tag.getInt("count") : 1;
-            return new ItemReward(item, count);
+            CompoundTag nbt = tag.contains("nbt") ? tag.getCompound("nbt") : null;
+            return new ItemReward(item, count, nbt);
         }
     }
 
@@ -349,7 +375,7 @@ public abstract class QuestReward {
                 table.grant(player);
             } else {
                 com.mojang.logging.LogUtils.getLogger().warn(
-                        "[Phoenix Chronicles] Reward table '{}' not found — skipping reward for {}",
+                        "[Phoenix Chronicles] Reward table '{}' not found: skipping reward for {}",
                         tableId, player.getName().getString());
             }
         }
@@ -454,6 +480,118 @@ public abstract class QuestReward {
                 }
             }
             return new LootCrateReward(title, inner, pickCount);
+        }
+    }
+
+    public static class ConfluxUnlockReward extends QuestReward {
+
+        private final boolean flagMode;
+        private final ResourceLocation nodeId;
+        private final String flag;
+
+        public ConfluxUnlockReward(ResourceLocation nodeId) {
+            this.flagMode = false;
+            this.nodeId = nodeId;
+            this.flag = "";
+        }
+
+        public ConfluxUnlockReward(String flag) {
+            this.flagMode = true;
+            this.nodeId = new ResourceLocation("phoenixcore", "unknown");
+            this.flag = flag;
+        }
+
+        public boolean isFlagMode() {
+            return flagMode;
+        }
+
+        public ResourceLocation getNodeId() {
+            return nodeId;
+        }
+
+        public String getFlag() {
+            return flag;
+        }
+
+        @Override
+        public RewardType getType() {
+            return RewardType.CONFLUX_UNLOCK;
+        }
+
+        @Override
+        public Component getSummary() {
+            return Component.literal("Conflux: " + (flagMode ? flag : nodeId.toString()));
+        }
+
+        @Override
+        public void grant(ServerPlayer player) {
+            if (flagMode) {
+                net.phoenixvine.chronicles.integration.conflux.ConfluxCompat.grantFlag(player, flag);
+            } else {
+                net.phoenixvine.chronicles.integration.conflux.ConfluxCompat.grantUnlock(player, nodeId);
+            }
+        }
+
+        @Override
+        public CompoundTag serializeNBT() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString("type", "conflux_unlock");
+            tag.putBoolean("flag_mode", flagMode);
+            tag.putString("node_id", nodeId.toString());
+            tag.putString("flag", flag);
+            return tag;
+        }
+
+        public static ConfluxUnlockReward fromNBT(CompoundTag tag) {
+            boolean flagMode = tag.contains("flag_mode") && tag.getBoolean("flag_mode");
+            if (flagMode) {
+                return new ConfluxUnlockReward(tag.getString("flag"));
+            }
+            ResourceLocation parsed = ResourceLocation.tryParse(tag.getString("node_id"));
+            return new ConfluxUnlockReward(parsed != null ? parsed : new ResourceLocation("phoenixcore", "unknown"));
+        }
+    }
+
+    public static class OpenScreenReward extends QuestReward {
+
+        private final ResourceLocation screenId;
+
+        public OpenScreenReward(ResourceLocation screenId) {
+            this.screenId = screenId;
+        }
+
+        public ResourceLocation getScreenId() {
+            return screenId;
+        }
+
+        @Override
+        public RewardType getType() {
+            return RewardType.OPEN_SCREEN;
+        }
+
+        @Override
+        public Component getSummary() {
+            return Component.literal("Opens: " + screenId);
+        }
+
+        @Override
+        public void grant(ServerPlayer player) {
+            net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.send(
+                    net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+                    new net.phoenixvine.chronicles.network.packet.S2COpenExternalScreenPacket(screenId));
+        }
+
+        @Override
+        public CompoundTag serializeNBT() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString("type", "open_screen");
+            tag.putString("screen_id", screenId.toString());
+            return tag;
+        }
+
+        public static OpenScreenReward fromNBT(CompoundTag tag) {
+            ResourceLocation parsed = ResourceLocation.tryParse(tag.getString("screen_id"));
+            return parsed != null ? new OpenScreenReward(parsed) : null;
         }
     }
 }

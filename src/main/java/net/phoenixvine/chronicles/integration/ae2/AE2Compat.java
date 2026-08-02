@@ -2,19 +2,10 @@ package net.phoenixvine.chronicles.integration.ae2;
 
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fml.ModList;
-
-import appeng.api.config.Actionable;
-import appeng.api.networking.IGrid;
-import appeng.api.networking.security.IActionSource;
-import appeng.api.stacks.AEFluidKey;
-import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.AEKey;
-import appeng.api.storage.MEStorage;
-import appeng.items.tools.powered.WirelessTerminalItem;
-import org.jetbrains.annotations.Nullable;
+import net.phoenixvine.chronicles.filter.IFluidFilter;
+import net.phoenixvine.chronicles.filter.IItemFilter;
 
 public final class AE2Compat {
 
@@ -26,50 +17,35 @@ public final class AE2Compat {
         return ModList.get().isLoaded(AE2_MOD_ID);
     }
 
-    @Nullable
-    private static IGrid getLinkedGrid(Player player) {
-        IGrid grid = getLinkedGrid(player, player.getMainHandItem());
-        return grid != null ? grid : getLinkedGrid(player, player.getOffhandItem());
-    }
-
-    @Nullable
-    private static IGrid getLinkedGrid(Player player, ItemStack stack) {
-        if (!(stack.getItem() instanceof WirelessTerminalItem term)) return null;
-        return term.getLinkedGrid(stack, player.level(), player);
-    }
-
     public static long getStoredAmount(Player player, Item item) {
-        return getStoredAmount(player, AEItemKey.of(item));
+        return isAvailable() ? AE2CompatImpl.getStoredAmount(player, item) : 0;
     }
 
     public static long getStoredAmount(Player player, Fluid fluid) {
-        return getStoredAmount(player, AEFluidKey.of(fluid));
-    }
-
-    private static long getStoredAmount(Player player, @Nullable AEKey key) {
-        if (key == null) return 0;
-        IGrid grid = getLinkedGrid(player);
-        if (grid == null) return 0;
-        return grid.getStorageService().getCachedInventory().get(key);
+        return isAvailable() ? AE2CompatImpl.getStoredAmount(player, fluid) : 0;
     }
 
     public static boolean tryConsume(Player player, Item item, long amount) {
-        return tryConsume(player, AEItemKey.of(item), amount);
+        return isAvailable() && AE2CompatImpl.tryConsume(player, item, amount);
     }
 
     public static boolean tryConsume(Player player, Fluid fluid, long amount) {
-        return tryConsume(player, AEFluidKey.of(fluid), amount);
+        return isAvailable() && AE2CompatImpl.tryConsume(player, fluid, amount);
     }
 
-    private static boolean tryConsume(Player player, @Nullable AEKey key, long amount) {
-        if (key == null || amount <= 0) return false;
-        IGrid grid = getLinkedGrid(player);
-        if (grid == null) return false;
-        MEStorage storage = grid.getStorageService().getInventory();
-        IActionSource source = IActionSource.ofPlayer(player);
-        long extracted = storage.extract(key, amount, Actionable.SIMULATE, source);
-        if (extracted < amount) return false;
-        storage.extract(key, amount, Actionable.MODULATE, source);
-        return true;
+    public static long getStoredAmount(Player player, IItemFilter filter) {
+        return isAvailable() ? AE2CompatImpl.getStoredAmount(player, filter) : 0;
+    }
+
+    public static long getStoredAmount(Player player, IFluidFilter filter) {
+        return isAvailable() ? AE2CompatImpl.getStoredAmount(player, filter) : 0;
+    }
+
+    public static long tryConsume(Player player, IItemFilter filter, long amount) {
+        return isAvailable() ? AE2CompatImpl.tryConsume(player, filter, amount) : 0;
+    }
+
+    public static long tryConsume(Player player, IFluidFilter filter, long amount) {
+        return isAvailable() ? AE2CompatImpl.tryConsume(player, filter, amount) : 0;
     }
 }

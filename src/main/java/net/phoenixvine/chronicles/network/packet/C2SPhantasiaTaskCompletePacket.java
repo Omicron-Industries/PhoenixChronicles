@@ -55,6 +55,8 @@ public class C2SPhantasiaTaskCompletePacket {
                 TaskProgressAccess.with(player, taskId, nbt -> nbt.putBoolean("completed", true));
 
                 QuestProgressTracker.checkAndTryComplete(player, node);
+
+                QuestProgressTracker.sendProgressSync(player);
                 break;
             }
         });

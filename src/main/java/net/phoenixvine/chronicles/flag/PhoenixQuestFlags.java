@@ -120,7 +120,7 @@ public final class PhoenixQuestFlags {
         String ctxSuffix = currentContext != null ? " [" + currentContext + "]" : "";
         if (warnedUnknown.add(name + ctxSuffix)) {
             System.err.println("[Phoenix Chronicles] Unknown quest flag '" + name +
-                    "' — defaulting to true. Use PhoenixQuestFlags.setFlag() or" +
+                    "' : defaulting to true. Use PhoenixQuestFlags.setFlag() or" +
                     " registerCondition() to register it, or use a provider prefix" + " (mod:, config:, rule:, kjs:)." +
                     ctxSuffix);
         }
@@ -130,5 +130,6 @@ public final class PhoenixQuestFlags {
     public static void invalidateCaches() {
         CONFIG.invalidateCache();
         KJS.invalidate();
+        net.phoenixvine.chronicles.registry.ChapterFlagRegistry.clear();
     }
 }

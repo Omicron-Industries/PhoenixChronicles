@@ -27,7 +27,7 @@ public class DevWikiScreen extends Screen {
 
     private static final String[] PAGE_NAMES = {
             "Overview", "Getting Started", "Canvas", "Quest Fields", "Tasks", "Rewards", "Variants",
-            "Rich Text", "SNBT Format", "Live Stats", "API Reference", "Customization"
+            "Rich Text", "SNBT Format", "Live Stats", "API Reference", "Customization", "Conflux"
     };
 
     private final Screen parent;
@@ -261,6 +261,7 @@ public class DevWikiScreen extends Screen {
             case 9 -> pageLiveStats();
             case 10 -> pageApiReference();
             case 11 -> pageCustomization();
+            case 12 -> pageConflux();
             default -> List.of();
         };
     }
@@ -817,6 +818,14 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.quest_fields.105.value",
                         "Fluid id for the node icon (flat tinted square): e.g. minecraft:water - " +
                                 "icon_texture > icon_fluid > icon_item in priority, mutually exclusive")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.106.label", "background"),
+                tr("phoenix_chronicles.wiki.quest_fields.106.value",
+                        "Animated backdrop id behind the icon: built-in \"sun\"/\"glitch\", or a custom id " +
+                                "registered via QuestBackgroundRegistry - see API Reference")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.107.label", "external_screen"),
+                tr("phoenix_chronicles.wiki.quest_fields.107.value",
+                        "Opens a registered Screen on click instead of the normal quest popup - id must be " +
+                                "registered via ExternalScreenRegistry, see API Reference")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.13.label", "positionX"),
                 tr("phoenix_chronicles.wiki.quest_fields.13.value", "Canvas X coordinate (pixels from left edge)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.14.label", "positionY"),
@@ -842,7 +851,8 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.quest_fields.24", "Prerequisites")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.25.label", "parent"), tr(
-                "phoenix_chronicles.wiki.quest_fields.25.value", "Single primary parent quest id path, or \"none\"")));
+                "phoenix_chronicles.wiki.quest_fields.25.value",
+                "Canvas-tree grouping only (not unlocking) - auto-set to the first prerequisites entry, or \"none\"")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.26.label", "require_all_prereqs"),
                 tr("phoenix_chronicles.wiki.quest_fields.26.value", "true = AND gate; false = OR gate (legacy)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.27.label", "prerequisites"),
@@ -889,16 +899,16 @@ public class DevWikiScreen extends Screen {
         String[][] builtins = {
                 { "kill_entity", "Kill mobs", "target: entity_id, count, consume" },
                 { "item_check", "Have item(s) in inventory",
-                        "target: item_id, count, consume - also counts your AE2 network storage if AE2 is " +
-                                "installed (toggle: ae2_storage_for_item_fluid_tasks in engine_settings.snbt)" },
+                        "target: item_id, count, consume - if AE2 is installed, also counts your linked ME " +
+                                "network storage (per-task toggle: check_ae2_storage, on by default)" },
                 { "craft_item", "Craft an item", "target: item_id, count" },
                 { "experience", "Reach an XP level", "count: level" },
                 { "location_terminal", "Interact with a terminal", "target: terminal_id, consume" },
                 { "advancement", "Earn an advancement", "target: advancement_id" },
                 { "block_interact", "Place / right-click a block", "target: block_id, secondary: PLACE|RIGHT_CLICK" },
                 { "fluid_check", "Have fluid in inventory",
-                        "target: fluid_id, count: mB, consume - also counts your AE2 network storage if AE2 is " +
-                                "installed (toggle: ae2_storage_for_item_fluid_tasks in engine_settings.snbt)" },
+                        "target: fluid_id, count: mB, consume - if AE2 is installed, also counts your linked ME " +
+                                "network storage (per-task toggle: check_ae2_storage, on by default)" },
                 { "stat", "Reach a stat value", "target: stat_id (e.g. minecraft:jump), count" },
                 { "dimension", "Enter a dimension", "secondary: dimension_id" },
                 { "biome", "Visit a biome", "target: biome_id" },
@@ -909,10 +919,12 @@ public class DevWikiScreen extends Screen {
                 { "external_trigger", "Fired by QuestAPI.fireExternalEvent()", "target: trigger_id, count: times" },
                 { "energy_check", "Have stored energy",
                         "target: FE|EU|ANY, secondary: INVENTORY|HELD|BLOCK, count: FE" },
-                { "ae2_item_storage", "Have an item stored in your AE2 network",
-                        "target: item_id, count, consume - read via your held wireless terminal" },
-                { "ae2_fluid_storage", "Have a fluid stored in your AE2 network",
-                        "target: fluid_id, count: mB, consume - read via your held wireless terminal" },
+                { "filter_item", "Have item(s) matching a composable filter",
+                        "filter: exact/tag/mod/any_of/all_of/not, count, consume - if AE2 is installed, also " +
+                                "counts your linked ME network storage (per-task toggle: check_ae2_storage)" },
+                { "filter_fluid", "Have fluid matching a composable filter",
+                        "filter: exact/tag/mod/any_of/all_of/not, amount: mB, consume - if AE2 is installed, also " +
+                                "counts your linked ME network storage (per-task toggle: check_ae2_storage)" },
         };
         for (String[] row : builtins) {
 
@@ -974,6 +986,18 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.rewards.11", "Fields: type, event_id, data (optional CompoundTag NBT)")));
         lines.add(WLine.in(tr("phoenix_chronicles.wiki.rewards.12",
                 "KubeJS: listen with ForgeEvents.onEvent('…ScriptRewardEvent', e => …)")));
+        lines.add(WLine.sp());
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.rewards.32.label", "conflux_unlock"),
+                tr("phoenix_chronicles.wiki.rewards.32.value",
+                        "Grants a Conflux (PhoenixCore) research unlock or flag - no-op if PhoenixCore isn't loaded")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.rewards.33",
+                "Fields: type, flag_mode (bool), node_id (resource location) or flag (string)")));
+        lines.add(WLine.sp());
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.rewards.34.label", "open_screen"),
+                tr("phoenix_chronicles.wiki.rewards.34.value",
+                        "Tells the claiming player's client to open a screen from ExternalScreenRegistry")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.rewards.35",
+                "Fields: type, screen_id (must be registered in Java - see API Reference)")));
         lines.add(WLine.sp());
         lines.add(WLine.div());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.rewards.13", "Choice rewards")));
@@ -1299,9 +1323,6 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.snbt_format.40.value", "config/phoenix_chronicles/quest_groups.json")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.snbt_format.41.label", "Settings"),
                 tr("phoenix_chronicles.wiki.snbt_format.41.value", "config/phoenix_chronicles/settings.json")));
-        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.snbt_format.43.label", "Engine settings"),
-                tr("phoenix_chronicles.wiki.snbt_format.43.value",
-                        "config/phoenix_chronicles/engine_settings.snbt  (ae2_storage_for_item_fluid_tasks)")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.snbt_format.42.label", "Tutorial prog."),
                 tr("phoenix_chronicles.wiki.snbt_format.42.value", "config/phoenix_chronicles/tutorial_progress.dat")));
         return lines;
@@ -1709,6 +1730,153 @@ public class DevWikiScreen extends Screen {
                 "[player] arguments default to yourself when omitted; specify one to target")));
         L.add(WLine.t(
                 tr("phoenix_chronicles.wiki.api_reference.85", "another online player instead (e.g. from console).")));
+        L.add(WLine.sp());
+        L.add(WLine.div());
+
+        L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.101",
+                "Custom quest backgrounds  (Java, client-only)")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.102",
+                "Animated backdrops drawn behind a node's icon. Implement IQuestBackground,")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.103",
+                "register from FMLClientSetupEvent, then set on any quest with \"background\".")));
+        L.add(WLine.code("public class MyBackground implements IQuestBackground {"));
+        L.add(WLine
+                .code("  public void render(GuiGraphics g, QuestNode node, int x, int y, int size, long animTick) {"));
+        L.add(WLine.code("    // draw whatever you want in the x,y,size,size box"));
+        L.add(WLine.code("  }"));
+        L.add(WLine.code("}"));
+        L.add(WLine.code("QuestBackgroundRegistry.register(\"mypack:my_bg\", new MyBackground());"));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.104",
+                "Built-in ids: \"sun\" (pulsing/rotating), \"glitch\" (shear + RGB split), both real")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.105",
+                "GLSL shaders (ChronicleShaders) if you want a shader-driven effect of your own -")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.106",
+                "register a ShaderInstance the same way (RegisterShadersEvent) and use")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.107",
+                "BackgroundRenderUtil.drawShaderQuad(...) to draw with it. In SNBT:")));
+        L.add(WLine.code("{ id: \"my_quest\", background: \"mypack:my_bg\", ... }"));
+        L.add(WLine.sp());
+        L.add(WLine.div());
+
+        L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.108",
+                "Custom dependency line styles  (Java, client-only)")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.109",
+                "Replaces how a single prereq connector line is drawn - your own texture,")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.110",
+                "animation, and math, not just a pick from the built-in visual-style enum.")));
+        L.add(WLine.code("public class MyLineStyle implements IDependencyLineStyle {"));
+        L.add(WLine.code(
+                "  public void render(GuiGraphics g, int px, int py, int cx, int cy, int color, long animTick) {"));
+        L.add(WLine.code("    // px,py -> cx,cy are already final on-screen pixel coordinates"));
+        L.add(WLine.code("  }"));
+        L.add(WLine.code("}"));
+        L.add(WLine.code(
+                "DependencyLineStyleRegistry.register(new ResourceLocation(\"mypack\", \"my_line\"), new MyLineStyle());"));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.111",
+                "Built-in ids (namespace phoenix_chronicles): \"solid\", \"textured\", \"flowing_particles\".")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.112",
+                "A prereq with no explicit line_style_id falls back to the legacy line_style enum,")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.113",
+                "so old quest files keep rendering exactly as before. Set one via the prereq's")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.114", "\"line_style_id\" SNBT field:")));
+        L.add(WLine.code("prerequisites: [{ id: \"other_quest\", line_style_id: \"mypack:my_line\" }]"));
+        L.add(WLine.sp());
+        L.add(WLine.div());
+
+        L.add(WLine.sh(tr("phoenix_chronicles.wiki.api_reference.115",
+                "Click-to-open-screen  (Java, client-only)")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.116",
+                "Makes clicking a quest node open your own Screen directly instead of the normal")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.117",
+                "quest-detail popup. Register a factory, then set \"external_screen\" on a quest:")));
+        L.add(WLine.code(
+                "ExternalScreenRegistry.register(new ResourceLocation(\"mypack\", \"my_screen\"), node -> new MyScreen());"));
+        L.add(WLine.code("{ id: \"my_quest\", external_screen: \"mypack:my_screen\", ... }"));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.118",
+                "Pair it with a \"screen_opened\" task (completes when the screen is opened) and/or")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.api_reference.119",
+                "an \"open_screen\" reward (opens the screen when the player claims rewards).")));
+
+        return L;
+    }
+
+    private List<WLine> pageConflux() {
+        var L = new ArrayList<WLine>();
+        L.add(WLine.h(tr("phoenix_chronicles.wiki.conflux.1", "Conflux Integration (PhoenixCore)")));
+
+        boolean available = net.phoenixvine.chronicles.integration.conflux.ConfluxCompat.isAvailable();
+        L.add(WLine.kv(tr("phoenix_chronicles.wiki.conflux.2.label", "PhoenixCore currently loaded:"),
+                available ? "§aYes" : "§7No (optional dependency)"));
+        L.add(WLine.sp());
+
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.3",
+                "Conflux is PhoenixCore's research/discipline system: players unlock research")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.4",
+                "nodes at a Research Terminal, which can set \"flags\" (arbitrary string ids used")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.5",
+                "to gate content elsewhere) and/or join a \"discipline\" tree. It is its own")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.6",
+                "separate research-tree UI, distinct from this quest tree - Chronicles' Conflux")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.7",
+                "support is a data hook between the two systems, not a merged visual tree.")));
+        L.add(WLine.sp());
+        L.add(WLine.div());
+
+        L.add(WLine.sh(tr("phoenix_chronicles.wiki.conflux.8", "As a quest requirement")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.9",
+                "Add a \"conflux_research\" task to make a quest wait on a Conflux unlock/flag:")));
+        L.add(WLine.code("{"));
+        L.add(WLine.code("  type: \"conflux_research\", task_id: \"phoenix_chronicles:task_…\","));
+        L.add(WLine.code("  flag_mode: false, node_id: \"phoenixcore:some_research_node\""));
+        L.add(WLine.code("}"));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.10",
+                "Or check a flag instead of a specific node (flag_mode: true, flag: \"…\").")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.11",
+                "Always reads live from PhoenixCore's WorldResearchData - no local progress to")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.12",
+                "desync, and it's server-authoritative (always incomplete on the client alone).")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.13",
+                "Always incomplete (never satisfied) if PhoenixCore isn't loaded at all.")));
+        L.add(WLine.sp());
+        L.add(WLine.div());
+
+        L.add(WLine.sh(tr("phoenix_chronicles.wiki.conflux.14", "As a quest reward")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.15",
+                "Add a \"conflux_unlock\" reward to grant a Conflux unlock/flag for free on claim,")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.16",
+                "bypassing the Research Terminal's normal cost entirely:")));
+        L.add(WLine
+                .code("{ type: \"conflux_unlock\", flag_mode: false, node_id: \"phoenixcore:some_research_node\" }"));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.17",
+                "This is a flat unlock only - it does not join a discipline tree or mark a")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.18",
+                "commitment node, even if the target node normally would at the terminal.")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.19", "No-ops silently if PhoenixCore isn't loaded.")));
+        L.add(WLine.sp());
+        L.add(WLine.div());
+
+        L.add(WLine.sh(tr("phoenix_chronicles.wiki.conflux.20", "Setup")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.21",
+                "PhoenixCore is a genuinely optional dependency - Chronicles compiles against it")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.22",
+                "but does not bundle or force-load it. Whether it's actually present in your")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.23",
+                "modpack is your call; if it's absent, conflux_research tasks simply never")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.24",
+                "complete and conflux_unlock rewards silently do nothing - nothing crashes.")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.25",
+                "PhoenixCore currently hard-requires a newer GregTech CEu build than this")));
+        L.add(WLine.t(tr("phoenix_chronicles.wiki.conflux.26",
+                "project's own dev environment ships, which is exactly why it's compile-only.")));
+        L.add(WLine.sp());
+        L.add(WLine.kv(tr("phoenix_chronicles.wiki.conflux.27.label", "Java bridge"),
+                tr("phoenix_chronicles.wiki.conflux.27.value",
+                        "net.phoenixvine.chronicles.integration.conflux.ConfluxCompat")));
+        L.add(WLine.code("ConfluxCompat.isAvailable()"));
+        L.add(WLine.code("ConfluxCompat.isUnlocked(player, nodeId)   // server-side only"));
+        L.add(WLine.code("ConfluxCompat.hasFlag(player, flag)        // server-side only"));
+        L.add(WLine.code("ConfluxCompat.grantUnlock(serverPlayer, nodeId)"));
+        L.add(WLine.code("ConfluxCompat.grantFlag(serverPlayer, flag)"));
 
         return L;
     }

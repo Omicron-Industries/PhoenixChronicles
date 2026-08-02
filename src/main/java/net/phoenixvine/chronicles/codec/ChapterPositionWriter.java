@@ -26,7 +26,7 @@ public class ChapterPositionWriter {
         Path chapterFile = chaptersFolder.resolve(chapterId.getPath() + ".yml");
 
         if (!Files.exists(chapterFile)) {
-            LOGGER.warn("[Chronicles] Cannot save position — chapter file not found: {}", chapterFile);
+            LOGGER.warn("[Chronicles] Cannot save position: chapter file not found: {}", chapterFile);
             return;
         }
 

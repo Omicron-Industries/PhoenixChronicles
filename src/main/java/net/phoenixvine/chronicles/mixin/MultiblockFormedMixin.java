@@ -28,7 +28,9 @@ public abstract class MultiblockFormedMixin {
         if (machineId == null) return;
 
         Player nearest = serverLevel.getNearestPlayer(
-                state.controllerPos.getX() + 0.5, state.controllerPos.getY() + 0.5, state.controllerPos.getZ() + 0.5,
+                state.controllerPos.getX() + 0.5,
+                state.controllerPos.getY() + 0.5,
+                state.controllerPos.getZ() + 0.5,
                 10.0, false);
         if (!(nearest instanceof ServerPlayer serverPlayer)) return;
 

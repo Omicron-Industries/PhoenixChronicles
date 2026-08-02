@@ -14,6 +14,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 import java.util.HashMap;
@@ -126,6 +127,11 @@ public class EnergyStorageTask extends QuestTask {
     private long inventoryFE(Player player) {
         long total = 0;
         for (ItemStack stack : player.getInventory().items) {
+            if (stack.isEmpty()) continue;
+            total += stack.getCapability(ForgeCapabilities.ENERGY)
+                    .map(IEnergyStorage::getEnergyStored).orElse(0);
+        }
+        for (ItemStack stack : CuriosCompat.getEquippedCurios(player)) {
             if (stack.isEmpty()) continue;
             total += stack.getCapability(ForgeCapabilities.ENERGY)
                     .map(IEnergyStorage::getEnergyStored).orElse(0);

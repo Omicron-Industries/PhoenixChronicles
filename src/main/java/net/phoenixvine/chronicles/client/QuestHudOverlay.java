@@ -94,13 +94,18 @@ public class QuestHudOverlay {
         if (event.getOverlay() != VanillaGuiOverlay.HOTBAR.type()) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.screen != null || mc.player == null || mc.player.isDeadOrDying()) return;
+        if (mc.player == null || mc.player.isDeadOrDying()) return;
+
+        boolean chatOpen = mc.screen instanceof net.minecraft.client.gui.screens.ChatScreen;
+        if (mc.screen != null && !chatOpen) return;
 
         GuiGraphics g = event.getGuiGraphics();
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
 
-        renderPinnedWidgets(mc, g, screenW, screenH);
+        if (!chatOpen) {
+            renderPinnedWidgets(mc, g, screenW, screenH);
+        }
 
         QuestToastManager.get().render(g, screenW, screenH);
     }

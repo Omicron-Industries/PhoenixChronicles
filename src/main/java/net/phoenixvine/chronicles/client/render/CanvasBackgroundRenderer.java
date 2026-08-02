@@ -80,7 +80,8 @@ public final class CanvasBackgroundRenderer {
             double a = Math.PI / 6 + i * Math.PI / 3;
             int nx = cx + (int) (Math.cos(a) * r);
             int ny = cy + (int) (Math.sin(a) * r);
-            if (i > 0) NodeShapeRenderer.drawLine(g, px, py, nx, ny, color);
+
+            if (i > 0) NodeShapeRenderer.queueThinLine(g, px, py, nx, ny, 0.5f, color);
             px = nx;
             py = ny;
         }
@@ -90,7 +91,8 @@ public final class CanvasBackgroundRenderer {
                                           float zoom, int viewOffX, int viewOffY) {
         int sp = Math.max(10, (int) (24 * zoom));
         int total = (x2 - x1) + (y2 - y1);
-        int startOff = ((viewOffX + viewOffY) % sp + sp) % sp;
+
+        int startOff = 0;
         for (int d = -sp + startOff; d < total + sp; d += sp) {
             int ax = x1 + d, ay = y1;
             int bx = x1, by = y1 + d;
@@ -116,7 +118,7 @@ public final class CanvasBackgroundRenderer {
                 cy1 = y2;
             }
             if (cx0 >= x1 && cx0 <= x2 && cx1 >= x1 && cx1 <= x2)
-                NodeShapeRenderer.drawLine(g, cx0, cy0, cx1, cy1, 0x18FFFFFF);
+                NodeShapeRenderer.queueThinLine(g, cx0, cy0, cx1, cy1, 0.5f, 0x18FFFFFF);
         }
     }
 

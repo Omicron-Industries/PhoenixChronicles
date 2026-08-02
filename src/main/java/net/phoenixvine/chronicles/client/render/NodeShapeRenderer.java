@@ -43,6 +43,56 @@ public final class NodeShapeRenderer {
         fillQueue.add(new FillQuad(ax0, ay0, ax1, ay1, ax2, ay2, ax3, ay3, color));
     }
 
+    public static void queueThinLine(GuiGraphics g, float x0, float y0, float x1, float y1, float halfWidth,
+                                     int color) {
+        float dx = x1 - x0, dy = y1 - y0;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len < 0.0001f) return;
+        float nx = -dy / len * halfWidth, ny = dx / len * halfWidth;
+
+        Matrix4f mat = g.pose().last().pose();
+        SCRATCH.set(x0 + nx, y0 + ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax0 = SCRATCH.x, ay0 = SCRATCH.y;
+        SCRATCH.set(x1 + nx, y1 + ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax1 = SCRATCH.x, ay1 = SCRATCH.y;
+        SCRATCH.set(x1 - nx, y1 - ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax2 = SCRATCH.x, ay2 = SCRATCH.y;
+        SCRATCH.set(x0 - nx, y0 - ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax3 = SCRATCH.x, ay3 = SCRATCH.y;
+        fillQueue.add(new FillQuad(ax0, ay0, ax1, ay1, ax2, ay2, ax3, ay3, color));
+    }
+
+    public static void queueLineQuad(GuiGraphics g, float x0, float y0, float x1, float y1,
+                                     float thickness, int color) {
+        float dx = x1 - x0, dy = y1 - y0;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        float half = Math.max(0.5f, thickness / 2f);
+        if (len < 0.0001f) {
+            queueFillRect(g, (int) (x0 - half), (int) (y0 - half), (int) (x0 + half), (int) (y0 + half), color);
+            return;
+        }
+        float nx = -dy / len * half, ny = dx / len * half;
+
+        Matrix4f mat = g.pose().last().pose();
+        SCRATCH.set(x0 + nx, y0 + ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax0 = SCRATCH.x, ay0 = SCRATCH.y;
+        SCRATCH.set(x1 + nx, y1 + ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax1 = SCRATCH.x, ay1 = SCRATCH.y;
+        SCRATCH.set(x1 - nx, y1 - ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax2 = SCRATCH.x, ay2 = SCRATCH.y;
+        SCRATCH.set(x0 - nx, y0 - ny, 0f);
+        mat.transformPosition(SCRATCH);
+        float ax3 = SCRATCH.x, ay3 = SCRATCH.y;
+        fillQueue.add(new FillQuad(ax0, ay0, ax1, ay1, ax2, ay2, ax3, ay3, color));
+    }
+
     public static int flushFillQueue(GuiGraphics g) {
         int count = fillQueue.size();
         if (fillQueue.isEmpty()) return count;
@@ -191,13 +241,20 @@ public final class NodeShapeRenderer {
     public static void outlineDiamond(GuiGraphics g, int x, int y, int sz, int color, int thickness) {
         int cx = x + sz / 2, cy = y + sz / 2, h = sz / 2 - 1;
 
-        queuedDrawLine(g, cx, cy - h, cx - h, cy, color, thickness);
-        queuedDrawLine(g, cx, cy - h, cx + h, cy, color, thickness);
-        queuedDrawLine(g, cx - h, cy, cx, cy + h, color, thickness);
-        queuedDrawLine(g, cx + h, cy, cx, cy + h, color, thickness);
+        queueLineQuad(g, cx, cy - h, cx - h, cy, thickness, color);
+        queueLineQuad(g, cx, cy - h, cx + h, cy, thickness, color);
+        queueLineQuad(g, cx - h, cy, cx, cy + h, thickness, color);
+        queueLineQuad(g, cx + h, cy, cx, cy + h, thickness, color);
     }
 
     private static final float HEX_SCALE = 1f / 0.866f;
+
+    private static float hexHalfWidth(float dy, float r) {
+        float qr = r * 0.866f;
+        if (dy <= r / 2f) return qr;
+        float t = 1f - (dy - r / 2f) / (r / 2f);
+        return t > 0f ? qr * t : 0f;
+    }
 
     public static void fillHexagon(GuiGraphics g, int x, int y, int sz, int color) {
         double gs = guiScale();
@@ -207,13 +264,10 @@ public final class NodeShapeRenderer {
 
         float cx = (float) ((x + sz / 2f) * gs), cy = (float) ((y + sz / 2f) * gs);
         float r = (float) ((sz / 2f - 1) * gs) * HEX_SCALE;
-        float qr = r * 0.866f;
         int py0 = (int) Math.floor(cy - r), py1 = (int) Math.ceil(cy + r);
         for (int py = py0; py < py1; py++) {
             float dy = Math.abs(py + 0.5f - cy);
-            float hw;
-            if (dy <= r / 2f) hw = qr;
-            else hw = qr * (1f - (dy - r / 2f) / (r / 2f));
+            float hw = hexHalfWidth(dy, r);
             if (hw > 0) fillAARow(g, cx - hw, cx + hw, py, color);
         }
         g.pose().popPose();
@@ -228,7 +282,7 @@ public final class NodeShapeRenderer {
 
             int x0 = (int) Math.round(cx + Math.cos(a0) * r), y0 = (int) Math.round(cy + Math.sin(a0) * r);
             int x1 = (int) Math.round(cx + Math.cos(a1) * r), y1 = (int) Math.round(cy + Math.sin(a1) * r);
-            queuedDrawLine(g, x0, y0, x1, y1, color, thickness);
+            queueLineQuad(g, x0, y0, x1, y1, thickness, color);
         }
     }
 
@@ -252,9 +306,9 @@ public final class NodeShapeRenderer {
     public static void outlineTriangle(GuiGraphics g, int x, int y, int sz, int color, int thickness) {
         int cx = x + sz / 2, top = y + 1, bot = y + sz - 1;
         int bl = x + 1, br = x + sz - 1;
-        queuedDrawLine(g, cx, top, bl, bot, color, thickness);
-        queuedDrawLine(g, cx, top, br, bot, color, thickness);
-        queuedDrawLine(g, bl, bot, br, bot, color, thickness);
+        queueLineQuad(g, cx, top, bl, bot, thickness, color);
+        queueLineQuad(g, cx, top, br, bot, thickness, color);
+        queueLineQuad(g, bl, bot, br, bot, thickness, color);
     }
 
     public static void fillStar(GuiGraphics g, int x, int y, int sz, int color) {
@@ -312,7 +366,7 @@ public final class NodeShapeRenderer {
             float r2 = (i % 2 == 0) ? outerR : innerR;
 
             int nx = (int) Math.round(cx + Math.cos(a) * r2), ny = (int) Math.round(cy + Math.sin(a) * r2);
-            if (i > 0) queuedDrawLine(g, prevX, prevY2, nx, ny, color, thickness);
+            if (i > 0) queueLineQuad(g, prevX, prevY2, nx, ny, thickness, color);
             prevX = nx;
             prevY2 = ny;
         }
@@ -345,7 +399,7 @@ public final class NodeShapeRenderer {
             double a = -Math.PI / 2 + (i % sides) * 2 * Math.PI / sides;
 
             int nx = (int) Math.round(cx + Math.cos(a) * r), ny = (int) Math.round(cy + Math.sin(a) * r);
-            if (i > 0) queuedDrawLine(g, prevX, prevY2, nx, ny, color, thickness);
+            if (i > 0) queueLineQuad(g, prevX, prevY2, nx, ny, thickness, color);
             prevX = nx;
             prevY2 = ny;
         }
@@ -381,8 +435,8 @@ public final class NodeShapeRenderer {
         queueFillRect(g, x, y, x + thickness, midY, color);
         queueFillRect(g, x + sz - thickness, y, x + sz, midY, color);
 
-        queuedDrawLine(g, x, midY, cx, y + sz - 1, color, thickness);
-        queuedDrawLine(g, x + sz, midY, cx, y + sz - 1, color, thickness);
+        queueLineQuad(g, x, midY, cx, y + sz - 1, thickness, color);
+        queueLineQuad(g, x + sz, midY, cx, y + sz - 1, thickness, color);
     }
 
     public static void fillCross(GuiGraphics g, int x, int y, int sz, int color) {
@@ -414,7 +468,7 @@ public final class NodeShapeRenderer {
 
         int[] ox = { x0, x1, x1, ax1, ax1, x1, x1, x0, x0, ax0, ax0, x0, x0 };
         int[] oy = { ay0, ay0, y0, y0, ay0, ay0, ay1, ay1, ay0, ay0, y0, y0, ay0 };
-        for (int i = 0; i < 12; i++) queuedDrawLine(g, ox[i], oy[i], ox[i + 1], oy[i + 1], color, thickness);
+        for (int i = 0; i < 12; i++) queueLineQuad(g, ox[i], oy[i], ox[i + 1], oy[i + 1], thickness, color);
     }
 
     public static void fillPolygon(GuiGraphics g, float[] vx, float[] vy, int yMin, int yMax, int color) {
@@ -473,93 +527,5 @@ public final class NodeShapeRenderer {
         }
         int half = thickness / 2;
         g.fill(x - half, y - half, x - half + thickness, y - half + thickness, color);
-    }
-
-    private static void queuedDrawLine(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int thickness) {
-        if (thickness <= 1) {
-            drawWuLine(g, x0, y0, x1, y1, color, 1);
-            return;
-        }
-        bresenhamCore(g, x0, y0, x1, y1, color, thickness);
-
-        double dx = x1 - x0, dy = y1 - y0;
-        double len = Math.sqrt(dx * dx + dy * dy);
-        if (len < 0.5) return;
-        double nx = -dy / len, ny = dx / len;
-        double off = thickness / 2.0 + 0.5;
-
-        int ax0 = (int) Math.round(x0 + nx * off), ay0 = (int) Math.round(y0 + ny * off);
-        int ax1 = (int) Math.round(x1 + nx * off), ay1 = (int) Math.round(y1 + ny * off);
-        drawWuLine(g, ax0, ay0, ax1, ay1, color, 1);
-
-        int bx0 = (int) Math.round(x0 - nx * off), by0 = (int) Math.round(y0 - ny * off);
-        int bx1 = (int) Math.round(x1 - nx * off), by1 = (int) Math.round(y1 - ny * off);
-        drawWuLine(g, bx0, by0, bx1, by1, color, 1);
-    }
-
-    private static void drawWuLine(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int thickness) {
-        boolean steep = Math.abs(y1 - y0) > Math.abs(x1 - x0);
-        if (steep) {
-            int t = x0;
-            x0 = y0;
-            y0 = t;
-            t = x1;
-            x1 = y1;
-            y1 = t;
-        }
-        if (x0 > x1) {
-            int t = x0;
-            x0 = x1;
-            x1 = t;
-            t = y0;
-            y0 = y1;
-            y1 = t;
-        }
-        float dx = x1 - x0, dy = y1 - y0;
-        float gradient = dx == 0 ? 1f : dy / dx;
-        int alpha = (color >>> 24) & 0xFF;
-        float intery = y0;
-        for (int x = x0; x <= x1; x++) {
-            int iy = (int) Math.floor(intery);
-            float frac = intery - iy;
-            int a1 = Math.round(alpha * (1f - frac));
-            int a2 = Math.round(alpha * frac);
-            if (steep) {
-                if (a1 > 2) queuedPlot(g, iy, x, thickness, withAlpha(color, a1));
-                if (a2 > 2) queuedPlot(g, iy + 1, x, thickness, withAlpha(color, a2));
-            } else {
-                if (a1 > 2) queuedPlot(g, x, iy, thickness, withAlpha(color, a1));
-                if (a2 > 2) queuedPlot(g, x, iy + 1, thickness, withAlpha(color, a2));
-            }
-            intery += gradient;
-        }
-    }
-
-    private static void bresenhamCore(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int thickness) {
-        int dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
-        int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-        int err = dx - dy;
-        while (true) {
-            queuedPlot(g, x0, y0, thickness, color);
-            if (x0 == x1 && y0 == y1) break;
-            int e2 = 2 * err;
-            if (e2 > -dy) {
-                err -= dy;
-                x0 += sx;
-            }
-            if (e2 < dx) {
-                err += dx;
-                y0 += sy;
-            }
-        }
-    }
-
-    private static void queuedPlot(GuiGraphics g, int x, int y, int thickness, int color) {
-        if (thickness <= 1) {
-            queueFillRect(g, x, y, x + 1, y + 1, color);
-            return;
-        }
-        int half = thickness / 2;
-        queueFillRect(g, x - half, y - half, x - half + thickness, y - half + thickness, color);
     }
 }

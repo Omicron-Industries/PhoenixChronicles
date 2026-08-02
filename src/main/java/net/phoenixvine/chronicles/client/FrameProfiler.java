@@ -169,4 +169,20 @@ public final class FrameProfiler {
     public static double maxMsFor(String section) {
         return maxMs.getOrDefault(section, avgMs.getOrDefault(section, 0.0));
     }
+
+    public static long gcCountThisWindow() {
+        return gcCountThisWindow;
+    }
+
+    public static long gcTimeMsThisWindow() {
+        return gcTimeMsThisWindow;
+    }
+
+    public static double wallClockGapAvgMs() {
+        return wallClockGapAvgMs;
+    }
+
+    public static double wallClockGapMaxMs() {
+        return wallClockGapMaxMs;
+    }
 }

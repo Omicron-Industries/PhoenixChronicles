@@ -178,7 +178,7 @@ public class ChapterThemeScreen extends Screen {
         int textureRowY = rowTop(ROW_TEXTURE);
         textureBox = new EditBox(font, fx, textureRowY + 11, fw - browseW - browseGap, FIELD_H, Component.empty());
         textureBox.setMaxLength(256);
-        textureBox.setHint(Component.literal("§8modid:textures/gui/bg.png  (CUSTOM style only)"));
+        textureBox.setHint(Component.literal("§8modid:texture.png"));
         textureBox.setValue(cachedTexture);
         textureBox.setResponder(v -> {
             cachedTexture = v.trim();
@@ -308,8 +308,6 @@ public class ChapterThemeScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        if (parent != null) parent.render(g, -1, -1, partial);
-
         g.flush();
 
         g.pose().pushPose();
@@ -334,6 +332,11 @@ public class ChapterThemeScreen extends Screen {
         g.drawString(font, "§8Background Color", fx, rowTop(ROW_COLOR), ChroniclesThemePalette.TEXT_FAINT);
         g.drawString(font, "§8Custom Background", fx, rowTop(ROW_TEXTURE),
                 ChroniclesThemePalette.TEXT_FAINT);
+
+        if (textureBox.isMouseOver(mx, my)) {
+            g.renderComponentTooltip(font, java.util.List.of(Component.literal("§7modid:textures/gui/bg.png"),
+                    Component.literal("§8(CUSTOM style only)")), mx, my);
+        }
 
         int previewY = rowTop(ROW_CATEGORY) + STRIDE + 10 + 8;
         int bg = (cachedColor != 0) ? (0xFF000000 | cachedColor) : 0xFF0B0B0F;

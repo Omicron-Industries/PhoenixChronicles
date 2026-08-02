@@ -127,12 +127,16 @@ public class QuestChroniclesSettings {
 
     private boolean returnToQuestbookFromRecipeViewer = true;
 
+    private boolean showProgressArc = false;
+
     private SidebarBehavior sidebarBehavior = SidebarBehavior.COLLAPSIBLE;
 
     private int taskInspectorW = -1;
     private int taskRewardW = -1;
 
     private NodeMoveMode nodeMoveMode = NodeMoveMode.DRAG;
+
+    private boolean middleClickPickupPlace = false;
 
     private boolean alwaysProfilerEnabled = false;
 
@@ -315,6 +319,14 @@ public class QuestChroniclesSettings {
         this.showLineArrows = show;
     }
 
+    public boolean isShowProgressArc() {
+        return showProgressArc;
+    }
+
+    public void setShowProgressArc(boolean show) {
+        this.showProgressArc = show;
+    }
+
     public boolean isAlwaysProfilerEnabled() {
         return alwaysProfilerEnabled;
     }
@@ -388,6 +400,14 @@ public class QuestChroniclesSettings {
 
     public void setNodeMoveMode(NodeMoveMode mode) {
         this.nodeMoveMode = mode != null ? mode : NodeMoveMode.DRAG;
+    }
+
+    public boolean isMiddleClickPickupPlace() {
+        return middleClickPickupPlace;
+    }
+
+    public void setMiddleClickPickupPlace(boolean enabled) {
+        this.middleClickPickupPlace = enabled;
     }
 
     public boolean isHideCompletedByDefault() {

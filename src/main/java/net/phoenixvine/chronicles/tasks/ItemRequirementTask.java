@@ -8,9 +8,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
+import net.phoenixvine.chronicles.filter.NbtMatchUtil;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.QuestEngineConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,8 @@ public class ItemRequirementTask extends QuestTask {
     private CompoundTag nbtFilter = null;
 
     private boolean sticky = true;
+
+    private boolean checkAe2Storage = AE2Compat.isAvailable();
 
     public ItemRequirementTask(ResourceLocation taskId, Component description, Item item, int requiredCount,
                                boolean consume) {
@@ -61,6 +64,14 @@ public class ItemRequirementTask extends QuestTask {
         this.sticky = sticky;
     }
 
+    public boolean isCheckAe2Storage() {
+        return checkAe2Storage;
+    }
+
+    public void setCheckAe2Storage(boolean checkAe2Storage) {
+        this.checkAe2Storage = checkAe2Storage;
+    }
+
     @Override
     public ResourceLocation getDisplayItemId() {
         return item == null ? null : ForgeRegistries.ITEMS.getKey(item);
@@ -68,27 +79,19 @@ public class ItemRequirementTask extends QuestTask {
 
     private boolean stackMatches(ItemStack stack) {
         if (stack.isEmpty() || stack.getItem() != item) return false;
-        if (nbtFilter == null || nbtFilter.isEmpty()) return true;
-        CompoundTag stackTag = stack.getTag();
-        if (stackTag == null) return false;
-
-        for (String key : nbtFilter.getAllKeys()) {
-            if (!stackTag.contains(key)) return false;
-            if (!stackTag.get(key).equals(nbtFilter.get(key))) return false;
-        }
-        return true;
+        return NbtMatchUtil.matches(stack.getTag(), nbtFilter);
     }
 
     private Iterable<ItemStack> allSlots(Player player) {
         List<ItemStack> all = new ArrayList<>(player.getInventory().items);
         all.addAll(player.getInventory().offhand);
         all.addAll(player.getInventory().armor);
+        all.addAll(CuriosCompat.getEquippedCurios(player));
         return all;
     }
 
     private boolean checksAe2Storage() {
-        return (nbtFilter == null || nbtFilter.isEmpty()) && QuestEngineConfig.isAe2StorageForItemFluidTasksEnabled() &&
-                AE2Compat.isAvailable();
+        return checkAe2Storage && (nbtFilter == null || nbtFilter.isEmpty()) && AE2Compat.isAvailable();
     }
 
     @Override
@@ -157,6 +160,7 @@ public class ItemRequirementTask extends QuestTask {
         tag.putInt("count", requiredCount);
         tag.putBoolean("consume", consume);
         tag.putBoolean("sticky", sticky);
+        tag.putBoolean("check_ae2_storage", checkAe2Storage);
         if (nbtFilter != null && !nbtFilter.isEmpty()) tag.put("nbt_filter", nbtFilter);
         return tag;
     }
@@ -170,6 +174,7 @@ public class ItemRequirementTask extends QuestTask {
         this.consume = nbt.getBoolean("consume");
 
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
+        this.checkAe2Storage = !nbt.contains("check_ae2_storage") || nbt.getBoolean("check_ae2_storage");
         if (nbt.contains("nbt_filter")) this.nbtFilter = nbt.getCompound("nbt_filter");
     }
 }

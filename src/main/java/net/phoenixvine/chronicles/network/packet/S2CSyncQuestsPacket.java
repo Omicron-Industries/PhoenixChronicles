@@ -65,6 +65,7 @@ public class S2CSyncQuestsPacket {
             List<String> prereqLineVisual = new ArrayList<>(prereqCount);
             List<String> prereqLineSpeed = new ArrayList<>(prereqCount);
             List<String> prereqLineArrow = new ArrayList<>(prereqCount);
+            List<String> prereqLineStyleId = new ArrayList<>(prereqCount);
             for (int p = 0; p < prereqCount; p++) {
                 prereqIds.add(buf.readResourceLocation());
                 prereqRequired.add(buf.readBoolean());
@@ -75,6 +76,7 @@ public class S2CSyncQuestsPacket {
                 prereqLineVisual.add(buf.readUtf());
                 prereqLineSpeed.add(buf.readUtf());
                 prereqLineArrow.add(buf.readUtf());
+                prereqLineStyleId.add(buf.readUtf());
             }
             Integer optionalPrereqMinCount = buf.readBoolean() ? buf.readInt() : null;
 
@@ -88,14 +90,16 @@ public class S2CSyncQuestsPacket {
             String nodeSize = buf.readUtf();
             int sizeOverridePx = buf.readInt();
             String iconFluid = buf.readUtf();
+            String backgroundType = buf.readUtf();
+            String externalScreenId = buf.readUtf();
 
             snapshotMap.put(id, new QuestSnapshot(
                     id, title, description, chapter, shapeType, iconItemId,
                     customX, customY, subtitle, visibility, enableIf, taskMinCount, requireAllPrerequisites,
                     childIds, prereqIds, prereqRequired, prereqForbidden, prereqLink, prereqCosmetic,
-                    prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow,
+                    prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, prereqLineStyleId,
                     optionalPrereqMinCount, tasksNbt, linkTarget, iconTexture, shapeTexture,
-                    nodeSize, sizeOverridePx, iconFluid));
+                    nodeSize, sizeOverridePx, iconFluid, backgroundType, externalScreenId));
         }
     }
 
@@ -131,6 +135,7 @@ public class S2CSyncQuestsPacket {
                 buf.writeUtf(pi < snap.prereqLineVisual.size() ? snap.prereqLineVisual.get(pi) : "");
                 buf.writeUtf(pi < snap.prereqLineSpeed.size() ? snap.prereqLineSpeed.get(pi) : "");
                 buf.writeUtf(pi < snap.prereqLineArrow.size() ? snap.prereqLineArrow.get(pi) : "");
+                buf.writeUtf(pi < snap.prereqLineStyleId.size() ? snap.prereqLineStyleId.get(pi) : "");
             }
             buf.writeBoolean(snap.optionalPrereqMinCount != null);
             if (snap.optionalPrereqMinCount != null) buf.writeInt(snap.optionalPrereqMinCount);
@@ -145,12 +150,18 @@ public class S2CSyncQuestsPacket {
             buf.writeUtf(snap.nodeSize);
             buf.writeInt(snap.sizeOverridePx);
             buf.writeUtf(snap.iconFluid);
+            buf.writeUtf(snap.backgroundType);
+            buf.writeUtf(snap.externalScreenId);
         }
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> ClientPayloadProcessor.processQuestTree(snapshotMap)));
+                () -> () -> {
+
+                    if (net.minecraft.client.Minecraft.getInstance().hasSingleplayerServer()) return;
+                    ClientPayloadProcessor.processQuestTree(snapshotMap);
+                }));
         ctx.get().setPacketHandled(true);
     }
 
@@ -186,6 +197,7 @@ public class S2CSyncQuestsPacket {
         final List<String> prereqLineVisual;
         final List<String> prereqLineSpeed;
         final List<String> prereqLineArrow;
+        final List<String> prereqLineStyleId;
 
         final Integer optionalPrereqMinCount;
         final List<CompoundTag> tasksNbt;
@@ -201,6 +213,10 @@ public class S2CSyncQuestsPacket {
         final int sizeOverridePx;
 
         final String iconFluid;
+
+        final String backgroundType;
+
+        final String externalScreenId;
 
         QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
             this.id = node.getId();
@@ -223,6 +239,8 @@ public class S2CSyncQuestsPacket {
             this.nodeSize = node.getNodeSize().name();
             this.sizeOverridePx = node.getSizeOverridePx();
             this.iconFluid = node.getIconFluid() != null ? node.getIconFluid() : "";
+            this.backgroundType = node.getBackgroundType() != null ? node.getBackgroundType() : "";
+            this.externalScreenId = node.getExternalScreenId() != null ? node.getExternalScreenId() : "";
 
             this.childIds = new ArrayList<>();
             for (QuestNode child : node.getChildren()) childIds.add(child.getId());
@@ -236,6 +254,7 @@ public class S2CSyncQuestsPacket {
             this.prereqLineVisual = new ArrayList<>();
             this.prereqLineSpeed = new ArrayList<>();
             this.prereqLineArrow = new ArrayList<>();
+            this.prereqLineStyleId = new ArrayList<>();
             for (QuestNode req : node.getPrerequisites()) {
                 prereqIds.add(req.getId());
                 prereqRequired.add(node.isPrereqRequired(req.getId()));
@@ -250,6 +269,8 @@ public class S2CSyncQuestsPacket {
                         node.getPrereqLineSpeed(req.getId()).name() : "");
                 Boolean arrow = node.getPrereqLineArrow(req.getId());
                 prereqLineArrow.add(arrow != null ? arrow.toString().toUpperCase() : "");
+                String styleId = node.getPrereqLineStyleId(req.getId());
+                prereqLineStyleId.add(styleId != null ? styleId : "");
             }
 
             this.tasksNbt = new ArrayList<>();
@@ -273,11 +294,12 @@ public class S2CSyncQuestsPacket {
                       List<Boolean> prereqRequired, List<Boolean> prereqForbidden, List<Boolean> prereqLink,
                       List<Boolean> prereqCosmetic,
                       List<String> prereqLineShape, List<String> prereqLineVisual, List<String> prereqLineSpeed,
-                      List<String> prereqLineArrow,
+                      List<String> prereqLineArrow, List<String> prereqLineStyleId,
                       Integer optionalPrereqMinCount,
                       List<CompoundTag> tasksNbt,
                       ResourceLocation linkTarget, String iconTexture, String shapeTexture,
-                      String nodeSize, int sizeOverridePx, String iconFluid) {
+                      String nodeSize, int sizeOverridePx, String iconFluid,
+                      String backgroundType, String externalScreenId) {
             this.id = id;
             this.title = title;
             this.description = description;
@@ -301,6 +323,7 @@ public class S2CSyncQuestsPacket {
             this.prereqLineVisual = prereqLineVisual;
             this.prereqLineSpeed = prereqLineSpeed;
             this.prereqLineArrow = prereqLineArrow;
+            this.prereqLineStyleId = prereqLineStyleId;
             this.optionalPrereqMinCount = optionalPrereqMinCount;
             this.tasksNbt = tasksNbt;
             this.linkTarget = linkTarget;
@@ -309,6 +332,8 @@ public class S2CSyncQuestsPacket {
             this.nodeSize = nodeSize;
             this.sizeOverridePx = sizeOverridePx;
             this.iconFluid = iconFluid;
+            this.backgroundType = backgroundType;
+            this.externalScreenId = externalScreenId;
         }
     }
 
@@ -335,6 +360,8 @@ public class S2CSyncQuestsPacket {
                 node.setIconTexture(snap.iconTexture);
                 node.setIconFluid(snap.iconFluid);
                 node.setShapeTexture(snap.shapeTexture);
+                node.setBackgroundType(snap.backgroundType);
+                node.setExternalScreenId(snap.externalScreenId);
                 try {
                     node.setNodeSize(QuestNode.NodeSize.valueOf(snap.nodeSize));
                 } catch (Exception ignored) {}
@@ -408,6 +435,9 @@ public class S2CSyncQuestsPacket {
                         }
                         if (pi < snap.prereqLineArrow.size() && !snap.prereqLineArrow.get(pi).isEmpty()) {
                             node.setPrereqLineArrow(req.getId(), Boolean.valueOf(snap.prereqLineArrow.get(pi)));
+                        }
+                        if (pi < snap.prereqLineStyleId.size() && !snap.prereqLineStyleId.get(pi).isEmpty()) {
+                            node.setPrereqLineStyleId(req.getId(), snap.prereqLineStyleId.get(pi));
                         }
                     }
                 }

@@ -52,6 +52,8 @@ public class C2SAcknowledgeInfoTasksPacket {
                 }
                 if (anyChanged) {
                     QuestProgressTracker.checkAndTryComplete(player, node);
+
+                    QuestProgressTracker.sendProgressSync(player);
                 }
             });
         });

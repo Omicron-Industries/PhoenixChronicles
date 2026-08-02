@@ -38,7 +38,7 @@ public class QuestTasksScreen extends Screen {
     private static final int C_SLOT_BG = 0xFF0E0E14;
     private static final int C_SLOT_HI = 0xFF5A4200;
 
-    private static final int HEADER_H = 28;
+    private static final int HEADER_H = 38;
     private static final int ICON_SZ = 18;
     private static final int ICON_STRIP_H = ICON_SZ + 8;
     private static final int FOOTER_H = 22;
@@ -186,10 +186,12 @@ public class QuestTasksScreen extends Screen {
 
     private int compactCardH(List<QuestTask> tasks, List<QuestReward> rewards,
                              java.util.List<net.minecraft.util.FormattedCharSequence> descLines, int pageCount) {
-        int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
+        String subtitleForH = node.getSubtitle();
+        int headerHForH = subtitleForH != null && !subtitleForH.isBlank() ? 30 : 20;
+        int fixedH = headerHForH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int allDescLines = buildAllDescLines(tasks, descLines).size();
         int rawDesc = Math.min(allDescLines, CARD_MAX_DESC);
-        int fitted = Math.max(0, Math.min(rawDesc, ((height - 20) - fixedH - 9) / 10));
+        int fitted = Math.max(0, Math.min(rawDesc, ((height - headerHForH) - fixedH - 9) / 10));
 
         int descH = fitted > 0 ? 4 + fitted * 10 + 4 : (isEditMode ? 24 : 0);
 
@@ -292,16 +294,29 @@ public class QuestTasksScreen extends Screen {
         int compactDescPageCount = splitDescPages(currentDisplayDescriptionText()).size();
         String descText = currentDescriptionPageText(currentDisplayDescriptionText());
 
-        String plainText = net.phoenixvine.chronicles.client.rich.ChronicleTextParser.toPlain(descText);
+        List<net.phoenixvine.chronicles.client.rich.RichSpan> spans = net.phoenixvine.chronicles.client.rich.ChronicleTextParser
+                .parse(descText);
+        float compactTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                .getTextScaleMultiplier();
+        int compactLineH = Math.max(1, Math.round(10 * compactTextScale));
 
-        java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines = plainText != null ?
-                splitRespectingNewlines(font, plainText, cardW() - CARD_PAD * 2) : java.util.List.of();
+        int questDescLineCount = spans.isEmpty() ? 0 :
+                (net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureHeight(
+                        font, spans, cardW() - CARD_PAD * 2, compactTextScale) + compactLineH - 1) / compactLineH;
+
+        java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines = java.util.Collections
+                .nCopies(questDescLineCount, net.minecraft.util.FormattedCharSequence.EMPTY);
         java.util.List<net.minecraft.util.FormattedCharSequence> descLines = buildAllDescLines(tasks, questDescLines);
 
-        int fixedH = 20 + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
+        String compactSubtitle = node.getSubtitle();
+        boolean hasCompactSubtitle = compactSubtitle != null && !compactSubtitle.isBlank();
+        int compactHeaderH = hasCompactSubtitle ? 30 : 20;
+
+        int fixedH = compactHeaderH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int rawDesc = Math.min(descLines.size(), CARD_MAX_DESC);
-        int fittedDesc = Math.max(0, Math.min(rawDesc, ((height - 20) - fixedH - 9) / 10));
-        int descH = fittedDesc > 0 ? 4 + fittedDesc * 10 + 4 : (isEditMode ? 24 : 0);
+        int fittedDesc = Math.max(0, Math.min(rawDesc, ((height - compactHeaderH) - fixedH - 9) / compactLineH));
+
+        int descH = fittedDesc > 0 ? 4 + fittedDesc * compactLineH + 6 : (isEditMode ? 24 : 0);
 
         int pagerStripH = compactDescPageCount > 1 ? 17 : 0;
         int cardH = fixedH + descH + (descH > 0 ? 1 : 0) + pagerStripH + (pagerStripH > 0 ? 1 : 0);
@@ -317,11 +332,18 @@ public class QuestTasksScreen extends Screen {
 
         int cy = cardY;
 
-        g.fill(cardX, cy, cardX + cardW(), cy + 20, C_HEADER);
+        g.fill(cardX, cy, cardX + cardW(), cy + compactHeaderH, C_HEADER);
         String title = node.getTitle().getString();
         if (font.width(title.replaceAll("§.", "")) > cardW() - 50)
             title = font.plainSubstrByWidth(title, cardW() - 56) + "…";
         g.drawString(font, "§f" + title, cardX + CARD_PAD, cy + 6, C_TEXT, false);
+
+        if (hasCompactSubtitle) {
+            String subtitleShown = compactSubtitle;
+            if (font.width(subtitleShown.replaceAll("§.", "")) > cardW() - 12)
+                subtitleShown = font.plainSubstrByWidth(subtitleShown, cardW() - 18) + "…";
+            g.drawString(font, "§7" + subtitleShown, cardX + CARD_PAD, cy + 18, C_TEXT_DIM, false);
+        }
 
         boolean fsHov = mx >= cardX + cardW() - 18 && mx < cardX + cardW() - 4 && my >= cy + 3 && my < cy + 17;
         if (fsHov) g.fill(cardX + cardW() - 18, cy + 3, cardX + cardW() - 4, cy + 17, 0x33FFFFFF);
@@ -333,7 +355,7 @@ public class QuestTasksScreen extends Screen {
         g.drawCenteredString(font, closeHov ? "§c✕" : "§8✕", cardX + cardW() - 27, cy + 6,
                 closeHov ? 0xFFFF6666 : C_TEXT_FAINT);
 
-        cy += 20;
+        cy += compactHeaderH;
         g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
         cy += 1;
 
@@ -391,10 +413,6 @@ public class QuestTasksScreen extends Screen {
                 g.drawString(font, "§8Click to add a description", cardX + CARD_PAD, dy, C_TEXT_FAINT, false);
             }
 
-            List<net.phoenixvine.chronicles.client.rich.RichSpan> spans = net.phoenixvine.chronicles.client.rich.ChronicleTextParser
-                    .parse(descText);
-            float compactTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
-                    .getTextScaleMultiplier();
             net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.render(
                     g, font, spans,
                     cardX + CARD_PAD, cy + 4, cardW() - CARD_PAD * 2,
@@ -664,10 +682,18 @@ public class QuestTasksScreen extends Screen {
             titleStr = font.plainSubstrByWidth(titleStr, (int) (titleAvailPreScale - 6)) + "…";
         ChroniclesUIKit.drawScaledString(g, font, "§f" + titleStr, 28, 10, C_TEXT, headerTextScale);
 
+        String subtitleStr = node.getSubtitle();
+        if (subtitleStr != null && !subtitleStr.isBlank()) {
+            if (font.width(subtitleStr.replaceAll("§.", "")) > titleMaxW)
+                subtitleStr = font.plainSubstrByWidth(subtitleStr, titleMaxW - 6) + "…";
+            g.drawString(font, "§7" + subtitleStr, 28, 24, C_TEXT_DIM, false);
+        }
+
         boolean usesHasAny = !node.getPrerequisites().isEmpty() || !node.getChildren().isEmpty();
         boolean usesHov = usesHasAny && mx >= usesX && mx < usesX + 16 && my >= 6 && my < 22;
         if (usesHov || usesPopupOpen) g.fill(usesX, 6, usesX + 16, 22, 0x22FFFFFF);
-        g.drawCenteredString(font, "§b🔗", usesX + 8, 10,
+
+        g.drawCenteredString(font, "§b≡", usesX + 8, 10,
                 !usesHasAny ? C_TEXT_FAINT : (usesHov || usesPopupOpen) ? 0xFF55CCFF : C_TEXT_DIM);
 
         if (mx >= fsX && mx < fsX + 16 && my >= 6 && my < 22) g.fill(fsX, 6, fsX + 16, 22, 0x22FFFFFF);
@@ -1250,7 +1276,7 @@ public class QuestTasksScreen extends Screen {
 
             String label;
             if (reward instanceof QuestReward.ItemReward ir) {
-                label = ir.getItem().getDefaultInstance().getHoverName().getString() + " ×" + ir.getCount();
+                label = rewardStack(ir).getHoverName().getString() + " ×" + ir.getCount();
             } else {
                 label = switch (reward.getType()) {
                     case XP -> "XP Reward";
@@ -1280,8 +1306,9 @@ public class QuestTasksScreen extends Screen {
 
         if (reward instanceof QuestReward.ItemReward ir) {
             int off = (sz - 16) / 2;
-            g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), x + off, y + off);
-            if (sz >= 18) g.renderItemDecorations(font, new ItemStack(ir.getItem(), ir.getCount()), x + off, y + off);
+            ItemStack stack = rewardStack(ir);
+            g.renderItem(stack, x + off, y + off);
+            if (sz >= 18) g.renderItemDecorations(font, stack, x + off, y + off);
         } else {
             String glyph = switch (reward.getType()) {
                 case XP -> "⚡";
@@ -1327,12 +1354,24 @@ public class QuestTasksScreen extends Screen {
         ChroniclesUIKit.drawBorder(g, x, y, w, h, C_BORDER);
     }
 
+    private ItemStack rewardStack(QuestReward.ItemReward reward) {
+        ItemStack stack = new ItemStack(reward.getItem(), reward.getCount());
+        if (reward.getNbt() != null && !reward.getNbt().isEmpty()) stack.setTag(reward.getNbt().copy());
+        return stack;
+    }
+
     private ItemStack getTaskIcon(QuestTask task) {
         ResourceLocation id = task.getDisplayItemId();
         if (id == null) return ItemStack.EMPTY;
         Item item = ForgeRegistries.ITEMS.getValue(id);
         if (item == null || item == net.minecraft.world.item.Items.AIR) return ItemStack.EMPTY;
-        return new ItemStack(item, taskRequiredCount(task));
+        ItemStack stack = new ItemStack(item, taskRequiredCount(task));
+
+        if (task instanceof net.phoenixvine.chronicles.tasks.ItemRequirementTask t && t.getNbtFilter() != null &&
+                !t.getNbtFilter().isEmpty()) {
+            stack.setTag(t.getNbtFilter().copy());
+        }
+        return stack;
     }
 
     private int taskRequiredCount(QuestTask task) {
@@ -1353,6 +1392,7 @@ public class QuestTasksScreen extends Screen {
         if (task instanceof AdvancementTask) return "§d★";
         if (task instanceof CheckmarkTask) return "§7☑";
         if (task instanceof InfoTask) return "§7✎";
+        if (task instanceof net.phoenixvine.chronicles.tasks.TimerTask) return "§b⏱";
         if (task instanceof TagItemTask) return "§e◈";
         if (task instanceof EnergyStorageTask) return "§6⚡";
         if (task instanceof FilterItemTask) return "§e◈";
@@ -1364,7 +1404,13 @@ public class QuestTasksScreen extends Screen {
 
     private String getTaskDetail(QuestTask task) {
         if (task instanceof ItemRequirementTask t) {
-            String name = t.getItem() != null ? t.getItem().getDefaultInstance().getHoverName().getString() : "item";
+
+            String name = "item";
+            if (t.getItem() != null) {
+                ItemStack display = t.getItem().getDefaultInstance();
+                if (t.getNbtFilter() != null && !t.getNbtFilter().isEmpty()) display.setTag(t.getNbtFilter().copy());
+                name = display.getHoverName().getString();
+            }
             return name + (t.getRequiredCount() > 1 ? "  ×" + t.getRequiredCount() : "") +
                     (t.shouldConsume() ? "  (consumed)" : "");
         }
@@ -1396,6 +1442,9 @@ public class QuestTasksScreen extends Screen {
         }
         if (task instanceof InfoTask) {
             return null;
+        }
+        if (task instanceof net.phoenixvine.chronicles.tasks.TimerTask t) {
+            return "Wait " + t.getDurationSeconds() + "s";
         }
         if (task instanceof TagItemTask t) {
             String tag = t.getTag() != null ? "#" + t.getTag().location().getPath() : "#unknown";
@@ -1438,7 +1487,7 @@ public class QuestTasksScreen extends Screen {
     private java.util.List<Component> buildRewardTooltip(QuestReward reward) {
         java.util.List<Component> lines = new java.util.ArrayList<>();
         if (reward instanceof QuestReward.ItemReward ir) {
-            lines.add(Component.literal("§fReward: " + ir.getItem().getDefaultInstance().getHoverName().getString() +
+            lines.add(Component.literal("§fReward: " + rewardStack(ir).getHoverName().getString() +
                     " §8×" + ir.getCount()));
             lines.add(Component.literal("§8[Click to view in recipe browser]"));
         } else {
@@ -1547,6 +1596,10 @@ public class QuestTasksScreen extends Screen {
             minecraft.setScreen(new TaskRewardEditorScreen(this, node));
             return true;
         }
+        if (btn == 2 && isEditMode && hoveredTask != null) {
+            forceCompleteTask(hoveredTask);
+            return true;
+        }
         if (btn != 0) return super.mouseClicked(mx, my, btn);
 
         List<QuestTask> tasks = node.getTasks();
@@ -1635,7 +1688,7 @@ public class QuestTasksScreen extends Screen {
                 if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) {
                     QuestNode target = prereqRowTargets.get(i);
                     if (minecraft != null && parent instanceof ChronicleOverviewScreen overview) {
-                        overview.onNodeClicked(target, true);
+                        overview.navigateToNode(target);
                     }
                     return true;
                 }
@@ -1649,7 +1702,7 @@ public class QuestTasksScreen extends Screen {
                     QuestNode target = usesPopupRowTargets.get(i);
                     usesPopupOpen = false;
                     if (minecraft != null && parent instanceof ChronicleOverviewScreen overview) {
-                        overview.onNodeClicked(target, true);
+                        overview.navigateToNode(target);
                     }
                     return true;
                 }
@@ -1672,8 +1725,12 @@ public class QuestTasksScreen extends Screen {
             minecraft.setScreen(new TaskRewardEditorScreen(this, node));
             return true;
         }
+        if (btn == 2 && isEditMode && (hoveredStripTask != null || hoveredTaskFs != null)) {
+            forceCompleteTask(hoveredStripTask != null ? hoveredStripTask : hoveredTaskFs);
+            return true;
+        }
 
-        if (hoveredStripTask != null) {
+        if (btn == 0 && hoveredStripTask != null) {
             if (tryCompleteCheckmark(hoveredStripTask)) return true;
             inspectorTab = InspTab.TASKS;
             inspectorScrollY = 0;
@@ -1822,11 +1879,24 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
         if (!isFullscreen) {
-            int maxScrollLine = Math.max(0, compactDescTotalLines - compactDescFittedLines);
-            if (maxScrollLine == 0) return false;
             if (mx < descBoxX || mx >= descBoxX + descBoxW || my < descBoxY || my >= descBoxY + descBoxH) {
                 return false;
             }
+            int maxScrollLine = Math.max(0, compactDescTotalLines - compactDescFittedLines);
+
+            if (delta < 0 && compactDescScrollLine >= maxScrollLine && descPagerPageCount > 1 &&
+                    descPage < descPagerPageCount - 1) {
+                descPage++;
+                compactDescScrollLine = 0;
+                return true;
+            }
+            if (delta > 0 && compactDescScrollLine <= 0 && descPagerPageCount > 1 && descPage > 0) {
+                descPage--;
+                compactDescScrollLine = 0;
+                return true;
+            }
+
+            if (maxScrollLine == 0) return false;
             compactDescScrollLine = Math.max(0, Math.min(maxScrollLine, compactDescScrollLine - (int) (delta * 2)));
             return true;
         }
@@ -1838,7 +1908,17 @@ public class QuestTasksScreen extends Screen {
         if (mx >= rightX && mx < rightX + inspW3 && my >= contentTop && my < height - FOOTER_H - MARGIN) {
             inspectorScrollY = Math.max(0, (int) (inspectorScrollY - delta * 12));
         } else {
-            descScrollY = Math.max(0, Math.min(fsDescMaxScrollY, (int) (descScrollY - delta * 12)));
+
+            if (delta < 0 && descScrollY >= fsDescMaxScrollY && descPagerPageCount > 1 &&
+                    descPage < descPagerPageCount - 1) {
+                descPage++;
+                descScrollY = 0;
+            } else if (delta > 0 && descScrollY <= 0 && descPagerPageCount > 1 && descPage > 0) {
+                descPage--;
+                descScrollY = 0;
+            } else {
+                descScrollY = Math.max(0, Math.min(fsDescMaxScrollY, (int) (descScrollY - delta * 12)));
+            }
         }
         return true;
     }
@@ -1991,6 +2071,11 @@ public class QuestTasksScreen extends Screen {
             ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), -1));
         }
         return true;
+    }
+
+    private void forceCompleteTask(QuestTask task) {
+        if (minecraft == null || minecraft.player == null || task == null) return;
+        minecraft.player.connection.sendCommand("chronicles forcetask " + task.getTaskId().getPath());
     }
 
     private boolean tryCompleteCheckmark(QuestTask task) {

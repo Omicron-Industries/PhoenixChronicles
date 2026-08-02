@@ -39,7 +39,7 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
             String warnKey = expression + "|" + context;
             if (warnedMalformed.add(warnKey)) {
                 System.err.println("[Phoenix Chronicles] Malformed config flag expression '" + expression +
-                        "' — expected 'config:<filename>#<key>=<value>' (missing '#')" +
+                        "' : expected 'config:<filename>#<key>=<value>' (missing '#')" +
                         (context != null ? " [" + context + "]" : "") + ".");
             }
             return false;
@@ -60,17 +60,22 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
 
         Path baseConfigDir = server != null ? server.getServerDirectory().toPath().resolve("config") :
                 FMLPaths.CONFIGDIR.get();
-        Path chroniclesConfigDir = baseConfigDir.resolve("phoenix_chronicles");
 
-        try {
-            Files.createDirectories(chroniclesConfigDir);
-        } catch (IOException e) {
-            System.err.println(
-                    "[Phoenix Chronicles] Could not create phoenix_chronicles config directory: " + e.getMessage());
-            return Map.of();
+        boolean rootRelative = filename.startsWith("/");
+        Path file;
+        if (rootRelative) {
+            file = baseConfigDir.resolve(filename.substring(1));
+        } else {
+            Path chroniclesConfigDir = baseConfigDir.resolve("phoenix_chronicles");
+            try {
+                Files.createDirectories(chroniclesConfigDir);
+            } catch (IOException e) {
+                System.err.println("[Phoenix Chronicles] Could not create phoenix_chronicles config directory: " +
+                        e.getMessage());
+                return Map.of();
+            }
+            file = chroniclesConfigDir.resolve(filename);
         }
-
-        Path file = chroniclesConfigDir.resolve(filename);
 
         Map<String, String> flat = readFlat(file);
         cache.put(filename, new CachedFile(flat, System.currentTimeMillis()));

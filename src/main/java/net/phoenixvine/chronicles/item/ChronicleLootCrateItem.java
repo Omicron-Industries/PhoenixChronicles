@@ -15,6 +15,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.extensions.common.IClientItemExtensions;
+import net.phoenixvine.chronicles.client.render.LootCrateItemRenderer;
 import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestReward.WeightedReward;
 
@@ -22,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Random;
+import java.util.function.Consumer;
 
 public class ChronicleLootCrateItem extends Item {
 
@@ -33,6 +38,22 @@ public class ChronicleLootCrateItem extends Item {
 
     public ChronicleLootCrateItem(Properties props) {
         super(props);
+    }
+
+    @Override
+    public void initializeClient(Consumer<IClientItemExtensions> consumer) {
+        consumer.accept(clientItemExtensions());
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    private static IClientItemExtensions clientItemExtensions() {
+        return new IClientItemExtensions() {
+
+            @Override
+            public net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                return LootCrateItemRenderer.INSTANCE;
+            }
+        };
     }
 
     @Override

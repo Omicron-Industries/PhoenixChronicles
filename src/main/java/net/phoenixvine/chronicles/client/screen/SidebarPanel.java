@@ -44,6 +44,11 @@ class SidebarPanel {
     record Colors(int border, int borderLit, int text, int textDim, int textFaint, int panelDark, int selTab,
                   int progFill, int progAct) {}
 
+    record MenuAction(String label, Runnable onClick) {}
+
+    private static final int CTX_MENU_W = 140;
+    private static final int CTX_ROW_H = 16;
+
     private boolean collapsed = false;
     private boolean hoverPeek = false;
     private int scrollY = 0;
@@ -54,6 +59,9 @@ class SidebarPanel {
     private SidebarRow dragRow = null;
     private int dragStartX, dragStartY;
     private boolean dragMoved = false;
+
+    private List<MenuAction> ctxActions = null;
+    private int ctxX, ctxY;
 
     boolean collapsed() {
         return collapsed;
@@ -102,6 +110,54 @@ class SidebarPanel {
 
     void syncLayoutBaseX(int cl) {
         nodeLayoutAnimBaseX = cl;
+    }
+
+    boolean contextMenuOpen() {
+        return ctxActions != null;
+    }
+
+    void openContextMenu(int mx, int my, List<MenuAction> actions) {
+        ctxActions = actions;
+        ctxX = mx;
+        ctxY = my;
+    }
+
+    void closeContextMenu() {
+        ctxActions = null;
+    }
+
+    void handleContextMenuClick(int mx, int my) {
+        if (ctxActions == null) return;
+        int h = ctxActions.size() * CTX_ROW_H + 4;
+        if (mx >= ctxX && mx < ctxX + CTX_MENU_W && my >= ctxY && my < ctxY + h) {
+            int idx = (my - (ctxY + 2)) / CTX_ROW_H;
+            if (idx >= 0 && idx < ctxActions.size()) ctxActions.get(idx).onClick().run();
+        }
+        closeContextMenu();
+    }
+
+    void renderContextMenu(GuiGraphics g, Font font, int mx, int my, int screenW, int screenH, Colors colors) {
+        if (ctxActions == null) return;
+        int h = ctxActions.size() * CTX_ROW_H + 4;
+        int x = Math.min(ctxX, screenW - CTX_MENU_W - 2);
+        int y = Math.min(ctxY, screenH - h - 2);
+
+        g.pose().pushPose();
+        g.pose().translate(0f, 0f, 400f);
+        g.flush();
+        RenderSystem.disableDepthTest();
+        g.fill(x, y, x + CTX_MENU_W, y + h, 0xFF1A1A24);
+        ChroniclesUIKit.drawBorder(g, x, y, CTX_MENU_W, h, colors.borderLit());
+        for (int i = 0; i < ctxActions.size(); i++) {
+            int ry = y + 2 + i * CTX_ROW_H;
+            boolean hov = mx >= x && mx < x + CTX_MENU_W && my >= ry && my < ry + CTX_ROW_H;
+            if (hov) g.fill(x + 1, ry, x + CTX_MENU_W - 1, ry + CTX_ROW_H, 0x22FFFFFF);
+            g.drawString(font, (hov ? "§f" : "§7") + ctxActions.get(i).label(), x + 6, ry + 4,
+                    hov ? colors.text() : colors.textDim(), false);
+        }
+        RenderSystem.enableDepthTest();
+        g.flush();
+        g.pose().popPose();
     }
 
     boolean isHoverSidebar() {

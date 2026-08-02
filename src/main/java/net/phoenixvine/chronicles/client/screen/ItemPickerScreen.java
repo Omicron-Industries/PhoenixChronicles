@@ -223,7 +223,6 @@ public class ItemPickerScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        if (parent != null) parent.render(g, -1, -1, partial);
         g.flush();
 
         g.pose().pushPose();
@@ -289,16 +288,22 @@ public class ItemPickerScreen extends Screen {
                 g.fill(sx, sy, sx + SLOT_SIZE, sy + SLOT_SIZE, COL_HOVER);
             }
 
-            g.renderItem(stack, sx + 1, sy + 1);
+            try {
+                g.renderItem(stack, sx + 1, sy + 1);
 
-            if (stack.getCount() > 1) {
-                g.renderItemDecorations(font, stack, sx + 1, sy + 1);
-            }
+                if (stack.getCount() > 1) {
+                    g.renderItemDecorations(font, stack, sx + 1, sy + 1);
+                }
+            } catch (Exception ignored) {}
 
             if (isHovered) hoveredStack = stack;
         }
 
         g.disableScissor();
+
+        int totalRows = (int) Math.ceil(displayItems.size() / (double) SLOTS_PER_ROW);
+        net.phoenixvine.chronicles.client.render.ChroniclesThemeRenderer.drawScrollbar(g,
+                panelLeft + PANEL_W - 2, gridTop, gridBottom, scrollOffset * SLOT_SIZE, totalRows * SLOT_SIZE);
 
         if (hoveredStack != null) {
             g.renderTooltip(font, hoveredStack, mx, my);
@@ -308,7 +313,9 @@ public class ItemPickerScreen extends Screen {
             int prevY = footerY - 18;
             g.fill(panelLeft, prevY - 1, panelLeft + PANEL_W, prevY, ChroniclesThemePalette.BORDER);
             g.fill(panelLeft, prevY, panelLeft + PANEL_W, footerY, ChroniclesThemePalette.PANEL_DARK);
-            g.renderItem(selectedStack, panelLeft + 4, prevY + 1);
+            try {
+                g.renderItem(selectedStack, panelLeft + 4, prevY + 1);
+            } catch (Exception ignored) {}
             String selName = selectedStack.getHoverName().getString();
             int maxW = PANEL_W - 30;
             if (font.width(selName) > maxW) selName = font.plainSubstrByWidth(selName, maxW - 6) + "…";

@@ -17,4 +17,12 @@ public class ChronicleItems {
     public static final RegistryObject<ChronicleLootCrateItem> CHRONICLE_LOOT_CRATE = ITEMS.register(
             "chronicle_loot_crate",
             () -> new ChronicleLootCrateItem(new Item.Properties().stacksTo(16)));
+
+    public static final RegistryObject<ItemFilterTokenItem> ITEM_FILTER_TOKEN = ITEMS.register(
+            "item_filter_token",
+            () -> new ItemFilterTokenItem(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<FluidFilterTokenItem> FLUID_FILTER_TOKEN = ITEMS.register(
+            "fluid_filter_token",
+            () -> new FluidFilterTokenItem(new Item.Properties().stacksTo(1)));
 }

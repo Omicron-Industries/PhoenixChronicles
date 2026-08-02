@@ -9,6 +9,8 @@ import net.minecraft.world.item.ItemStack;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.filter.IItemFilter;
 import net.phoenixvine.chronicles.filter.ItemFilters;
+import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 import java.util.ArrayList;
@@ -21,6 +23,8 @@ public class FilterItemTask extends QuestTask {
     private boolean consume;
 
     private boolean sticky = true;
+
+    private boolean checkAe2Storage = AE2Compat.isAvailable();
 
     public FilterItemTask(ResourceLocation taskId, Component description,
                           IItemFilter filter, int count, boolean consume) {
@@ -35,6 +39,7 @@ public class FilterItemTask extends QuestTask {
         List<ItemStack> all = new ArrayList<>(inv.items);
         all.addAll(inv.offhand);
         all.addAll(inv.armor);
+        all.addAll(CuriosCompat.getEquippedCurios(player));
         return all;
     }
 
@@ -46,15 +51,24 @@ public class FilterItemTask extends QuestTask {
         return found;
     }
 
+    private boolean checksAe2Storage() {
+        return checkAe2Storage && AE2Compat.isAvailable();
+    }
+
+    private long countMatchingWithAe2(Player player) {
+        long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, filter) : 0;
+        return found + countMatching(player);
+    }
+
     @Override
     public boolean dependsOnInventory() {
-        return true;
+        return !checksAe2Storage();
     }
 
     @Override
     public boolean isCompletedFor(Player player) {
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
-        if (countMatching(player) >= count) {
+        if (countMatchingWithAe2(player) >= count) {
             if (sticky) TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
             return true;
         }
@@ -65,7 +79,7 @@ public class FilterItemTask extends QuestTask {
     public String getProgressString(Player player) {
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
             return count + "/" + count;
-        return Math.min(countMatching(player), count) + "/" + count;
+        return Math.min(countMatchingWithAe2(player), count) + "/" + count;
     }
 
     @Override
@@ -88,6 +102,10 @@ public class FilterItemTask extends QuestTask {
             remaining -= take;
         }
         player.getInventory().setChanged();
+
+        if (remaining > 0 && checksAe2Storage()) {
+            AE2Compat.tryConsume(player, filter, remaining);
+        }
     }
 
     @Override
@@ -97,6 +115,7 @@ public class FilterItemTask extends QuestTask {
         tag.putInt("count", count);
         tag.putBoolean("consume", consume);
         tag.putBoolean("sticky", sticky);
+        tag.putBoolean("check_ae2_storage", checkAe2Storage);
         tag.put("filter", filter.serialize());
         return tag;
     }
@@ -106,6 +125,7 @@ public class FilterItemTask extends QuestTask {
         this.count = Math.max(1, nbt.getInt("count"));
         this.consume = nbt.getBoolean("consume");
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");
+        this.checkAe2Storage = !nbt.contains("check_ae2_storage") || nbt.getBoolean("check_ae2_storage");
         if (nbt.contains("filter")) this.filter = ItemFilters.deserialize(nbt.getCompound("filter"));
     }
 
@@ -139,5 +159,13 @@ public class FilterItemTask extends QuestTask {
 
     public void setSticky(boolean v) {
         this.sticky = v;
+    }
+
+    public boolean isCheckAe2Storage() {
+        return checkAe2Storage;
+    }
+
+    public void setCheckAe2Storage(boolean v) {
+        this.checkAe2Storage = v;
     }
 }

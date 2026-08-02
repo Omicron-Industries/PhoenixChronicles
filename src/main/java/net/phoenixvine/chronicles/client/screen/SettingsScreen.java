@@ -224,6 +224,8 @@ public class SettingsScreen extends Screen {
                 rows.add(Row.toggle("§fHide Completed by Default", settings::isHideCompletedByDefault,
                         settings::setHideCompletedByDefault)
                         .tip("Newly opened quest books start with completed quests\nhidden from the canvas."));
+                rows.add(Row.toggle("§fShow Progress Ring", settings::isShowProgressArc, settings::setShowProgressArc)
+                        .tip("Draws a ring around a quest node showing task-completion progress,\non top of the background color-coding. Off by default."));
                 rows.add(Row.intCycle("§fDefault Grid Snap", new int[] { 1, 2, 4, 8, 16, 32 },
                         settings::getDefaultGridSnap, settings::setDefaultGridSnap)
                         .tip("Default grid size new quest editors snap node dragging to."));
@@ -238,6 +240,12 @@ public class SettingsScreen extends Screen {
                         .tip("How fast the marching-ants/spark animation travels along\nactive dependency lines. Ignored if Reduce Motion is on."));
                 rows.add(Row.toggle("§fShow Line Arrows", settings::isShowLineArrows, settings::setShowLineArrows)
                         .tip("Draws directional arrowheads on dependency lines."));
+                rows.add(Row.toggle("§fMiddle-Click Pickup/Place", settings::isMiddleClickPickupPlace,
+                        settings::setMiddleClickPickupPlace)
+                        .tip("OFF: hold the middle mouse button on a quest, move the mouse, and\n" +
+                                "release to drop it (classic behavior).\n" +
+                                "ON: middle-click a quest to pick it up - it follows the cursor with\n" +
+                                "no button held - then middle-click again anywhere to drop it."));
                 rows.add(Row.info("§8These can also be changed via right-click on the quest canvas.", 1));
             }
             case PHANTASIA -> rows.add(Row.toggle("§fAuto-Spin Previews", settings::isPhantasiaAutoSpin,

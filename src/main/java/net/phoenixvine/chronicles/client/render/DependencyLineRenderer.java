@@ -164,6 +164,77 @@ public class DependencyLineRenderer {
         return a + (b - a) * t;
     }
 
+    private static final float HEX_TIP_SCALE = 1f / 0.866f;
+
+    private static float shapeBoundaryRadius(int shapeKind, float angle, float size) {
+        return switch (shapeKind) {
+            case 1 -> starBoundaryRadius(angle, size / 2f - 1f);
+
+            case 2 -> regularPolygonBoundaryRadius(angle, (size / 2f - 1f) * HEX_TIP_SCALE, 6,
+                    (float) (Math.PI / 6));
+
+            case 3 -> regularPolygonBoundaryRadius(angle, size / 2f - 1f, 4, 0f);
+
+            case 4 -> regularPolygonBoundaryRadius(angle, size / 2f - 1f, 5, (float) (-Math.PI / 2));
+            case 5 -> size / 2f - 0.5f;
+            default -> size / 2f;
+        };
+    }
+
+    private static float regularPolygonBoundaryRadius(float angle, float radius, int points, float rotationOffset) {
+        if (radius <= 0f) return 0f;
+        float twoPi = (float) (2 * Math.PI);
+        float sector = twoPi / points;
+        float rel = (angle - rotationOffset) % twoPi;
+        if (rel < 0f) rel += twoPi;
+        int idx = (int) (rel / sector);
+        if (idx >= points) idx = points - 1;
+        float a1 = rotationOffset + idx * sector;
+        float a2 = a1 + sector;
+        float x1 = (float) (radius * Math.cos(a1)), y1 = (float) (radius * Math.sin(a1));
+        float x2 = (float) (radius * Math.cos(a2)), y2 = (float) (radius * Math.sin(a2));
+
+        float edgeDx = x2 - x1, edgeDy = y2 - y1;
+        float cross = x1 * edgeDy - y1 * edgeDx;
+        float denom = (float) (Math.cos(angle) * edgeDy - Math.sin(angle) * edgeDx);
+        if (Math.abs(denom) < 1e-5f) return radius;
+        float r = cross / denom;
+        if (Float.isNaN(r) || Float.isInfinite(r) || r < 0f) return radius;
+
+        float apothem = (float) (radius * Math.cos(Math.PI / points));
+        return Math.max(apothem, Math.min(radius, r));
+    }
+
+    private static float starBoundaryRadius(float angle, float outerR) {
+        if (outerR <= 0f) return 0f;
+        float innerR = outerR * 0.4f;
+        int points = 5;
+        float twoPi = (float) (2 * Math.PI);
+        float base = (float) (-Math.PI / 2);
+        float sector = twoPi / (points * 2);
+
+        float rel = (angle - base) % twoPi;
+        if (rel < 0f) rel += twoPi;
+        int idx = (int) (rel / sector);
+        if (idx >= points * 2) idx = points * 2 - 1;
+
+        float a1 = base + idx * sector;
+        float a2 = a1 + sector;
+        float r1 = (idx % 2 == 0) ? outerR : innerR;
+        float r2 = (idx % 2 == 0) ? innerR : outerR;
+
+        float x1 = (float) (r1 * Math.cos(a1)), y1 = (float) (r1 * Math.sin(a1));
+        float x2 = (float) (r2 * Math.cos(a2)), y2 = (float) (r2 * Math.sin(a2));
+
+        float A = y2 - y1, B = x1 - x2, C = x1 * y2 - x2 * y1;
+        float denom = (float) (A * Math.cos(angle) + B * Math.sin(angle));
+        if (Math.abs(denom) < 1e-5f) return outerR;
+
+        float r = C / denom;
+        if (Float.isNaN(r) || Float.isInfinite(r)) return outerR;
+        return Math.max(innerR * 0.5f, Math.min(outerR, r));
+    }
+
     private static float[] findTrimRange(float xa, float ya, float cp1x, float cp1y,
                                          float cp2x, float cp2y, float xb, float yb,
                                          float startHalfSize, float endHalfSize) {
@@ -223,6 +294,8 @@ public class DependencyLineRenderer {
 
         float sizeA = ln.length > 10 ? ln[10] : 0f;
         float sizeB = ln.length > 11 ? ln[11] : sizeA;
+        int shapeKindA = ln.length > 12 ? ln[12] : 0;
+        int shapeKindB = ln.length > 13 ? ln[13] : 0;
         int color = ln[4], style = ln[5];
         QuestChroniclesSettings.LineStyle shapeOverride = ln[6] >= 0 ?
                 QuestChroniclesSettings.LineStyle.values()[ln[6]] : null;
@@ -242,10 +315,11 @@ public class DependencyLineRenderer {
         float adx = Math.abs(xb - xa), ady = Math.abs(yb - ya);
         float cp1x, cp1y, cp2x, cp2y;
         if (!spline) {
-            cp1x = xa;
-            cp1y = ya;
-            cp2x = xb;
-            cp2y = yb;
+
+            cp1x = xa + (xb - xa) / 3f;
+            cp1y = ya + (yb - ya) / 3f;
+            cp2x = xa + (xb - xa) * 2f / 3f;
+            cp2y = ya + (yb - ya) * 2f / 3f;
         } else if (adx >= ady) {
             float mx = (xa + xb) / 2f;
             cp1x = mx;
@@ -281,8 +355,23 @@ public class DependencyLineRenderer {
             dist = half * 2f;
         }
 
-        float trimHalfA = Math.max(0.5f, sizeA / 2f - TRIM_OVERLAP_PX);
-        float trimHalfB = Math.max(0.5f, sizeB / 2f - TRIM_OVERLAP_PX);
+        float currentZoom = Math.max(0.05f, zoom);
+        float zoomFactor = Math.max(0.5f, currentZoom);
+
+        float overlapZoomFactor = Math.max(0.3f, Math.min(1f, currentZoom));
+        float trimOverlapPx = TRIM_OVERLAP_PX * overlapZoomFactor;
+        float trimHalfA;
+        float trimHalfB;
+        if (shapeKindA != 0 || shapeKindB != 0) {
+
+            float angleAOut = (float) Math.atan2(yb - ya, xb - xa);
+            float angleBOut = (float) Math.atan2(ya - yb, xa - xb);
+            trimHalfA = Math.max(0.5f, shapeBoundaryRadius(shapeKindA, angleAOut, sizeA) - trimOverlapPx);
+            trimHalfB = Math.max(0.5f, shapeBoundaryRadius(shapeKindB, angleBOut, sizeB) - trimOverlapPx);
+        } else {
+            trimHalfA = Math.max(0.5f, sizeA / 2f - trimOverlapPx);
+            trimHalfB = Math.max(0.5f, sizeB / 2f - trimOverlapPx);
+        }
 
         float maxTrimEachSide = dist * 0.4f;
         trimHalfA = Math.min(trimHalfA, maxTrimEachSide);
@@ -320,8 +409,6 @@ public class DependencyLineRenderer {
             default -> 0.75f;
         };
 
-        float currentZoom = Math.max(0.05f, zoom);
-        float zoomFactor = Math.max(0.5f, currentZoom);
         float widthScale = baseCoreW * zoomFactor;
 
         boolean isSolid = (style == 1 || style == 6 || style == 8);
@@ -526,7 +613,8 @@ public class DependencyLineRenderer {
     }
 
     public void render(GuiGraphics g, long animTick, ResourceLocation hoveredNodeId,
-                       Function<QuestNode, QuestState> stateResolver) {
+                       Function<QuestNode, QuestState> stateResolver, int accentActiveColor, int accentDoneColor,
+                       int accentAlmostColor, int accentLockedColor) {
         FrameProfiler.begin("dep lines");
         FrameProfiler.setCounter("edges", lineCache.size());
 
@@ -546,6 +634,11 @@ public class DependencyLineRenderer {
 
             boolean isHoverEdge = hoveredNodeId != null && i < lineCacheNodes.size() &&
                     (lineCacheNodes.get(i)[0].equals(hoveredNodeId) || lineCacheNodes.get(i)[1].equals(hoveredNodeId));
+
+            if (!isHoverEdge && renderWithPluggableStyle(g, i, animTick)) {
+                continue;
+            }
+
             if (!isHoverEdge) emitLineGeometry(g, geo, animTick, null, false);
         }
 
@@ -553,12 +646,16 @@ public class DependencyLineRenderer {
             for (int i = 0; i < lineCache.size() && i < lineCacheNodes.size() && i < lineGeometryCache.size(); i++) {
                 ResourceLocation[] pair = lineCacheNodes.get(i);
                 int[] ln = lineCache.get(i);
+
+                int baseColor = (ln.length > 14 && ln[14] != 0) ?
+                        plainEdgeAccentColor(pair[0], pair[1], stateResolver, accentActiveColor, accentDoneColor,
+                                accentAlmostColor, accentLockedColor) :
+                        ln[4];
+
                 if (pair[1].equals(hoveredNodeId)) {
-
-                    emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependencyColor(ln[4]), true);
+                    emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependencyColor(baseColor), true);
                 } else if (pair[0].equals(hoveredNodeId)) {
-
-                    emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependentColor(ln[4]), true);
+                    emitLineGeometry(g, lineGeometryCache.get(i), animTick, boostedDependentColor(baseColor), true);
                 }
             }
         }
@@ -588,6 +685,26 @@ public class DependencyLineRenderer {
 
         flushArrowQueue(g);
         FrameProfiler.end("sparks/hover/flush");
+    }
+
+    private boolean renderWithPluggableStyle(GuiGraphics g, int i, long animTick) {
+        if (i >= lineCacheNodes.size() || i >= lineCache.size()) return false;
+
+        ResourceLocation[] pair = lineCacheNodes.get(i);
+        QuestNode child = QuestTreeRegistry.getQuest(pair[1]);
+        if (child == null) return false;
+
+        String styleIdStr = child.getPrereqLineStyleId(pair[0]);
+        if (styleIdStr == null || styleIdStr.isEmpty()) return false;
+
+        ResourceLocation styleId = ResourceLocation.tryParse(styleIdStr);
+        net.phoenixvine.chronicles.client.render.line.IDependencyLineStyle style = net.phoenixvine.chronicles.registry.DependencyLineStyleRegistry
+                .get(styleId);
+        if (style == null) return false;
+
+        int[] ln = lineCache.get(i);
+        style.render(g, ln[0], ln[1], ln[2], ln[3], ln[4], animTick);
+        return true;
     }
 
     public void renderLinkDragPreview(GuiGraphics g, int sx, int sy, int dragX, int dragY, long animTick, float zoom) {
@@ -682,6 +799,10 @@ public class DependencyLineRenderer {
         if (lx + menuW > screenW) lx = screenW - menuW - 2;
         if (ly + menuH > screenH) ly = screenH - menuH - 2;
 
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 400);
+        g.flush();
+
         g.fill(lx, ly, lx + menuW, ly + menuH, 0xEE0D0D12);
         g.fill(lx, ly, lx + menuW, ly + 1, 0xFF9900FF);
         g.fill(lx, ly, lx + 1, ly + menuH, 0xFF9900FF);
@@ -694,6 +815,9 @@ public class DependencyLineRenderer {
             if (hov) g.fill(lx + 1, iy, lx + menuW - 1, iy + itemH, 0x44FFFFFF);
             g.drawString(font, labels[i], lx + 6, iy + 2, 0xFFDDDDDD, false);
         }
+
+        g.flush();
+        g.pose().popPose();
     }
 
     private static String lineOverrideLabel(Enum<?> override) {
@@ -822,6 +946,21 @@ public class DependencyLineRenderer {
 
             openLineSettings.accept(parentNode);
         }
+    }
+
+    private static int plainEdgeAccentColor(ResourceLocation sourceId, ResourceLocation destId,
+                                            Function<QuestNode, QuestState> stateResolver, int activeColor,
+                                            int doneColor, int almostColor, int lockedColor) {
+        QuestNode source = QuestTreeRegistry.getQuest(sourceId);
+        QuestNode dest = QuestTreeRegistry.getQuest(destId);
+        if (source == null || dest == null) return lockedColor;
+
+        QuestState sourceState = stateResolver.apply(source);
+        QuestState destState = stateResolver.apply(dest);
+        if (sourceState == QuestState.COMPLETED) {
+            return destState == QuestState.COMPLETED ? doneColor : almostColor;
+        }
+        return sourceState == QuestState.ACTIVE ? activeColor : lockedColor;
     }
 
     private static int boostedDependencyColor(int col) {

@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 
@@ -62,9 +63,11 @@ public class QuestTextInputScreen extends Screen {
         super(Component.literal(fieldLabel));
         this.parent = parent;
         this.fieldLabel = fieldLabel;
-        this.initial = initial != null ? initial : "";
+        this.initial = initial;
         this.maxLength = maxLength;
         this.onConfirm = onConfirm;
+        inputBox = null;
+        hexBox = null;
     }
 
     @Override
@@ -99,7 +102,7 @@ public class QuestTextInputScreen extends Screen {
 
         g.drawCenteredString(font, "§f" + fieldLabel, px + pw / 2, py + 7, ChroniclesThemePalette.TEXT);
 
-        int used = inputBox != null ? inputBox.getValue().length() : 0;
+        int used = inputBox.getValue().length();
         boolean atCap = used >= maxLength;
         g.drawString(font, (atCap ? "§c" : "§8") + used + " / " + maxLength,
                 px + pw - 8 - font.width(used + " / " + maxLength), py + 7, ChroniclesThemePalette.TEXT_DIM, false);
@@ -122,12 +125,14 @@ public class QuestTextInputScreen extends Screen {
         int insX = px + 8 + font.width("Hex: ") + 60;
         drawBtn(g, mx, my, insX, rowY - 1, 40, 14, "§7insert", C_BTN);
 
-        String hexVal = hexBox != null ? hexBox.getValue().trim() : "";
+        String hexVal = hexBox.getValue().trim();
         if (hexVal.startsWith("#") && hexVal.length() == 7) {
-            try {
-                int col = (int) Long.parseLong(hexVal.substring(1), 16) | 0xFF000000;
+            String hexDigits = hexVal.substring(1);
+
+            if (hexDigits.matches("^[0-9a-fA-F]{6}$")) {
+                int col = (int) Long.parseLong(hexDigits, 16) | 0xFF000000;
                 g.fill(insX + 44, rowY, insX + 58, rowY + 12, col);
-            } catch (NumberFormatException ignored) {}
+            }
         }
         g.drawString(font, "§8{#RRGGBB} syntax — no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
                 false);
@@ -199,7 +204,7 @@ public class QuestTextInputScreen extends Screen {
             return true;
         }
 
-        if (mx >= px + pw / 2 + 3 && mx < px + pw - 3 && my >= btnY && my < btnY + 16) {
+        if (mx >= px + (double) pw / 2 + 3 && mx < px + pw - 3 && my >= btnY && my < btnY + 16) {
             Minecraft.getInstance().setScreen(parent);
             return true;
         }
@@ -207,7 +212,7 @@ public class QuestTextInputScreen extends Screen {
         int hexRowY = btnY - 36;
         int insX = px + 8 + font.width("Hex: ") + 60;
         if (mx >= insX && mx < insX + 40 && my >= hexRowY - 1 && my < hexRowY + 13) {
-            String hexVal = hexBox != null ? hexBox.getValue().trim() : "";
+            String hexVal = hexBox.getValue().trim();
             if (!hexVal.startsWith("#")) hexVal = "#" + hexVal;
             if (hexVal.length() == 7) {
                 setInitialFocus(inputBox);
@@ -262,16 +267,15 @@ public class QuestTextInputScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        if (inputBox != null && inputBox.scrollBy(delta)) return true;
+        if (inputBox.scrollBy(delta)) return true;
         return super.mouseScrolled(mx, my, delta);
     }
 
     private void confirm() {
         try {
-            onConfirm.accept(inputBox != null ? inputBox.getValue() : initial);
+            onConfirm.accept(inputBox.getValue());
         } catch (Exception e) {
-            System.err.println("[Phoenix Chronicles] Error confirming text edit: " + e.getMessage());
-            e.printStackTrace();
+            PhoenixChronicles.LOGGER.error("[Phoenix Chronicles] Error confirming text edit: ", e);
         } finally {
             Minecraft.getInstance().setScreen(parent);
         }

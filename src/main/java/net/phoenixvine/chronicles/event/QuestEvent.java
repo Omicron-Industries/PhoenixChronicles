@@ -2,10 +2,14 @@ package net.phoenixvine.chronicles.event;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.eventbus.EventBus;
 import net.minecraftforge.eventbus.api.Cancelable;
 import net.minecraftforge.eventbus.api.Event;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
+
+import java.lang.reflect.Field;
 
 public class QuestEvent extends Event {
 
@@ -28,8 +32,27 @@ public class QuestEvent extends Event {
     @Cancelable
     public static class PlayerTick extends QuestEvent {
 
+        private static final PlayerTick PROBE = new PlayerTick(null, null);
+
+        private static final int BUS_ID = resolveBusId();
+
+        private static int resolveBusId() {
+            try {
+                Field f = EventBus.class.getDeclaredField("busID");
+                f.setAccessible(true);
+                return (int) f.get(MinecraftForge.EVENT_BUS);
+            } catch (Exception e) {
+                return -1;
+            }
+        }
+
         public PlayerTick(Player player, QuestNode node) {
             super(player, node);
+        }
+
+        public static boolean hasAnyListeners() {
+            if (BUS_ID < 0) return true;
+            return PROBE.getListenerList().getListeners(BUS_ID).length > 0;
         }
     }
 

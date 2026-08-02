@@ -1,4 +1,7 @@
 {
+  "item.phoenix_chronicles.chronicle_book": "Chronicle Quest Book",
+  "item.phoenix_chronicles.item_filter_token": "Item Filter Token",
+  "item.phoenix_chronicles.fluid_filter_token": "Fluid Filter Token",
   "key.categories.phoenix_chronicles": "Phoenix Chronicles",
   "key.phoenix_chronicles.item_lookup": "Find Quest for Held Item",
   "key.phoenix_chronicles.open_questbook": "Open Quest Book",

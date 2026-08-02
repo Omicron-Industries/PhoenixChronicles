@@ -23,7 +23,7 @@ class MinimapRenderer {
         return new int[] { mx2 - MM_W, my2 - MM_H, mx2, my2 };
     }
 
-    void render(GuiGraphics g, Font font, int cl, int cr, int width, int height, int headerH, int nodeSize,
+    void render(GuiGraphics g, Font font, int cl, int cr, int width, int height, int headerH,
                 float zoom, int viewOffX, int viewOffY, Predicate<QuestNode> catMatches,
                 Function<QuestNode, QuestState> stateLookup) {
         int[] b = bounds(cr, height);
@@ -55,13 +55,14 @@ class MinimapRenderer {
         int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
         for (QuestNode n : nodes) {
             int nx = n.getCustomX(), ny = n.getCustomY();
+            int npx = n.getNodePixelSize();
             if (nx < minX) minX = nx;
-            if (nx > maxX) maxX = nx;
+            if (nx + npx > maxX) maxX = nx + npx;
             if (ny < minY) minY = ny;
-            if (ny > maxY) maxY = ny;
+            if (ny + npx > maxY) maxY = ny + npx;
         }
-        int rangeX = Math.max(1, maxX - minX + nodeSize);
-        int rangeY = Math.max(1, maxY - minY + nodeSize);
+        int rangeX = Math.max(1, maxX - minX);
+        int rangeY = Math.max(1, maxY - minY);
         float scaleX = (float) innerW / rangeX;
         float scaleY = (float) innerH / rangeY;
         float scale = Math.min(scaleX, scaleY) * 0.9f;
@@ -81,7 +82,7 @@ class MinimapRenderer {
             };
             int dx = offsetX + (int) ((n.getCustomX() - minX) * scale);
             int dy = offsetY + (int) ((n.getCustomY() - minY) * scale);
-            int ds = Math.max(2, (int) (nodeSize * scale));
+            int ds = Math.max(2, (int) (n.getNodePixelSize() * scale));
             g.fill(dx, dy, dx + ds, dy + ds, col);
         }
 

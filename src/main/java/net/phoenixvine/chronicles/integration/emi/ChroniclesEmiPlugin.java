@@ -1,11 +1,13 @@
 package net.phoenixvine.chronicles.integration.emi;
 
+import net.phoenixvine.chronicles.client.SuiteHudBarButton;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
 import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.EmiPlugin;
 import dev.emi.emi.api.EmiRegistry;
+import dev.emi.emi.api.widget.Bounds;
 
 @EmiEntrypoint
 public class ChroniclesEmiPlugin implements EmiPlugin {
@@ -22,6 +24,12 @@ public class ChroniclesEmiPlugin implements EmiPlugin {
                 dev.emi.emi.api.stack.EmiStack.of(net.minecraft.world.item.Items.BOOK));
 
         loadQuestsIntoEmi(registry);
+
+        registry.addGenericExclusionArea((screen, consumer) -> {
+            if (SuiteHudBarButton.screenWantsBarPublic(screen)) {
+                consumer.accept(new Bounds(0, 0, SuiteHudBarButton.barWidth(), SuiteHudBarButton.barHeight()));
+            }
+        });
     }
 
     public static void loadQuestsIntoEmi(EmiRegistry registry) {

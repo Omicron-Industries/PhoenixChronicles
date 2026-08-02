@@ -29,8 +29,6 @@ public class ChronicleClientEvents {
         if (Minecraft.getInstance().player != null && event.getEntity() == Minecraft.getInstance().player) {
             QuestFileSaver.saveAllQuestsToDisk();
             LangSyncScheduler.flushNow();
-
-            net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket.resetForNewSession();
         }
     }
 

@@ -9,6 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 public class EnchantmentTask extends QuestTask {
@@ -39,6 +40,10 @@ public class EnchantmentTask extends QuestTask {
         if (ench == null) return false;
         for (EquipmentSlot slot : SLOTS) {
             ItemStack stack = player.getItemBySlot(slot);
+            if (!stack.isEmpty() && EnchantmentHelper.getItemEnchantmentLevel(ench, stack) >= requiredLevel)
+                return true;
+        }
+        for (ItemStack stack : CuriosCompat.getEquippedCurios(player)) {
             if (!stack.isEmpty() && EnchantmentHelper.getItemEnchantmentLevel(ench, stack) >= requiredLevel)
                 return true;
         }

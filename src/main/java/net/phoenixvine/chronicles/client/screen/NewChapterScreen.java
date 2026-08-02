@@ -95,7 +95,6 @@ public class NewChapterScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
-        if (parent != null) parent.render(g, -1, -1, partial);
         g.flush();
 
         g.pose().pushPose();

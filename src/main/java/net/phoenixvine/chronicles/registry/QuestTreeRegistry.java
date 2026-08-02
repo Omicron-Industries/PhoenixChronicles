@@ -87,6 +87,10 @@ public class QuestTreeRegistry {
         return TASK_OWNER.get(taskId);
     }
 
+    public static void reindexTask(ResourceLocation taskId, QuestNode owner) {
+        TASK_OWNER.put(taskId, owner);
+    }
+
     public static void removeQuest(ResourceLocation id) {
         QuestNode removed = ALL_QUESTS.remove(id);
         ROOT_NODES.remove(id);
@@ -115,5 +119,7 @@ public class QuestTreeRegistry {
         ROOT_NODES.clear();
         CONFIG_QUEST_IDS.clear();
         TASK_OWNER.clear();
+
+        net.phoenixvine.chronicles.tracker.QuestProgressTracker.invalidateAllActiveTracking();
     }
 }

@@ -18,9 +18,6 @@ import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.guilds.data.GuildManager;
-
-import dev.ftb.mods.ftbteams.api.FTBTeamsAPI;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -33,8 +30,76 @@ public class QuestProgressTracker {
 
     private static final java.util.Map<java.util.UUID, Integer> lastInventoryFingerprint = new java.util.HashMap<>();
 
+    private static final java.util.Map<java.util.UUID, PlayerQuestData> capabilityCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void cachePlayerData(java.util.UUID playerId, PlayerQuestData data) {
+        capabilityCache.put(playerId, data);
+    }
+
+    public static void clearPlayerDataCache(java.util.UUID playerId) {
+        capabilityCache.remove(playerId);
+        activeTrackedQuests.remove(playerId);
+        lockedSweepTickCounter.remove(playerId);
+    }
+
+    @org.jetbrains.annotations.Nullable
+    static PlayerQuestData resolveData(Player player) {
+        PlayerQuestData cached = capabilityCache.get(player.getUUID());
+        if (cached != null) return cached;
+        PlayerQuestData resolved = player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).orElse(null);
+        if (resolved != null) capabilityCache.put(player.getUUID(), resolved);
+        return resolved;
+    }
+
+    private static final java.util.Map<java.util.UUID, java.util.Set<net.minecraft.resources.ResourceLocation>> activeTrackedQuests = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static boolean needsTicking(QuestState state, QuestNode node) {
+        return state == QuestState.UNLOCKED || state == QuestState.ACTIVE ||
+                (state == QuestState.COMPLETED && node.isRepeatable());
+    }
+
+    public static void updateActiveTracking(java.util.UUID playerId, QuestNode node, QuestState newState) {
+        java.util.Set<net.minecraft.resources.ResourceLocation> set = activeTrackedQuests
+                .computeIfAbsent(playerId, id -> java.util.concurrent.ConcurrentHashMap.newKeySet());
+        if (needsTicking(newState, node)) set.add(node.getId());
+        else set.remove(node.getId());
+    }
+
+    public static void invalidateAllActiveTracking() {
+        activeTrackedQuests.clear();
+    }
+
+    private static java.util.Set<net.minecraft.resources.ResourceLocation> activeTrackedSet(Player player,
+                                                                                            PlayerQuestData data) {
+        return activeTrackedQuests.computeIfAbsent(player.getUUID(), id -> {
+            java.util.Set<net.minecraft.resources.ResourceLocation> fresh = java.util.concurrent.ConcurrentHashMap
+                    .newKeySet();
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
+                if (needsTicking(state, node)) fresh.add(node.getId());
+            }
+            return fresh;
+        });
+    }
+
+    private static final java.util.Set<java.util.UUID> loginSyncPlayers = java.util.concurrent.ConcurrentHashMap
+            .newKeySet();
+
+    public static void beginLoginSync(java.util.UUID playerId) {
+        loginSyncPlayers.add(playerId);
+    }
+
+    public static void endLoginSync(java.util.UUID playerId) {
+        loginSyncPlayers.remove(playerId);
+    }
+
+    public static boolean isInLoginSync(java.util.UUID playerId) {
+        return loginSyncPlayers.contains(playerId);
+    }
+
     public static void clearInventoryFingerprint(java.util.UUID playerId) {
         lastInventoryFingerprint.remove(playerId);
+        loginSyncPlayers.remove(playerId);
     }
 
     private static int computeInventoryFingerprint(Player player) {
@@ -65,9 +130,19 @@ public class QuestProgressTracker {
         Integer previous = lastInventoryFingerprint.put(player.getUUID(), fingerprint);
         boolean invChanged = previous == null || previous != fingerprint;
 
-        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+        boolean firstTickThisSession = previous == null;
 
-            for (QuestNode node : new java.util.ArrayList<>(QuestTreeRegistry.getAllQuests().values())) {
+        PlayerQuestData data = resolveData(player);
+        if (data != null) {
+
+            java.util.Set<net.minecraft.resources.ResourceLocation> tracked = activeTrackedSet(player, data);
+            for (net.minecraft.resources.ResourceLocation nodeId : tracked) {
+
+                QuestNode node = QuestTreeRegistry.getQuest(nodeId);
+                if (node == null) {
+                    tracked.remove(nodeId);
+                    continue;
+                }
 
                 if (node.isFlagDisabled()) continue;
 
@@ -84,16 +159,47 @@ public class QuestProgressTracker {
 
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
-                if (!MinecraftForge.EVENT_BUS.post(new QuestEvent.PlayerTick(player, node))) {
+                boolean cancelled = QuestEvent.PlayerTick.hasAnyListeners() &&
+                        MinecraftForge.EVENT_BUS.post(new QuestEvent.PlayerTick(player, node));
+                if (!cancelled) {
 
-                    for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+                    List<QuestTask> tasks = node.getEffectiveTasks(player.getServer());
+                    for (QuestTask task : tasks) {
                         if (skipInventoryScan(task, player, invChanged)) continue;
                         if (!task.isCompletedFor(player)) task.onTick(player);
                     }
-                    checkAndTryComplete(player, node, invChanged);
+                    checkAndTryComplete(player, node, invChanged, tasks);
                 }
             }
-        });
+        }
+
+        if (data != null) sweepLockedQuestsIfDue(player, data);
+
+        if (firstTickThisSession) {
+            endLoginSync(player.getUUID());
+        }
+    }
+
+    private static final int LOCKED_SWEEP_INTERVAL_TICKS = 100;
+    private static final java.util.Map<java.util.UUID, Integer> lockedSweepTickCounter = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void sweepLockedQuestsIfDue(Player player, PlayerQuestData data) {
+        int count = lockedSweepTickCounter.merge(player.getUUID(), 1, Integer::sum);
+        if (count % LOCKED_SWEEP_INTERVAL_TICKS != 0) return;
+
+        for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+            if (node.isFlagDisabled()) continue;
+            if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.LOCKED) continue;
+            if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
+
+            for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+                if (task instanceof net.phoenixvine.chronicles.tasks.ItemRequirementTask t) {
+                    if (t.isSticky()) task.isCompletedFor(player);
+                } else if (task instanceof net.phoenixvine.chronicles.tasks.FluidRequirementTask t) {
+                    if (t.isSticky()) task.isCompletedFor(player);
+                }
+            }
+        }
     }
 
     public static void checkAndTryComplete(Player player, QuestNode node) {
@@ -101,106 +207,99 @@ public class QuestProgressTracker {
     }
 
     private static void checkAndTryComplete(Player player, QuestNode node, boolean invChanged) {
+        checkAndTryComplete(player, node, invChanged, null);
+    }
+
+    private static void checkAndTryComplete(Player player, QuestNode node, boolean invChanged,
+                                            List<QuestTask> tasksOverride) {
         if (node.isFlagDisabled() || node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
             return;
-        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
-            if (state == QuestState.COMPLETED) return;
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
 
-            java.util.List<QuestTask> tasks = node.getEffectiveTasks(player.getServer());
-            int minCount = node.getTaskMinCount();
+        QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
+        if (state == QuestState.COMPLETED) return;
 
-            boolean complete;
-            if (minCount > 0) {
+        java.util.List<QuestTask> tasks = tasksOverride != null ? tasksOverride :
+                node.getEffectiveTasks(player.getServer());
+        int minCount = node.getTaskMinCount();
 
-                int done = 0;
-                for (QuestTask task : tasks) {
-                    if (skipInventoryScan(task, player, invChanged)) continue;
-                    if (task.isCompletedFor(player)) done++;
-                }
-                complete = done >= minCount;
-            } else if (tasks.isEmpty()) {
+        boolean complete;
+        if (minCount > 0) {
 
-                complete = node.isLinkStub();
+            int done = 0;
+            for (QuestTask task : tasks) {
+                if (skipInventoryScan(task, player, invChanged)) continue;
+                if (task.isCompletedFor(player)) done++;
+            }
+            complete = done >= minCount;
+        } else if (tasks.isEmpty()) {
+
+            if (node.isLinkStub()) {
+
+                QuestNode target = QuestTreeRegistry.getQuest(node.getLinkTarget());
+                complete = target != null &&
+                        data.getQuestState(target.getId(), QuestState.LOCKED) == QuestState.COMPLETED;
             } else {
+                complete = false;
+            }
+        } else {
 
-                complete = true;
-                for (QuestTask task : tasks) {
-                    if (task.isOptional()) continue;
-                    if (skipInventoryScan(task, player, invChanged)) {
-                        complete = false;
-                        break;
-                    }
-                    if (!task.isCompletedFor(player)) {
-                        complete = false;
-                        break;
-                    }
+            complete = true;
+            for (QuestTask task : tasks) {
+                if (task.isOptional()) continue;
+                if (skipInventoryScan(task, player, invChanged)) {
+                    complete = false;
+                    break;
                 }
-            }
-
-            if (complete && (state == QuestState.UNLOCKED || state == QuestState.ACTIVE)) {
-                changeQuestState(player, node, QuestState.COMPLETED);
-            }
-        });
-    }
-
-    public static void changeQuestState(Player player, QuestNode node, QuestState newState) {
-        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            QuestState oldState = data.getQuestState(node.getId(), QuestState.LOCKED);
-            if (oldState == newState) return;
-
-            data.setQuestState(node.getId(), newState);
-            MinecraftForge.EVENT_BUS.post(new QuestEvent.StateChanged(player, node, oldState, newState));
-
-            if (newState == QuestState.COMPLETED) {
-                data.recordCompletion(node.getId());
-
-                processChildCascades(player, node);
-                if (node.isShared() && player instanceof net.minecraft.server.level.ServerPlayer sp)
-                    propagateSharedCompletion(sp, node);
-                if (node.isAutoClaimRewards() && player instanceof ServerPlayer sp)
-                    grantRewards(sp, node);
-            }
-
-            sendProgressSync(player);
-        });
-    }
-
-    private static void propagateSharedCompletion(net.minecraft.server.level.ServerPlayer source, QuestNode node) {
-        if (net.minecraftforge.fml.ModList.get().isLoaded("phoenix_guilds")) {
-            GuildManager guildMgr = GuildManager.get(source.getServer().overworld());
-            var pTeam = guildMgr.getGuildFor(source.getUUID());
-            if (pTeam.isPresent()) {
-                for (java.util.UUID memberUUID : pTeam.get().getMembers()) {
-                    if (memberUUID.equals(source.getUUID())) continue;
-                    net.minecraft.server.level.ServerPlayer member = source.getServer().getPlayerList()
-                            .getPlayer(memberUUID);
-                    if (member == null) continue;
-                    member.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-                        if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED)
-                            changeQuestState(member, node, QuestState.COMPLETED);
-                    });
+                if (!task.isCompletedFor(player)) {
+                    complete = false;
+                    break;
                 }
-                return;
             }
         }
 
-        if (FTBTeamsAPI.api().isManagerLoaded()) {
-            var opt = FTBTeamsAPI.api().getManager()
-                    .getTeamForPlayerID(source.getUUID());
-            if (opt.isPresent()) {
-                var team = opt.get();
-                if (team.isPartyTeam() || team.isServerTeam()) {
-                    for (net.minecraft.server.level.ServerPlayer member : team.getOnlineMembers()) {
-                        if (member.getUUID().equals(source.getUUID())) continue;
-                        member.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-                            if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED)
-                                changeQuestState(member, node, QuestState.COMPLETED);
-                        });
-                    }
-                    return;
-                }
-            }
+        if (complete && (state == QuestState.UNLOCKED || state == QuestState.ACTIVE)) {
+            changeQuestState(player, node, QuestState.COMPLETED);
+        }
+    }
+
+    public static void changeQuestState(Player player, QuestNode node, QuestState newState) {
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
+
+        QuestState oldState = data.getQuestState(node.getId(), QuestState.LOCKED);
+        if (oldState == newState) return;
+
+        data.setQuestState(node.getId(), newState);
+        updateActiveTracking(player.getUUID(), node, newState);
+        MinecraftForge.EVENT_BUS.post(new QuestEvent.StateChanged(player, node, oldState, newState));
+
+        if (newState == QuestState.COMPLETED) {
+            data.recordCompletion(node.getId());
+
+            processChildCascades(player, node);
+            if (node.isShared() && player instanceof net.minecraft.server.level.ServerPlayer sp)
+                propagateSharedCompletion(sp, node);
+            if (node.isAutoClaimRewards() && player instanceof ServerPlayer sp)
+                grantRewards(sp, node);
+        } else if (newState == QuestState.UNLOCKED && !node.getEffectiveTasks(player.getServer()).isEmpty()) {
+
+            checkAndTryComplete(player, node);
+        }
+
+        sendProgressSync(player);
+    }
+
+    private static void propagateSharedCompletion(net.minecraft.server.level.ServerPlayer source, QuestNode node) {
+        if (net.minecraftforge.fml.ModList.get().isLoaded("phoenix_guilds") &&
+                GuildsSharedCompletion.propagate(source, node)) {
+            return;
+        }
+
+        if (net.minecraftforge.fml.ModList.get().isLoaded("ftbteams") &&
+                FtbTeamsSharedCompletion.propagate(source, node)) {
+            return;
         }
 
         net.minecraft.world.scores.Team team = source.getTeam();
@@ -210,41 +309,43 @@ public class QuestProgressTracker {
         for (String memberName : team.getPlayers()) {
             net.minecraft.server.level.ServerPlayer member = server.getPlayerList().getPlayerByName(memberName);
             if (member == null || member.getUUID().equals(source.getUUID())) continue;
-            member.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-                if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED)
-                    changeQuestState(member, node, QuestState.COMPLETED);
-            });
+            PlayerQuestData data = resolveData(member);
+            if (data != null && data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED) {
+                changeQuestState(member, node, QuestState.COMPLETED);
+            }
         }
     }
 
     private static void processChildCascades(Player player, QuestNode completedNode) {
-        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            for (QuestNode child : completedNode.getChildren()) {
-                if (data.getQuestState(child.getId(), QuestState.LOCKED) != QuestState.LOCKED) continue;
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
 
-                if (prereqsSatisfied(child, data, player.getServer())) {
-                    changeQuestState(player, child, QuestState.UNLOCKED);
+        for (QuestNode child : completedNode.getChildren()) {
+            if (data.getQuestState(child.getId(), QuestState.LOCKED) != QuestState.LOCKED) continue;
 
-                    if (!child.getEffectiveTasks(player.getServer()).isEmpty()) {
-                        checkAndTryComplete(player, child);
-                    }
+            if (prereqsSatisfied(child, data, player.getServer())) {
+                changeQuestState(player, child, QuestState.UNLOCKED);
+
+                if (!child.getEffectiveTasks(player.getServer()).isEmpty()) {
+                    checkAndTryComplete(player, child);
                 }
             }
-        });
+        }
     }
 
     public static void autoUnlockSatisfiedQuests(ServerPlayer player) {
-        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            for (QuestNode node : net.phoenixvine.chronicles.registry.QuestTreeRegistry.getAllQuests().values()) {
-                if (node.isFlagDisabled()) continue;
-                if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
-                if (data.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.LOCKED) {
-                    if (prereqsSatisfied(node, data, player.getServer())) {
-                        changeQuestState(player, node, QuestState.UNLOCKED);
-                    }
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
+
+        for (QuestNode node : net.phoenixvine.chronicles.registry.QuestTreeRegistry.getAllQuests().values()) {
+            if (node.isFlagDisabled()) continue;
+            if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
+            if (data.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.LOCKED) {
+                if (prereqsSatisfied(node, data, player.getServer())) {
+                    changeQuestState(player, node, QuestState.UNLOCKED);
                 }
             }
-        });
+        }
     }
 
     public static boolean prereqsSatisfied(QuestNode node, PlayerQuestData data,
@@ -339,18 +440,16 @@ public class QuestProgressTracker {
     }
 
     public static void grantRewards(ServerPlayer player, QuestNode node) {
-        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            if (data.hasClaimedRewards(node.getId())) return;
-            if (MinecraftForge.EVENT_BUS.post(
-                    new QuestEvent.RewardClaimed(player, node)))
-                return;
-            for (QuestReward reward : node.getEffectiveRewards(player.getServer())) {
-                reward.grant(player);
-            }
-            consumeTaskProgress(player, node);
-            data.markRewardsClaimed(node.getId());
-            sendProgressSync(player);
-        });
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
+        if (data.hasClaimedRewards(node.getId())) return;
+        if (MinecraftForge.EVENT_BUS.post(new QuestEvent.RewardClaimed(player, node))) return;
+        for (QuestReward reward : node.getEffectiveRewards(player.getServer())) {
+            reward.grant(player);
+        }
+        consumeTaskProgress(player, node);
+        data.markRewardsClaimed(node.getId());
+        sendProgressSync(player);
     }
 
     private static void consumeTaskProgress(ServerPlayer player, QuestNode node) {
@@ -360,30 +459,31 @@ public class QuestProgressTracker {
     }
 
     public static QuestState getQuestState(Player player, QuestNode node) {
-        return player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS)
-                .map(data -> data.getQuestState(node.getId(), QuestState.LOCKED))
-                .orElse(QuestState.LOCKED);
+        PlayerQuestData data = resolveData(player);
+        return data != null ? data.getQuestState(node.getId(), QuestState.LOCKED) : QuestState.LOCKED;
     }
 
     public static void sendProgressSync(Player player) {
         if (player instanceof ServerPlayer serverPlayer) {
-            serverPlayer.getCapability(QuestCapabilityProvider.PLAYER_QUESTS)
-                    .ifPresent(data -> ChronicleNetwork.CHANNEL.send(
-                            PacketDistributor.PLAYER.with(() -> serverPlayer),
-                            new S2CSyncPlayerProgressPacket(data)));
+            boolean initialSync = isInLoginSync(serverPlayer.getUUID());
+            PlayerQuestData data = resolveData(serverPlayer);
+            if (data != null) {
+                ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer),
+                        new S2CSyncPlayerProgressPacket(data, initialSync));
+            }
         }
     }
 
     public static void grantChosenReward(ServerPlayer player, QuestNode node, int choiceIndex) {
-        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            if (data.hasClaimedRewards(node.getId())) return;
-            List<QuestReward> effectiveRewards = node.getEffectiveRewards(player.getServer());
-            if (choiceIndex < 0 || choiceIndex >= effectiveRewards.size()) return;
-            effectiveRewards.get(choiceIndex).grant(player);
-            consumeTaskProgress(player, node);
-            data.setChosenRewardIndex(node.getId(), choiceIndex);
-            data.markRewardsClaimed(node.getId());
-            sendProgressSync(player);
-        });
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
+        if (data.hasClaimedRewards(node.getId())) return;
+        List<QuestReward> effectiveRewards = node.getEffectiveRewards(player.getServer());
+        if (choiceIndex < 0 || choiceIndex >= effectiveRewards.size()) return;
+        effectiveRewards.get(choiceIndex).grant(player);
+        consumeTaskProgress(player, node);
+        data.setChosenRewardIndex(node.getId(), choiceIndex);
+        data.markRewardsClaimed(node.getId());
+        sendProgressSync(player);
     }
 }
