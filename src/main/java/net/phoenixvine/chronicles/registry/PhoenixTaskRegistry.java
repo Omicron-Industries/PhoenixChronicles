@@ -374,7 +374,7 @@ public final class PhoenixTaskRegistry {
                 .tooltip(
                         "Have items matching an item tag in inventory.\nTarget: item tag (e.g. c:ores/iron). Count: required amount.")
                 .field(FieldDef.text("tag", "Item Tag"))
-                .field(FieldDef.integer("count", "Count"))
+                .field(FieldDef.integer("required", "Count"))
                 .register();
 
         register("info", tag -> {

@@ -313,6 +313,8 @@ public class DependencyLineRenderer {
 
         float xa = x1, ya = y1, xb = x2, yb = y2;
         float adx = Math.abs(xb - xa), ady = Math.abs(yb - ya);
+
+        boolean horizontalBulge = ln.length > 15 ? ln[15] == 1 : adx >= ady;
         float cp1x, cp1y, cp2x, cp2y;
         if (!spline) {
 
@@ -320,7 +322,7 @@ public class DependencyLineRenderer {
             cp1y = ya + (yb - ya) / 3f;
             cp2x = xa + (xb - xa) * 2f / 3f;
             cp2y = ya + (yb - ya) * 2f / 3f;
-        } else if (adx >= ady) {
+        } else if (horizontalBulge) {
             float mx = (xa + xb) / 2f;
             cp1x = mx;
             cp1y = ya;

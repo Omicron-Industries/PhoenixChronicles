@@ -543,6 +543,19 @@ public class DevWikiScreen extends Screen {
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.canvas.53.label", "Shift-drag"),
                 tr("phoenix_chronicles.wiki.canvas.53.value", "Always bypasses snapping regardless of pill setting")));
         lines.add(WLine.sp());
+        lines.add(WLine.sh(tr("phoenix_chronicles.wiki.canvas.claimall.1", "🎁 Claim All Rewards  (every player)")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.claimall.2",
+                "A 🎁 N pill appears in the header when you have unclaimed rewards anywhere")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.claimall.3",
+                "in the tree (N = count). Click it to open a list of every completed,")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.claimall.4",
+                "unclaimed, non-choice-reward quest, with per-row Claim or a Claim All")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.claimall.5",
+                "button - no need to hunt down every finished quest individually.")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.claimall.6",
+                "reward_choice quests are excluded (you have to pick, so they're claimed")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.claimall.7", "from that quest's own reward panel).")));
+        lines.add(WLine.sp());
         lines.add(WLine
                 .sh(tr("phoenix_chronicles.wiki.canvas.54", "Dev tools  (right-click empty canvas, dev mode only)")));
         lines.add(WLine.t(tr("phoenix_chronicles.wiki.canvas.55",
@@ -777,7 +790,28 @@ public class DevWikiScreen extends Screen {
                         "Show/hide and position the quest-book button on the inventory screen")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.71.label", "Dev Mode"),
                 tr("phoenix_chronicles.wiki.customization.71.value",
-                        "The opt-in toggle that unlocks everything documented on this page")));
+                        "The opt-in toggle that unlocks everything documented on this page, plus:")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.devtoggle.1.label",
+                "Show Dev Info by Default"),
+                tr("phoenix_chronicles.wiki.customization.devtoggle.1.value",
+                        "Opens quest editors with dev-only fields expanded by default")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.devtoggle.2.label",
+                "Show Flag-Disabled Chapters"),
+                tr("phoenix_chronicles.wiki.customization.devtoggle.2.value",
+                        "Off by default: the sidebar normally hides chapters a chapter_flags.snbt")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.customization.devtoggle.3",
+                "rule disabled (e.g. pack-mode variants) - turn on to see/edit them anyway")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.devtoggle.4.label",
+                "Show Flag-Disabled Quests"),
+                tr("phoenix_chronicles.wiki.customization.devtoggle.4.value",
+                        "On by default: within a visible chapter, also show individual quests a")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.customization.devtoggle.5",
+                "flag rule disabled (marked with a purple ⚑ border) so you can edit them in place")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.customization.devtoggle.6.label", "Always-On Profiler"),
+                tr("phoenix_chronicles.wiki.customization.devtoggle.6.value",
+                        "Off by default: keeps the Ctrl+P profiler running all session, logging a")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.customization.devtoggle.7",
+                "snapshot every 10s - for tracking intermittent perf issues without remembering to toggle it")));
         return lines;
     }
 
@@ -842,6 +876,13 @@ public class DevWikiScreen extends Screen {
                 tr("phoenix_chronicles.wiki.quest_fields.19.value", "true → DISABLED quest still gates children")));
         lines.add(WLine.sp());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.quest_fields.20", "Completion")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.optional.label", "optional"),
+                tr("phoenix_chronicles.wiki.quest_fields.optional.value",
+                        "true → marks the quest itself optional (distinct from optional TASKS)")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.quest_fields.optional.detail",
+                "Shown as a purple \"Optional\" badge in the canvas hover tooltip and the")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.quest_fields.optional.detail2",
+                "Quest Tasks header - a labeling hint only, doesn't change chapter-completion math")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.21.label", "task_min_count"), tr(
                 "phoenix_chronicles.wiki.quest_fields.21.value", "0 = all tasks required; N = complete any N tasks")));
         lines.add(WLine.kv(tr("phoenix_chronicles.wiki.quest_fields.22.label", "repeat_mode"),
@@ -949,6 +990,39 @@ public class DevWikiScreen extends Screen {
             }
         }
 
+        lines.add(WLine.sp());
+        lines.add(WLine.div());
+        lines.add(WLine.sh(tr("phoenix_chronicles.wiki.tasks.filter_token.1", "Filter Token items")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.2",
+                "Item Filter Token / Fluid Filter Token are physical items that carry a")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.3",
+                "composable filter (exact/tag/mod/any_of/all_of/not) - configure one once,")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.4",
+                "then reuse it across quests instead of re-entering the same rules by hand.")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.tasks.filter_token.5.label", "Right-click"),
+                tr("phoenix_chronicles.wiki.tasks.filter_token.5.value", "Open the filter editor for this token")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.tasks.filter_token.6.label", "Shift + Right-click"),
+                tr("phoenix_chronicles.wiki.tasks.filter_token.6.value",
+                        "Clear the token back to unconfigured (never happens on a plain right-click)")));
+        lines.add(WLine.kv(tr("phoenix_chronicles.wiki.tasks.filter_token.7.label", "\"Use Held Filter ⚡\" button"),
+                tr("phoenix_chronicles.wiki.tasks.filter_token.7.value",
+                        "In the Tasks & Rewards editor, next to a filter_item/filter_fluid task's")));
+        lines.add(WLine.in(tr("phoenix_chronicles.wiki.tasks.filter_token.8",
+                "target field - applies whatever token you're holding directly, no retyping")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.9",
+                "The item picker (⊞ button) also accepts an already-configured token from your")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.10",
+                "inventory the same way - it auto-detects the token and applies its filter.")));
+        lines.add(WLine.sp());
+        lines.add(WLine.sh(tr("phoenix_chronicles.wiki.tasks.filter_token.11", "Item/Fluid picker multi-select")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.12",
+                "Left-click picks one item/fluid as usual. Right-click toggles it into a")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.13",
+                "multi-select set (highlighted, count shown in the footer) - hitting Select")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.14",
+                "then adds every right-clicked entry in one go instead of reopening the")));
+        lines.add(WLine.t(tr("phoenix_chronicles.wiki.tasks.filter_token.15",
+                "picker per item - useful for building an ANY-match list quickly.")));
         lines.add(WLine.sp());
         lines.add(WLine.div());
         lines.add(WLine.sh(tr("phoenix_chronicles.wiki.tasks.3", "SNBT task entry format")));

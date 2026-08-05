@@ -34,7 +34,7 @@ public class C2SClaimQuestRewardPacket {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
-            if (player == null) return;
+            if (player == null || questId == null) return;
 
             QuestNode node = QuestTreeRegistry.getQuest(questId);
             if (node == null) return;

@@ -36,6 +36,12 @@ public final class ChapterFlagRegistry {
             }
             if (!chapterExpressions.isEmpty()) {
                 System.out.println("[Phoenix Chronicles] Loaded chapter flags for: " + chapterExpressions.keySet());
+                for (Map.Entry<String, String> e : chapterExpressions.entrySet()) {
+                    boolean result = PhoenixQuestFlags.evaluate(e.getValue(), null,
+                            "chapter " + e.getKey() + " flag (load-time check)");
+                    System.out.println("[Phoenix Chronicles]   " + e.getKey() + " = \"" + e.getValue() + "\" -> " +
+                            result);
+                }
             }
         } catch (Exception e) {
             System.err.println("[Phoenix Chronicles] Failed to load chapter_flags.snbt: " + e.getMessage());

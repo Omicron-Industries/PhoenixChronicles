@@ -34,17 +34,19 @@ public class C2SSetQuestStatePacket {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
-            if (player == null) return;
+            if (player == null || questId == null) return;
+
             QuestNode node = QuestTreeRegistry.getQuest(questId);
             if (node == null) return;
 
             QuestState current = QuestProgressTracker.getQuestState(player, node);
             if (activate && current == QuestState.UNLOCKED) {
                 QuestProgressTracker.changeQuestState(player, node, QuestState.ACTIVE);
+                QuestProgressTracker.sendProgressSync(player);
             } else if (!activate && current == QuestState.ACTIVE) {
                 QuestProgressTracker.changeQuestState(player, node, QuestState.UNLOCKED);
+                QuestProgressTracker.sendProgressSync(player);
             }
-
         });
         ctx.get().setPacketHandled(true);
     }

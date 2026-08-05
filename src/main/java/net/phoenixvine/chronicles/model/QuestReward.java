@@ -1,11 +1,14 @@
 package net.phoenixvine.chronicles.model;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
@@ -15,7 +18,9 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.event.PhoenixQuestScriptRewardEvent;
 import net.phoenixvine.chronicles.registry.RewardTableRegistry;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public abstract class QuestReward {
 
@@ -46,13 +51,14 @@ public abstract class QuestReward {
         }
     }
 
-    public static List<QuestReward> pickWeighted(List<WeightedReward> pool, int n, java.util.Random random) {
-        if (pool.isEmpty() || n <= 0) return java.util.List.of();
-        List<WeightedReward> remaining = new java.util.ArrayList<>(pool);
-        List<QuestReward> picked = new java.util.ArrayList<>();
+    public static List<QuestReward> pickWeighted(List<WeightedReward> pool, int n, Random random) {
+        if (pool == null || pool.isEmpty() || n <= 0) return List.of();
+        List<WeightedReward> remaining = new ArrayList<>(pool);
+        List<QuestReward> picked = new ArrayList<>();
         int count = Math.min(n, remaining.size());
         for (int i = 0; i < count; i++) {
             int totalWeight = remaining.stream().mapToInt(WeightedReward::weight).sum();
+            if (totalWeight <= 0) break;
             int roll = random.nextInt(totalWeight);
             int cumulative = 0;
             for (int j = 0; j < remaining.size(); j++) {
@@ -67,12 +73,15 @@ public abstract class QuestReward {
     }
 
     public static void giveItem(ServerPlayer player, Item item, int count, CompoundTag nbt) {
-        int remaining = Math.max(1, count);
+        if (player == null || item == null || item == Items.AIR || count <= 0) return;
+        int remaining = count;
         int maxStack = Math.max(1, item.getMaxStackSize());
         while (remaining > 0) {
             int batch = Math.min(remaining, maxStack);
             ItemStack stack = new ItemStack(item, batch);
-            if (nbt != null) stack.setTag(nbt.copy());
+            if (nbt != null && !nbt.isEmpty()) {
+                stack.setTag(nbt.copy());
+            }
             if (!player.addItem(stack)) {
                 player.drop(stack, false);
             }
@@ -81,6 +90,7 @@ public abstract class QuestReward {
     }
 
     public static QuestReward deserializeNBT(CompoundTag tag) {
+        if (tag == null || !tag.contains("type")) return null;
         String type = tag.getString("type");
         return switch (type) {
             case "item" -> ItemReward.fromNBT(tag);
@@ -109,7 +119,7 @@ public abstract class QuestReward {
         public ItemReward(Item item, int count, CompoundTag nbt) {
             this.item = item;
             this.count = Math.max(1, count);
-            this.nbt = (nbt != null && !nbt.isEmpty()) ? nbt : null;
+            this.nbt = (nbt != null && !nbt.isEmpty()) ? nbt.copy() : null;
         }
 
         public Item getItem() {
@@ -131,7 +141,8 @@ public abstract class QuestReward {
 
         @Override
         public Component getSummary() {
-            return Component.literal(count + "x " + item.getDescription().getString());
+            if (item == null || item == Items.AIR) return Component.literal(count + "x Unknown Item");
+            return Component.literal(count + "x ").append(item.getDescription());
         }
 
         @Override
@@ -146,16 +157,20 @@ public abstract class QuestReward {
             ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
             tag.putString("item_id", id != null ? id.toString() : "minecraft:air");
             tag.putInt("count", count);
-            if (nbt != null) tag.put("nbt", nbt.copy());
+            if (nbt != null && !nbt.isEmpty()) tag.put("nbt", nbt.copy());
             return tag;
         }
 
         public static ItemReward fromNBT(CompoundTag tag) {
             String key = tag.contains("item_id") ? "item_id" : tag.contains("item") ? "item" : null;
             if (key == null) return null;
-            ResourceLocation itemId = new ResourceLocation(tag.getString(key));
+
+            ResourceLocation itemId = ResourceLocation.tryParse(tag.getString(key));
+            if (itemId == null) return null;
+
             Item item = ForgeRegistries.ITEMS.getValue(itemId);
-            if (item == null) return null;
+            if (item == null || item == Items.AIR) return null;
+
             int count = tag.contains("count") ? tag.getInt("count") : 1;
             CompoundTag nbt = tag.contains("nbt") ? tag.getCompound("nbt") : null;
             return new ItemReward(item, count, nbt);
@@ -186,7 +201,7 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
-            player.giveExperienceLevels(levels);
+            if (player != null) player.giveExperienceLevels(levels);
         }
 
         @Override
@@ -198,7 +213,7 @@ public abstract class QuestReward {
         }
 
         public static XPReward fromNBT(CompoundTag tag) {
-            return new XPReward(tag.getInt("levels"));
+            return new XPReward(tag.contains("levels") ? tag.getInt("levels") : 1);
         }
     }
 
@@ -207,7 +222,7 @@ public abstract class QuestReward {
         private final String command;
 
         public CommandReward(String command) {
-            this.command = command;
+            this.command = command != null ? command : "";
         }
 
         public String getCommand() {
@@ -227,10 +242,13 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
+            if (player == null || command.isBlank()) return;
             String resolved = command.replace("%player%", player.getName().getString());
-            player.getServer().getCommands().performPrefixedCommand(
-                    player.createCommandSourceStack().withSuppressedOutput().withMaximumPermission(4),
-                    resolved);
+            if (player.getServer() != null) {
+                player.getServer().getCommands().performPrefixedCommand(
+                        player.createCommandSourceStack().withSuppressedOutput().withMaximumPermission(4),
+                        resolved);
+            }
         }
 
         @Override
@@ -242,6 +260,7 @@ public abstract class QuestReward {
         }
 
         public static CommandReward fromNBT(CompoundTag tag) {
+            if (!tag.contains("command")) return null;
             return new CommandReward(tag.getString("command"));
         }
     }
@@ -265,18 +284,24 @@ public abstract class QuestReward {
 
         @Override
         public Component getSummary() {
-            return Component.literal("Loot: " + lootTableId.getPath());
+            return Component.literal("Loot: " + (lootTableId != null ? lootTableId.getPath() : "unknown"));
         }
 
         @Override
         public void grant(ServerPlayer player) {
+            if (player == null || lootTableId == null || player.getServer() == null) return;
             LootTable table = player.getServer().getLootData().getLootTable(lootTableId);
+            if (table == null || table == LootTable.EMPTY) return;
+
             LootParams params = new LootParams.Builder(player.serverLevel())
                     .withParameter(LootContextParams.THIS_ENTITY, player)
                     .withParameter(LootContextParams.ORIGIN, player.position())
                     .create(LootContextParamSets.GIFT);
+
             table.getRandomItems(params).forEach(stack -> {
-                if (!player.addItem(stack)) player.drop(stack, false);
+                if (!stack.isEmpty()) {
+                    if (!player.addItem(stack)) player.drop(stack, false);
+                }
             });
         }
 
@@ -284,13 +309,14 @@ public abstract class QuestReward {
         public CompoundTag serializeNBT() {
             CompoundTag tag = new CompoundTag();
             tag.putString("type", "loot_table");
-            tag.putString("loot_table", lootTableId.toString());
+            tag.putString("loot_table", lootTableId != null ? lootTableId.toString() : "minecraft:empty");
             return tag;
         }
 
         public static LootTableReward fromNBT(CompoundTag tag) {
             if (!tag.contains("loot_table")) return null;
-            return new LootTableReward(new ResourceLocation(tag.getString("loot_table")));
+            ResourceLocation parsed = ResourceLocation.tryParse(tag.getString("loot_table"));
+            return parsed != null ? new LootTableReward(parsed) : null;
         }
     }
 
@@ -300,8 +326,8 @@ public abstract class QuestReward {
         private final CompoundTag data;
 
         public ScriptEventReward(String eventId, CompoundTag data) {
-            this.eventId = eventId;
-            this.data = data != null ? data : new CompoundTag();
+            this.eventId = eventId != null ? eventId : "";
+            this.data = data != null ? data.copy() : new CompoundTag();
         }
 
         public String getEventId() {
@@ -324,6 +350,7 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
+            if (player == null || eventId.isBlank()) return;
             MinecraftForge.EVENT_BUS.post(
                     new PhoenixQuestScriptRewardEvent(player, eventId, data.copy()));
         }
@@ -350,7 +377,7 @@ public abstract class QuestReward {
         private final String tableId;
 
         public RewardTableReward(String tableId) {
-            this.tableId = tableId;
+            this.tableId = tableId != null ? tableId : "";
         }
 
         public String getTableId() {
@@ -370,6 +397,7 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
+            if (player == null || tableId.isBlank()) return;
             net.phoenixvine.chronicles.model.RewardTable table = RewardTableRegistry.get(tableId);
             if (table != null) {
                 table.grant(player);
@@ -397,17 +425,17 @@ public abstract class QuestReward {
     public static class LootCrateReward extends QuestReward {
 
         private final String crateTitle;
-        private final java.util.List<WeightedReward> innerEntries;
+        private final List<WeightedReward> innerEntries;
         private final int pickCount;
 
-        public LootCrateReward(String crateTitle, java.util.List<WeightedReward> innerEntries, int pickCount) {
+        public LootCrateReward(String crateTitle, List<WeightedReward> innerEntries, int pickCount) {
             this.crateTitle = crateTitle != null ? crateTitle : "";
-            this.innerEntries = innerEntries != null ? innerEntries : java.util.List.of();
+            this.innerEntries = innerEntries != null ? innerEntries : List.of();
             this.pickCount = Math.max(0, pickCount);
         }
 
-        public LootCrateReward(String crateTitle, java.util.List<QuestReward> innerRewards) {
-            this(crateTitle, innerRewards == null ? java.util.List.of() :
+        public LootCrateReward(String crateTitle, List<QuestReward> innerRewards) {
+            this(crateTitle, innerRewards == null ? List.of() :
                     innerRewards.stream().map(r -> new WeightedReward(r, 1)).toList(), 0);
         }
 
@@ -415,11 +443,11 @@ public abstract class QuestReward {
             return crateTitle;
         }
 
-        public java.util.List<QuestReward> getInnerRewards() {
+        public List<QuestReward> getInnerRewards() {
             return innerEntries.stream().map(WeightedReward::reward).toList();
         }
 
-        public java.util.List<WeightedReward> getInnerEntries() {
+        public List<WeightedReward> getInnerEntries() {
             return innerEntries;
         }
 
@@ -443,6 +471,7 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
+            if (player == null) return;
             ItemStack crate = net.phoenixvine.chronicles.item.ChronicleLootCrateItem.build(
                     crateTitle, innerEntries, pickCount);
             if (!player.addItem(crate)) player.drop(crate, false);
@@ -454,7 +483,7 @@ public abstract class QuestReward {
             tag.putString("type", "loot_crate");
             if (!crateTitle.isEmpty()) tag.putString("crate_title", crateTitle);
             if (pickCount > 0) tag.putInt("pick", pickCount);
-            net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+            ListTag list = new ListTag();
             for (WeightedReward e : innerEntries) {
                 CompoundTag entryTag = e.reward().serializeNBT();
                 if (e.weight() != 1) entryTag.putInt("weight", e.weight());
@@ -467,9 +496,9 @@ public abstract class QuestReward {
         public static LootCrateReward fromNBT(CompoundTag tag) {
             String title = tag.contains("crate_title") ? tag.getString("crate_title") : "";
             int pickCount = tag.contains("pick") ? tag.getInt("pick") : 0;
-            java.util.List<WeightedReward> inner = new java.util.ArrayList<>();
+            List<WeightedReward> inner = new ArrayList<>();
             if (tag.contains("rewards")) {
-                net.minecraft.nbt.ListTag list = tag.getList("rewards", net.minecraft.nbt.Tag.TAG_COMPOUND);
+                ListTag list = tag.getList("rewards", Tag.TAG_COMPOUND);
                 for (int i = 0; i < list.size(); i++) {
                     CompoundTag entryTag = list.getCompound(i);
                     QuestReward r = QuestReward.deserializeNBT(entryTag);
@@ -491,14 +520,14 @@ public abstract class QuestReward {
 
         public ConfluxUnlockReward(ResourceLocation nodeId) {
             this.flagMode = false;
-            this.nodeId = nodeId;
+            this.nodeId = nodeId != null ? nodeId : new ResourceLocation("phoenixcore", "unknown");
             this.flag = "";
         }
 
         public ConfluxUnlockReward(String flag) {
             this.flagMode = true;
             this.nodeId = new ResourceLocation("phoenixcore", "unknown");
-            this.flag = flag;
+            this.flag = flag != null ? flag : "";
         }
 
         public boolean isFlagMode() {
@@ -525,6 +554,7 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
+            if (player == null) return;
             if (flagMode) {
                 net.phoenixvine.chronicles.integration.conflux.ConfluxCompat.grantFlag(player, flag);
             } else {
@@ -571,11 +601,12 @@ public abstract class QuestReward {
 
         @Override
         public Component getSummary() {
-            return Component.literal("Opens: " + screenId);
+            return Component.literal("Opens: " + (screenId != null ? screenId : "unknown"));
         }
 
         @Override
         public void grant(ServerPlayer player) {
+            if (player == null || screenId == null) return;
             net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.send(
                     net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
                     new net.phoenixvine.chronicles.network.packet.S2COpenExternalScreenPacket(screenId));
@@ -585,11 +616,12 @@ public abstract class QuestReward {
         public CompoundTag serializeNBT() {
             CompoundTag tag = new CompoundTag();
             tag.putString("type", "open_screen");
-            tag.putString("screen_id", screenId.toString());
+            tag.putString("screen_id", screenId != null ? screenId.toString() : "minecraft:empty");
             return tag;
         }
 
         public static OpenScreenReward fromNBT(CompoundTag tag) {
+            if (!tag.contains("screen_id")) return null;
             ResourceLocation parsed = ResourceLocation.tryParse(tag.getString("screen_id"));
             return parsed != null ? new OpenScreenReward(parsed) : null;
         }

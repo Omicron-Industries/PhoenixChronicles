@@ -93,13 +93,62 @@ public final class CategoryRegistry {
 
     public static void reorderStandaloneChapter(String chapId, String targetId, List<String> currentOrder) {
         List<String> order = new ArrayList<>(currentOrder);
-        order.remove(chapId);
-        int idx = targetId == null ? order.size() : order.indexOf(targetId);
-        if (idx < 0) idx = order.size();
-        order.add(idx, chapId);
+
+        for (String id : standaloneOrder) {
+            if (!order.contains(id)) {
+                order.add(id);
+            }
+        }
+
+        String upperChapId = chapId.toUpperCase();
+        order.remove(upperChapId);
+
+        int idx;
+        if (targetId == null) {
+            idx = order.size();
+        } else {
+            String upperTargetId = targetId.toUpperCase();
+            int targetIdx = order.indexOf(upperTargetId);
+
+            if (targetIdx >= 0) {
+                idx = targetIdx;
+            } else {
+                idx = order.size();
+            }
+        }
+
+        order.add(Math.max(0, Math.min(order.size(), idx)), upperChapId);
         standaloneOrder.clear();
         standaloneOrder.addAll(order);
         saveUiState();
+    }
+
+    public static void reorderCategoryChapter(String categoryId, String chapId, String targetId) {
+        CategoryDefinition cat = CATEGORIES.get(categoryId);
+        if (cat == null) return;
+
+        List<String> chapters = new ArrayList<>(cat.chapters());
+        String upperChapId = chapId.toUpperCase();
+        chapters.remove(upperChapId);
+
+        int idx;
+        if (targetId == null) {
+            idx = chapters.size();
+        } else {
+            String upperTargetId = targetId.toUpperCase();
+            int targetIdx = chapters.indexOf(upperTargetId);
+            if (targetIdx >= 0) {
+                idx = targetIdx;
+            } else {
+                idx = chapters.size();
+            }
+        }
+
+        chapters.add(Math.max(0, Math.min(chapters.size(), idx)), upperChapId);
+
+        CategoryDefinition updated = new CategoryDefinition(cat.id(), cat.displayName(), chapters);
+        CATEGORIES.put(categoryId, updated);
+        writeCategory(updated);
     }
 
     public static void addCategory(String id, String label) {
@@ -123,11 +172,21 @@ public final class CategoryRegistry {
     public static void reorderCategory(String id, int newIndex) {
         List<String> order = new ArrayList<>();
         for (CategoryDefinition c : getCategories()) order.add(c.id());
+
+        for (CategoryDefinition c : CATEGORIES.values()) {
+            if (!order.contains(c.id())) {
+                order.add(c.id());
+            }
+        }
+
         if (!order.remove(id)) return;
+
         int clamped = Math.max(0, Math.min(order.size(), newIndex));
         order.add(clamped, id);
+
         categoryOrder.clear();
         categoryOrder.addAll(order);
+        saveUiState();
     }
 
     public static void renameCategory(String id, String newLabel) {
@@ -193,6 +252,8 @@ public final class CategoryRegistry {
     private static void saveUiState() {
         if (uiStatePath == null) return;
         try {
+
+            QuestFileWatcher.suppressNextReload();
             CompoundTag root = new CompoundTag();
             ListTag collapsedList = new ListTag();
             for (String id : collapsed) collapsedList.add(StringTag.valueOf(id));

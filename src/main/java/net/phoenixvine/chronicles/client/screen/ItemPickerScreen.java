@@ -25,6 +25,7 @@ public class ItemPickerScreen extends Screen {
     private static final int COL_SEL_BORDER = 0xFF00AA55;
     private static final int COL_HOVER = 0xFF1E1E2A;
     private static final int COL_TAB_ACTIVE = 0xFF00AA55;
+    private static final int COL_MULTI_BORDER = 0xFF4488FF;
 
     private static final int PANEL_W = 280;
     private static final int PANEL_H = 220;
@@ -49,6 +50,7 @@ public class ItemPickerScreen extends Screen {
     private int scrollOffset = 0;
     private ItemStack hoveredStack = null;
     private ItemStack selectedStack = null;
+    private final java.util.LinkedHashSet<Item> multiSelected = new java.util.LinkedHashSet<>();
 
     private EditBox searchBox;
     private String searchQuery = "";
@@ -251,8 +253,10 @@ public class ItemPickerScreen extends Screen {
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, footerY + 1, ChroniclesThemePalette.BORDER);
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL_DARK);
 
-        g.drawString(font, "§8" + displayItems.size() + " items", panelLeft + 62, footerY + 7,
-                ChroniclesThemePalette.TEXT_FAINT);
+        String countLabel = "§8" + displayItems.size() + " items";
+        if (!multiSelected.isEmpty())
+            countLabel += "  §9(" + multiSelected.size() + " selected, right-click to toggle)";
+        g.drawString(font, countLabel, panelLeft + 62, footerY + 7, ChroniclesThemePalette.TEXT_FAINT);
 
         super.render(g, mx, my, partial);
 
@@ -276,9 +280,16 @@ public class ItemPickerScreen extends Screen {
             int sy = gridTop + row * SLOT_SIZE;
 
             boolean isSelected = stack.getItem() == (selectedStack != null ? selectedStack.getItem() : Items.AIR);
+            boolean isMultiSelected = multiSelected.contains(stack.getItem());
             boolean isHovered = mx >= sx && mx < sx + SLOT_SIZE && my >= sy && my < sy + SLOT_SIZE;
 
-            if (isSelected) {
+            if (isMultiSelected) {
+                g.fill(sx, sy, sx + SLOT_SIZE, sy + SLOT_SIZE, COL_SEL);
+                g.fill(sx, sy, sx + SLOT_SIZE, sy + 1, COL_MULTI_BORDER);
+                g.fill(sx, sy + SLOT_SIZE - 1, sx + SLOT_SIZE, sy + SLOT_SIZE, COL_MULTI_BORDER);
+                g.fill(sx, sy, sx + 1, sy + SLOT_SIZE, COL_MULTI_BORDER);
+                g.fill(sx + SLOT_SIZE - 1, sy, sx + SLOT_SIZE, sy + SLOT_SIZE, COL_MULTI_BORDER);
+            } else if (isSelected) {
                 g.fill(sx, sy, sx + SLOT_SIZE, sy + SLOT_SIZE, COL_SEL);
                 g.fill(sx, sy, sx + SLOT_SIZE, sy + 1, COL_SEL_BORDER);
                 g.fill(sx, sy + SLOT_SIZE - 1, sx + SLOT_SIZE, sy + SLOT_SIZE, COL_SEL_BORDER);
@@ -331,6 +342,11 @@ public class ItemPickerScreen extends Screen {
             selectedStack = hoveredStack.copy();
             return true;
         }
+        if (btn == 1 && hoveredStack != null) {
+            Item item = hoveredStack.getItem();
+            if (!multiSelected.remove(item)) multiSelected.add(item);
+            return true;
+        }
         if (btn == 0 && (mx < panelLeft || mx >= panelLeft + PANEL_W || my < panelTop || my >= panelTop + PANEL_H)) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
@@ -359,7 +375,12 @@ public class ItemPickerScreen extends Screen {
     }
 
     private void confirmSelection() {
-        if (selectedStack != null) {
+        if (!multiSelected.isEmpty()) {
+            for (Item item : multiSelected) onPick.accept(new ItemStack(item));
+            if (selectedStack != null && !multiSelected.contains(selectedStack.getItem())) {
+                onPick.accept(selectedStack.copy());
+            }
+        } else if (selectedStack != null) {
             onPick.accept(selectedStack.copy());
         }
         if (minecraft != null) minecraft.setScreen(parent);

@@ -1358,6 +1358,9 @@ public class QuestCreatorScreen extends Screen {
 
                 editingNode.setTitle(Component.literal(title));
                 editingNode.setDescription(Component.literal(desc));
+                persistLangOverride(questId, "title", title);
+                persistLangOverride(questId, "description", desc);
+                persistLangOverride(questId, "subtitle", cachedSubtitle.trim());
                 editingNode.setChapter(chapter);
                 editingNode.setShapeType(cachedShape);
                 editingNode.setShapeTexture(cachedShapeTexture);
@@ -1474,6 +1477,13 @@ public class QuestCreatorScreen extends Screen {
             statusMsg = "Save failed: " + e.getMessage();
             statusIsErr = true;
         }
+    }
+
+    private void persistLangOverride(ResourceLocation questId, String field, String value) {
+        if (value.isEmpty() || minecraft == null) return;
+        String key = "phoenix_chronicles.quest." + questId.getPath().replace('/', '.') + "." + field;
+        java.nio.file.Path base = minecraft.gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
+        net.phoenixvine.chronicles.registry.QuestLangRegistry.writeKey(base, key, value);
     }
 
     private List<String> buildExistingCategories() {

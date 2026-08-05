@@ -1,0 +1,52 @@
+name: Release to CurseForge
+
+# Fires when a version tag (v1.2.3) is pushed - see release.ps1 in the PFT Core root, which bumps
+# gradle.properties, prepends a CHANGELOG.md entry, commits, and creates that tag for you.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: ./gradlew build -x test --console=plain
+
+      # CHANGELOG.md is "newest first" (see release.ps1) - this pulls out just the body of the
+      # very first "## [...]" section so CurseForge gets this release's notes, not the whole file.
+      - name: Extract latest changelog entry
+        run: |
+          awk '/^## \[/{if (found) exit; found=1; next} found' CHANGELOG.md > /tmp/release_notes.md
+          if [ ! -s /tmp/release_notes.md ]; then
+            echo "(No changelog entry found for this release.)" > /tmp/release_notes.md
+          fi
+
+      - name: Publish to CurseForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: build/libs/!(*-@(dev|sources|javadoc)).jar
+          name: ${{ github.ref_name }}
+          version: ${{ github.ref_name }}
+          changelog-file: /tmp/release_notes.md
+          loaders: forge
+          game-versions: |
+            1.20.1
+          java: |
+            17

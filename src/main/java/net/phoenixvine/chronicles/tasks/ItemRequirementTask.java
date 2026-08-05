@@ -86,6 +86,11 @@ public class ItemRequirementTask extends QuestTask {
         List<ItemStack> all = new ArrayList<>(player.getInventory().items);
         all.addAll(player.getInventory().offhand);
         all.addAll(player.getInventory().armor);
+
+        if (player.containerMenu != null && !player.containerMenu.getCarried().isEmpty()) {
+            all.add(player.containerMenu.getCarried());
+        }
+
         all.addAll(CuriosCompat.getEquippedCurios(player));
         return all;
     }

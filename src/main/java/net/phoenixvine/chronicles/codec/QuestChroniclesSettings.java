@@ -53,12 +53,6 @@ public class QuestChroniclesSettings {
         GLOW
     }
 
-    public enum InvButtonPos {
-        LEFT,
-        RIGHT,
-        TOP_LEFT
-    }
-
     public enum ToastStyle {
         COMPACT,
         ABOVE_HOTBAR,
@@ -89,6 +83,8 @@ public class QuestChroniclesSettings {
     private Theme theme = Theme.DARK;
     private Density density = Density.SPACIOUS;
     private boolean showDevInfoByDefault = false;
+    private boolean showFlagDisabledChapters = false;
+    private boolean showFlagDisabledQuests = true;
     private HUDPosition hudPosition = HUDPosition.TOP_LEFT;
     private float hudOpacity = 1.0f;
     private boolean showHUDTitle = true;
@@ -97,8 +93,6 @@ public class QuestChroniclesSettings {
     private LineStyle lineStyle = LineStyle.SPLINE;
     private LineVisualStyle lineVisualStyle = LineVisualStyle.NORMAL;
     private LineAnimSpeed lineAnimSpeed = LineAnimSpeed.NORMAL;
-    private boolean showInventoryButton = true;
-    private InvButtonPos invButtonPos = InvButtonPos.LEFT;
     private boolean showLineArrows = true;
 
     private boolean devModeDisabled = true;
@@ -195,6 +189,14 @@ public class QuestChroniclesSettings {
         return showDevInfoByDefault;
     }
 
+    public boolean isShowFlagDisabledChapters() {
+        return showFlagDisabledChapters;
+    }
+
+    public boolean isShowFlagDisabledQuests() {
+        return showFlagDisabledQuests;
+    }
+
     public HUDPosition getHudPosition() {
         return hudPosition;
     }
@@ -229,6 +231,14 @@ public class QuestChroniclesSettings {
 
     public void setShowDevInfoByDefault(boolean show) {
         this.showDevInfoByDefault = show;
+    }
+
+    public void setShowFlagDisabledChapters(boolean show) {
+        this.showFlagDisabledChapters = show;
+    }
+
+    public void setShowFlagDisabledQuests(boolean show) {
+        this.showFlagDisabledQuests = show;
     }
 
     public void setHudPosition(HUDPosition pos) {
@@ -277,22 +287,6 @@ public class QuestChroniclesSettings {
 
     public void setLineAnimSpeed(LineAnimSpeed s) {
         this.lineAnimSpeed = s;
-    }
-
-    public boolean isShowInventoryButton() {
-        return showInventoryButton;
-    }
-
-    public void setShowInventoryButton(boolean show) {
-        this.showInventoryButton = show;
-    }
-
-    public InvButtonPos getInvButtonPos() {
-        return invButtonPos != null ? invButtonPos : InvButtonPos.LEFT;
-    }
-
-    public void setInvButtonPos(InvButtonPos pos) {
-        this.invButtonPos = pos != null ? pos : InvButtonPos.LEFT;
     }
 
     public boolean isShowLineArrows() {

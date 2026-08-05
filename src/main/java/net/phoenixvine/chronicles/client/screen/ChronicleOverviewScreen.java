@@ -202,6 +202,8 @@ public class ChronicleOverviewScreen extends Screen {
     private Object phantasiaPreview = null;
     private List<String> stubChapterCache = null;
     private List<String> chapterListCache = null;
+    private long chapterListCacheAtMs = 0;
+    private static final long CHAPTER_LIST_CACHE_TTL_MS = 2000;
     private boolean bulkMoveCatOpen = false;
     private QuestNode linkDragSource = null;
     private int linkDragX, linkDragY;
@@ -590,6 +592,10 @@ public class ChronicleOverviewScreen extends Screen {
     }
 
     List<String> buildChapterList() {
+
+        if (chapterListCache != null && System.currentTimeMillis() - chapterListCacheAtMs > CHAPTER_LIST_CACHE_TTL_MS) {
+            chapterListCache = null;
+        }
         if (chapterListCache == null) {
             Set<String> chapters = new TreeSet<>();
             for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
@@ -605,7 +611,12 @@ public class ChronicleOverviewScreen extends Screen {
                     }
                 }
             } catch (IOException ignored) {}
+
+            if (!isDevMode || !QuestChroniclesSettings.get().isShowFlagDisabledChapters())
+                chapters.removeIf(c -> !net.phoenixvine.chronicles.registry.ChapterFlagRegistry.isChapterEnabled(c));
+
             chapterListCache = new ArrayList<>(chapters);
+            chapterListCacheAtMs = System.currentTimeMillis();
         }
         return new ArrayList<>(chapterListCache);
     }
@@ -755,7 +766,7 @@ public class ChronicleOverviewScreen extends Screen {
         if (nodeButtons.containsKey(node.getId())) return;
         if (hiddenByCollapse.contains(node.getId())) return;
 
-        if (hideCompleted && !isDevMode && playerData != null &&
+        if (hideCompleted && playerData != null &&
                 playerData.getQuestState(node.getId(), net.phoenixvine.chronicles.model.QuestState.LOCKED) ==
                         net.phoenixvine.chronicles.model.QuestState.COMPLETED) {
             for (QuestNode child : node.getChildren()) placeNodeRecursive(child, cl, cr);
@@ -1096,10 +1107,11 @@ public class ChronicleOverviewScreen extends Screen {
 
                     int parentShapeKind = lineTrimShapeKind(parent);
                     int childShapeKind = lineTrimShapeKind(child);
+                    int horizontalBulge = worldHorizontalBulge(parent, child);
 
                     edges.add(new int[] {
                             px, py, cx2, cy2, col, style, shapeOrd, visOrd, speedOrd, arrowOrd, parentSz, childSz,
-                            parentShapeKind, childShapeKind, isPlainEdge });
+                            parentShapeKind, childShapeKind, isPlainEdge, horizontalBulge });
                     edgeNodes.add(new ResourceLocation[] { parent.getId(), child.getId() });
                 }
             }
@@ -1170,16 +1182,23 @@ public class ChronicleOverviewScreen extends Screen {
 
                     int prereqShapeKind = lineTrimShapeKind(prereq);
                     int parentShapeKind2 = lineTrimShapeKind(parent);
+                    int horizontalBulge2 = worldHorizontalBulge(prereq, parent);
 
                     edges.add(new int[] {
                             prx, pry, px, py, col, style, shapeOrd, visOrd, speedOrd, arrowOrd, prereqSz, parentSz,
-                            prereqShapeKind, parentShapeKind2, isPlainEdge });
+                            prereqShapeKind, parentShapeKind2, isPlainEdge, horizontalBulge2 });
                     edgeNodes.add(new ResourceLocation[] { prereq.getId(), parent.getId() });
                 }
             }
         }
 
         depLineRenderer.rebuild(edges, edgeNodes, posZoom(), QuestChroniclesSettings.get());
+    }
+
+    private static int worldHorizontalBulge(QuestNode a, QuestNode b) {
+        int adx = Math.abs(a.getCustomX() - b.getCustomX());
+        int ady = Math.abs(a.getCustomY() - b.getCustomY());
+        return adx >= ady ? 1 : 0;
     }
 
     private static int lineTrimShapeKind(QuestNode n) {
@@ -1762,6 +1781,19 @@ public class ChronicleOverviewScreen extends Screen {
                 String zoomStr2 = Math.round(zoom * 100) + "%";
                 int zw2 = font.width(zoomStr2);
                 int zx2 = cr - zw2 - 10;
+
+                int unclaimedCount2 = unclaimedRewardCount();
+                if (unclaimedCount2 > 0) {
+                    String claimLabel2 = "🎁 " + unclaimedCount2;
+                    int cw2 = font.width(claimLabel2);
+                    int cpx2 = zx2 - cw2 - 18;
+                    if (mx >= cpx2 - 3 && mx < cpx2 + cw2 + 5 && my >= 3 && my < 16) {
+                        if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(this));
+                        return true;
+                    }
+                    zx2 = cpx2;
+                }
+
                 String gridLabel2 = !gridSnapEnabled ? "Grid: off" :
                         (gridSnap == 1) ? "Grid: free" : "Grid: " + gridSnap;
                 int gw2 = font.width(gridLabel2);
@@ -3525,6 +3557,22 @@ public class ChronicleOverviewScreen extends Screen {
         g.fill(zx - 3, zy, zx + zw + 3, zy + 13, 0x22FFFFFF);
         g.drawString(font, "§7" + zoomStr, zx, zy + 3, C_TEXT_DIM);
 
+        int unclaimedCount = unclaimedRewardCount();
+        if (unclaimedCount > 0) {
+            String claimLabel = "§d🎁 " + unclaimedCount;
+            int cw = font.width(net.minecraft.util.StringUtil.stripColor(claimLabel));
+            int cpx = zx - cw - 18, cpy = 3;
+            boolean claimHov = mx >= cpx - 3 && mx < cpx + cw + 5 && my >= cpy && my < cpy + 13;
+            g.fill(cpx - 3, cpy, cpx + cw + 5, cpy + 13, claimHov ? 0x44FFFFFF : 0x33AA4488);
+            g.drawString(font, claimLabel, cpx, cpy + 3, C_TEXT_DIM, false);
+            if (claimHov) {
+                pendingDeferredDraws.add(() -> g.renderTooltip(font,
+                        Component.literal("§7" + unclaimedCount + " quest(s) with unclaimed rewards - click to open"),
+                        mx, my));
+            }
+            zx = cpx;
+        }
+
         String gridLabel = !gridSnapEnabled ? "§8Grid: §c§loff" :
                 (gridSnap == 1) ? "§8Grid: §afree" : "§8Grid: §7" + gridSnap;
         int gw = font.width(net.minecraft.util.StringUtil.stripColor(gridLabel));
@@ -4276,15 +4324,16 @@ public class ChronicleOverviewScreen extends Screen {
         }
 
         if (st == QuestState.LOCKED && !isDevMode) {
-            g.fill(x + 1, y + 1, x + sz - 1, y + sz - 1, 0x440B0B0F);
+            NodeShapeRenderer.queueFillRect(g, x + 1, y + 1, x + sz - 1, y + sz - 1, 0x440B0B0F);
 
-            for (int d = -(sz); d < sz; d += 6) {
-                for (int i = 0; i < sz - 1; i++) {
-                    int hx = x + 1 + i;
-                    int hy = y + 1 + i + d;
-                    if (hx < x + 1 || hx >= x + sz - 1 || hy < y + 1 || hy >= y + sz - 1) continue;
-                    g.fill(hx, hy, hx + 1, hy + 1, 0x160B0B0F);
-                }
+            int w = sz - 2;
+            for (int d = -sz; d < sz; d += 6) {
+                int lxStart = Math.max(0, -d);
+                int lxEnd = Math.min(w, w - d);
+                if (lxEnd <= lxStart) continue;
+                float sx = x + 1 + lxStart, sy = y + 1 + lxStart + d;
+                float ex = x + 1 + lxEnd - 1, ey = y + 1 + lxEnd - 1 + d;
+                NodeShapeRenderer.queueThinLine(g, sx, sy, ex, ey, 0.5f, 0x160B0B0F);
             }
         }
         FrameProfiler.end("node:overlays");
@@ -4609,6 +4658,8 @@ public class ChronicleOverviewScreen extends Screen {
 
         g.flush();
 
+        RenderSystem.disableDepthTest();
+
         int ctxAlpha = (int) Math.min(255, (System.currentTimeMillis() - ctxOpenTimeMs) * 255 / OPEN_FADE_MS);
         int fadedBg = (ctxAlpha << 24) | (C_CTX_BG & 0x00FFFFFF);
         g.fill(x + 3, y + 3, x + CTX_W + 3, y + menuH + 3, (Math.min(0x55, ctxAlpha / 3)) << 24);
@@ -4734,7 +4785,7 @@ public class ChronicleOverviewScreen extends Screen {
     private boolean catMatches(QuestNode n) {
         QuestNode.Visibility vis = n.getVisibility();
 
-        if (n.isFlagDisabled()) return isDevMode;
+        if (n.isFlagDisabled()) return isDevMode && QuestChroniclesSettings.get().isShowFlagDisabledQuests();
 
         if (!isDevMode && vis == QuestNode.Visibility.HIDDEN) {
             if (getState(n) == QuestState.LOCKED) return false;
@@ -4873,6 +4924,20 @@ public class ChronicleOverviewScreen extends Screen {
         return sb.toString().trim();
     }
 
+    private int unclaimedRewardCount() {
+        if (playerData == null) return 0;
+        int count = 0;
+        for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+            if (node.isFlagDisabled()) continue;
+            if (playerData.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED) continue;
+            if (playerData.hasClaimedRewards(node.getId())) continue;
+            if (node.isRewardChoice()) continue;
+            if (node.getRewards().isEmpty()) continue;
+            count++;
+        }
+        return count;
+    }
+
     private String chapterBreadcrumb(String cat) {
         List<String> chain = new ArrayList<>();
         Set<String> visited = new HashSet<>();
@@ -4891,7 +4956,8 @@ public class ChronicleOverviewScreen extends Screen {
 
     private String shortLabel(QuestNode node) {
         String t = node.getTitle().getString();
-        int maxW = scaledNodeSize(node) + 28;
+
+        int maxW = (int) (scaledNodeSize(node) * 1.6f) + 40;
         return font.width(t) > maxW ? font.plainSubstrByWidth(t, maxW - 4) + "…" : t;
     }
 
@@ -4942,6 +5008,7 @@ public class ChronicleOverviewScreen extends Screen {
         List<String> lines = new ArrayList<>();
         lines.add("§f" + title);
         if (sub != null) lines.add("§8" + sub);
+        if (node.isOptional()) lines.add("§d★ Optional quest");
 
         if (showFull) {
 

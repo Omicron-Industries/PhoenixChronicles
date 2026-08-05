@@ -44,7 +44,6 @@ public class SettingsScreen extends Screen {
         POPUPS("Pop-Ups"),
         CANVAS("Canvas"),
         PHANTASIA("Phantasia"),
-        INVENTORY("Inventory"),
         DEV("Dev Mode");
 
         final String label;
@@ -251,13 +250,6 @@ public class SettingsScreen extends Screen {
             case PHANTASIA -> rows.add(Row.toggle("§fAuto-Spin Previews", settings::isPhantasiaAutoSpin,
                     settings::setPhantasiaAutoSpin)
                     .tip("Slowly rotates embedded Phantasia multiblock/scene previews\n(quest nodes, toasts) instead of holding them still."));
-            case INVENTORY -> {
-                rows.add(Row.toggle("§fShow in Inventory", settings::isShowInventoryButton,
-                        settings::setShowInventoryButton)
-                        .tip("Adds a button to the player inventory screen for quickly\nopening the quest book."));
-                rows.add(Row.cycle("§fButton Position", InvButtonPos.class, settings::getInvButtonPos,
-                        settings::setInvButtonPos).tip("Corner of the inventory screen the button is anchored to."));
-            }
             case DEV -> {
 
                 rows.add(Row.toggle("§fDev Mode Enabled", () -> !settings.isDevModeDisabled(), on -> {
@@ -267,6 +259,24 @@ public class SettingsScreen extends Screen {
                 rows.add(Row.toggle("§fShow Dev Info by Default", settings::isShowDevInfoByDefault,
                         settings::setShowDevInfoByDefault)
                         .tip("Opens quest editors with dev-only fields expanded by default."));
+                rows.add(Row.toggle("§fShow Flag-Disabled Chapters", settings::isShowFlagDisabledChapters, on -> {
+                    settings.setShowFlagDisabledChapters(on);
+                    settings.save();
+                    if (parent instanceof ChronicleOverviewScreen overview) overview.rebuild();
+                })
+                        .tip("Off by default: the sidebar hides chapters a chapter_flags.snbt\n" +
+                                "rule has disabled (e.g. pack-mode variants like Genesis Hard/Expert\n" +
+                                "when you're not in that mode), same as a real player would see.\n" +
+                                "Turn on to see and edit every variant regardless of the current flag state."));
+                rows.add(Row.toggle("§fShow Flag-Disabled Quests", settings::isShowFlagDisabledQuests, on -> {
+                    settings.setShowFlagDisabledQuests(on);
+                    settings.save();
+                    if (parent instanceof ChronicleOverviewScreen overview) overview.rebuild();
+                })
+                        .tip("On by default: within a visible chapter, dev mode also shows\n" +
+                                "individual quests a chapter_flags.snbt rule has disabled (marked\n" +
+                                "with the purple ⚑ border), so you can see and edit them in place.\n" +
+                                "Turn off to hide flag-disabled quests even while in dev mode."));
                 rows.add(Row.toggle("§fAlways-On Profiler", settings::isAlwaysProfilerEnabled, on -> {
                     settings.setAlwaysProfilerEnabled(on);
                     settings.save();
@@ -287,6 +297,11 @@ public class SettingsScreen extends Screen {
         }
     }
 
+    private int contentOffsetX() {
+        int totalW = SIDEBAR_W + MARGIN + PANEL_W + MARGIN;
+        return Math.max(0, (width - totalW) / 2);
+    }
+
     @Override
     public void render(GuiGraphics g, int mx, int my, float partial) {
         g.fill(0, 0, width, height, C_BG);
@@ -298,26 +313,27 @@ public class SettingsScreen extends Screen {
 
         int contentTop = HEADER_H;
         int contentBottom = height - FOOTER_H;
+        int off = contentOffsetX();
 
-        g.fill(0, contentTop, SIDEBAR_W, contentBottom, C_PANEL);
-        g.fill(SIDEBAR_W - 1, contentTop, SIDEBAR_W, contentBottom, C_BORDER);
+        g.fill(off, contentTop, off + SIDEBAR_W, contentBottom, C_PANEL);
+        g.fill(off + SIDEBAR_W - 1, contentTop, off + SIDEBAR_W, contentBottom, C_BORDER);
         int sy = contentTop + MARGIN;
         for (Category cat : Category.values()) {
             if (cat == Category.PHANTASIA && !PhantasiaCompat.isAvailable()) continue;
             boolean sel = cat == selectedCategory;
-            boolean hov = mx >= 0 && mx < SIDEBAR_W && my >= sy && my < sy + ROW_H;
+            boolean hov = mx >= off && mx < off + SIDEBAR_W && my >= sy && my < sy + ROW_H;
             if (sel) {
-                g.fill(0, sy, SIDEBAR_W - 1, sy + ROW_H, 0x22FFFFFF);
-                g.fill(0, sy, 2, sy + ROW_H, C_ACCENT);
+                g.fill(off, sy, off + SIDEBAR_W - 1, sy + ROW_H, 0x22FFFFFF);
+                g.fill(off, sy, off + 2, sy + ROW_H, C_ACCENT);
             } else if (hov) {
-                g.fill(0, sy, SIDEBAR_W - 1, sy + ROW_H, 0x10FFFFFF);
+                g.fill(off, sy, off + SIDEBAR_W - 1, sy + ROW_H, 0x10FFFFFF);
             }
-            g.drawString(font, (sel ? "§f" : "§7") + cat.label, MARGIN, sy + (ROW_H - 8) / 2,
+            g.drawString(font, (sel ? "§f" : "§7") + cat.label, off + MARGIN, sy + (ROW_H - 8) / 2,
                     sel ? C_TEXT : C_TEXT_DIM, false);
             sy += ROW_H;
         }
 
-        int x = SIDEBAR_W + MARGIN;
+        int x = off + SIDEBAR_W + MARGIN;
         int w = Math.min(PANEL_W, width - x - MARGIN);
         g.enableScissor(x, contentTop, x + w, contentBottom);
 
@@ -439,8 +455,9 @@ public class SettingsScreen extends Screen {
 
         int contentTop = HEADER_H;
         int contentBottom = height - FOOTER_H;
+        int off = contentOffsetX();
 
-        if (mx >= 0 && mx < SIDEBAR_W && my >= contentTop && my < contentBottom) {
+        if (mx >= off && mx < off + SIDEBAR_W && my >= contentTop && my < contentBottom) {
             int sy = contentTop + MARGIN;
             for (Category cat : Category.values()) {
                 if (cat == Category.PHANTASIA && !PhantasiaCompat.isAvailable()) continue;
@@ -453,7 +470,7 @@ public class SettingsScreen extends Screen {
             return true;
         }
 
-        int x = SIDEBAR_W + MARGIN;
+        int x = off + SIDEBAR_W + MARGIN;
         int w = Math.min(PANEL_W, width - x - MARGIN);
         for (Row r : rows) {
             int ry = r.y - scrollY;

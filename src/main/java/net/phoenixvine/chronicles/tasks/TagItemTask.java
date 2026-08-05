@@ -53,6 +53,10 @@ public class TagItemTask extends QuestTask {
         for (ItemStack stack : CuriosCompat.getEquippedCurios(player)) {
             if (!stack.isEmpty() && stack.is(tag)) count += stack.getCount();
         }
+        if (player.containerMenu != null) {
+            ItemStack carried = player.containerMenu.getCarried();
+            if (!carried.isEmpty() && carried.is(tag)) count += carried.getCount();
+        }
         return count;
     }
 

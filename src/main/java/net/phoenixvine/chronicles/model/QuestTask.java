@@ -4,13 +4,20 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.common.util.INBTSerializable;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
-public abstract class QuestTask {
+public abstract class QuestTask implements INBTSerializable<CompoundTag> {
+
+    @Override
+    public abstract CompoundTag serializeNBT();
+
+    @Override
+    public abstract void deserializeNBT(CompoundTag nbt);
 
     private final ResourceLocation taskId;
     private Component description;
@@ -19,30 +26,34 @@ public abstract class QuestTask {
 
     public QuestTask(ResourceLocation taskId, Component description) {
         this.taskId = taskId;
-        this.description = description;
+        this.description = description != null ? description : Component.empty();
     }
 
     public Component getDescription() {
-        if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
+        if (taskId != null &&
+                net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey());
             if (override != null) return Component.literal(override);
             Component d = ClientLangLookup.resolve(langKey());
             if (d != null) return d;
         }
-        return description;
+        return description != null ? description : Component.empty();
     }
 
     public Component getDescriptionRaw() {
-        return description;
+        return description != null ? description : Component.empty();
     }
 
     public void setDescription(Component description) {
-        this.description = description;
-        if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
-            net.phoenixvine.chronicles.client.ClientTextOverrides.put(langKey(), description.getString());
+        this.description = description != null ? description : Component.empty();
+        if (taskId != null &&
+                net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
+            net.phoenixvine.chronicles.client.ClientTextOverrides.put(langKey(), this.description.getString());
+        }
     }
 
     private String langKey() {
+        if (taskId == null) return "phoenix_chronicles.task.unknown";
         return "phoenix_chronicles.task." + taskId.getPath().replace('/', '.');
     }
 
@@ -64,6 +75,7 @@ public abstract class QuestTask {
     }
 
     public boolean isStickyCompleteCached(Player player) {
+        if (player == null || getTaskId() == null) return false;
         return TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed");
     }
 
@@ -74,8 +86,4 @@ public abstract class QuestTask {
     public ResourceLocation getDisplayItemId() {
         return null;
     }
-
-    public abstract CompoundTag serializeNBT();
-
-    public abstract void deserializeNBT(CompoundTag nbt);
 }

@@ -38,24 +38,22 @@ public class C2SPhantasiaTaskCompletePacket {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
-            if (player == null) return;
+            if (player == null || questId == null || taskId == null) return;
 
             QuestNode node = QuestTreeRegistry.getQuest(questId);
-            if (node == null) return;
+            if (node == null || node.getTasks() == null) return;
 
             QuestState state = QuestProgressTracker.getQuestState(player, node);
             if (state == QuestState.COMPLETED || state == QuestState.LOCKED) return;
 
             for (QuestTask task : node.getTasks()) {
-                if (!task.getTaskId().equals(taskId)) continue;
+                if (!taskId.equals(task.getTaskId())) continue;
 
-                if (!(task instanceof ViewMachineTask) && !(task instanceof ViewSceneTask)) return;
-                if (task.isCompletedFor(player)) return;
+                if (!(task instanceof ViewMachineTask) && !(task instanceof ViewSceneTask)) break;
+                if (task.isCompletedFor(player)) break;
 
                 TaskProgressAccess.with(player, taskId, nbt -> nbt.putBoolean("completed", true));
-
                 QuestProgressTracker.checkAndTryComplete(player, node);
-
                 QuestProgressTracker.sendProgressSync(player);
                 break;
             }

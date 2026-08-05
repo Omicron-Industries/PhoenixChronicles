@@ -143,6 +143,12 @@ public class QuestFileSaver {
         if (node.getEnableIf() != null) tag.putString("enable_if", node.getEnableIf());
         if (node.getTaskMinCount() > 0) tag.putInt("task_min_count", node.getTaskMinCount());
         if (node.isHideDepLine()) tag.putBoolean("hide_dep_line", true);
+        if (node.isOptional()) tag.putBoolean("optional", true);
+        if (!node.getTags().isEmpty()) {
+            net.minecraft.nbt.ListTag tagList = new net.minecraft.nbt.ListTag();
+            for (String t : node.getTags()) tagList.add(net.minecraft.nbt.StringTag.valueOf(t));
+            tag.put("tags", tagList);
+        }
         if (node.isDisabledBlocksChildren()) tag.putBoolean("disabled_blocks_children", true);
         if (node.isShared()) tag.putBoolean("shared", true);
         if (node.isPooledProgress()) tag.putBoolean("pooled_progress", true);

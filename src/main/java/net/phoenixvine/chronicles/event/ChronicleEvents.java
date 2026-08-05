@@ -107,6 +107,36 @@ public class ChronicleEvents {
     }
 
     @SubscribeEvent
+    public static void onItemPickup(net.minecraftforge.event.entity.player.EntityItemPickupEvent event) {
+        Player player = event.getEntity();
+        if (player.level().isClientSide) return;
+
+        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            boolean needSync = false;
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
+                if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
+
+                boolean changed = false;
+                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                    if (task instanceof ItemRequirementTask ||
+                            task instanceof net.phoenixvine.chronicles.tasks.TagItemTask) {
+                        changed = true; 
+                    }
+                }
+
+                if (changed) {
+                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    needSync = true;
+                }
+            }
+            if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                QuestProgressTracker.sendProgressSync(sp);
+            }
+        });
+    }
+
+    @SubscribeEvent
     public static void onItemCrafted(PlayerEvent.ItemCraftedEvent event) {
         Player player = event.getEntity();
         if (player.level().isClientSide) return;
@@ -116,18 +146,30 @@ public class ChronicleEvents {
         int amount = event.getCrafting().getCount();
 
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            boolean needSync = false;
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
+                boolean changed = false;
                 for (Object task : node.getEffectiveTasks(player.getServer())) {
                     if (task instanceof CraftItemTask craftTask) {
-
                         craftTask.onItemCrafted(player, itemId, amount);
-                    }
+                        changed = true;
+                    } else if (task instanceof ItemRequirementTask ||
+                            task instanceof net.phoenixvine.chronicles.tasks.TagItemTask) {
+                                changed = true; 
+                            }
                 }
 
-                QuestProgressTracker.checkAndTryComplete(player, node);
+                if (changed) {
+                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    needSync = true;
+                }
+            }
+            
+            if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                QuestProgressTracker.sendProgressSync(sp);
             }
         });
     }
@@ -141,17 +183,26 @@ public class ChronicleEvents {
             if (entityId == null) return;
 
             player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+                boolean needSync = false;
                 for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                     QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                     if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
+                    boolean changed = false;
                     for (Object task : node.getEffectiveTasks(player.getServer())) {
                         if (task instanceof KillEntityTask killTask) {
-
                             killTask.onEntityKilled(player, entityId);
+                            changed = true;
                         }
                     }
-                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    if (changed) {
+                        QuestProgressTracker.checkAndTryComplete(player, node);
+                        needSync = true;
+                    }
+                }
+                
+                if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                    QuestProgressTracker.sendProgressSync(sp);
                 }
             });
         }
@@ -163,6 +214,7 @@ public class ChronicleEvents {
         if (player.level().isClientSide) return;
         net.minecraft.world.level.block.Block broken = event.getState().getBlock();
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            boolean needSync = false;
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
@@ -173,8 +225,13 @@ public class ChronicleEvents {
                         changed = true;
                     }
                 }
-                if (changed) QuestProgressTracker.checkAndTryComplete(player, node);
+                if (changed) {
+                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    needSync = true;
+                }
             }
+            
+            if (needSync) QuestProgressTracker.sendProgressSync(player);
         });
     }
 
@@ -201,6 +258,7 @@ public class ChronicleEvents {
 
     private static void handleBlockEvent(Player player, Block block, String action) {
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            boolean needSync = false;
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
@@ -211,7 +269,14 @@ public class ChronicleEvents {
                         changed = true;
                     }
                 }
-                if (changed) QuestProgressTracker.checkAndTryComplete(player, node);
+                if (changed) {
+                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    needSync = true;
+                }
+            }
+            
+            if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                QuestProgressTracker.sendProgressSync(sp);
             }
         });
     }
@@ -223,6 +288,7 @@ public class ChronicleEvents {
 
         var dimension = event.getTo();
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            boolean needSync = false;
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
@@ -233,7 +299,14 @@ public class ChronicleEvents {
                         changed = true;
                     }
                 }
-                if (changed) QuestProgressTracker.checkAndTryComplete(player, node);
+                if (changed) {
+                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    needSync = true;
+                }
+            }
+            
+            if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                QuestProgressTracker.sendProgressSync(sp);
             }
         });
     }
@@ -592,6 +665,13 @@ public class ChronicleEvents {
                 QuestCapabilityProvider.PLAYER_QUESTS)
                 .ifPresent(data -> {
                     data.resetQuestProgress(questId, taskIds);
+
+                    if (net.phoenixvine.chronicles.tracker.QuestProgressTracker.prereqsSatisfied(node, data,
+                            fsp.getServer())) {
+                        net.phoenixvine.chronicles.tracker.QuestProgressTracker.changeQuestState(fsp, node,
+                                QuestState.UNLOCKED);
+                    }
+
                     ChronicleNetwork.CHANNEL.send(
                             net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> fsp),
                             new S2CSyncPlayerProgressPacket(
@@ -665,7 +745,7 @@ public class ChronicleEvents {
                 return;
             }
             long tImportDone = System.currentTimeMillis();
-            System.out.println("[PhoenixCore] Import (file conversion) took " + (tImportDone - tImportStart) + "ms");
+            System.out.println("[PhoenixChronicles] Import (file conversion) took " + (tImportDone - tImportStart) + "ms");
             final net.phoenixvine.chronicles.capability.importer.FtbQuestsImporter.ImportResult r = result;
             server.execute(() -> {
                 long tReloadStart = System.currentTimeMillis();
@@ -679,7 +759,7 @@ public class ChronicleEvents {
                 net.phoenixvine.chronicles.codec.QuestFileLoader.loadAdditiveFromDisk(configDir);
                 long tReloadDone = System.currentTimeMillis();
                 System.out
-                        .println("[PhoenixCore] Registry reload (on main thread) took " + (tReloadDone - tReloadStart) +
+                        .println("[PhoenixChronicles] Registry reload (on main thread) took " + (tReloadDone - tReloadStart) +
                                 "ms" + " (queued " + (tReloadStart - tImportDone) + "ms after import finished)");
 
                 List<String> loadErrors = List.copyOf(net.phoenixvine.chronicles.codec.QuestFileLoader.LOAD_ERRORS);
@@ -702,7 +782,7 @@ public class ChronicleEvents {
                 }
                 long tSyncDone = System.currentTimeMillis();
                 System.out.println(
-                        "[PhoenixCore] Player sync/notify (" + (localReload ? "local reload signal" : "full packet") +
+                        "[PhoenixChronicles] Player sync/notify (" + (localReload ? "local reload signal" : "full packet") +
                                 ") took " + (tSyncDone - tReloadDone) + "ms");
                 final int fp = playerCount;
                 ctx.getSource().sendSuccess(() -> Component.literal(

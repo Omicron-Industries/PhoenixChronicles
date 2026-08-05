@@ -10,11 +10,9 @@ import net.phoenixvine.chronicles.model.QuestReward.WeightedReward;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class RewardTable {
-
-    private static final Random RANDOM = new Random();
 
     private final String id;
     private final String displayName;
@@ -22,9 +20,9 @@ public class RewardTable {
     private final int pickCount;
 
     public RewardTable(String id, String displayName, List<WeightedReward> entries, int pickCount) {
-        this.id = id;
-        this.displayName = displayName;
-        this.entries = new ArrayList<>(entries);
+        this.id = id != null ? id : "";
+        this.displayName = displayName != null ? displayName : "";
+        this.entries = entries != null ? new ArrayList<>(entries) : new ArrayList<>();
         this.pickCount = Math.max(0, pickCount);
     }
 
@@ -41,7 +39,8 @@ public class RewardTable {
     }
 
     public List<QuestReward> getRewards() {
-        return Collections.unmodifiableList(entries.stream().map(WeightedReward::reward).toList());
+        return Collections.unmodifiableList(
+                entries.stream().map(WeightedReward::reward).filter(r -> r != null).toList());
     }
 
     public List<WeightedReward> getEntries() {
@@ -49,11 +48,20 @@ public class RewardTable {
     }
 
     public void grant(ServerPlayer player) {
-        if (entries.isEmpty()) return;
-        if (pickCount <= 0 || pickCount >= entries.size()) {
-            for (WeightedReward e : entries) e.reward().grant(player);
+        if (player == null || entries.isEmpty()) return;
+        if (pickCount == 0) {
+            for (WeightedReward e : entries) {
+                if (e != null && e.reward() != null) {
+                    e.reward().grant(player);
+                }
+            }
         } else {
-            for (QuestReward r : QuestReward.pickWeighted(entries, pickCount, RANDOM)) r.grant(player);
+            List<QuestReward> picked = QuestReward.pickWeighted(entries, pickCount, ThreadLocalRandom.current());
+            for (QuestReward r : picked) {
+                if (r != null) {
+                    r.grant(player);
+                }
+            }
         }
     }
 
@@ -66,7 +74,25 @@ public class RewardTable {
                 .literal("Table: " + name + " (" + entries.size() + " reward" + (entries.size() == 1 ? "" : "s") + ")");
     }
 
+    public CompoundTag serializeNBT() {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("id", id);
+        if (!displayName.isEmpty()) tag.putString("display_name", displayName);
+        if (pickCount > 0) tag.putInt("pick", pickCount);
+        ListTag list = new ListTag();
+        for (WeightedReward e : entries) {
+            if (e != null && e.reward() != null) {
+                CompoundTag entryTag = e.reward().serializeNBT();
+                if (e.weight() != 1) entryTag.putInt("weight", e.weight());
+                list.add(entryTag);
+            }
+        }
+        tag.put("rewards", list);
+        return tag;
+    }
+
     public static RewardTable deserialize(CompoundTag tag) {
+        if (tag == null || !tag.contains("id")) return null;
         String id = tag.getString("id");
         if (id.isBlank()) return null;
         String displayName = tag.contains("display_name") ? tag.getString("display_name") : "";

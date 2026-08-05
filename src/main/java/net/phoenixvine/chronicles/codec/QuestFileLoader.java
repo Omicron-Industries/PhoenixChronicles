@@ -73,7 +73,9 @@ public class QuestFileLoader {
                                String previewMachineId,
                                String iconFluid,
                                String backgroundType,
-                               String externalScreenId) {}
+                               String externalScreenId,
+                               boolean optional,
+                               Set<String> tags) {}
 
     private static void applyLineOverrides(QuestNode node, QuestNode prereq, QuestRecord rec, String pid) {
         String shape = rec.prereqLineShape().get(pid);
@@ -104,12 +106,15 @@ public class QuestFileLoader {
         if (!Files.exists(configDir)) return;
         LOAD_ERRORS.clear();
 
+        Path questsDir = configDir.resolve("quests");
+        if (!Files.exists(questsDir)) return;
+
         List<QuestRecord> records;
-        try (Stream<Path> walk = Files.walk(configDir)) {
+        try (Stream<Path> walk = Files.walk(questsDir)) {
+
             records = walk.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".snbt"))
                     .filter(p -> !isFtbImportStagingFile(p))
-                    .parallel()
                     .map(QuestFileLoader::parseFile)
                     .filter(rec -> rec != null && QuestTreeRegistry.getQuest(rec.id()) == null)
                     .collect(java.util.stream.Collectors.toList());
@@ -132,14 +137,14 @@ public class QuestFileLoader {
 
         Path configFolder = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles");
-        if (!Files.exists(configFolder)) return;
+        Path questsFolder = configFolder.resolve("quests");
+        if (!Files.exists(questsFolder)) return;
 
         List<QuestRecord> records;
-        try (Stream<Path> walk = Files.walk(configFolder)) {
+        try (Stream<Path> walk = Files.walk(questsFolder)) {
             records = walk.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".snbt"))
                     .filter(p -> !isFtbImportStagingFile(p))
-                    .parallel()
                     .map(QuestFileLoader::parseFile)
                     .filter(java.util.Objects::nonNull)
                     .collect(java.util.stream.Collectors.toList());
@@ -173,6 +178,8 @@ public class QuestFileLoader {
             node.setEnableIf(rec.enableIf());
             node.setTaskMinCount(rec.taskMinCount());
             node.setHideDepLine(rec.hideDepLine());
+            node.setOptional(rec.optional());
+            node.setTags(rec.tags());
             node.setDisabledBlocksChildren(rec.disabledBlocksChildren());
             node.setShared(rec.shared());
             node.setPooledProgress(rec.pooledProgress());
@@ -432,6 +439,13 @@ public class QuestFileLoader {
                 } catch (Exception ignored) {}
             }
 
+            boolean optional = tag.contains("optional") && tag.getBoolean("optional");
+            Set<String> tags = new LinkedHashSet<>();
+            if (tag.contains("tags")) {
+                ListTag tagList = tag.getList("tags", Tag.TAG_STRING);
+                for (int ti = 0; ti < tagList.size(); ti++) tags.add(tagList.getString(ti));
+            }
+
             List<TutorialStep> tutorialSteps = new ArrayList<>();
             if (tag.contains("tutorial_steps")) {
                 ListTag stepList = tag.getList("tutorial_steps", Tag.TAG_COMPOUND);
@@ -450,7 +464,8 @@ public class QuestFileLoader {
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, prereqLineStyleId,
                     hideDepLine, disabledBlocksChildren, shared, pooledProgress, tutorialSteps, autoClaimRewards,
                     rewardChoice, rewardChoiceCount, devNotes, nodeSize, sizeOverridePx, linkTarget, iconTexture,
-                    shapeTexture, variants, previewMachineId, iconFluid, backgroundType, externalScreenId);
+                    shapeTexture, variants, previewMachineId, iconFluid, backgroundType, externalScreenId,
+                    optional, tags);
 
         } catch (Exception e) {
             String msg = "Failed to parse '" + file.getFileName() + "': " + e.getMessage();

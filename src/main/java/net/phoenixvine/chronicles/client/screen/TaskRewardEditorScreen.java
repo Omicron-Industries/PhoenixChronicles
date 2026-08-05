@@ -17,9 +17,12 @@ import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemeRenderer;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.filter.IFluidFilter;
 import net.phoenixvine.chronicles.filter.IItemFilter;
 import net.phoenixvine.chronicles.filter.ItemFilters;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
+import net.phoenixvine.chronicles.item.FluidFilterTokenItem;
+import net.phoenixvine.chronicles.item.ItemFilterTokenItem;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
@@ -32,6 +35,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class TaskRewardEditorScreen extends Screen {
@@ -58,6 +62,9 @@ public class TaskRewardEditorScreen extends Screen {
     private int listBottom;
     private int formTop;
     private int formBottom;
+
+    private int lastLayoutWidth = -1;
+    private int lastLayoutHeight = -1;
 
     private final Screen parent;
 
@@ -86,6 +93,9 @@ public class TaskRewardEditorScreen extends Screen {
     private int editingTaskIndex = -1;
     private int editingRewardIndex = -1;
 
+    private IItemFilter pendingPickedItemFilter = null;
+    private IFluidFilter pendingPickedFluidFilter = null;
+
     private boolean forcePendingTaskValues = false;
     private String pendingTaskDesc = "", pendingTaskTarget = "", pendingTaskSecondary = "", pendingTaskCount = "",
             pendingTaskNbt = "";
@@ -100,6 +110,11 @@ public class TaskRewardEditorScreen extends Screen {
     private int hoveredTaskRow = -1;
     private int hoveredRewardRow = -1;
     private int hoveredDropRow = -1;
+
+    private int draggingTaskIndex = -1;
+    private int draggingRewardIndex = -1;
+    private boolean dragMovedTask = false;
+    private boolean dragMovedReward = false;
 
     private static CompoundTag copiedTaskNBT = null;
 
@@ -160,6 +175,9 @@ public class TaskRewardEditorScreen extends Screen {
         formTop = formBottom - MARGIN - FORM_ROWS * (FIELD_H + FIELD_GAP) - 8;
         listTop = HEADER_H + 22;
         listBottom = formTop - 22;
+
+        lastLayoutWidth = width;
+        lastLayoutHeight = height;
 
         rebuildWidgets();
     }
@@ -288,7 +306,9 @@ public class TaskRewardEditorScreen extends Screen {
             boolean hasItemListPicker = taskType.equals("filter_item");
             boolean hasFluidPicker = taskType.equals("fluid_check");
             boolean hasFluidListPicker = taskType.equals("filter_fluid");
-            int tw = (hasItemPicker || hasItemListPicker || hasFluidPicker || hasFluidListPicker) ? colW - 18 : colW;
+            boolean hasAnyItemPicker = hasItemPicker || hasItemListPicker;
+            boolean hasAnyFluidPicker = hasFluidPicker || hasFluidListPicker;
+            int tw = (hasAnyItemPicker || hasAnyFluidPicker) ? colW - 36 : colW;
             int tmaxLen = isInfo ? 512 : 160;
             taskTargetBox = new EditBox(font, tx, fy, tw, FIELD_H, Component.empty());
             taskTargetBox.setHint(Component.literal(hint));
@@ -298,6 +318,7 @@ public class TaskRewardEditorScreen extends Screen {
             if (hasItemPicker) {
                 addRenderableWidget(Button.builder(Component.literal("§7⊞"), b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                        if (applyPickedItemFilter(stack)) return;
                         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
                         if (id != null && taskTargetBox != null) taskTargetBox.setValue(id.toString());
                     }));
@@ -305,6 +326,7 @@ public class TaskRewardEditorScreen extends Screen {
             } else if (hasItemListPicker) {
                 addRenderableWidget(Button.builder(Component.literal("§7⊞"), b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                        if (applyPickedItemFilter(stack)) return;
                         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
                         if (id == null || taskTargetBox == null) return;
                         String cur = taskTargetBox.getValue().trim();
@@ -328,6 +350,19 @@ public class TaskRewardEditorScreen extends Screen {
                     }));
                 }).bounds(tx + tw, fy, 16, FIELD_H)
                         .tooltip(Tooltip.create(Component.literal("Add another fluid to the ANY-match list")))
+                        .build());
+            }
+            if (hasAnyItemPicker) {
+                addRenderableWidget(Button.builder(Component.literal("§d⚡"), b -> applyHeldItemFilter())
+                        .bounds(tx + tw + 18, fy, 16, FIELD_H)
+                        .tooltip(Tooltip.create(Component.literal(
+                                "Use the configured filter token held in your hand\n(from the Item/Fluid Filter items) as this task's match rule")))
+                        .build());
+            } else if (hasAnyFluidPicker) {
+                addRenderableWidget(Button.builder(Component.literal("§d⚡"), b -> applyHeldFluidFilter())
+                        .bounds(tx + tw + 18, fy, 16, FIELD_H)
+                        .tooltip(Tooltip.create(Component.literal(
+                                "Use the configured filter token held in your hand\n(from the Item/Fluid Filter items) as this task's match rule")))
                         .build());
             }
             fy += FIELD_H + FIELD_GAP;
@@ -547,6 +582,41 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
+    private boolean applyPickedItemFilter(ItemStack stack) {
+        if (!(stack.getItem() instanceof ItemFilterTokenItem)) return false;
+        IItemFilter filter = ItemFilterTokenItem.getFilter(stack);
+        if (filter == null) return false;
+        taskType = "filter_item";
+        pendingPickedItemFilter = filter;
+        pendingTaskTarget = filter.describe();
+        forcePendingTaskValues = true;
+        rebuildWidgets();
+        return true;
+    }
+
+    private void applyHeldItemFilter() {
+        if (minecraft == null || minecraft.player == null) return;
+        if (applyPickedItemFilter(minecraft.player.getMainHandItem())) return;
+        applyPickedItemFilter(minecraft.player.getOffhandItem());
+    }
+
+    private void applyHeldFluidFilter() {
+        if (minecraft == null || minecraft.player == null) return;
+        ItemStack held = minecraft.player.getMainHandItem();
+        IFluidFilter filter = held.getItem() instanceof FluidFilterTokenItem ?
+                FluidFilterTokenItem.getFilter(held) : null;
+        if (filter == null) {
+            held = minecraft.player.getOffhandItem();
+            filter = held.getItem() instanceof FluidFilterTokenItem ? FluidFilterTokenItem.getFilter(held) : null;
+        }
+        if (filter == null) return;
+        taskType = "filter_fluid";
+        pendingPickedFluidFilter = filter;
+        pendingTaskTarget = filter.describe();
+        forcePendingTaskValues = true;
+        rebuildWidgets();
+    }
+
     private void commitTaskFromForm() {
         String desc = taskDescBox != null ? taskDescBox.getValue().trim() : "";
         String target = taskTargetBox != null ? taskTargetBox.getValue().trim() : "";
@@ -601,33 +671,39 @@ public class TaskRewardEditorScreen extends Screen {
                         taskConsume);
                 case "advancement" -> new AdvancementTask(taskId, descComp, new ResourceLocation(target));
                 case "filter_item" -> {
-                    List<IItemFilter> alts = new ArrayList<>();
-                    for (String part : target.split(";")) {
-                        String id = part.trim();
-                        if (id.isEmpty()) continue;
-                        Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
-                        if (item != null && item != Items.AIR) alts.add(ItemFilters.exact(item));
+                    IItemFilter filter = pendingPickedItemFilter;
+                    if (filter == null) {
+                        List<IItemFilter> alts = new ArrayList<>();
+                        for (String part : target.split(";")) {
+                            String id = part.trim();
+                            if (id.isEmpty()) continue;
+                            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+                            if (item != null && item != Items.AIR) alts.add(ItemFilters.exact(item));
+                        }
+                        if (alts.isEmpty()) yield null;
+                        filter = alts.size() == 1 ? alts.get(0) : ItemFilters.anyOf(alts.toArray(new IItemFilter[0]));
                     }
-                    if (alts.isEmpty()) yield null;
-                    IItemFilter filter = alts.size() == 1 ? alts.get(0) :
-                            ItemFilters.anyOf(alts.toArray(new IItemFilter[0]));
                     FilterItemTask fit = new FilterItemTask(taskId, descComp, filter, count, taskConsume);
                     fit.setCheckAe2Storage(taskCheckAe2Storage);
                     yield fit;
                 }
                 case "filter_fluid" -> {
-                    List<net.phoenixvine.chronicles.filter.IFluidFilter> alts = new ArrayList<>();
-                    for (String part : target.split(";")) {
-                        String id = part.trim();
-                        if (id.isEmpty()) continue;
-                        var fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(id));
-                        if (fluid != null && fluid != net.minecraft.world.level.material.Fluids.EMPTY)
-                            alts.add(net.phoenixvine.chronicles.filter.FluidFilters.exact(new ResourceLocation(id)));
+                    IFluidFilter filter = pendingPickedFluidFilter;
+                    if (filter == null) {
+                        List<IFluidFilter> alts = new ArrayList<>();
+                        for (String part : target.split(";")) {
+                            String id = part.trim();
+                            if (id.isEmpty()) continue;
+                            var fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(id));
+                            if (fluid != null && fluid != net.minecraft.world.level.material.Fluids.EMPTY)
+                                alts.add(net.phoenixvine.chronicles.filter.FluidFilters
+                                        .exact(new ResourceLocation(id)));
+                        }
+                        if (alts.isEmpty()) yield null;
+                        filter = alts.size() == 1 ? alts.get(0) :
+                                net.phoenixvine.chronicles.filter.FluidFilters
+                                        .anyOf(alts.toArray(new IFluidFilter[0]));
                     }
-                    if (alts.isEmpty()) yield null;
-                    net.phoenixvine.chronicles.filter.IFluidFilter filter = alts.size() == 1 ? alts.get(0) :
-                            net.phoenixvine.chronicles.filter.FluidFilters
-                                    .anyOf(alts.toArray(new net.phoenixvine.chronicles.filter.IFluidFilter[0]));
                     FilterFluidTask fft = new FilterFluidTask(taskId, descComp, filter, count, taskConsume);
                     fft.setCheckAe2Storage(taskCheckAe2Storage);
                     yield fft;
@@ -710,6 +786,8 @@ public class TaskRewardEditorScreen extends Screen {
             taskCheckAe2Storage = AE2Compat.isAvailable();
             pendingTaskDesc = pendingTaskTarget = pendingTaskSecondary = pendingTaskNbt = "";
             pendingTaskCount = "1";
+            pendingPickedItemFilter = null;
+            pendingPickedFluidFilter = null;
             forcePendingTaskValues = true;
             rebuildWidgets();
         }
@@ -717,6 +795,8 @@ public class TaskRewardEditorScreen extends Screen {
 
     private void startEditingTask(int idx) {
         if (idx < 0 || idx >= tasks.size()) return;
+        pendingPickedItemFilter = null;
+        pendingPickedFluidFilter = null;
         QuestTask t = tasks.get(idx);
         editingTaskIndex = idx;
         taskType = taskTypeIdFor(t);
@@ -895,6 +975,8 @@ public class TaskRewardEditorScreen extends Screen {
         taskOptional = false;
         taskCheckAe2Storage = AE2Compat.isAvailable();
         pendingTaskDesc = pendingTaskTarget = pendingTaskSecondary = pendingTaskCount = pendingTaskNbt = "";
+        pendingPickedItemFilter = null;
+        pendingPickedFluidFilter = null;
         forcePendingTaskValues = true;
         rebuildWidgets();
     }
@@ -1021,6 +1103,8 @@ public class TaskRewardEditorScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+        if (width != lastLayoutWidth || height != lastLayoutHeight) init();
+
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
         g.fill(0, 0, width, height, C_BG);
 
@@ -1084,6 +1168,7 @@ public class TaskRewardEditorScreen extends Screen {
                 g.fill(MARGIN, ty, splitX - COL_GAP, ty + ROW_H, C_ROW_HOVER);
                 hoveredTaskRow = i;
             }
+            if (draggingTaskIndex == i) drawBorder(g, MARGIN, ty, splitX - COL_GAP - MARGIN, ROW_H, 0xFF55DD55);
 
             g.fill(MARGIN, ty + 2, MARGIN + 2, ty + ROW_H - 2,
                     task.isOptional() ? 0xFF22AA55 : C_ACCENT);
@@ -1133,6 +1218,7 @@ public class TaskRewardEditorScreen extends Screen {
                 g.fill(splitX, ry, width - MARGIN, ry + ROW_H, C_ROW_HOVER);
                 hoveredRewardRow = i;
             }
+            if (draggingRewardIndex == i) drawBorder(g, splitX, ry, width - MARGIN - splitX, ROW_H, 0xFF55DD55);
 
             g.fill(splitX, ry + 2, splitX + 2, ry + ROW_H - 2, C_ACCENT);
             int rewardTextX = splitX + 5;
@@ -1301,6 +1387,8 @@ public class TaskRewardEditorScreen extends Screen {
                         if (ry2 + FIELD_H <= dy || ry2 >= dy + dropH) continue;
                         if (mx >= MARGIN && mx < MARGIN + colW && my >= ry2 && my < ry2 + FIELD_H) {
                             taskType = edTypes.get(i).typeId();
+                            pendingPickedItemFilter = null;
+                            pendingPickedFluidFilter = null;
                             taskTypeDropOpen = false;
                             rebuildWidgets();
                             return true;
@@ -1346,6 +1434,17 @@ public class TaskRewardEditorScreen extends Screen {
                 if (editingRewardIndex >= 0) cancelRewardEdit();
                 return true;
             }
+
+            if (hoveredTaskRow >= 0) {
+                draggingTaskIndex = hoveredTaskRow;
+                dragMovedTask = false;
+                return true;
+            }
+            if (hoveredRewardRow >= 0) {
+                draggingRewardIndex = hoveredRewardRow;
+                dragMovedReward = false;
+                return true;
+            }
         } else if (btn == 1) {
 
             if (hoveredTaskRow >= 0) {
@@ -1360,6 +1459,57 @@ public class TaskRewardEditorScreen extends Screen {
             }
         }
         return super.mouseClicked(mx, my, btn);
+    }
+
+    private int rowIndexAtY(double my, int count) {
+        if (my < listTop) return -1;
+        int idx = (int) ((my - listTop) / ROW_H);
+        return idx >= 0 && idx < count ? idx : -1;
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
+        if (btn == 0 && draggingTaskIndex >= 0) {
+            int target = rowIndexAtY(my, tasks.size());
+            if (target >= 0 && target != draggingTaskIndex) {
+                if (!dragMovedTask) {
+                    pushUndo();
+                    dragMovedTask = true;
+                }
+                Collections.swap(tasks, draggingTaskIndex, target);
+                if (editingTaskIndex == draggingTaskIndex) editingTaskIndex = target;
+                else if (editingTaskIndex == target) editingTaskIndex = draggingTaskIndex;
+                draggingTaskIndex = target;
+            }
+            return true;
+        }
+        if (btn == 0 && draggingRewardIndex >= 0) {
+            int target = rowIndexAtY(my, rewards.size());
+            if (target >= 0 && target != draggingRewardIndex) {
+                if (!dragMovedReward) {
+                    pushUndo();
+                    dragMovedReward = true;
+                }
+                Collections.swap(rewards, draggingRewardIndex, target);
+                if (editingRewardIndex == draggingRewardIndex) editingRewardIndex = target;
+                else if (editingRewardIndex == target) editingRewardIndex = draggingRewardIndex;
+                draggingRewardIndex = target;
+            }
+            return true;
+        }
+        return super.mouseDragged(mx, my, btn, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int btn) {
+        if (btn == 0 && (draggingTaskIndex >= 0 || draggingRewardIndex >= 0)) {
+            draggingTaskIndex = -1;
+            draggingRewardIndex = -1;
+            dragMovedTask = false;
+            dragMovedReward = false;
+            return true;
+        }
+        return super.mouseReleased(mx, my, btn);
     }
 
     @Override

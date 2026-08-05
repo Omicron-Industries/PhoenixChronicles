@@ -26,6 +26,8 @@ public class FtbQuestsImporter {
     private static final float COORD_PADDING = 2.0f;
     private static final Pattern LANG_KEY = Pattern.compile("^\\{([A-Za-z0-9_.-]+)}$");
 
+    private static Map<Long, CompoundTag> ftbRewardTables = Map.of();
+
     public record ImportResult(int imported, int skipped, String category, List<String> warnings) {}
 
     private record QuestLoc(String category, String path) {}
@@ -46,13 +48,14 @@ public class FtbQuestsImporter {
 
     public static ImportResult importDirectory(Path importDir, Path outputDir) {
         Path cleanImportDir = importDir.toAbsolutePath().normalize();
-        System.out.println("[PhoenixCore] Target Import Directory: " + cleanImportDir);
+        System.out.println("[PhoenixChronicles] Target Import Directory: " + cleanImportDir);
 
         if (!Files.exists(cleanImportDir)) {
-            System.err.println("[PhoenixCore] ERROR: Import directory does not physically exist!");
+            System.err.println("[PhoenixChronicles] ERROR: Import directory does not physically exist!");
             return new ImportResult(0, 0, "", List.of("Import dir not found: " + cleanImportDir));
         }
 
+        ftbRewardTables = loadFtbRewardTables(outputDir);
         Map<String, String> langMap = buildLangMap(cleanImportDir);
         List<String> warnings = new ArrayList<>();
         if (!langMap.isEmpty()) warnings.add("Loaded " + langMap.size() + " lang key(s) for translation.");
@@ -65,14 +68,15 @@ public class FtbQuestsImporter {
                     .toList();
         } catch (IOException e) {
             String critError = "Failed to list import dir: " + e.getMessage();
-            System.err.println("[PhoenixCore] CRITICAL: " + critError);
+            System.err.println("[PhoenixChronicles] CRITICAL: " + critError);
             warnings.add(critError);
             return new ImportResult(0, 0, "", warnings);
         }
-        System.out.println("[PhoenixCore] Found " + snbtFiles.size() + " chapter file(s).");
+        System.out.println("[PhoenixChronicles] Found " + snbtFiles.size() + " chapter file(s).");
 
         List<ChapterIndex> chapters = new ArrayList<>();
         Map<String, QuestLoc> globalIndex = new HashMap<>();
+        Map<String, CompoundTag> globalQuestsById = new HashMap<>();
 
         Set<String> globalUsedPaths = new HashSet<>();
 
@@ -92,14 +96,17 @@ public class FtbQuestsImporter {
                 for (LinkStub link : idx.linkStubs()) {
                     globalIndex.put(link.linkFtbId(), new QuestLoc(idx.categorySlug(), link.path()));
                 }
+
+                indexQuestsById(chapter, globalQuestsById);
             } catch (Exception e) {
                 String errorMsg = "Failed to index " + fileName + ": " + e.getMessage();
-                System.err.println("[PhoenixCore] " + errorMsg);
+                System.err.println("[PhoenixChronicles] " + errorMsg);
                 warnings.add(errorMsg);
             }
         }
 
-        autoIncludeChaptersForDanglingDeps(chapters, globalIndex, outputDir, langMap, warnings, globalUsedPaths);
+        autoIncludeChaptersForDanglingDeps(chapters, globalIndex, outputDir, langMap, warnings, globalUsedPaths,
+                globalQuestsById);
 
         chapters.sort(Comparator.comparingInt(
                 idx -> idx.chapter().contains("order_index") ? idx.chapter().getInt("order_index") : 0));
@@ -112,16 +119,17 @@ public class FtbQuestsImporter {
         Map<String, String> langOut = new LinkedHashMap<>();
         for (ChapterIndex idx : chapters) {
             try {
-                ImportResult r = writeChapter(idx, outputDir, globalIndex, localStandIns, langMap, warnings, langOut);
+                ImportResult r = writeChapter(idx, outputDir, globalIndex, localStandIns, langMap, warnings, langOut,
+                        globalQuestsById);
                 totalImported += r.imported();
                 totalSkipped += r.skipped();
                 if (!r.category().isEmpty()) lastCat = r.category();
-                System.out.println("[PhoenixCore] Wrote chapter: " + idx.file().getFileName() + " -> quests/" +
+                System.out.println("[PhoenixChronicles] Wrote chapter: " + idx.file().getFileName() + " -> quests/" +
                         idx.categorySlug().toLowerCase(Locale.ROOT) + " (" + r.imported() + " quests, " + r.skipped() +
                         " skipped)");
             } catch (Exception e) {
                 String errorMsg = "Failed to write " + idx.file().getFileName() + ": " + e.getMessage();
-                System.err.println("[PhoenixCore] " + errorMsg);
+                System.err.println("[PhoenixChronicles] " + errorMsg);
                 warnings.add(errorMsg);
                 totalSkipped++;
             }
@@ -133,7 +141,7 @@ public class FtbQuestsImporter {
         if (!langOut.isEmpty()) warnings.add("Wrote " + langOut.size() + " lang key(s) to lang/en_us.json.");
 
         System.out.println(
-                "[PhoenixCore] Import Finished. Total Imported: " + totalImported + ", Total Skipped: " + totalSkipped);
+                "[PhoenixChronicles] Import Finished. Total Imported: " + totalImported + ", Total Skipped: " + totalSkipped);
         return new ImportResult(totalImported, totalSkipped, lastCat, warnings);
     }
 
@@ -232,7 +240,8 @@ public class FtbQuestsImporter {
     private static void autoIncludeChaptersForDanglingDeps(List<ChapterIndex> chapters,
                                                            Map<String, QuestLoc> globalIndex, Path outputDir,
                                                            Map<String, String> langMap, List<String> warnings,
-                                                           Set<String> globalUsedPaths) {
+                                                           Set<String> globalUsedPaths,
+                                                           Map<String, CompoundTag> globalQuestsById) {
         Map<Path, String> dirLabel = new LinkedHashMap<>();
         Path realChaptersDir = outputDir.resolve("ftbquests").resolve("quests").resolve("chapters");
         if (Files.isDirectory(realChaptersDir)) dirLabel.put(realChaptersDir.toAbsolutePath().normalize(), "");
@@ -308,6 +317,7 @@ public class FtbQuestsImporter {
                 for (LinkStub link : idx.linkStubs()) {
                     globalIndex.put(link.linkFtbId(), new QuestLoc(idx.categorySlug(), link.path()));
                 }
+                indexQuestsById(matchedChapter, globalQuestsById);
                 String sourceLabel = "";
                 for (Map.Entry<Path, String> e : dirLabel.entrySet()) {
                     if (matchedFile.startsWith(e.getKey())) {
@@ -332,6 +342,15 @@ public class FtbQuestsImporter {
         }
     }
 
+    private static void indexQuestsById(CompoundTag chapter, Map<String, CompoundTag> globalQuestsById) {
+        ListTag quests = chapter.getList("quests", Tag.TAG_COMPOUND);
+        for (int i = 0; i < quests.size(); i++) {
+            CompoundTag q = quests.getCompound(i);
+            String id = q.getString("id");
+            if (!id.isEmpty()) globalQuestsById.put(id, q);
+        }
+    }
+
     private static Map<String, Map<String, String>> buildLocalStandIns(List<ChapterIndex> chapters) {
         Map<String, Map<String, String>> standIns = new HashMap<>();
         for (ChapterIndex idx : chapters) {
@@ -343,16 +362,25 @@ public class FtbQuestsImporter {
         return standIns;
     }
 
-    private static QuestLoc resolveDependencyLoc(String depFtbId, String dependingChapterSlug,
+    private static QuestLoc resolveDependencyLoc(String depFtbId, ChapterIndex dependingChapter,
                                                  Map<String, QuestLoc> globalIndex,
                                                  Map<String, Map<String, String>> localStandIns) {
-        QuestLoc real = globalIndex.get(depFtbId);
-        if (real == null) return null;
-        if (real.category().equals(dependingChapterSlug)) return real;
+        String dependingChapterSlug = dependingChapter.categorySlug();
 
-        Map<String, String> standInsForTarget = localStandIns.get(depFtbId);
-        String localPath = standInsForTarget == null ? null : standInsForTarget.get(dependingChapterSlug);
-        return localPath != null ? new QuestLoc(dependingChapterSlug, localPath) : real;
+        String localPath = dependingChapter.idToPath().get(depFtbId);
+        if (localPath != null) return new QuestLoc(dependingChapterSlug, localPath);
+        for (LinkStub link : dependingChapter.linkStubs()) {
+            if (link.linkFtbId().equals(depFtbId)) return new QuestLoc(dependingChapterSlug, link.path());
+        }
+
+        QuestLoc real = globalIndex.get(depFtbId);
+        if (real != null) {
+            if (real.category().equals(dependingChapterSlug)) return real;
+            Map<String, String> standInsForTarget = localStandIns.get(depFtbId);
+            String standInPath = standInsForTarget == null ? null : standInsForTarget.get(dependingChapterSlug);
+            return standInPath != null ? new QuestLoc(dependingChapterSlug, standInPath) : real;
+        }
+        return null;
     }
 
     private static Set<String> collectReferencedIds(CompoundTag chapter) {
@@ -464,7 +492,8 @@ public class FtbQuestsImporter {
     private static ImportResult writeChapter(ChapterIndex idx, Path outputDir, Map<String, QuestLoc> globalIndex,
                                              Map<String, Map<String, String>> localStandIns,
                                              Map<String, String> langMap, List<String> warnings,
-                                             Map<String, String> langOut) throws IOException {
+                                             Map<String, String> langOut,
+                                             Map<String, CompoundTag> globalQuestsById) throws IOException {
         CompoundTag chapter = idx.chapter();
         ListTag quests = chapter.getList("quests", Tag.TAG_COMPOUND);
 
@@ -494,6 +523,7 @@ public class FtbQuestsImporter {
 
         for (LinkStub link : idx.linkStubs()) {
             try {
+
                 QuestLoc target = globalIndex.get(link.linkedFtbId());
                 if (target == null) {
                     warnings.add("Chapter " + idx.file().getFileName() + ": quest link " + link.path() + " points at " +
@@ -501,7 +531,8 @@ public class FtbQuestsImporter {
                     skipped++;
                     continue;
                 }
-                String linkSnbt = convertLinkStub(link, idx, target, globalIndex, localStandIns, warnings);
+                String linkSnbt = convertLinkStub(link, idx, target, globalIndex, localStandIns, warnings,
+                        globalQuestsById);
                 Path outFile = categoryFolder.resolve(link.path() + ".snbt");
                 Files.writeString(outFile, linkSnbt, StandardCharsets.UTF_8);
                 imported++;
@@ -516,7 +547,8 @@ public class FtbQuestsImporter {
 
     private static String convertLinkStub(LinkStub link, ChapterIndex idx, QuestLoc target,
                                           Map<String, QuestLoc> globalIndex,
-                                          Map<String, Map<String, String>> localStandIns, List<String> warnings) {
+                                          Map<String, Map<String, String>> localStandIns, List<String> warnings,
+                                          Map<String, CompoundTag> globalQuestsById) {
         StringBuilder sb = new StringBuilder("{\n");
         append(sb, "id", link.path());
 
@@ -530,11 +562,29 @@ public class FtbQuestsImporter {
         sb.append("    positionY: ").append(py).append(",\n");
         append(sb, "link_target", "phoenix_chronicles:" + target.path());
 
-        if (!link.dependencyFtbIds().isEmpty()) {
+        java.util.LinkedHashSet<String> depIds = new java.util.LinkedHashSet<>(link.dependencyFtbIds());
+        CompoundTag targetTag = globalQuestsById.get(link.linkedFtbId());
+        boolean targetOneCompleted = link.oneCompleted();
+        Integer targetMinRequired = link.minRequiredDependencies();
+        if (targetTag != null) {
+            ListTag targetDeps = targetTag.getList("dependencies", Tag.TAG_STRING);
+            for (int i = 0; i < targetDeps.size(); i++) {
+                String depId = targetDeps.getString(i);
+                if (!depId.isEmpty()) depIds.add(depId);
+            }
+            if (!link.oneCompleted() && link.minRequiredDependencies() == null) {
+                targetOneCompleted = "one_completed".equals(targetTag.getString("dependency_requirement"));
+                targetMinRequired = targetTag.contains("min_required_dependencies") ?
+                        targetTag.getInt("min_required_dependencies") : null;
+            }
+        }
+
+        if (!depIds.isEmpty()) {
             StringBuilder depSb = new StringBuilder();
             int depCount = 0;
-            for (String depFtbId : link.dependencyFtbIds()) {
-                QuestLoc loc = resolveDependencyLoc(depFtbId, idx.categorySlug(), globalIndex, localStandIns);
+            for (String depFtbId : depIds) {
+                if (depFtbId.equals(link.linkedFtbId())) continue;
+                QuestLoc loc = resolveDependencyLoc(depFtbId, idx, globalIndex, localStandIns);
                 if (loc == null) {
                     warnings.add("Quest link " + link.path() + ": dependency " + depFtbId +
                             " was not found in any imported chapter (likely outside this import batch) - dropped.");
@@ -549,10 +599,10 @@ public class FtbQuestsImporter {
             }
         }
 
-        boolean requireAll = !link.oneCompleted() && link.minRequiredDependencies() == null;
+        boolean requireAll = !targetOneCompleted && targetMinRequired == null;
         sb.append("    require_all_prereqs: ").append(requireAll).append(",\n");
-        if (link.minRequiredDependencies() != null) {
-            sb.append("    optional_prereq_min_count: ").append(link.minRequiredDependencies()).append(",\n");
+        if (targetMinRequired != null) {
+            sb.append("    optional_prereq_min_count: ").append(targetMinRequired).append(",\n");
         }
 
         sb.append("}");
@@ -631,7 +681,7 @@ public class FtbQuestsImporter {
             for (int i = 0; i < deps.size(); i++) {
                 String depFtbId = deps.getString(i);
 
-                QuestLoc loc = resolveDependencyLoc(depFtbId, idx.categorySlug(), globalIndex, localStandIns);
+                QuestLoc loc = resolveDependencyLoc(depFtbId, idx, globalIndex, localStandIns);
                 if (loc == null) {
                     warnings.add("Quest " + ftbId + ": dependency " + depFtbId +
                             " was not found in any imported chapter (likely outside this import batch) - dropped.");
@@ -659,6 +709,42 @@ public class FtbQuestsImporter {
             sb.append("    hide_dep_line: true,\n");
         }
 
+        if (q.getBoolean("optional")) {
+            sb.append("    optional: true,\n");
+        }
+
+        if (q.getBoolean("invisible")) {
+            sb.append("    visibility: \"HIDDEN\",\n");
+        } else if (q.getBoolean("hide_until_deps_visible")) {
+            sb.append("    visibility: \"MYSTERY\",\n");
+        }
+
+        ListTag ftbTags = q.getList("tags", Tag.TAG_STRING);
+        if (!ftbTags.isEmpty()) {
+            StringBuilder tagsSb = new StringBuilder("[");
+            for (int i = 0; i < ftbTags.size(); i++) {
+                if (i > 0) tagsSb.append(", ");
+                tagsSb.append('"').append(escape(ftbTags.getString(i))).append('"');
+            }
+            tagsSb.append("]");
+            sb.append("    tags: ").append(tagsSb).append(",\n");
+        }
+
+        if (q.contains("repeat_time")) {
+            long repeatTime = q.getLong("repeat_time");
+            if (repeatTime == 0) {
+                sb.append("    repeat_mode: \"INFINITE\",\n");
+            } else if (repeatTime > 0) {
+                long seconds = repeatTime / 20L;
+                int hours = (int) Math.max(1, seconds / 3600L);
+                sb.append("    repeat_mode: \"COOLDOWN\",\n");
+                sb.append("    repeat_cooldown_hours: ").append(hours).append(",\n");
+            }
+        } else if (q.getBoolean("can_repeat")) {
+
+            sb.append("    repeat_mode: \"INFINITE\",\n");
+        }
+
         ListTag ftbTasks = q.getList("tasks", Tag.TAG_COMPOUND);
         if (!ftbTasks.isEmpty()) {
             sb.append("    tasks: [\n");
@@ -671,11 +757,28 @@ public class FtbQuestsImporter {
 
         ListTag ftbRewards = q.getList("rewards", Tag.TAG_COMPOUND);
         if (!ftbRewards.isEmpty()) {
+
+            boolean singleChoiceGroup = ftbRewards.size() == 1 &&
+                    "choice".equals(ftbRewards.getCompound(0).getString("type"));
             List<String> rewardSnbts = new ArrayList<>();
-            for (int i = 0; i < ftbRewards.size(); i++) {
-                convertReward(ftbRewards.getCompound(i), path, warnings, rewardSnbts);
+            boolean rewardChoice = false;
+            if (singleChoiceGroup) {
+                ChoiceOptions resolved = resolveChoiceOptions(ftbRewards.getCompound(0), path, warnings);
+                if (resolved != null) {
+                    for (int i = 0; i < resolved.options().size(); i++)
+                        convertReward(resolved.options().getCompound(i), path, warnings, rewardSnbts);
+                    rewardChoice = !rewardSnbts.isEmpty();
+                }
+            } else {
+                for (int i = 0; i < ftbRewards.size(); i++) {
+                    convertReward(ftbRewards.getCompound(i), path, warnings, rewardSnbts);
+                }
             }
             if (!rewardSnbts.isEmpty()) {
+                if (rewardChoice) {
+                    sb.append("    reward_choice: true,\n");
+                    sb.append("    reward_choice_count: 1,\n");
+                }
                 sb.append("    rewards: [\n");
                 for (String rewardSnbt : rewardSnbts) sb.append("        ").append(rewardSnbt).append(",\n");
                 sb.append("    ],\n");
@@ -689,7 +792,21 @@ public class FtbQuestsImporter {
     private static String itemBasedFallbackTitle(CompoundTag q, Map<String, String> langMap, List<String> warnings) {
         String itemId = firstTaskItemId(q);
         if (itemId.isEmpty()) return "";
-        return "Obtain " + itemId.substring(itemId.lastIndexOf(':') + 1).replace('_', ' ');
+        return "Obtain " + localizedItemName(itemId, langMap);
+    }
+
+    private static String localizedItemName(String itemId, Map<String, String> langMap) {
+        int colon = itemId.indexOf(':');
+        String namespace = colon > 0 ? itemId.substring(0, colon) : "minecraft";
+        String path = colon > 0 ? itemId.substring(colon + 1) : itemId;
+
+        String itemKey = langMap.get("item." + namespace + "." + path);
+        if (itemKey != null && !itemKey.isBlank()) return itemKey;
+
+        String blockKey = langMap.get("block." + namespace + "." + path);
+        if (blockKey != null && !blockKey.isBlank()) return blockKey;
+
+        return path.replace('_', ' ');
     }
 
     private static String firstTaskItemId(CompoundTag q) {
@@ -765,6 +882,39 @@ public class FtbQuestsImporter {
                 yield "{type: \"dimension\", task_id: \"" + taskId + "\", target: \"" + dimId + "\"" +
                         (optional ? ", optional: true" : "") + ", description: " + componentJsonSnbt(desc) + "}";
             }
+            case "timer" -> {
+                long ftbTicks = t.contains("time") ? t.getLong("time") : 6000L;
+                int durationSeconds = (int) Math.max(1, ftbTicks / 20L);
+                String desc = taskDesc(taskId, rawTaskTitle, "Wait " + durationSeconds + "s", langMap, warnings,
+                        langOut);
+                yield "{type: \"timer\", task_id: \"" + taskId + "\", duration_seconds: " + durationSeconds +
+                        (optional ? ", optional: true" : "") + ", description: " + componentJsonSnbt(desc) + "}";
+            }
+            case "custom" -> {
+
+                ListTag customTags = t.getList("tags", Tag.TAG_STRING);
+                Integer timerMinutes = null;
+                for (int ti = 0; ti < customTags.size(); ti++) {
+                    String tagVal = customTags.getString(ti);
+                    if (tagVal.startsWith("moni_timer_")) {
+                        try {
+                            timerMinutes = Integer.parseInt(tagVal.substring("moni_timer_".length()));
+                        } catch (NumberFormatException ignored) {}
+                        break;
+                    }
+                }
+                if (timerMinutes != null) {
+                    int durationSeconds = Math.max(1, timerMinutes * 60);
+                    String desc = taskDesc(taskId, rawTaskTitle, "Wait " + durationSeconds + "s", langMap, warnings,
+                            langOut);
+                    yield "{type: \"timer\", task_id: \"" + taskId + "\", duration_seconds: " + durationSeconds +
+                            (optional ? ", optional: true" : "") + ", description: " + componentJsonSnbt(desc) + "}";
+                }
+                warnings.add("Task type 'custom' on " + questPath +
+                        " has no PhoenixChronicles equivalent (pack-defined behavior); converted to checkmark.");
+                String desc = taskDesc(taskId, rawTaskTitle, "Complete: " + rawTaskTitle, langMap, warnings, langOut);
+                yield fallbackCheckmark(taskId, desc);
+            }
             case "stat" -> {
                 String statRaw = t.getString("stat");
                 if (statRaw.isEmpty()) yield fallbackCheckmark(taskId, "Unsupported stat task");
@@ -780,7 +930,7 @@ public class FtbQuestsImporter {
             default -> {
 
                 warnings.add("Task type '" + type + "' on " + questPath +
-                        " has no PhoenixCore equivalent; converted to checkmark.");
+                        " has no PhoenixChronicles equivalent; converted to checkmark.");
                 String desc = taskDesc(taskId, rawTaskTitle,
                         "Complete: " + (type.isEmpty() ? "unknown task" : type), langMap, warnings, langOut);
                 yield fallbackCheckmark(taskId, desc);
@@ -823,9 +973,12 @@ public class FtbQuestsImporter {
 
         String itemId = extractItemId(itemTag);
         if (!itemId.isEmpty() && !itemId.equals("minecraft:air")) {
-            String desc = taskDesc(taskId, rawTaskTitle,
-                    itemId.substring(itemId.lastIndexOf(':') + 1).replace('_', ' '), langMap, warnings, langOut);
-            CompoundTag itemNbt = extractItemNbt(itemTag, "Task " + taskId, warnings);
+            String desc = taskDesc(taskId, rawTaskTitle, localizedItemName(itemId, langMap), langMap, warnings,
+                    langOut);
+
+            CompoundTag matchedEntry = findMatchedItemEntry(itemTag, 0);
+            CompoundTag itemNbt = matchedEntry != null ?
+                    extractItemNbt(matchedEntry, "Task " + taskId, warnings) : null;
             return "{type: \"item_check\", task_id: \"" + taskId + "\", item_id: \"" + itemId + "\"" +
                     ", count: " + (count <= 0 ? 1 : count) + ", consume: false" + (optional ? ", optional: true" : "") +
                     (itemNbt != null && !itemNbt.isEmpty() ? ", nbt_filter: " + itemNbt : "") +
@@ -862,8 +1015,50 @@ public class FtbQuestsImporter {
                 ", description: " + componentJsonSnbt(desc) + "}";
     }
 
+    private static Map<Long, CompoundTag> loadFtbRewardTables(Path outputDir) {
+        Map<Long, CompoundTag> result = new HashMap<>();
+        Path configRoot = outputDir.getParent();
+        if (configRoot == null) return result;
+        Path rewardTablesDir = configRoot.resolve("ftbquests").resolve("quests").resolve("reward_tables");
+        if (!Files.isDirectory(rewardTablesDir)) return result;
+        try (var stream = Files.list(rewardTablesDir)) {
+            for (Path file : stream.filter(p -> !Files.isDirectory(p))
+                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".snbt")).toList()) {
+                try {
+                    CompoundTag table = LenientSnbtParser.parse(Files.readString(file, StandardCharsets.UTF_8));
+                    String idHex = table.getString("id");
+                    if (idHex.isEmpty()) continue;
+                    result.put(Long.parseUnsignedLong(idHex, 16), table);
+                } catch (Exception ignored) {}
+            }
+        } catch (IOException ignored) {}
+        return result;
+    }
+
+    private record ChoiceOptions(ListTag options, String sourceLabel) {}
+
+    private static ChoiceOptions resolveChoiceOptions(CompoundTag r, String questPath, List<String> warnings) {
+        ListTag nested = r.getList("rewards", Tag.TAG_COMPOUND);
+        String sourceLabel = "choice reward group";
+        if (nested.isEmpty() && r.contains("table_id")) {
+
+            CompoundTag table = ftbRewardTables.get(r.getLong("table_id"));
+            if (table != null) {
+                nested = table.getList("rewards", Tag.TAG_COMPOUND);
+                sourceLabel = "reward table '" + table.getString("id") + "'";
+            }
+        }
+        if (nested.isEmpty()) {
+            warnings.add("Quest " + questPath + ": choice reward group had no resolvable rewards - dropped.");
+            return null;
+        }
+        return new ChoiceOptions(nested, sourceLabel);
+    }
+
     private static void convertReward(CompoundTag r, String questPath, List<String> warnings, List<String> out) {
         String type = r.getString("type");
+
+        if (type.isEmpty() && r.contains("item")) type = "item";
         switch (type) {
             case "item" -> {
                 String itemId = extractItemId(r.get("item"));
@@ -873,7 +1068,8 @@ public class FtbQuestsImporter {
                     return;
                 }
                 int count = r.contains("count") ? r.getInt("count") : 1;
-                CompoundTag itemNbt = extractItemNbt(r.get("item"), "Quest " + questPath + " item reward", warnings);
+                CompoundTag itemNbt = extractItemNbt(r.get("item"), "Quest " + questPath + " item reward", warnings,
+                        false);
                 out.add("{type: \"item\", item_id: \"" + itemId + "\", count: " + (count <= 0 ? 1 : count) +
                         (itemNbt != null && !itemNbt.isEmpty() ? ", nbt: " + itemNbt : "") + "}");
             }
@@ -916,18 +1112,18 @@ public class FtbQuestsImporter {
                         "(with luck/looting bonuses) the moment each player claims the quest, not fixed at import.");
             }
             case "choice" -> {
+                ChoiceOptions resolved = resolveChoiceOptions(r, questPath, warnings);
+                if (resolved == null) return;
 
-                ListTag nested = r.getList("rewards", Tag.TAG_COMPOUND);
-                if (nested.isEmpty()) {
-                    warnings.add("Quest " + questPath + ": choice reward group had no nested rewards - dropped.");
-                    return;
-                }
-                warnings.add("Quest " + questPath + ": choice reward group has no single-choice equivalent - " +
-                        "all " + nested.size() + " option(s) will be granted instead of picking one.");
-                for (int i = 0; i < nested.size(); i++) convertReward(nested.getCompound(i), questPath, warnings, out);
+                warnings.add("Quest " + questPath + ": " + resolved.sourceLabel() +
+                        " is mixed with other unconditional rewards on this quest, which has no single-choice " +
+                        "equivalent - all " + resolved.options().size() +
+                        " option(s) will be granted instead of picking one.");
+                for (int i = 0; i < resolved.options().size(); i++)
+                    convertReward(resolved.options().getCompound(i), questPath, warnings, out);
             }
             default -> warnings.add(
-                    "Quest " + questPath + ": reward type '" + type + "' has no PhoenixCore equivalent - dropped.");
+                    "Quest " + questPath + ": reward type '" + type + "' has no PhoenixChronicles equivalent - dropped.");
         }
     }
 
@@ -945,11 +1141,18 @@ public class FtbQuestsImporter {
             "damage", "durability", "repaircost", "cooldown", "timer", "ticks");
 
     private static CompoundTag extractItemNbt(Tag tag, String contextLabel, List<String> warnings) {
+        return extractItemNbt(tag, contextLabel, warnings, true);
+    }
+
+    private static CompoundTag extractItemNbt(Tag tag, String contextLabel, List<String> warnings,
+                                              boolean stripVolatile) {
         if (tag == null || tag.getId() != Tag.TAG_COMPOUND) return null;
         CompoundTag ct = (CompoundTag) tag;
         if (!ct.contains("tag", Tag.TAG_COMPOUND)) return null;
         CompoundTag raw = ct.getCompound("tag");
         if (raw.isEmpty()) return null;
+
+        if (!stripVolatile) return raw.copy();
 
         CompoundTag filtered = new CompoundTag();
         List<String> stripped = new ArrayList<>();
@@ -997,6 +1200,31 @@ public class FtbQuestsImporter {
             }
             default -> {
                 return id.isEmpty() ? null : id;
+            }
+        }
+    }
+
+    private static CompoundTag findMatchedItemEntry(Tag tag, int depth) {
+        if (tag == null || depth > 8 || tag.getId() != Tag.TAG_COMPOUND) return null;
+        CompoundTag ct = (CompoundTag) tag;
+        String id = ct.getString("id");
+
+        switch (id) {
+            case "itemfilters:and", "itemfilters:or" -> {
+                if (!ct.contains("tag")) return null;
+                ListTag items = ct.getCompound("tag").getList("items", Tag.TAG_COMPOUND);
+                for (int i = 0; i < items.size(); i++) {
+                    CompoundTag found = findMatchedItemEntry(items.getCompound(i), depth + 1);
+                    if (found != null) return found;
+                }
+                return null;
+            }
+
+            case "itemfilters:tag", "itemfilters:id_regex", "itemfilters:not", "itemfilters:block", "itemfilters:mod", "itemfilters:list" -> {
+                return null;
+            }
+            default -> {
+                return id.isEmpty() ? null : ct;
             }
         }
     }
@@ -1173,9 +1401,40 @@ public class FtbQuestsImporter {
             root = root.getParent();
             if (root == null || !Files.isDirectory(root)) break;
             loadLangJsonsFrom(root, map, true);
+
+            Path modsDir = root.resolve("mods");
+            if (Files.isDirectory(modsDir)) loadLangFromModJars(modsDir, map);
         }
 
         return map;
+    }
+
+    private static void loadLangFromModJars(Path modsDir, Map<String, String> map) {
+        try (Stream<Path> jars = Files.list(modsDir)) {
+            for (Path jar : jars.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar"))
+                    .toList()) {
+                try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(jar.toFile())) {
+                    java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zf.entries();
+                    while (entries.hasMoreElements()) {
+                        java.util.zip.ZipEntry entry = entries.nextElement();
+                        String name = entry.getName();
+                        if (!name.startsWith("assets/") || !name.endsWith("/lang/en_us.json")) continue;
+                        try (java.io.InputStream is = zf.getInputStream(entry)) {
+                            String raw = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                            JsonElement el = JsonParser.parseString(raw);
+                            if (el.isJsonObject()) {
+                                for (Map.Entry<String, JsonElement> e : el.getAsJsonObject().entrySet()) {
+                                    if (e.getValue().isJsonPrimitive() &&
+                                            e.getValue().getAsJsonPrimitive().isString()) {
+                                        map.putIfAbsent(e.getKey(), e.getValue().getAsString());
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                } catch (Exception ignored) {}
+            }
+        } catch (IOException ignored) {}
     }
 
     private static final Set<String> LANG_SCAN_SKIP_DIRS = Set.of(

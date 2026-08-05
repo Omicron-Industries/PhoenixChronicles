@@ -84,12 +84,37 @@ public class QuestNode {
 
     private boolean disabledBlocksChildren = false;
 
+    private boolean optional = false;
+
+    private final Set<String> tags = new LinkedHashSet<>();
+
+    public Set<String> getTags() {
+        return Collections.unmodifiableSet(tags);
+    }
+
+    public void setTags(Collection<String> newTags) {
+        tags.clear();
+        if (newTags != null) tags.addAll(newTags);
+    }
+
+    public void addTag(String tag) {
+        if (tag != null && !tag.isBlank()) tags.add(tag);
+    }
+
     public boolean isHideDepLine() {
         return hideDepLine;
     }
 
     public void setHideDepLine(boolean hide) {
         this.hideDepLine = hide;
+    }
+
+    public boolean isOptional() {
+        return optional;
+    }
+
+    public void setOptional(boolean optional) {
+        this.optional = optional;
     }
 
     private ResourceLocation linkTarget = null;
@@ -262,10 +287,16 @@ public class QuestNode {
         return id;
     }
 
+    private static final int MAX_LINK_CHAIN_DEPTH = 8;
+
     public Component getTitle() {
-        if (isLinkStub() && title.getString().isBlank()) {
+        return getTitle(0);
+    }
+
+    private Component getTitle(int depth) {
+        if (isLinkStub() && title.getString().isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
             QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
-            if (target != null) return target.getTitle();
+            if (target != null && target != this) return target.getTitle(depth + 1);
         }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("title"));
@@ -288,9 +319,13 @@ public class QuestNode {
     }
 
     public Component getDescription() {
-        if (isLinkStub() && description.getString().isBlank()) {
+        return getDescription(0);
+    }
+
+    private Component getDescription(int depth) {
+        if (isLinkStub() && description.getString().isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
             QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
-            if (target != null) return target.getDescription();
+            if (target != null && target != this) return target.getDescription(depth + 1);
         }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("description"));
@@ -449,9 +484,13 @@ public class QuestNode {
     }
 
     public String getSubtitle() {
-        if (isLinkStub() && subtitle.isBlank()) {
+        return getSubtitle(0);
+    }
+
+    private String getSubtitle(int depth) {
+        if (isLinkStub() && subtitle.isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
             QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
-            if (target != null) return target.getSubtitle();
+            if (target != null && target != this) return target.getSubtitle(depth + 1);
         }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("subtitle"));

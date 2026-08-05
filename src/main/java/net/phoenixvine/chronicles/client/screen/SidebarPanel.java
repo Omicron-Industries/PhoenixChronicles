@@ -383,29 +383,64 @@ class SidebarPanel {
                 }
             }
 
-            if (currentCategory != null) {
-                CategoryRegistry.removeChapterFromCategory(currentCategory.id(), chap);
-            }
-            if (destCategoryId != null) {
-                CategoryRegistry.addChapterToCategory(destCategoryId, chap);
-                setFeedback.accept("Moved " + friendly.apply(chap) + " into " + destCategoryId);
-            } else if (currentCategory != null) {
-                setFeedback.accept("Removed " + friendly.apply(chap) + " from " + currentCategory.displayName());
-            } else {
+            boolean sameCategory = currentCategory != null && currentCategory.id().equals(destCategoryId);
 
-                List<String> standalone = new ArrayList<>();
-                for (String c : buildChapterList.get()) {
-                    if (CategoryRegistry.categoryFor(c) == null) {
-                        standalone.add(c);
+            if (sameCategory) {
+                String targetChap = null;
+                if (target != null && !target.isFolder()) {
+                    List<String> catChapters = currentCategory.chapters();
+                    if (my < target.y() + target.height() / 2) {
+                        int targetIdx = catChapters.indexOf(target.id());
+                        if (targetIdx > 0) {
+                            targetChap = catChapters.get(targetIdx - 1);
+                        } else {
+                            targetChap = target.id();
+                        }
+                    } else {
+                        targetChap = target.id();
                     }
                 }
-                List<String> ordered = applyStandaloneOrder(standalone);
-                String targetChap = (target != null && !target.isFolder() &&
-                        CategoryRegistry.categoryFor(target.id()) == null) ? target.id() : null;
                 if (!chap.equals(targetChap)) {
-                    CategoryRegistry.reorderStandaloneChapter(chap, targetChap, ordered);
-                    setFeedback.accept(targetChap != null ? "Reordered " + friendly.apply(chap) :
-                            "Moved " + friendly.apply(chap) + " to end");
+                    CategoryRegistry.reorderCategoryChapter(currentCategory.id(), chap, targetChap);
+                    setFeedback.accept("Reordered " + friendly.apply(chap));
+                }
+            } else {
+                if (currentCategory != null) {
+                    CategoryRegistry.removeChapterFromCategory(currentCategory.id(), chap);
+                }
+                if (destCategoryId != null) {
+                    CategoryRegistry.addChapterToCategory(destCategoryId, chap);
+                    setFeedback.accept("Moved " + friendly.apply(chap) + " into " + destCategoryId);
+                } else if (currentCategory != null) {
+                    setFeedback.accept("Removed " + friendly.apply(chap) + " from " + currentCategory.displayName());
+                } else {
+                    List<String> standalone = new ArrayList<>();
+                    for (String c : buildChapterList.get()) {
+                        if (CategoryRegistry.categoryFor(c) == null) {
+                            standalone.add(c);
+                        }
+                    }
+                    List<String> ordered = applyStandaloneOrder(standalone);
+
+                    String targetChap = null;
+                    if (target != null && !target.isFolder() && CategoryRegistry.categoryFor(target.id()) == null) {
+                        if (my < target.y() + target.height() / 2) {
+                            int targetIdx = ordered.indexOf(target.id());
+                            if (targetIdx > 0) {
+                                targetChap = ordered.get(targetIdx - 1);
+                            } else {
+                                targetChap = target.id();
+                            }
+                        } else {
+                            targetChap = target.id();
+                        }
+                    }
+
+                    if (!chap.equals(targetChap)) {
+                        CategoryRegistry.reorderStandaloneChapter(chap, targetChap, ordered);
+                        setFeedback.accept(targetChap != null ? "Reordered " + friendly.apply(chap) :
+                                "Moved " + friendly.apply(chap) + " to end");
+                    }
                 }
             }
             CategoryRegistry.save();

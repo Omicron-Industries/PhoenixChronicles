@@ -5,10 +5,12 @@ import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
+import net.phoenixvine.chronicles.network.packet.C2SClaimAllRewardsPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.network.packet.C2SCompleteCheckmarkTaskPacket;
 import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
 import net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket;
+import net.phoenixvine.chronicles.network.packet.C2SSetFilterTokenPacket;
 import net.phoenixvine.chronicles.network.packet.C2SSetQuestStatePacket;
 import net.phoenixvine.chronicles.network.packet.C2STogglePinPacket;
 import net.phoenixvine.chronicles.network.packet.S2COpenExternalScreenPacket;
@@ -108,5 +110,19 @@ public class ChronicleNetwork {
                 S2COpenExternalScreenPacket::new,
                 S2COpenExternalScreenPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+
+        CHANNEL.registerMessage(id++,
+                C2SClaimAllRewardsPacket.class,
+                C2SClaimAllRewardsPacket::encode,
+                C2SClaimAllRewardsPacket::new,
+                C2SClaimAllRewardsPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                C2SSetFilterTokenPacket.class,
+                C2SSetFilterTokenPacket::encode,
+                C2SSetFilterTokenPacket::new,
+                C2SSetFilterTokenPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

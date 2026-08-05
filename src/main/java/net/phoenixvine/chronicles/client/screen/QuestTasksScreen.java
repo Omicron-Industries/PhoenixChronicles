@@ -333,7 +333,7 @@ public class QuestTasksScreen extends Screen {
         int cy = cardY;
 
         g.fill(cardX, cy, cardX + cardW(), cy + compactHeaderH, C_HEADER);
-        String title = node.getTitle().getString();
+        String title = (node.isOptional() ? "§d[Optional] §f" : "") + node.getTitle().getString();
         if (font.width(title.replaceAll("§.", "")) > cardW() - 50)
             title = font.plainSubstrByWidth(title, cardW() - 56) + "…";
         g.drawString(font, "§f" + title, cardX + CARD_PAD, cy + 6, C_TEXT, false);
@@ -677,7 +677,7 @@ public class QuestTasksScreen extends Screen {
         float headerTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
 
         float titleAvailPreScale = titleMaxW / headerTextScale;
-        String titleStr = node.getTitle().getString();
+        String titleStr = (node.isOptional() ? "§d[Optional] §f" : "") + node.getTitle().getString();
         if (font.width(titleStr.replaceAll("§.", "")) > titleAvailPreScale)
             titleStr = font.plainSubstrByWidth(titleStr, (int) (titleAvailPreScale - 6)) + "…";
         ChroniclesUIKit.drawScaledString(g, font, "§f" + titleStr, 28, 10, C_TEXT, headerTextScale);
@@ -1923,6 +1923,8 @@ public class QuestTasksScreen extends Screen {
         return true;
     }
 
+    private boolean toggleViewKeyDown = false;
+
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
         if (key == 256) {
@@ -1934,10 +1936,21 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
         if (net.phoenixvine.chronicles.client.ChronicleKeyBindings.TOGGLE_QUEST_VIEW.matches(key, scan)) {
-            isFullscreen = !isFullscreen;
+            if (!toggleViewKeyDown) {
+                isFullscreen = !isFullscreen;
+                toggleViewKeyDown = true;
+            }
             return true;
         }
         return super.keyPressed(key, scan, mods);
+    }
+
+    @Override
+    public boolean keyReleased(int key, int scan, int mods) {
+        if (net.phoenixvine.chronicles.client.ChronicleKeyBindings.TOGGLE_QUEST_VIEW.matches(key, scan)) {
+            toggleViewKeyDown = false;
+        }
+        return super.keyReleased(key, scan, mods);
     }
 
     @Override

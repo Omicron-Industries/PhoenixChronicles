@@ -1,0 +1,261 @@
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Native memory allocation (mmap) failed to map 232783872 bytes. Error detail: G1 virtual space
+# Possible reasons:
+#   The system is out of physical RAM or swap space
+#   This process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap
+# Possible solutions:
+#   Reduce memory load on the system
+#   Increase physical memory or swap space
+#   Check if swap backing store is full
+#   Decrease Java heap size (-Xmx/-Xms)
+#   Decrease number of Java threads
+#   Decrease Java thread stack sizes (-Xss)
+#   Set larger code cache with -XX:ReservedCodeCacheSize=
+#   JVM is running with Zero Based Compressed Oops mode in which the Java heap is
+#     placed in the first 32GB address space. The Java Heap base address is the
+#     maximum limit for the native heap growth. Please use -XX:HeapBaseMinAddress
+#     to set the Java Heap base and to place the Java Heap above 32GB virtual address.
+# This output file may be truncated or incomplete.
+#
+#  Out of Memory Error (os_windows.cpp:3925), pid=17796, tid=38780
+#
+# JRE version:  (21.0.9+1) (build )
+# Java VM: OpenJDK 64-Bit Server VM (21.0.9+1-b1163.94, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, windows-amd64)
+# No core dump will be written. Minidumps are not enabled by default on client versions of Windows
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: -Dstderr.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dfile.encoding=UTF-8 -Duser.country=US -Duser.language=en -Duser.variant C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.neoforged\AutoRenamingTool\2.0.4\12da27cc4caf32e429af9a91f79e1f66a965e667\AutoRenamingTool-2.0.4-all.jar --input C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\devlibs\phoenix_chronicles-0.1.0.jar --output C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\libs\phoenix_chronicles-0.1.0.jar --names C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\moddev\artifacts\namedToIntermediate.tsrg --lib C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\moddev\artifacts\forge-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.jetbrains\annotations\26.0.1\c7ce3cdeda3d18909368dfe5977332dfad326c6d\annotations-26.0.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.projectlombok\lombok\1.18.24\13a394eed5c4f9efb2a6d956e2086f1d81e857d9\lombok-1.18.24.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\8be499b28b2ddc603505728d2e40687d\transformed\jei-1.20.1-forge-api-15.20.0.115.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\2588a70512077f10ccf5dbcc0f019f80\transformed\jei-1.20.1-common-api-15.20.0.115.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\71a4ff84c1a81ea0297c65f126192ffa\transformed\emi-forge-1.1.13+1.20.1.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\5877a57822388f8a22626f0b972f235c\transformed\phantasia-1589286-8421625.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\f6f59e3a80dc0ea7d94839320d578dcc\transformed\ftb-library-forge-2001.2.4.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\6e13e4e72e28d1be6c09f80736d3156f\transformed\ftb-teams-forge-2001.3.0.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\d9d6f4e2ad9efd45259751ee3c5ad927\transformed\kubejs-forge-2001.6.5-build.16.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\2a505803c92bef80e168abfd0aa5ce60\transformed\rhino-forge-2001.2.3-build.6.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\3b4a4bedfce382b37de4bbe9d738bfd9\transformed\appliedenergistics2-forge-15.0.18.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\101c6709694f66015c602c7ae9f1690b\transformed\phoenix-guilds-1612085-8460956.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\6d7522e22a53e4c9566270766539e073\transformed\PhoenixCore-0.1.0-slim.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\9171bd987e8c8335d3f85ab612433967\transformed\gtceu-1.20.1-7.5.3-slim.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\7fe9b690223004071f563816bab78bf7\transformed\ldlib-forge-1.20.1-1.0.40.b.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\08a418d38ec64b0b868551ab75f6b7b9\transformed\Registrate-MC1.20-1.3.11.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\9c39b859755aede9b856b0344731e5d0\transformed\configuration-forge-1.20.1-2.2.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\cpw.mods\securejarhandler\2.1.10\51e6a22c6c716beb11e244bf5b8be480f51dd6b5\securejarhandler-2.1.10.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\fmlloader\1.20.1-47.4.0\350292a3c597f65d130e48b6e419a2b21cba2ac1\fmlloader-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\coremods\5.2.4\e30bab269d896613e38396274711410b3a0e4b87\coremods-5.2.4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\cpw.mods\modlauncher\10.0.9\6d9443f56f50bb85cea383686ff9c867391458b\modlauncher-10.0.9.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.openjdk.nashorn\nashorn-core\15.4\f67f5ffaa5f5130cf6fb9b133da00c7df3b532a5\nashorn-core-15.4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.ow2.asm\asm-commons\9.7.1\406c6a2225cfe1819f102a161e54cc16a5c24f75\asm-commons-9.7.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.ow2.asm\asm-util\9.7.1\9e23359b598ec6b74b23e53110dd5c577adf2243\asm-util-9.7.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.ow2.asm\asm-analysis\9.7.1\f97a3b319f0ed6a8cd944dc79060d3912a28985f\asm-analysis-9.7.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.ow2.asm\asm-tree\9.7.1\3a53139787663b139de76b627fca0084ab60d32c\asm-tree-9.7.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.ow2.asm\asm\9.7.1\f0ed132a49244b042cd0e15702ab9f2ce3cc8436\asm-9.7.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\accesstransformers\8.0.4\272d240aa73f42195b2a68e2ebd8b701ecf41f63\accesstransformers-8.0.4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.antlr\antlr4\4.9.1\e92af8ab33e428461927b484e90bb155a4f3a052\antlr4-4.9.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.antlr\antlr4-runtime\4.9.1\428664f05d2b7f7b7610204b5aa7c1763f62011a\antlr4-runtime-4.9.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\fmlcore\1.20.1-47.4.0\235975dafa4309945b59c56b53f31dc5b65a6051\fmlcore-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\eventbus\6.0.5\699143dd438431d06b57416944f7cedbe52e1475\eventbus-6.0.5.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\forgespi\7.0.1\3b4972a0cdb135853dba219be61a79b22cff1309\forgespi-7.0.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\unsafe\0.2.0\54d7a0a5e8fdb71b973025caa46f341ae5904f39\unsafe-0.2.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\mergetool\1.1.5\e31dad26696043b540681aabc93e2001a1a2cd44\mergetool-1.1.5.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\mergetool\1.1.5\f3da18e12c696d35a47c82cbb2cc8b5aa15e1154\mergetool-1.1.5-api.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.electronwill.night-config\toml\3.6.4\51d6cefb2b55ee55ee26b16391212fb2c7dfb4f4\toml-3.6.4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.electronwill.night-config\core\3.6.4\510f174abbf1c947494db50ef2445683bd52c230\core-3.6.4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\JarJarSelector\0.3.19\376cc9c8ea60720cf027c01fc033de915699801c\JarJarSelector-0.3.19.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\JarJarMetadata\0.3.19\83feaa9b770e6ac0e96ee4fc23fa89325c5fe2\JarJarMetadata-0.3.19.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.maven\maven-artifact\3.8.5\4433f50c07debefaed0553bd0068f4f48d449313\maven-artifact-3.8.5.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.jodah\typetools\0.6.3\a01aaa6ddaea9ec07ec4f209487b7a46a526283a\typetools-0.6.3.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecrell\terminalconsoleappender\1.2.0\96d02cd3b384ff015a8fef4223bcb4ccf1717c95\terminalconsoleappender-1.2.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.jline\jline-reader\3.12.1\4382ab1382c7b6f379377ed5f665dc2f6e1218bc\jline-reader-3.12.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.jline\jline-terminal\3.12.1\c777448314e050d980a6b697c140f3bfe9eb7416\jline-terminal-3.12.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.spongepowered\mixin\0.8.5\9d1c0c3a304ae6697ecd477218fa61b850bf57fc\mixin-0.8.5.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\cpw.mods\bootstraplauncher\1.1.2\c546e00443d8432cda6baa1c860346980742628\bootstraplauncher-1.1.2.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\JarJarFileSystems\0.3.19\2464eb7d6b9ddb9db36a82cf8a95193e5c6fe020\JarJarFileSystems-0.3.19.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\fmlearlydisplay\1.20.1-47.4.0\5a0c2d1a65a422bd0e64548e58b70f4d011ef788\fmlearlydisplay-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\javafmllanguage\1.20.1-47.4.0\f0c0b352173d0a378cbdcec9cfc4ba65899a721\javafmllanguage-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\lowcodelanguage\1.20.1-47.4.0\e862740d8c84d08dbfedea412bef88fe42e727c5\lowcodelanguage-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.minecraftforge\mclanguage\1.20.1-47.4.0\5719b3a297a33f877ed5dde4cb4bd75c859096af\mclanguage-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\resources-2.1\38\c7d29380ddb38becad7c0819b5b325e43bca23f0\mcp_config-1.20.1.zip --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.codehaus.plexus\plexus-utils\3.3.0\cf43b5391de623b36fe066a21127baef82c64022\plexus-utils-3.3.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.commons\commons-lang3\3.12.0\c6842c86792ff03b9f1d1fe2aab8dc23aa6c6f0e\commons-lang3-3.12.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.logging.log4j\log4j-core\2.8.1\4ac28ff2f1ddf05dae3043a190451e8c46b73c31\log4j-core-2.8.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.google.code.gson\gson\2.10\dd9b193aef96e973d5a11ab13cd17430c2e4306b\gson-2.10.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.google.guava\guava\31.1-jre\60458f877d055d0c9114d9e1a2efb737b4bc282c\guava-31.1-jre.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.machinezoo.noexception\noexception\1.7.1\b65330c98e38a1f915fa54a6e5eca496505e3f0a\noexception-1.7.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.slf4j\slf4j-api\1.8.0-beta4\83b0359d847ee053d745be7ec0d8e9e8a44304b4\slf4j-api-1.8.0-beta4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.logging.log4j\log4j-api\2.19.0\ea1b37f38c327596b216542bc636cfdc0b8036fa\log4j-api-2.19.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.mojang\logging\1.1.1\832b8e6674a9b325a5175a3a6267dfaf34c85139\logging-1.1.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.github.oshi\oshi-core\6.2.2\54f5efc19bca95d709d9a37d19ffcbba3d21c1a6\oshi-core-6.2.2.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.google.guava\failureaccess\1.0.1\1dcf1de382a0bf95a3d8b0849546c88bac1292c9\failureaccess-1.0.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.ibm.icu\icu4j\61.1\28d33b5e44e72edcc66a5da7a34a42147f38d987\icu4j-61.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.mojang\authlib\4.0.43\2ff9d747a77570a07a60d32ac77eb6162ad2a2d9\authlib-4.0.43.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.mojang\blocklist\1.0.10\5c685c5ffa94c4cd39496c7184c1d122e515ecef\blocklist-1.0.10.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.mojang\brigadier\1.1.8\5244ce82c3337bba4a196a3ce858bfaecc74404a\brigadier-1.1.8.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.mojang\datafixerupper\6.0.8\3ba4a30557a9b057760af4011f909ba619fc5125\datafixerupper-6.0.8.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.mojang\patchy\2.2.10\da05971b07cbb379d002cf7eaec6a2048211fefc\patchy-2.2.10.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.mojang\text2speech\1.17.9\3cad216e3a7f0c19b4b394388bc9ffc446f13b14\text2speech-1.17.9.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\commons-codec\commons-codec\1.15\49d94806b6e3dc933dacbd8acb0fdbab8ebd1e5d\commons-codec-1.15.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\commons-io\commons-io\2.11.0\a2503f302b11ebde7ebc3df41daebe0e4eea3689\commons-io-2.11.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\commons-logging\commons-logging\1.2\4bfc12adfe4842bf07b657f0369c4cb522955686\commons-logging-1.2.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-buffer\4.1.82.Final\a544270cf1ae8b8077082f5036436a9a9971ea71\netty-buffer-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-codec\4.1.82.Final\b77200379acb345a9ffdece1c605e591ac3e4e0a\netty-codec-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-common\4.1.82.Final\22d148e85c3f5ebdacc0ce1f5aabb1d420f73f3\netty-common-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-handler\4.1.82.Final\644041d1fa96a5d3130a29e8978630d716d76e38\netty-handler-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-resolver\4.1.82.Final\38f665ae8dcd29032eea31245ba7806bed2e0fa8\netty-resolver-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-transport-classes-epoll\4.1.82.Final\e7c7dd18deac93105797f30057c912651ea76521\netty-transport-classes-epoll-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-transport-native-unix-common\4.1.82.Final\3e895b35ca1b8a0eca56cacff4c2dde5d2c6abce\netty-transport-native-unix-common-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\io.netty\netty-transport\4.1.82.Final\e431a218d91acb6476ccad5f5aafde50aa3945ca\netty-transport-4.1.82.Final.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\it.unimi.dsi\fastutil\8.5.9\bb7ea75ecdb216654237830b3a96d87ad91f8cc5\fastutil-8.5.9.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.java.dev.jna\jna-platform\5.12.1\97406a297c852f4a41e688a176ec675f72e8329\jna-platform-5.12.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.java.dev.jna\jna\5.12.1\b1e93a735caea94f503e95e6fe79bf9cdc1e985d\jna-5.12.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.sf.jopt-simple\jopt-simple\5.0.4\4fdac2fbe92dfad86aa6e9301736f6b4342a3f5c\jopt-simple-5.0.4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.commons\commons-compress\1.21\4ec95b60d4e86b5c95a0e919cb172a0af98011ef\commons-compress-1.21.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.httpcomponents\httpclient\4.5.13\e5f6cae5ca7ecaac1ec2827a9e2d65ae2869cada\httpclient-4.5.13.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.httpcomponents\httpcore\4.4.15\7f2e0c573eaa7a74bac2e89b359e1f73d92a0a1d\httpcore-4.4.15.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.apache.logging.log4j\log4j-slf4j2-impl\2.19.0\5c04bfdd63ce9dceb2e284b81e96b6a70010ee10\log4j-slf4j2-impl-2.19.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.joml\joml\1.10.5\22566d58af70ad3d72308bab63b8339906deb649\joml-1.10.5.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.lwjgl\lwjgl-glfw\3.3.1\cbac1b8d30cb4795149c1ef540f912671a8616d0\lwjgl-glfw-3.3.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.lwjgl\lwjgl-jemalloc\3.3.1\a817bcf213db49f710603677457567c37d53e103\lwjgl-jemalloc-3.3.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.lwjgl\lwjgl-openal\3.3.1\2623a6b8ae1dfcd880738656a9f0243d2e6840bd\lwjgl-openal-3.3.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.lwjgl\lwjgl-opengl\3.3.1\831a5533a21a5f4f81bbc51bb13e9899319b5411\lwjgl-opengl-3.3.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.lwjgl\lwjgl-stb\3.3.1\b119297cf8ed01f247abe8685857f8e7fcf5980f\lwjgl-stb-3.3.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.lwjgl\lwjgl-tinyfd\3.3.1\ff1914111ef2e3e0110ef2dabc8d8cdaad82347\lwjgl-tinyfd-3.3.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.lwjgl\lwjgl\3.3.1\ae58664f88e18a9bb2c77b063833ca7aaec484cb\lwjgl-3.3.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\ca.weblite\java-objc-bridge\1.1\1227f9e0666314f9de41477e3ec277e542ed7f7b\java-objc-bridge-1.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.antlr\ST4\4.3\92f2c1ad8d84abcbeead6cf7f2c53a04166293c2\ST4-4.3.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.antlr\antlr-runtime\3.5.2\cd9cd41361c155f3af0f653009dcecb08d8b4afd\antlr-runtime-3.5.2.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.abego.treelayout\org.abego.treelayout.core\1.0.3\457216e8e6578099ae63667bb1e4439235892028\org.abego.treelayout.core-1.0.3.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.glassfish\javax.json\1.0.4\3178f73569fd7a1e5ffc464e680f7a8cc784b85a\javax.json-1.0.4.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.google.guava\listenablefuture\9999.0-empty-to-avoid-conflict-with-guava\b421526c5f297295adef1c886e5246c39d4ac629\listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.google.code.findbugs\jsr305\3.0.2\25ea2e8b0c338a877313bd4672d3fe056ea78f0d\jsr305-3.0.2.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.checkerframework\checker-qual\3.12.0\d5692f0526415fcc6de94bb5bfbd3afd9dd3b3e5\checker-qual-3.12.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.google.errorprone\error_prone_annotations\2.11.0\c5a0ace696d3f8b1c1d8cc036d8c03cc0cbe6b69\error_prone_annotations-2.11.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\com.google.j2objc\j2objc-annotations\1.3\ba035118bc8bac37d7eff77700720999acd9986d\j2objc-annotations-1.3.jar --disable-abstract-param --strip-sigs
+
+Host: AMD Ryzen 5 7530U with Radeon Graphics         , 12 cores, 13G,  Windows 11 , 64 bit Build 26100 (10.0.26100.8875)
+Time: Thu Jul 30 10:43:38 2026 US Eastern Daylight Time elapsed time: 1.134675 seconds (0d 0h 0m 1s)
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x000001de8622ffd0):  JavaThread "Unknown thread" [_thread_in_vm, id=38780, stack(0x000000dc0f800000,0x000000dc0f900000) (1024K)]
+
+Stack: [0x000000dc0f800000,0x000000dc0f900000]
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+V  [jvm.dll+0x6ec339]
+V  [jvm.dll+0x8cc463]
+V  [jvm.dll+0x8cea8e]
+V  [jvm.dll+0x8cf173]
+V  [jvm.dll+0x28b006]
+V  [jvm.dll+0x6e8b15]
+V  [jvm.dll+0x6dc1aa]
+V  [jvm.dll+0x366a7b]
+V  [jvm.dll+0x36e666]
+V  [jvm.dll+0x3c0bd6]
+V  [jvm.dll+0x3c0ea8]
+V  [jvm.dll+0x33922c]
+V  [jvm.dll+0x339f1b]
+V  [jvm.dll+0x893b29]
+V  [jvm.dll+0x3cdda8]
+V  [jvm.dll+0x87ca68]
+V  [jvm.dll+0x462a4e]
+V  [jvm.dll+0x464731]
+C  [jli.dll+0x52ab]
+C  [ucrtbase.dll+0x2cd30]
+C  [KERNEL32.DLL+0x2e957]
+C  [ntdll.dll+0xaad6c]
+
+
+---------------  P R O C E S S  ---------------
+
+Threads class SMR info:
+_java_thread_list=0x00007ffd563452c8, length=0, elements={
+}
+
+Java Threads: ( => current thread )
+Total: 0
+
+Other Threads:
+  0x000001de8628d220 WorkerThread "GC Thread#0"                     [id=36728, stack(0x000000dc0f900000,0x000000dc0fa00000) (1024K)]
+  0x000001de8629c6e0 ConcurrentGCThread "G1 Main Marker"            [id=12772, stack(0x000000dc0fa00000,0x000000dc0fb00000) (1024K)]
+  0x000001de8629d0f0 WorkerThread "G1 Conc#0"                       [id=31564, stack(0x000000dc0fb00000,0x000000dc0fc00000) (1024K)]
+
+[error occurred during error reporting (printing all threads), id 0xc0000005, EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007ffd55a2c287]
+VM state: not at safepoint (not fully initialized)
+
+VM Mutex/Monitor currently owned by a thread:  ([mutex/lock_event])
+[0x00007ffd563b9e30] Heap_lock - owner thread: 0x000001de8622ffd0
+
+Heap address: 0x0000000722400000, size: 3548 MB, Compressed Oops mode: Zero based, Oop shift amount: 3
+
+CDS archive(s) mapped at: [0x0000000000000000-0x0000000000000000-0x0000000000000000), size 0, SharedBaseAddress: 0x0000000800000000, ArchiveRelocationMode: 1.
+Narrow klass base: 0x0000000000000000, Narrow klass shift: 0, Narrow klass range: 0x0
+
+GC Precious Log:
+ CardTable entry size: 512
+ Card Set container configuration: InlinePtr #cards 4 size 8 Array Of Cards #cards 16 size 48 Howl #buckets 8 coarsen threshold 3686 Howl Bitmap #cards 512 size 80 coarsen threshold 460 Card regions per heap region 1 cards per card region 4096
+
+Heap:
+ garbage-first heap   total 0K, used 0K [0x0000000722400000, 0x0000000800000000)
+  region size 2048K, 0 young (0K), 0 survivors (0K)
+ Metaspace       used 0K, committed 0K, reserved 0K
+  class space    used 0K, committed 0K, reserved 0K
+
+Heap Regions: E=young(eden), S=young(survivor), O=old, HS=humongous(starts), HC=humongous(continues), CS=collection set, F=free, TAMS=top-at-mark-start, PB=parsable bottom
+
+Card table byte_map: [0x000001de99ea0000,0x000001de9a590000] _byte_map_base: 0x000001de9658e000
+
+Marking Bits: (CMBitMap*) 0x000001de8628e040
+ Bits: [0x000001de9a590000, 0x000001de9dd00000)
+
+GC Heap History (0 events):
+No events
+
+Dll operation events (1 events):
+Event: 0.021 Loaded shared library C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\java.dll
+
+Deoptimization events (0 events):
+No events
+
+Classes loaded (0 events):
+No events
+
+Classes unloaded (0 events):
+No events
+
+Classes redefined (0 events):
+No events
+
+Internal exceptions (0 events):
+No events
+
+ZGC Phase Switch (0 events):
+No events
+
+VM Operations (0 events):
+No events
+
+Memory protections (0 events):
+No events
+
+Nmethod flushes (0 events):
+No events
+
+Events (0 events):
+No events
+
+
+Dynamic libraries:
+0x00007ff764380000 - 0x00007ff76438a000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\java.exe
+0x00007ffe22e80000 - 0x00007ffe230e6000 	C:\WINDOWS\SYSTEM32\ntdll.dll
+0x00007ffe213d0000 - 0x00007ffe21499000 	C:\WINDOWS\System32\KERNEL32.DLL
+0x00007ffe20220000 - 0x00007ffe2061e000 	C:\WINDOWS\System32\KERNELBASE.dll
+0x00007ffe20a50000 - 0x00007ffe20b9c000 	C:\WINDOWS\System32\ucrtbase.dll
+0x00007ffdbc900000 - 0x00007ffdbc918000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\jli.dll
+0x00007ffe21200000 - 0x00007ffe213c7000 	C:\WINDOWS\System32\USER32.dll
+0x00007ffe20810000 - 0x00007ffe20837000 	C:\WINDOWS\System32\win32u.dll
+0x00007ffe22bf0000 - 0x00007ffe22c1b000 	C:\WINDOWS\System32\GDI32.dll
+0x00007ffe206e0000 - 0x00007ffe2080a000 	C:\WINDOWS\System32\gdi32full.dll
+0x00007ffe20630000 - 0x00007ffe206d3000 	C:\WINDOWS\System32\msvcp_win.dll
+0x00007ffe1c2f0000 - 0x00007ffe1c30b000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\VCRUNTIME140.dll
+0x00007ffe09480000 - 0x00007ffe09712000 	C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.8875_none_3e0d5d42e32fe9dd\COMCTL32.dll
+0x00007ffe20e70000 - 0x00007ffe20f19000 	C:\WINDOWS\System32\msvcrt.dll
+0x00007ffe22690000 - 0x00007ffe226c2000 	C:\WINDOWS\System32\IMM32.DLL
+0x00007ffe1c2e0000 - 0x00007ffe1c2ec000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\vcruntime140_1.dll
+0x00007ffdae660000 - 0x00007ffdae6ed000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\msvcp140.dll
+0x00007ffd556e0000 - 0x00007ffd564ad000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\server\jvm.dll
+0x00007ffe22d80000 - 0x00007ffe22e37000 	C:\WINDOWS\System32\ADVAPI32.dll
+0x00007ffe20f20000 - 0x00007ffe20fca000 	C:\WINDOWS\System32\sechost.dll
+0x00007ffe20bf0000 - 0x00007ffe20d08000 	C:\WINDOWS\System32\RPCRT4.dll
+0x00007ffe22c20000 - 0x00007ffe22ca0000 	C:\WINDOWS\System32\WS2_32.dll
+0x00007ffe1ff00000 - 0x00007ffe1ff5e000 	C:\WINDOWS\SYSTEM32\POWRPROF.dll
+0x00007ffe1bfd0000 - 0x00007ffe1c006000 	C:\WINDOWS\SYSTEM32\WINMM.dll
+0x00007ffe160c0000 - 0x00007ffe160cb000 	C:\WINDOWS\SYSTEM32\VERSION.dll
+0x00007ffe1fee0000 - 0x00007ffe1fef4000 	C:\WINDOWS\SYSTEM32\UMPDC.dll
+0x00007ffe1ed80000 - 0x00007ffe1ed9b000 	C:\WINDOWS\SYSTEM32\kernel.appcore.dll
+0x00007ffe1c2d0000 - 0x00007ffe1c2da000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\jimage.dll
+0x00007ffe1d4a0000 - 0x00007ffe1d6e2000 	C:\WINDOWS\SYSTEM32\DBGHELP.DLL
+0x00007ffe22200000 - 0x00007ffe22583000 	C:\WINDOWS\System32\combase.dll
+0x00007ffe22590000 - 0x00007ffe22669000 	C:\WINDOWS\System32\OLEAUT32.dll
+0x00007ffe1bf90000 - 0x00007ffe1bfcb000 	C:\WINDOWS\SYSTEM32\dbgcore.DLL
+0x00007ffe208d0000 - 0x00007ffe2097c000 	C:\WINDOWS\System32\bcryptPrimitives.dll
+0x00007ffe1c2b0000 - 0x00007ffe1c2d0000 	C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\java.dll
+
+JVMTI agents: none
+
+dbghelp: loaded successfully - version: 4.0.5 - missing functions: none
+symbol engine: initialized successfully - sym options: 0x614 - pdb path: .;C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin;C:\WINDOWS\SYSTEM32;C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.8875_none_3e0d5d42e32fe9dd;C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\jbr\bin\server
+
+VM Arguments:
+jvm_args: -Dstderr.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dfile.encoding=UTF-8 -Duser.country=US -Duser.language=en -Duser.variant 
+java_command: C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.neoforged\AutoRenamingTool\2.0.4\12da27cc4caf32e429af9a91f79e1f66a965e667\AutoRenamingTool-2.0.4-all.jar --input C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\devlibs\phoenix_chronicles-0.1.0.jar --output C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\libs\phoenix_chronicles-0.1.0.jar --names C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\moddev\artifacts\namedToIntermediate.tsrg --lib C:\Users\conno\Desktop\PFT Core\PhoenixChronicles\build\moddev\artifacts\forge-1.20.1-47.4.0.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.jetbrains\annotations\26.0.1\c7ce3cdeda3d18909368dfe5977332dfad326c6d\annotations-26.0.1.jar --lib C:\Users\conno\.gradle\caches\modules-2\files-2.1\org.projectlombok\lombok\1.18.24\13a394eed5c4f9efb2a6d956e2086f1d81e857d9\lombok-1.18.24.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\8be499b28b2ddc603505728d2e40687d\transformed\jei-1.20.1-forge-api-15.20.0.115.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\2588a70512077f10ccf5dbcc0f019f80\transformed\jei-1.20.1-common-api-15.20.0.115.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\71a4ff84c1a81ea0297c65f126192ffa\transformed\emi-forge-1.1.13+1.20.1.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\5877a57822388f8a22626f0b972f235c\transformed\phantasia-1589286-8421625.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\f6f59e3a80dc0ea7d94839320d578dcc\transformed\ftb-library-forge-2001.2.4.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\6e13e4e72e28d1be6c09f80736d3156f\transformed\ftb-teams-forge-2001.3.0.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\d9d6f4e2ad9efd45259751ee3c5ad927\transformed\kubejs-forge-2001.6.5-build.16.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\2a505803c92bef80e168abfd0aa5ce60\transformed\rhino-forge-2001.2.3-build.6.jar --lib C:\Users\conno\.gradle\caches\8.10\transforms\3b4a4bedfce382b37de4bbe9d
+java_class_path (initial): C:\Users\conno\.gradle\caches\modules-2\files-2.1\net.neoforged\AutoRenamingTool\2.0.4\12da27cc4caf32e429af9a91f79e1f66a965e667\AutoRenamingTool-2.0.4-all.jar
+Launcher Type: SUN_STANDARD
+
+[Global flags]
+     intx CICompilerCount                          = 4                                         {product} {ergonomic}
+     uint ConcGCThreads                            = 3                                         {product} {ergonomic}
+     uint G1ConcRefinementThreads                  = 10                                        {product} {ergonomic}
+   size_t G1HeapRegionSize                         = 2097152                                   {product} {ergonomic}
+    uintx GCDrainStackTargetSize                   = 64                                        {product} {ergonomic}
+   size_t InitialHeapSize                          = 232783872                                 {product} {ergonomic}
+   size_t MarkStackSize                            = 4194304                                   {product} {ergonomic}
+   size_t MaxHeapSize                              = 3720347648                                {product} {ergonomic}
+   size_t MinHeapDeltaBytes                        = 2097152                                   {product} {ergonomic}
+   size_t MinHeapSize                              = 8388608                                   {product} {ergonomic}
+    uintx NonNMethodCodeHeapSize                   = 5839372                                {pd product} {ergonomic}
+    uintx NonProfiledCodeHeapSize                  = 122909434                              {pd product} {ergonomic}
+    uintx ProfiledCodeHeapSize                     = 122909434                              {pd product} {ergonomic}
+    uintx ReservedCodeCacheSize                    = 251658240                              {pd product} {ergonomic}
+     bool SegmentedCodeCache                       = true                                      {product} {ergonomic}
+   size_t SoftMaxHeapSize                          = 3720347648                             {manageable} {ergonomic}
+     bool UseCompressedOops                        = true                           {product lp64_product} {ergonomic}
+     bool UseG1GC                                  = true                                      {product} {ergonomic}
+     bool UseLargePagesIndividualAllocation        = false                                  {pd product} {ergonomic}
+
+Logging:
+Log output configuration:
+ #0: stdout all=warning uptime,level,tags foldmultilines=false
+ #1: stderr all=off uptime,level,tags foldmultilines=false
+
+Release file:
+<release file has not been read>
+Environment Variables:
+PATH=C:\Program Files\Eclipse Adoptium\jdk-17.0.16.8-hotspot\bin;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files\Eclipse Adoptium\jdk-21.0.8.9-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\Program Files (x86)\ZeroTier\One\;C:\Program Files\nodejs\;C:\WINDOWS\system32\config\systemprofile\AppData\Local\Muse Hub\lib;C:\Users\conno\AppData\Local\Microsoft\WindowsApps;C:\Users\conno\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\conno\AppData\Roaming\npm;C:\Users\conno\AppData\Local\Programs\Ollama;C:\Users\conno\AppData\Local\Muse Hub\lib
+USERNAME=conno
+OS=Windows_NT
+PROCESSOR_IDENTIFIER=AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD
+TMP=C:\Users\conno\AppData\Local\Temp
+TEMP=C:\Users\conno\AppData\Local\Temp
+
+
+
+
+Periodic native trim disabled
+
+JNI global refs:
+JNI global refs: 0, weak refs: 0
+
+JNI global refs memory usage: 0, weak refs: 0
+
+Process memory usage:
+Resident Set Size: 13328K (0% of 14528572K total physical memory with 284204K free physical memory)
+
+OOME stack traces (most recent first):
+Classloader memory used:
+
+---------------  S Y S T E M  ---------------
+
+OS:
+ Windows 11 , 64 bit Build 26100 (10.0.26100.8875)
+OS uptime: 6 days 14:57 hours
+Hyper-V role detected
+
+CPU: total 12 (initial active 12) (12 cores per cpu, 2 threads per core) family 25 model 80 stepping 0 microcode 0xa50000d, cx8, cmov, fxsr, ht, mmx, 3dnowpref, sse, sse2, sse3, ssse3, sse4a, sse4.1, sse4.2, popcnt, lzcnt, tsc, tscinvbit, avx, avx2, aes, erms, clmul, bmi1, bmi2, adx, sha, fma, vzeroupper, clflush, clflushopt, hv, rdtscp, rdpid, fsrm, f16c, cet_ss
+Processor Information for the first 12 processors :
+  Max Mhz: 2000, Current Mhz: 2000, Mhz Limit: 2000
+
+Memory: 4k page, system-wide physical 14188M (277M free)
+TotalPageFile size 57196M (AvailPageFile size 19M)
+current process WorkingSet (physical memory assigned to process): 13M, peak: 13M
+current process commit charge ("private bytes"): 64M, peak: 286M
+
+vm_info: OpenJDK 64-Bit Server VM (21.0.9+1-b1163.94) for windows-amd64 JRE (21.0.9+1-b1163.94), built on 2026-01-12 by "builduser" with MS VC++ 16.10 / 16.11 (VS2019)
+
+END.

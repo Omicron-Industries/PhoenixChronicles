@@ -32,7 +32,8 @@ public class C2STogglePinPacket {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
-            if (player == null) return;
+            if (player == null || questId == null) return;
+
             player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
                 data.togglePin(questId);
                 boolean nowPinned = data.isPinned(questId);

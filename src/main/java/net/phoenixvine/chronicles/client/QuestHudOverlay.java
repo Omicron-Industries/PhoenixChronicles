@@ -96,16 +96,15 @@ public class QuestHudOverlay {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.player.isDeadOrDying()) return;
 
-        boolean chatOpen = mc.screen instanceof net.minecraft.client.gui.screens.ChatScreen;
-        if (mc.screen != null && !chatOpen) return;
+        boolean ownScreenOpen = mc.screen != null &&
+                mc.screen.getClass().getName().startsWith("net.phoenixvine.chronicles");
+        if (ownScreenOpen) return;
 
         GuiGraphics g = event.getGuiGraphics();
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
 
-        if (!chatOpen) {
-            renderPinnedWidgets(mc, g, screenW, screenH);
-        }
+        renderPinnedWidgets(mc, g, screenW, screenH);
 
         QuestToastManager.get().render(g, screenW, screenH);
     }

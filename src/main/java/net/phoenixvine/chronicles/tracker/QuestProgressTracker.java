@@ -108,6 +108,9 @@ public class QuestProgressTracker {
         for (net.minecraft.world.item.ItemStack s : inv.items) hash = 31 * hash + fingerprintStack(s);
         for (net.minecraft.world.item.ItemStack s : inv.offhand) hash = 31 * hash + fingerprintStack(s);
         for (net.minecraft.world.item.ItemStack s : inv.armor) hash = 31 * hash + fingerprintStack(s);
+
+        if (player.containerMenu != null) hash = 31 * hash + fingerprintStack(player.containerMenu.getCarried());
+
         return hash;
     }
 
@@ -197,6 +200,12 @@ public class QuestProgressTracker {
                     if (t.isSticky()) task.isCompletedFor(player);
                 } else if (task instanceof net.phoenixvine.chronicles.tasks.FluidRequirementTask t) {
                     if (t.isSticky()) task.isCompletedFor(player);
+                } else if (task instanceof net.phoenixvine.chronicles.tasks.TagItemTask t) {
+                    if (t.isSticky()) task.isCompletedFor(player);
+                } else if (task instanceof net.phoenixvine.chronicles.tasks.FilterItemTask t) {
+                    if (t.isSticky()) task.isCompletedFor(player);
+                } else if (task instanceof net.phoenixvine.chronicles.tasks.FilterFluidTask t) {
+                    if (t.isSticky()) task.isCompletedFor(player);
                 }
             }
         }
@@ -246,13 +255,28 @@ public class QuestProgressTracker {
         } else {
 
             complete = true;
+            boolean logThisPass = System.currentTimeMillis() % 1000 < 50;
             for (QuestTask task : tasks) {
                 if (task.isOptional()) continue;
+                boolean isFilterTask = task instanceof net.phoenixvine.chronicles.tasks.FilterItemTask ||
+                        task instanceof net.phoenixvine.chronicles.tasks.FilterFluidTask;
                 if (skipInventoryScan(task, player, invChanged)) {
+                    if (isFilterTask && logThisPass) {
+                        System.out.println("[Phoenix Chronicles] checkAndTryComplete: quest " + node.getId() +
+                                " task " + task.getTaskId() + " SKIPPED (dependsOnInventory=" +
+                                task.dependsOnInventory() + " invChanged=" + invChanged + " stickyCached=" +
+                                task.isStickyCompleteCached(player) + ")");
+                    }
                     complete = false;
                     break;
                 }
-                if (!task.isCompletedFor(player)) {
+                boolean taskDone = task.isCompletedFor(player);
+                if (isFilterTask && logThisPass) {
+                    System.out.println("[Phoenix Chronicles] checkAndTryComplete: quest " + node.getId() +
+                            " task " + task.getTaskId() + " isCompletedFor=" + taskDone + " stickyCached=" +
+                            task.isStickyCompleteCached(player) + " progress=" + task.getProgressString(player));
+                }
+                if (!taskDone) {
                     complete = false;
                     break;
                 }
@@ -320,7 +344,12 @@ public class QuestProgressTracker {
         PlayerQuestData data = resolveData(player);
         if (data == null) return;
 
-        for (QuestNode child : completedNode.getChildren()) {
+        java.util.Set<QuestNode> candidates = new java.util.LinkedHashSet<>(completedNode.getChildren());
+        for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+            if (node.getPrerequisites().contains(completedNode)) candidates.add(node);
+        }
+
+        for (QuestNode child : candidates) {
             if (data.getQuestState(child.getId(), QuestState.LOCKED) != QuestState.LOCKED) continue;
 
             if (prereqsSatisfied(child, data, player.getServer())) {

@@ -31,20 +31,19 @@ public class C2SCompleteCheckmarkTaskPacket {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
-            if (player == null) return;
+            if (player == null || taskId == null) return;
 
             QuestNode node = QuestTreeRegistry.getTaskOwner(taskId);
-            if (node == null) return;
+            if (node == null || node.getTasks() == null) return;
 
             QuestTask task = node.getTasks().stream()
-                    .filter(t -> t.getTaskId().equals(taskId))
+                    .filter(t -> taskId.equals(t.getTaskId()))
                     .findFirst().orElse(null);
             if (!(task instanceof CheckmarkTask)) return;
             if (task.isCompletedFor(player)) return;
 
             CheckmarkTask.complete(player, taskId);
             QuestProgressTracker.checkAndTryComplete(player, node);
-
             QuestProgressTracker.sendProgressSync(player);
         });
         ctx.get().setPacketHandled(true);

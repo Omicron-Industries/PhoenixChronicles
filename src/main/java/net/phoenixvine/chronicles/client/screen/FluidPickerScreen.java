@@ -23,6 +23,7 @@ public class FluidPickerScreen extends Screen {
     private static final int COL_SEL = 0xFF0D1A2E;
     private static final int COL_SEL_BORDER = 0xFF0088FF;
     private static final int COL_HOVER = 0xFF1E1E2A;
+    private static final int COL_MULTI_BORDER = 0xFFAA44CC;
 
     private static final int PANEL_W = 260;
     private static final int PANEL_H = 200;
@@ -38,6 +39,7 @@ public class FluidPickerScreen extends Screen {
     private int scrollOffset = 0;
     private Fluid hoveredFluid = null;
     private Fluid selectedFluid = null;
+    private final java.util.LinkedHashSet<Fluid> multiSelected = new java.util.LinkedHashSet<>();
 
     private EditBox searchBox;
     private String searchQuery = "";
@@ -116,8 +118,10 @@ public class FluidPickerScreen extends Screen {
         int footerY = panelTop + PANEL_H - FOOTER_H;
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, footerY + 1, ChroniclesThemePalette.BORDER);
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL_DARK);
-        g.drawString(font, "§8" + displayFluids.size() + " fluids", panelLeft + 62, footerY + 7,
-                ChroniclesThemePalette.TEXT_FAINT);
+        String countLabel = "§8" + displayFluids.size() + " fluids";
+        if (!multiSelected.isEmpty())
+            countLabel += "  §9(" + multiSelected.size() + " selected, right-click to toggle)";
+        g.drawString(font, countLabel, panelLeft + 62, footerY + 7, ChroniclesThemePalette.TEXT_FAINT);
 
         super.render(g, mx, my, partial);
 
@@ -136,8 +140,13 @@ public class FluidPickerScreen extends Screen {
 
             boolean hov = mx >= panelLeft + 2 && mx < panelLeft + PANEL_W - 2 && my >= ry && my < ry + ROW_H;
             boolean sel = fluid == selectedFluid;
+            boolean multiSel = multiSelected.contains(fluid);
 
-            if (sel) {
+            if (multiSel) {
+                g.fill(panelLeft + 2, ry, panelLeft + PANEL_W - 2, ry + ROW_H, COL_SEL);
+                g.fill(panelLeft + 2, ry, panelLeft + PANEL_W - 2, ry + 1, COL_MULTI_BORDER);
+                g.fill(panelLeft + 2, ry + ROW_H - 1, panelLeft + PANEL_W - 2, ry + ROW_H, COL_MULTI_BORDER);
+            } else if (sel) {
                 g.fill(panelLeft + 2, ry, panelLeft + PANEL_W - 2, ry + ROW_H, COL_SEL);
                 g.fill(panelLeft + 2, ry, panelLeft + PANEL_W - 2, ry + 1, COL_SEL_BORDER);
                 g.fill(panelLeft + 2, ry + ROW_H - 1, panelLeft + PANEL_W - 2, ry + ROW_H, COL_SEL_BORDER);
@@ -182,6 +191,10 @@ public class FluidPickerScreen extends Screen {
             selectedFluid = hoveredFluid;
             return true;
         }
+        if (btn == 1 && hoveredFluid != null) {
+            if (!multiSelected.remove(hoveredFluid)) multiSelected.add(hoveredFluid);
+            return true;
+        }
         if (btn == 0 && (mx < panelLeft || mx >= panelLeft + PANEL_W || my < panelTop || my >= panelTop + PANEL_H)) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
@@ -210,7 +223,16 @@ public class FluidPickerScreen extends Screen {
     }
 
     private void confirm() {
-        if (selectedFluid != null) {
+        if (!multiSelected.isEmpty()) {
+            for (Fluid fluid : multiSelected) {
+                ResourceLocation id = ForgeRegistries.FLUIDS.getKey(fluid);
+                if (id != null) onPick.accept(id.toString());
+            }
+            if (selectedFluid != null && !multiSelected.contains(selectedFluid)) {
+                ResourceLocation id = ForgeRegistries.FLUIDS.getKey(selectedFluid);
+                if (id != null) onPick.accept(id.toString());
+            }
+        } else if (selectedFluid != null) {
             ResourceLocation id = ForgeRegistries.FLUIDS.getKey(selectedFluid);
             if (id != null) onPick.accept(id.toString());
         }

@@ -32,7 +32,7 @@ public class C2SAcknowledgeInfoTasksPacket {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
-            if (player == null) return;
+            if (player == null || questId == null) return;
 
             QuestNode node = QuestTreeRegistry.getQuest(questId);
             if (node == null) return;
@@ -41,18 +41,19 @@ public class C2SAcknowledgeInfoTasksPacket {
 
             player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
                 boolean anyChanged = false;
-                for (var task : node.getTasks()) {
-                    if (task instanceof InfoTask) {
-                        boolean wasDone = task.isCompletedFor(player);
-                        if (!wasDone) {
-                            InfoTask.acknowledge(player, task.getTaskId());
-                            anyChanged = true;
+                if (node.getTasks() != null) {
+                    for (var task : node.getTasks()) {
+                        if (task instanceof InfoTask) {
+                            boolean wasDone = task.isCompletedFor(player);
+                            if (!wasDone) {
+                                InfoTask.acknowledge(player, task.getTaskId());
+                                anyChanged = true;
+                            }
                         }
                     }
                 }
                 if (anyChanged) {
                     QuestProgressTracker.checkAndTryComplete(player, node);
-
                     QuestProgressTracker.sendProgressSync(player);
                 }
             });
