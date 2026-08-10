@@ -6,7 +6,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,7 +48,7 @@ public class TextureBrowserScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        ChroniclesTheme t = ChroniclesTheme.current();
+        PhoenixTheme t = PhoenixTheme.current();
         C_BG = t.bg.getColor();
         C_PANEL = t.panel.getColor();
         C_BORDER = t.border.getColor();

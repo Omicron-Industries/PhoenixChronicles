@@ -162,8 +162,8 @@ dependencies {
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
     modCompileOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
-    modCompileOnly("curse.maven:phantasia-1589286:8421625")
-    modRuntimeOnly("curse.maven:phantasia-1589286:8421625")
+    modCompileOnly("local:Phantasia:1.0.0")
+    modRuntimeOnly("local:Phantasia:1.0.0")
 
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
@@ -190,16 +190,8 @@ dependencies {
     modCompileOnly('curse.maven:phoenix-guilds-1612085:8460956')
     modRuntimeOnly('curse.maven:phoenix-guilds-1612085:8460956')
 
-    // Optional: Conflux research support (net.phoenixvine.chronicles.integration.conflux).
-    // Requires PhoenixCore to be published to the local maven repo first: run
-    // `./gradlew publishToMavenLocal` in the PhoenixCore project.
-    //
-    // compileOnly ONLY, deliberately no modRuntimeOnly: PhoenixCore currently hard-requires
-    // gtceu >= 8.0.0-SNAPSHOT (see its mods.toml), newer than the gtceu 7.5.3 this project runs
-    // against, so bundling it at runtime here would crash Forge's mod loader outright. Whether
-    // to actually include PhoenixCore's jar in a running instance is a modpack-level decision,
-    // not something Chronicles should force - ConfluxCompat already checks ModList.isLoaded(...)
-    // and no-ops safely if it's absent.
+    jarJar(modImplementation("local:phoenix_wiki:0.1.0"))
+
     modCompileOnly("net.phoenix.core:PhoenixCore:${phoenixcore_version}:slim") { transitive = false }
 
 

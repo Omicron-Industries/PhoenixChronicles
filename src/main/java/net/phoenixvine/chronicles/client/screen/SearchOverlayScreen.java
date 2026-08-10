@@ -4,10 +4,11 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.phoenixvine.chronicles.client.ChapterConfig;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,6 +28,12 @@ public class SearchOverlayScreen extends Screen {
             0xFF5566EE, 0xFF44BB77, 0xFFCC7722, 0xFFAA44CC,
             0xFF22AABB, 0xFFBB4444, 0xFF88AA22, 0xFF448899
     };
+
+    private static int chapterAccent(String chapter) {
+        int configured = ChapterConfig.get(chapter).getEffectiveNameColor();
+        if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
+        return CAT_ACCENTS[Math.abs(chapter.hashCode()) % CAT_ACCENTS.length];
+    }
 
     private static final int OVL_ROW_H = 46;
     private static final int OVL_MAX_ROWS = 8;
@@ -48,7 +55,7 @@ public class SearchOverlayScreen extends Screen {
 
     @Override
     protected void init() {
-        ChroniclesTheme t = ChroniclesTheme.current();
+        PhoenixTheme t = PhoenixTheme.current();
         C_PANEL = t.panel.getColor();
         C_PANEL_DARK = t.header.getColor();
         C_BORDER = t.border.getColor();
@@ -142,7 +149,7 @@ public class SearchOverlayScreen extends Screen {
             if (cpx + cpw > panX + panW - 14) break;
             boolean sel = catFilter.equalsIgnoreCase(cat);
             boolean hov = mx >= cpx && mx < cpx + cpw && my >= cpy && my < cpy + cph;
-            int accent = CAT_ACCENTS[Math.abs(cat.hashCode()) % CAT_ACCENTS.length];
+            int accent = chapterAccent(cat);
             int bg = sel ? ((accent & 0x00FFFFFF) | 0x44000000) : (hov ? 0x22FFFFFF : 0x11FFFFFF);
             g.fill(cpx, cpy, cpx + cpw, cpy + cph, bg);
             if (sel) g.fill(cpx, cpy + cph - 1, cpx + cpw, cpy + cph, accent);
@@ -179,7 +186,7 @@ public class SearchOverlayScreen extends Screen {
             if (sel) g.fill(panX + 8, ry + 2, panX + 10, ry + OVL_ROW_H - 2, 0xFF6688FF);
 
             String cat = node.getChapter() != null ? node.getChapter() : "MAIN";
-            int catAccent = CAT_ACCENTS[Math.abs(cat.hashCode()) % CAT_ACCENTS.length];
+            int catAccent = chapterAccent(cat);
             g.fill(panX + 12, ry + 10, panX + 14, ry + OVL_ROW_H - 10, catAccent);
 
             String title = node.getTitle().getString();
@@ -336,6 +343,9 @@ public class SearchOverlayScreen extends Screen {
         for (QuestNode n : all) {
             if (n.isFlagDisabled()) continue;
             if (n.getVisibility() == QuestNode.Visibility.HIDDEN) continue;
+            if (net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isCascadeHiddenQuests() &&
+                    n.isAncestorGatedHidden(parent::getState))
+                continue;
             if (!activeCat.isEmpty() && !activeCat.equalsIgnoreCase(n.getChapter())) continue;
 
             if (words.length == 0) {

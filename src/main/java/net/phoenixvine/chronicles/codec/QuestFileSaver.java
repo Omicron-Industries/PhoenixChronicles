@@ -249,6 +249,20 @@ public class QuestFileSaver {
             tag.put("emergency_items", node.serializeEmergencyItems());
         }
 
+        if (!node.getTutorialSteps().isEmpty()) {
+            net.minecraft.nbt.ListTag tutorialList = new net.minecraft.nbt.ListTag();
+            for (net.phoenixvine.chronicles.tracker.TutorialStep step : node.getTutorialSteps()) {
+                CompoundTag stepTag = new CompoundTag();
+                stepTag.putString("text", step.text());
+                if (step.highlight() != null &&
+                        !step.highlight().equals(net.phoenixvine.chronicles.tracker.TutorialStep.HL_NONE)) {
+                    stepTag.putString("highlight", step.highlight());
+                }
+                tutorialList.add(stepTag);
+            }
+            tag.put("tutorial_steps", tutorialList);
+        }
+
         Path chapterFolder = base.resolve("quests").resolve(chapter.toLowerCase(Locale.ROOT));
         Path snbtPath = chapterFolder.resolve(id + ".snbt");
         Files.createDirectories(snbtPath.getParent());

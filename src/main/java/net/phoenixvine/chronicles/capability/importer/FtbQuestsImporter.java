@@ -141,7 +141,8 @@ public class FtbQuestsImporter {
         if (!langOut.isEmpty()) warnings.add("Wrote " + langOut.size() + " lang key(s) to lang/en_us.json.");
 
         System.out.println(
-                "[PhoenixChronicles] Import Finished. Total Imported: " + totalImported + ", Total Skipped: " + totalSkipped);
+                "[PhoenixChronicles] Import Finished. Total Imported: " + totalImported + ", Total Skipped: " +
+                        totalSkipped);
         return new ImportResult(totalImported, totalSkipped, lastCat, warnings);
     }
 
@@ -1123,7 +1124,8 @@ public class FtbQuestsImporter {
                     convertReward(resolved.options().getCompound(i), questPath, warnings, out);
             }
             default -> warnings.add(
-                    "Quest " + questPath + ": reward type '" + type + "' has no PhoenixChronicles equivalent - dropped.");
+                    "Quest " + questPath + ": reward type '" + type +
+                            "' has no PhoenixChronicles equivalent - dropped.");
         }
     }
 

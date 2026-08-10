@@ -34,26 +34,27 @@ public class QuestTreeRegistry {
 
     private static void indexTasks(QuestNode node) {
         for (var task : node.getTasks()) {
-            TASK_OWNER.put(task.getTaskId(), node);
+            if (task.getTaskId() != null) {
+                TASK_OWNER.put(task.getTaskId(), node);
+            }
         }
     }
 
     public static void registerBareQuestNode(QuestNode node) {
-        if (node != null) {
+        if (node != null && node.getId() != null) {
             ALL_QUESTS.put(node.getId(), node);
             indexTasks(node);
         }
     }
 
     public static void injectDynamicQuestNode(QuestNode node, @Nullable ResourceLocation parentId) {
-        if (node == null) return;
+        if (node == null || node.getId() == null) return;
         ALL_QUESTS.put(node.getId(), node);
         indexTasks(node);
 
         if (parentId != null) {
             QuestNode parent = ALL_QUESTS.get(parentId);
             if (parent != null) {
-
                 parent.addChild(node);
                 ROOT_NODES.remove(node.getId());
             }
@@ -71,6 +72,7 @@ public class QuestTreeRegistry {
 
     @Nullable
     public static QuestNode getQuest(ResourceLocation id) {
+        if (id == null) return null;
         return ALL_QUESTS.get(id);
     }
 
@@ -84,27 +86,46 @@ public class QuestTreeRegistry {
 
     @Nullable
     public static QuestNode getTaskOwner(ResourceLocation taskId) {
+        if (taskId == null) return null;
         return TASK_OWNER.get(taskId);
     }
 
+    public static boolean isChapterGatedHidden(String chapter,
+                                               java.util.function.Function<QuestNode, net.phoenixvine.chronicles.model.QuestState> stateLookup) {
+        if (chapter == null) return false;
+        boolean any = false;
+        for (QuestNode n : ALL_QUESTS.values()) {
+            if (!chapter.equalsIgnoreCase(n.getChapter())) continue;
+            any = true;
+            if (!n.isGatedHidden(stateLookup)) return false;
+        }
+        return any;
+    }
+
     public static void reindexTask(ResourceLocation taskId, QuestNode owner) {
-        TASK_OWNER.put(taskId, owner);
+        if (taskId != null && owner != null) {
+            TASK_OWNER.put(taskId, owner);
+        }
     }
 
     public static void removeQuest(ResourceLocation id) {
+        if (id == null) return;
         QuestNode removed = ALL_QUESTS.remove(id);
         ROOT_NODES.remove(id);
         if (removed == null) return;
-        for (var task : removed.getTasks()) TASK_OWNER.remove(task.getTaskId());
+        for (var task : removed.getTasks()) {
+            if (task.getTaskId() != null) TASK_OWNER.remove(task.getTaskId());
+        }
 
         for (QuestNode n : ALL_QUESTS.values()) {
-
             n.removeChild(removed);
         }
     }
 
     public static void markAsConfigQuest(ResourceLocation id) {
-        CONFIG_QUEST_IDS.add(id);
+        if (id != null) {
+            CONFIG_QUEST_IDS.add(id);
+        }
     }
 
     public static void clearConfigQuests() {

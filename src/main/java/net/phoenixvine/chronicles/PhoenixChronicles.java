@@ -12,7 +12,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,9 +58,10 @@ public class PhoenixChronicles {
 
             ChronicleNetwork.init();
 
-            ChroniclesTheme.loadThemes();
+            PhoenixTheme.loadThemes();
 
-            if (net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.isAvailable()) {
+            if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient() &&
+                    net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.isAvailable()) {
                 try {
                     net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.init();
                 } catch (Throwable t) {
@@ -82,7 +83,9 @@ public class PhoenixChronicles {
         net.phoenixvine.chronicles.registry.QuestBackgroundRegistry.registerBuiltins();
 
         net.phoenixvine.chronicles.client.render.ChroniclesThemePalette.refresh(
-                net.phoenixvine.chronicles.registry.ChroniclesTheme.current());
+                net.phoenixvine.wiki.theme.PhoenixTheme.current());
+
+        net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.imageResolver = net.phoenixvine.chronicles.client.CustomTextureCache::resolve;
     }
 
     private void addPackFinders(net.minecraftforge.event.AddPackFindersEvent event) {

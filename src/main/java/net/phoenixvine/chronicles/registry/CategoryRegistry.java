@@ -146,7 +146,8 @@ public final class CategoryRegistry {
 
         chapters.add(Math.max(0, Math.min(chapters.size(), idx)), upperChapId);
 
-        CategoryDefinition updated = new CategoryDefinition(cat.id(), cat.displayName(), chapters);
+        CategoryDefinition updated = new CategoryDefinition(cat.id(), cat.displayName(), chapters, cat.color(),
+                cat.icon(), cat.nameColor());
         CATEGORIES.put(categoryId, updated);
         writeCategory(updated);
     }
@@ -192,7 +193,16 @@ public final class CategoryRegistry {
     public static void renameCategory(String id, String newLabel) {
         CategoryDefinition c = CATEGORIES.get(id);
         if (c == null) return;
-        CategoryDefinition updated = new CategoryDefinition(id, newLabel, c.chapters());
+        CategoryDefinition updated = new CategoryDefinition(id, newLabel, c.chapters(), c.color(), c.icon(),
+                c.nameColor());
+        CATEGORIES.put(id, updated);
+        writeCategory(updated);
+    }
+
+    public static void updateTheme(String id, int color, String icon, int nameColor) {
+        CategoryDefinition c = CATEGORIES.get(id);
+        if (c == null) return;
+        CategoryDefinition updated = c.withTheme(color, icon, nameColor);
         CATEGORIES.put(id, updated);
         writeCategory(updated);
     }
@@ -203,7 +213,8 @@ public final class CategoryRegistry {
         List<String> chaps = new ArrayList<>(c.chapters());
         String upper = chapter.toUpperCase();
         if (!chaps.contains(upper)) chaps.add(upper);
-        CategoryDefinition updated = new CategoryDefinition(c.id(), c.displayName(), chaps);
+        CategoryDefinition updated = new CategoryDefinition(c.id(), c.displayName(), chaps, c.color(), c.icon(),
+                c.nameColor());
         CATEGORIES.put(categoryId, updated);
         writeCategory(updated);
     }
@@ -213,7 +224,8 @@ public final class CategoryRegistry {
         if (c == null) return;
         List<String> chaps = new ArrayList<>(c.chapters());
         chaps.remove(chapter.toUpperCase());
-        CategoryDefinition updated = new CategoryDefinition(c.id(), c.displayName(), chaps);
+        CategoryDefinition updated = new CategoryDefinition(c.id(), c.displayName(), chaps, c.color(), c.icon(),
+                c.nameColor());
         CATEGORIES.put(categoryId, updated);
         writeCategory(updated);
     }

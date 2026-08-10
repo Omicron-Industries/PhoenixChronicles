@@ -12,6 +12,7 @@ import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.tasks.ViewGuideTask;
 import net.phoenixvine.chronicles.tasks.ViewMachineTask;
 import net.phoenixvine.chronicles.tasks.ViewSceneTask;
 import net.phoenixvine.phantasia.api.PhantasiaAPI;
@@ -89,6 +90,9 @@ public class PhantasiaCompat {
         if (task instanceof ViewSceneTask vst) {
             return PhantasiaAPI.hasScene(vst.getSceneId());
         }
+        if (task instanceof ViewGuideTask vgt) {
+            return PhantasiaAPI.hasGuide(vgt.getGuideId());
+        }
         return false;
     }
 
@@ -98,6 +102,18 @@ public class PhantasiaCompat {
             PhantasiaAPI.openForMachine(vmt.getMachineId(), parent);
         } else if (task instanceof ViewSceneTask vst) {
             PhantasiaAPI.openScene(vst.getSceneId(), parent);
+        } else if (task instanceof ViewGuideTask vgt) {
+            PhantasiaAPI.openGuide(vgt.getGuideId(), parent);
+
+            Player player = Minecraft.getInstance().player;
+            if (player != null && !vgt.isCompletedFor(player)) {
+                vgt.markCompletedClient(player);
+                QuestNode owner = QuestTreeRegistry.getTaskOwner(vgt.getTaskId());
+                if (owner != null) {
+                    ChronicleNetwork.CHANNEL.sendToServer(
+                            new C2SPhantasiaTaskCompletePacket(owner.getId(), vgt.getTaskId()));
+                }
+            }
         }
     }
 

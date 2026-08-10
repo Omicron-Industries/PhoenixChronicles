@@ -10,8 +10,8 @@ import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.ChapterPrereqDefaults;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -73,7 +73,7 @@ public class DepLineSettingsScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        ChroniclesTheme t = ChroniclesTheme.current();
+        PhoenixTheme t = PhoenixTheme.current();
         C_BG = t.bg.getColor();
         C_PANEL = t.panel.getColor();
         C_HEADER = t.header.getColor();

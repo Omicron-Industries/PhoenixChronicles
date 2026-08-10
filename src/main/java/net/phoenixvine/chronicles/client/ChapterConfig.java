@@ -29,6 +29,8 @@ public class ChapterConfig {
 
     private int color = 0;
 
+    private int nameColor = 0;
+
     private String texture = "";
 
     private String displayName = "";
@@ -43,6 +45,14 @@ public class ChapterConfig {
 
     public int getColor() {
         return color;
+    }
+
+    public int getEffectiveNameColor() {
+        return nameColor != 0 ? nameColor : color;
+    }
+
+    public int getNameColor() {
+        return nameColor;
     }
 
     public String getTexture() {
@@ -84,6 +94,10 @@ public class ChapterConfig {
         this.color = c;
     }
 
+    public void setNameColor(int c) {
+        this.nameColor = c;
+    }
+
     public void setTexture(String t) {
         this.texture = t != null ? t : "";
     }
@@ -100,6 +114,7 @@ public class ChapterConfig {
         JsonObject o = new JsonObject();
         o.addProperty("style", style.name());
         if (color != 0) o.addProperty("color", String.format("#%06X", color & 0x00FFFFFF));
+        if (nameColor != 0) o.addProperty("name_color", String.format("#%06X", nameColor & 0x00FFFFFF));
         if (!texture.isEmpty()) o.addProperty("texture", texture);
         if (!displayName.isEmpty()) o.addProperty("display_name", displayName);
         if (!icon.isEmpty()) o.addProperty("icon", icon);
@@ -117,6 +132,11 @@ public class ChapterConfig {
         if (o.has("color")) {
             try {
                 cfg.color = (int) Long.parseLong(o.get("color").getAsString().replace("#", ""), 16);
+            } catch (Exception ignored) {}
+        }
+        if (o.has("name_color")) {
+            try {
+                cfg.nameColor = (int) Long.parseLong(o.get("name_color").getAsString().replace("#", ""), 16);
             } catch (Exception ignored) {}
         }
         if (o.has("texture")) cfg.texture = o.get("texture").getAsString();

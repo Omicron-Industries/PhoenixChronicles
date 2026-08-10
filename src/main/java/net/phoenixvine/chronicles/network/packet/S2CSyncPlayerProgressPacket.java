@@ -59,7 +59,7 @@ public class S2CSyncPlayerProgressPacket {
             mc.player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
                 if (initialSync) {
                     data.deserializeNBT(progressNbt);
-                    version++; 
+                    version++;
                     return;
                 }
 
@@ -69,7 +69,7 @@ public class S2CSyncPlayerProgressPacket {
                 }
 
                 data.deserializeNBT(progressNbt);
-                version++; 
+                version++;
 
                 for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                     QuestState oldState = oldStates.getOrDefault(node.getId(), QuestState.LOCKED);

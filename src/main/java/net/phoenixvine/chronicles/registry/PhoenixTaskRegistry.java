@@ -82,10 +82,15 @@ public final class PhoenixTaskRegistry {
                             @Nullable String editorIcon,
                             @Nullable String editorLabel,
                             @Nullable String editorTooltip,
-                            List<FieldDef> fields) {
+                            List<FieldDef> fields,
+                            @Nullable String requiredModId) {
 
         public boolean hasEditorMeta() {
             return editorLabel != null;
+        }
+
+        public boolean isAvailable() {
+            return requiredModId == null || net.minecraftforge.fml.ModList.get().isLoaded(requiredModId);
         }
     }
 
@@ -124,6 +129,7 @@ public final class PhoenixTaskRegistry {
         private String tooltip = null;
         private final List<FieldDef> fields = new ArrayList<>();
         private ScriptTaskHandler scriptHandler = null;
+        private String requiredModId = null;
 
         private Builder(String typeId, Function<CompoundTag, Object> deserializer) {
             this.typeId = typeId;
@@ -147,6 +153,11 @@ public final class PhoenixTaskRegistry {
 
         public Builder field(FieldDef f) {
             this.fields.add(f);
+            return this;
+        }
+
+        public Builder requiresMod(String modId) {
+            this.requiredModId = modId;
             return this;
         }
 
@@ -181,7 +192,7 @@ public final class PhoenixTaskRegistry {
 
         public void register() {
             TaskEntry entry = new TaskEntry(typeId, deserializer, icon, label, tooltip,
-                    Collections.unmodifiableList(new ArrayList<>(fields)));
+                    Collections.unmodifiableList(new ArrayList<>(fields)), requiredModId);
             REGISTRY.put(typeId, entry);
             if (entry.hasEditorMeta()) EDITOR_ORDER.add(entry);
         }
@@ -193,7 +204,11 @@ public final class PhoenixTaskRegistry {
     }
 
     public static List<TaskEntry> getEditorTypes() {
-        return Collections.unmodifiableList(EDITOR_ORDER);
+        List<TaskEntry> out = new ArrayList<>();
+        for (TaskEntry e : EDITOR_ORDER) {
+            if (e.isAvailable()) out.add(e);
+        }
+        return Collections.unmodifiableList(out);
     }
 
     @Nullable
@@ -205,8 +220,8 @@ public final class PhoenixTaskRegistry {
 
             return (QuestTask) entry.deserializer().apply(tag);
         } catch (Exception e) {
-            System.err.println(
-                    "[PhoenixTaskRegistry] Failed to deserialize task type '" + typeId + "': " + e.getMessage());
+            PhoenixChronicles.LOGGER.error("Failed to deserialize task type '{}' (task_id={})", typeId,
+                    tag.contains("task_id") ? tag.getString("task_id") : "?", e);
             return null;
         }
     }
@@ -496,6 +511,7 @@ public final class PhoenixTaskRegistry {
                         "Completes when the player views a Phantasia build guide for a specific machine for at least the required time.\nTarget: machine id (Phantasia multiblock definition id).")
                 .field(FieldDef.text("machine_id", "Machine ID"))
                 .field(FieldDef.integer("min_seconds", "Min Seconds"))
+                .requiresMod("phantasia")
                 .register();
 
         register("view_scene", tag -> {
@@ -507,6 +523,18 @@ public final class PhoenixTaskRegistry {
                         "Completes when the player views a multi-machine Phantasia scene for at least the required time.\nTarget: scene id (Phantasia scene definition id).")
                 .field(FieldDef.text("scene_id", "Scene ID"))
                 .field(FieldDef.integer("min_seconds", "Min Seconds"))
+                .requiresMod("phantasia")
+                .register();
+
+        register("view_guide", tag -> {
+            ViewGuideTask t = new ViewGuideTask(taskId(tag), desc(tag), "");
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b📖").label("View Guide (Phantasia)")
+                .tooltip(
+                        "Completes when the player opens a Phantasia build/lore guide.\nTarget: guide id (Phantasia guide definition id). No minimum time - Phantasia doesn't report when guides close.")
+                .field(FieldDef.text("guide_id", "Guide ID"))
+                .requiresMod("phantasia")
                 .register();
 
         register("external_trigger", tag -> {
@@ -531,6 +559,7 @@ public final class PhoenixTaskRegistry {
                 .field(FieldDef.bool("flag_mode", "Check Flag Instead of Node"))
                 .field(FieldDef.text("node_id", "Research Node ID", "e.g. phoenixcore:some_node"))
                 .field(FieldDef.text("flag", "Research Flag"))
+                .requiresMod("phoenixcore")
                 .register();
 
         register("screen_opened", tag -> {

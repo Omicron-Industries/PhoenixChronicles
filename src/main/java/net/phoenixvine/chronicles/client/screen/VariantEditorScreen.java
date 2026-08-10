@@ -8,7 +8,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -60,7 +60,7 @@ public class VariantEditorScreen extends Screen {
 
     @Override
     protected void init() {
-        ChroniclesTheme th = ChroniclesTheme.current();
+        PhoenixTheme th = PhoenixTheme.current();
         C_BG = th.bg.getColor();
         C_PANEL = th.panel.getColor();
         C_HEADER = th.header.getColor();

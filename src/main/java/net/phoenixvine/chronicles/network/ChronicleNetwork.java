@@ -5,6 +5,7 @@ import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
+import net.phoenixvine.chronicles.network.packet.C2SBulkQuestActionPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimAllRewardsPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.network.packet.C2SCompleteCheckmarkTaskPacket;
@@ -16,6 +17,7 @@ import net.phoenixvine.chronicles.network.packet.C2STogglePinPacket;
 import net.phoenixvine.chronicles.network.packet.S2COpenExternalScreenPacket;
 import net.phoenixvine.chronicles.network.packet.S2CReloadQuestsFromDiskPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
+import net.phoenixvine.chronicles.network.packet.S2CSyncPooledProgressPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
 
 import java.util.Optional;
@@ -124,5 +126,19 @@ public class ChronicleNetwork {
                 C2SSetFilterTokenPacket::new,
                 C2SSetFilterTokenPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                C2SBulkQuestActionPacket.class,
+                C2SBulkQuestActionPacket::encode,
+                C2SBulkQuestActionPacket::new,
+                C2SBulkQuestActionPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                S2CSyncPooledProgressPacket.class,
+                S2CSyncPooledProgressPacket::encode,
+                S2CSyncPooledProgressPacket::new,
+                S2CSyncPooledProgressPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

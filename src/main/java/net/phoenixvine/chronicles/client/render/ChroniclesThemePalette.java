@@ -1,6 +1,6 @@
 package net.phoenixvine.chronicles.client.render;
 
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 public class ChroniclesThemePalette {
 
@@ -11,7 +11,7 @@ public class ChroniclesThemePalette {
     public static int NODE_LOCKED, NODE_UNLOCKED, NODE_ACTIVE, NODE_DONE;
     public static int NBORD_LOCKED, NBORD_UNLOCKED, NBORD_ACTIVE, NBORD_DONE, NBORD_DEV;
 
-    public static void refresh(ChroniclesTheme t) {
+    public static void refresh(PhoenixTheme t) {
         BG = t.bg.getColor();
         PANEL = t.panel.getColor();
         PANEL_DARK = t.header.getColor();

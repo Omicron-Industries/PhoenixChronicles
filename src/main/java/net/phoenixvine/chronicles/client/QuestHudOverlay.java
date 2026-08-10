@@ -78,15 +78,22 @@ public class QuestHudOverlay {
     public static void onClientTick(net.minecraftforge.event.TickEvent.ClientTickEvent event) {
         if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) return;
         QuestToastManager.get().tick();
-        while (ChronicleKeyBindings.ITEM_LOOKUP.consumeClick()) {
-            ItemLookup.performLookup();
-        }
+
         while (ChronicleKeyBindings.OPEN_QUESTBOOK.consumeClick()) {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player != null && mc.screen == null) {
                 mc.setScreen(new ChronicleOverviewScreen());
             }
         }
+    }
+
+    @SubscribeEvent
+    public static void onKeyInput(InputEvent.Key event) {
+        if (event.getAction() != org.lwjgl.glfw.GLFW.GLFW_PRESS) return;
+        int boundKey = ChronicleKeyBindings.ITEM_LOOKUP.getKey().getValue();
+        if (boundKey == org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN) return;
+        if (event.getKey() != boundKey) return;
+        ItemLookup.performLookup();
     }
 
     @SubscribeEvent

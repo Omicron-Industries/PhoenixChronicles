@@ -6,7 +6,8 @@ import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
+import net.phoenixvine.wiki.theme.PhoenixThemeEditorScreen;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -136,7 +137,7 @@ public class SettingsScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        ChroniclesTheme t = ChroniclesTheme.current();
+        PhoenixTheme t = PhoenixTheme.current();
         C_BG = t.bg.getColor();
         C_PANEL = t.panel.getColor();
         C_HEADER = t.header.getColor();
@@ -187,7 +188,7 @@ public class SettingsScreen extends Screen {
                                 "either way and snaps it back to where it started."));
                 rows.add(Row.link("§fTheme Editor",
                         () -> {
-                            if (minecraft != null) minecraft.setScreen(new ChroniclesThemeEditorScreen(this));
+                            if (minecraft != null) minecraft.setScreen(new PhoenixThemeEditorScreen(this));
                         })
                         .tip("Opens the full color editor - customize every panel, text, and\nstate color, then save it as a named theme."));
                 rows.add(Row.info("§8Keybinds: Minecraft's own Options → Controls → Phoenix Chronicles", 1));
@@ -245,6 +246,16 @@ public class SettingsScreen extends Screen {
                                 "release to drop it (classic behavior).\n" +
                                 "ON: middle-click a quest to pick it up - it follows the cursor with\n" +
                                 "no button held - then middle-click again anywhere to drop it."));
+                rows.add(Row.toggle("§fCascade Hidden Quests", settings::isCascadeHiddenQuests, on -> {
+                    settings.setCascadeHiddenQuests(on);
+                    settings.save();
+                    if (parent instanceof ChronicleOverviewScreen overview) overview.rebuild();
+                })
+                        .tip("On by default: a locked HIDDEN/MYSTERY quest also hides every quest\n" +
+                                "downstream of it, and hides the whole chapter if nothing else in it\n" +
+                                "is visible yet - lets one gating quest hide a whole questline,\n" +
+                                "FTB-Quests-style. Turn off to only hide that one quest and show\n" +
+                                "everything else as normal, regardless of its prerequisites."));
                 rows.add(Row.info("§8These can also be changed via right-click on the quest canvas.", 1));
             }
             case PHANTASIA -> rows.add(Row.toggle("§fAuto-Spin Previews", settings::isPhantasiaAutoSpin,

@@ -54,6 +54,11 @@ public class TutorialProgressTracker {
         save();
     }
 
+    public static void resetAll() {
+        STEPS.clear();
+        save();
+    }
+
     private static void load() {
         if (dataFile == null || !Files.exists(dataFile)) return;
         try {

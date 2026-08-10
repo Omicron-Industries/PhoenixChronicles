@@ -11,6 +11,11 @@ public final class TeamKeyResolver {
 
     private TeamKeyResolver() {}
 
+    public static boolean anyTeamModLoaded() {
+        var modList = net.minecraftforge.fml.ModList.get();
+        return modList.isLoaded("phoenix_guilds") || modList.isLoaded("ftbteams");
+    }
+
     public static Optional<String> resolve(ServerPlayer player) {
         if (net.minecraftforge.fml.ModList.get().isLoaded("phoenix_guilds")) {
             GuildManager guildMgr = GuildManager.get(player.getServer().overworld());
@@ -18,7 +23,7 @@ public final class TeamKeyResolver {
             if (guild.isPresent()) return Optional.of("guild:" + guild.get().getId());
         }
 
-        if (FTBTeamsAPI.api().isManagerLoaded()) {
+        if (net.minecraftforge.fml.ModList.get().isLoaded("ftbteams") && FTBTeamsAPI.api().isManagerLoaded()) {
             var opt = FTBTeamsAPI.api().getManager().getTeamForPlayerID(player.getUUID());
             if (opt.isPresent()) {
                 var team = opt.get();

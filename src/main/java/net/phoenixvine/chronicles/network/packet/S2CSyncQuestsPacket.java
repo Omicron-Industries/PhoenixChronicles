@@ -28,7 +28,9 @@ public class S2CSyncQuestsPacket {
                                net.minecraft.server.MinecraftServer server) {
         this.snapshotMap = new HashMap<>();
         for (Map.Entry<ResourceLocation, QuestNode> entry : serverRegistry.entrySet()) {
-            snapshotMap.put(entry.getKey(), new QuestSnapshot(entry.getValue(), server));
+            if (entry.getKey() != null && entry.getValue() != null) {
+                snapshotMap.put(entry.getKey(), new QuestSnapshot(entry.getValue(), server));
+            }
         }
     }
 
@@ -49,11 +51,14 @@ public class S2CSyncQuestsPacket {
             String visibility = buf.readUtf();
             String enableIf = buf.readUtf();
             int taskMinCount = buf.readInt();
-            Boolean requireAllPrerequisites = buf.readBoolean() ? buf.readBoolean() : null;
+            Boolean requireAllPrerequisites = buf.readNullable(FriendlyByteBuf::readBoolean);
 
             int childCount = buf.readInt();
             List<ResourceLocation> childIds = new ArrayList<>(childCount);
-            for (int c = 0; c < childCount; c++) childIds.add(buf.readResourceLocation());
+            for (int c = 0; c < childCount; c++) {
+                ResourceLocation childId = buf.readNullable(FriendlyByteBuf::readResourceLocation);
+                if (childId != null) childIds.add(childId);
+            }
 
             int prereqCount = buf.readInt();
             List<ResourceLocation> prereqIds = new ArrayList<>(prereqCount);
@@ -66,8 +71,12 @@ public class S2CSyncQuestsPacket {
             List<String> prereqLineSpeed = new ArrayList<>(prereqCount);
             List<String> prereqLineArrow = new ArrayList<>(prereqCount);
             List<String> prereqLineStyleId = new ArrayList<>(prereqCount);
+
             for (int p = 0; p < prereqCount; p++) {
-                prereqIds.add(buf.readResourceLocation());
+                ResourceLocation pId = buf.readNullable(FriendlyByteBuf::readResourceLocation);
+                if (pId != null) {
+                    prereqIds.add(pId);
+                }
                 prereqRequired.add(buf.readBoolean());
                 prereqForbidden.add(buf.readBoolean());
                 prereqLink.add(buf.readBoolean());
@@ -78,13 +87,14 @@ public class S2CSyncQuestsPacket {
                 prereqLineArrow.add(buf.readUtf());
                 prereqLineStyleId.add(buf.readUtf());
             }
-            Integer optionalPrereqMinCount = buf.readBoolean() ? buf.readInt() : null;
+
+            Integer optionalPrereqMinCount = buf.readNullable(FriendlyByteBuf::readInt);
 
             int taskCount = buf.readInt();
             List<CompoundTag> tasksNbt = new ArrayList<>(taskCount);
             for (int t = 0; t < taskCount; t++) tasksNbt.add(buf.readNbt());
 
-            ResourceLocation linkTarget = buf.readBoolean() ? buf.readResourceLocation() : null;
+            ResourceLocation linkTarget = buf.readNullable(FriendlyByteBuf::readResourceLocation);
             String iconTexture = buf.readUtf();
             String shapeTexture = buf.readUtf();
             String nodeSize = buf.readUtf();
@@ -107,58 +117,61 @@ public class S2CSyncQuestsPacket {
         buf.writeInt(snapshotMap.size());
         for (QuestSnapshot snap : snapshotMap.values()) {
             buf.writeResourceLocation(snap.id);
-            buf.writeComponent(snap.title);
-            buf.writeComponent(snap.description);
-            buf.writeUtf(snap.chapter);
-            buf.writeUtf(snap.shapeType);
-            buf.writeUtf(snap.iconItemId);
+            buf.writeComponent(snap.title != null ? snap.title : Component.empty());
+            buf.writeComponent(snap.description != null ? snap.description : Component.empty());
+            buf.writeUtf(snap.chapter != null ? snap.chapter : "MAIN");
+            buf.writeUtf(snap.shapeType != null ? snap.shapeType : "SQUARE");
+            buf.writeUtf(snap.iconItemId != null ? snap.iconItemId : "");
             buf.writeInt(snap.customX);
             buf.writeInt(snap.customY);
-            buf.writeUtf(snap.subtitle);
-            buf.writeUtf(snap.visibility);
-            buf.writeUtf(snap.enableIf);
+            buf.writeUtf(snap.subtitle != null ? snap.subtitle : "");
+            buf.writeUtf(snap.visibility != null ? snap.visibility : "VISIBLE");
+            buf.writeUtf(snap.enableIf != null ? snap.enableIf : "");
             buf.writeInt(snap.taskMinCount);
-            buf.writeBoolean(snap.requireAllPrerequisites != null);
-            if (snap.requireAllPrerequisites != null) buf.writeBoolean(snap.requireAllPrerequisites);
+            buf.writeNullable(snap.requireAllPrerequisites, FriendlyByteBuf::writeBoolean);
 
             buf.writeInt(snap.childIds.size());
-            for (ResourceLocation cId : snap.childIds) buf.writeResourceLocation(cId);
+            for (ResourceLocation cId : snap.childIds) {
+                buf.writeNullable(cId, FriendlyByteBuf::writeResourceLocation);
+            }
 
             buf.writeInt(snap.prereqIds.size());
             for (int pi = 0; pi < snap.prereqIds.size(); pi++) {
-                buf.writeResourceLocation(snap.prereqIds.get(pi));
-                buf.writeBoolean(pi < snap.prereqRequired.size() && snap.prereqRequired.get(pi));
-                buf.writeBoolean(pi < snap.prereqForbidden.size() && snap.prereqForbidden.get(pi));
-                buf.writeBoolean(pi < snap.prereqLink.size() && snap.prereqLink.get(pi));
-                buf.writeBoolean(pi < snap.prereqCosmetic.size() && snap.prereqCosmetic.get(pi));
-                buf.writeUtf(pi < snap.prereqLineShape.size() ? snap.prereqLineShape.get(pi) : "");
-                buf.writeUtf(pi < snap.prereqLineVisual.size() ? snap.prereqLineVisual.get(pi) : "");
-                buf.writeUtf(pi < snap.prereqLineSpeed.size() ? snap.prereqLineSpeed.get(pi) : "");
-                buf.writeUtf(pi < snap.prereqLineArrow.size() ? snap.prereqLineArrow.get(pi) : "");
-                buf.writeUtf(pi < snap.prereqLineStyleId.size() ? snap.prereqLineStyleId.get(pi) : "");
+                buf.writeNullable(snap.prereqIds.get(pi), FriendlyByteBuf::writeResourceLocation);
+                buf.writeBoolean(pi < snap.prereqRequired.size() && Boolean.TRUE.equals(snap.prereqRequired.get(pi)));
+                buf.writeBoolean(pi < snap.prereqForbidden.size() && Boolean.TRUE.equals(snap.prereqForbidden.get(pi)));
+                buf.writeBoolean(pi < snap.prereqLink.size() && Boolean.TRUE.equals(snap.prereqLink.get(pi)));
+                buf.writeBoolean(pi < snap.prereqCosmetic.size() && Boolean.TRUE.equals(snap.prereqCosmetic.get(pi)));
+                buf.writeUtf(pi < snap.prereqLineShape.size() && snap.prereqLineShape.get(pi) != null ?
+                        snap.prereqLineShape.get(pi) : "");
+                buf.writeUtf(pi < snap.prereqLineVisual.size() && snap.prereqLineVisual.get(pi) != null ?
+                        snap.prereqLineVisual.get(pi) : "");
+                buf.writeUtf(pi < snap.prereqLineSpeed.size() && snap.prereqLineSpeed.get(pi) != null ?
+                        snap.prereqLineSpeed.get(pi) : "");
+                buf.writeUtf(pi < snap.prereqLineArrow.size() && snap.prereqLineArrow.get(pi) != null ?
+                        snap.prereqLineArrow.get(pi) : "");
+                buf.writeUtf(pi < snap.prereqLineStyleId.size() && snap.prereqLineStyleId.get(pi) != null ?
+                        snap.prereqLineStyleId.get(pi) : "");
             }
-            buf.writeBoolean(snap.optionalPrereqMinCount != null);
-            if (snap.optionalPrereqMinCount != null) buf.writeInt(snap.optionalPrereqMinCount);
+            buf.writeNullable(snap.optionalPrereqMinCount, FriendlyByteBuf::writeInt);
 
             buf.writeInt(snap.tasksNbt.size());
             for (CompoundTag tag : snap.tasksNbt) buf.writeNbt(tag);
 
-            buf.writeBoolean(snap.linkTarget != null);
-            if (snap.linkTarget != null) buf.writeResourceLocation(snap.linkTarget);
-            buf.writeUtf(snap.iconTexture);
-            buf.writeUtf(snap.shapeTexture);
-            buf.writeUtf(snap.nodeSize);
+            buf.writeNullable(snap.linkTarget, FriendlyByteBuf::writeResourceLocation);
+            buf.writeUtf(snap.iconTexture != null ? snap.iconTexture : "");
+            buf.writeUtf(snap.shapeTexture != null ? snap.shapeTexture : "");
+            buf.writeUtf(snap.nodeSize != null ? snap.nodeSize : "NORMAL");
             buf.writeInt(snap.sizeOverridePx);
-            buf.writeUtf(snap.iconFluid);
-            buf.writeUtf(snap.backgroundType);
-            buf.writeUtf(snap.externalScreenId);
+            buf.writeUtf(snap.iconFluid != null ? snap.iconFluid : "");
+            buf.writeUtf(snap.backgroundType != null ? snap.backgroundType : "");
+            buf.writeUtf(snap.externalScreenId != null ? snap.externalScreenId : "");
         }
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                 () -> () -> {
-
                     if (net.minecraft.client.Minecraft.getInstance().hasSingleplayerServer()) return;
                     ClientPayloadProcessor.processQuestTree(snapshotMap);
                 }));
@@ -186,11 +199,8 @@ public class S2CSyncQuestsPacket {
         final List<ResourceLocation> prereqIds;
 
         final List<Boolean> prereqRequired;
-
         final List<Boolean> prereqForbidden;
-
         final List<Boolean> prereqLink;
-
         final List<Boolean> prereqCosmetic;
 
         final List<String> prereqLineShape;
@@ -203,19 +213,12 @@ public class S2CSyncQuestsPacket {
         final List<CompoundTag> tasksNbt;
 
         final ResourceLocation linkTarget;
-
         final String iconTexture;
-
         final String shapeTexture;
-
         final String nodeSize;
-
         final int sizeOverridePx;
-
         final String iconFluid;
-
         final String backgroundType;
-
         final String externalScreenId;
 
         QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
@@ -228,7 +231,8 @@ public class S2CSyncQuestsPacket {
             this.customX = node.getCustomX();
             this.customY = node.getCustomY();
             this.subtitle = node.getSubtitle() != null ? node.getSubtitle() : "";
-            this.visibility = node.getEffectiveVisibility(server).name();
+            this.visibility = node.getEffectiveVisibility(server) != null ? node.getEffectiveVisibility(server).name() :
+                    "VISIBLE";
             this.enableIf = node.getEnableIf() != null ? node.getEnableIf() : "";
             this.taskMinCount = node.getTaskMinCount();
             this.requireAllPrerequisites = node.getRequireAllPrerequisites();
@@ -236,14 +240,18 @@ public class S2CSyncQuestsPacket {
             this.linkTarget = node.getLinkTarget();
             this.iconTexture = node.getIconTexture() != null ? node.getIconTexture() : "";
             this.shapeTexture = node.getShapeTexture() != null ? node.getShapeTexture() : "";
-            this.nodeSize = node.getNodeSize().name();
+            this.nodeSize = node.getNodeSize() != null ? node.getNodeSize().name() : "NORMAL";
             this.sizeOverridePx = node.getSizeOverridePx();
             this.iconFluid = node.getIconFluid() != null ? node.getIconFluid() : "";
             this.backgroundType = node.getBackgroundType() != null ? node.getBackgroundType() : "";
             this.externalScreenId = node.getExternalScreenId() != null ? node.getExternalScreenId() : "";
 
             this.childIds = new ArrayList<>();
-            for (QuestNode child : node.getChildren()) childIds.add(child.getId());
+            for (QuestNode child : node.getChildren()) {
+                if (child != null && child.getId() != null) {
+                    childIds.add(child.getId());
+                }
+            }
 
             this.prereqIds = new ArrayList<>();
             this.prereqRequired = new ArrayList<>();
@@ -255,7 +263,9 @@ public class S2CSyncQuestsPacket {
             this.prereqLineSpeed = new ArrayList<>();
             this.prereqLineArrow = new ArrayList<>();
             this.prereqLineStyleId = new ArrayList<>();
+
             for (QuestNode req : node.getPrerequisites()) {
+                if (req == null || req.getId() == null) continue;
                 prereqIds.add(req.getId());
                 prereqRequired.add(node.isPrereqRequired(req.getId()));
                 prereqForbidden.add(node.isPrereqForbidden(req.getId()));
@@ -275,13 +285,16 @@ public class S2CSyncQuestsPacket {
 
             this.tasksNbt = new ArrayList<>();
             for (QuestTask task : node.getEffectiveTasks(server)) {
+                if (task == null) continue;
                 CompoundTag tag = task.serializeNBT();
-                if (!tag.contains("task_id"))
-                    tag.putString("task_id", task.getTaskId().toString());
-                if (!tag.contains("description"))
-                    tag.putString("description", Component.Serializer.toJson(task.getDescription()));
-                tag.putBoolean("optional", task.isOptional());
-                tasksNbt.add(tag);
+                if (tag != null) {
+                    if (!tag.contains("task_id") && task.getTaskId() != null)
+                        tag.putString("task_id", task.getTaskId().toString());
+                    if (!tag.contains("description") && task.getDescription() != null)
+                        tag.putString("description", Component.Serializer.toJson(task.getDescription()));
+                    tag.putBoolean("optional", task.isOptional());
+                    tasksNbt.add(tag);
+                }
             }
         }
 
@@ -343,6 +356,7 @@ public class S2CSyncQuestsPacket {
             QuestTreeRegistry.clear();
 
             for (QuestSnapshot snap : snapshots.values()) {
+                if (snap.id == null) continue;
                 QuestNode node = new QuestNode(snap.id, snap.title, snap.description);
                 node.setChapter(snap.chapter);
                 node.setShapeType(snap.shapeType);
@@ -353,9 +367,9 @@ public class S2CSyncQuestsPacket {
                 node.setRequireAllPrerequisites(snap.requireAllPrerequisites);
                 node.setOptionalPrereqMinCount(snap.optionalPrereqMinCount);
                 try {
-                    node.setVisibility(QuestNode.Visibility.valueOf(snap.visibility));
+                    if (snap.visibility != null) node.setVisibility(QuestNode.Visibility.valueOf(snap.visibility));
                 } catch (Exception ignored) {}
-                node.setEnableIf(snap.enableIf.isEmpty() ? null : snap.enableIf);
+                node.setEnableIf(snap.enableIf != null && snap.enableIf.isEmpty() ? null : snap.enableIf);
                 node.setLinkTarget(snap.linkTarget);
                 node.setIconTexture(snap.iconTexture);
                 node.setIconFluid(snap.iconFluid);
@@ -363,15 +377,16 @@ public class S2CSyncQuestsPacket {
                 node.setBackgroundType(snap.backgroundType);
                 node.setExternalScreenId(snap.externalScreenId);
                 try {
-                    node.setNodeSize(QuestNode.NodeSize.valueOf(snap.nodeSize));
+                    if (snap.nodeSize != null) node.setNodeSize(QuestNode.NodeSize.valueOf(snap.nodeSize));
                 } catch (Exception ignored) {}
                 if (snap.sizeOverridePx > 0) node.setSizeOverridePx(snap.sizeOverridePx);
 
-                if (!snap.iconItemId.isEmpty()) {
+                if (snap.iconItemId != null && !snap.iconItemId.isEmpty()) {
                     node.setIconItemById(snap.iconItemId);
                 }
 
                 for (CompoundTag tag : snap.tasksNbt) {
+                    if (tag == null) continue;
                     QuestTask task = deserializeTask(tag);
                     if (task != null) {
                         if (tag.contains("optional")) task.setOptional(tag.getBoolean("optional"));
@@ -383,61 +398,81 @@ public class S2CSyncQuestsPacket {
             }
 
             Set<ResourceLocation> hasParent = new HashSet<>();
-            for (QuestSnapshot snap : snapshots.values())
-                hasParent.addAll(snap.childIds);
+            for (QuestSnapshot snap : snapshots.values()) {
+                if (snap.childIds != null) {
+                    for (ResourceLocation cId : snap.childIds) {
+                        if (cId != null) hasParent.add(cId);
+                    }
+                }
+            }
 
             for (QuestSnapshot snap : snapshots.values()) {
+                if (snap.id == null) continue;
                 QuestNode node = QuestTreeRegistry.getQuest(snap.id);
                 if (node == null) continue;
 
-                for (ResourceLocation childId : snap.childIds) {
-                    QuestNode child = QuestTreeRegistry.getQuest(childId);
-                    if (child != null) node.addChild(child);
+                if (snap.childIds != null) {
+                    for (ResourceLocation childId : snap.childIds) {
+                        if (childId == null) continue;
+                        QuestNode child = QuestTreeRegistry.getQuest(childId);
+                        if (child != null) node.addChild(child);
+                    }
                 }
 
-                for (int pi = 0; pi < snap.prereqIds.size(); pi++) {
-                    QuestNode req = QuestTreeRegistry.getQuest(snap.prereqIds.get(pi));
-                    if (req != null) {
-                        node.addPrerequisite(req);
-                        boolean forbidden = pi < snap.prereqForbidden.size() && snap.prereqForbidden.get(pi);
-                        if (forbidden) {
-                            node.setPrereqForbidden(req.getId(), true);
-                        } else {
-                            boolean required = pi < snap.prereqRequired.size() && snap.prereqRequired.get(pi);
-                            node.setPrereqRequired(req.getId(), required);
-                        }
-                        if (pi < snap.prereqLink.size() && snap.prereqLink.get(pi)) {
-                            node.setPrereqLink(req.getId(), true);
-                        }
-                        if (pi < snap.prereqCosmetic.size() && snap.prereqCosmetic.get(pi)) {
-                            node.setPrereqCosmetic(req.getId(), true);
-                        }
-                        if (pi < snap.prereqLineShape.size() && !snap.prereqLineShape.get(pi).isEmpty()) {
-                            try {
-                                node.setPrereqLineShape(req.getId(),
-                                        net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineStyle
-                                                .valueOf(snap.prereqLineShape.get(pi)));
-                            } catch (IllegalArgumentException ignored) {}
-                        }
-                        if (pi < snap.prereqLineVisual.size() && !snap.prereqLineVisual.get(pi).isEmpty()) {
-                            try {
-                                node.setPrereqLineVisual(req.getId(),
-                                        net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineVisualStyle
-                                                .valueOf(snap.prereqLineVisual.get(pi)));
-                            } catch (IllegalArgumentException ignored) {}
-                        }
-                        if (pi < snap.prereqLineSpeed.size() && !snap.prereqLineSpeed.get(pi).isEmpty()) {
-                            try {
-                                node.setPrereqLineSpeed(req.getId(),
-                                        net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineAnimSpeed
-                                                .valueOf(snap.prereqLineSpeed.get(pi)));
-                            } catch (IllegalArgumentException ignored) {}
-                        }
-                        if (pi < snap.prereqLineArrow.size() && !snap.prereqLineArrow.get(pi).isEmpty()) {
-                            node.setPrereqLineArrow(req.getId(), Boolean.valueOf(snap.prereqLineArrow.get(pi)));
-                        }
-                        if (pi < snap.prereqLineStyleId.size() && !snap.prereqLineStyleId.get(pi).isEmpty()) {
-                            node.setPrereqLineStyleId(req.getId(), snap.prereqLineStyleId.get(pi));
+                if (snap.prereqIds != null) {
+                    for (int pi = 0; pi < snap.prereqIds.size(); pi++) {
+                        ResourceLocation reqId = snap.prereqIds.get(pi);
+                        if (reqId == null) continue;
+                        QuestNode req = QuestTreeRegistry.getQuest(reqId);
+                        if (req != null) {
+                            node.addPrerequisite(req);
+                            boolean forbidden = pi < snap.prereqForbidden.size() &&
+                                    Boolean.TRUE.equals(snap.prereqForbidden.get(pi));
+                            if (forbidden) {
+                                node.setPrereqForbidden(req.getId(), true);
+                            } else {
+                                boolean required = pi < snap.prereqRequired.size() &&
+                                        Boolean.TRUE.equals(snap.prereqRequired.get(pi));
+                                node.setPrereqRequired(req.getId(), required);
+                            }
+                            if (pi < snap.prereqLink.size() && Boolean.TRUE.equals(snap.prereqLink.get(pi))) {
+                                node.setPrereqLink(req.getId(), true);
+                            }
+                            if (pi < snap.prereqCosmetic.size() && Boolean.TRUE.equals(snap.prereqCosmetic.get(pi))) {
+                                node.setPrereqCosmetic(req.getId(), true);
+                            }
+                            if (pi < snap.prereqLineShape.size() && snap.prereqLineShape.get(pi) != null &&
+                                    !snap.prereqLineShape.get(pi).isEmpty()) {
+                                try {
+                                    node.setPrereqLineShape(req.getId(),
+                                            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineStyle
+                                                    .valueOf(snap.prereqLineShape.get(pi)));
+                                } catch (IllegalArgumentException ignored) {}
+                            }
+                            if (pi < snap.prereqLineVisual.size() && snap.prereqLineVisual.get(pi) != null &&
+                                    !snap.prereqLineVisual.get(pi).isEmpty()) {
+                                try {
+                                    node.setPrereqLineVisual(req.getId(),
+                                            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineVisualStyle
+                                                    .valueOf(snap.prereqLineVisual.get(pi)));
+                                } catch (IllegalArgumentException ignored) {}
+                            }
+                            if (pi < snap.prereqLineSpeed.size() && snap.prereqLineSpeed.get(pi) != null &&
+                                    !snap.prereqLineSpeed.get(pi).isEmpty()) {
+                                try {
+                                    node.setPrereqLineSpeed(req.getId(),
+                                            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineAnimSpeed
+                                                    .valueOf(snap.prereqLineSpeed.get(pi)));
+                                } catch (IllegalArgumentException ignored) {}
+                            }
+                            if (pi < snap.prereqLineArrow.size() && snap.prereqLineArrow.get(pi) != null &&
+                                    !snap.prereqLineArrow.get(pi).isEmpty()) {
+                                node.setPrereqLineArrow(req.getId(), Boolean.valueOf(snap.prereqLineArrow.get(pi)));
+                            }
+                            if (pi < snap.prereqLineStyleId.size() && snap.prereqLineStyleId.get(pi) != null &&
+                                    !snap.prereqLineStyleId.get(pi).isEmpty()) {
+                                node.setPrereqLineStyleId(req.getId(), snap.prereqLineStyleId.get(pi));
+                            }
                         }
                     }
                 }
@@ -451,7 +486,7 @@ public class S2CSyncQuestsPacket {
         }
 
         private static QuestTask deserializeTask(CompoundTag tag) {
-            if (!tag.contains("type") || !tag.contains("task_id")) return null;
+            if (tag == null || !tag.contains("type") || !tag.contains("task_id")) return null;
             QuestTask task = PhoenixTaskRegistry.deserialize(tag);
             if (task == null) {
                 System.err.println("[Phoenix Chronicles] Unknown task type in sync packet: '" +

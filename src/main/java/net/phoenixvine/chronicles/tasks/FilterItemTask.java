@@ -91,6 +91,11 @@ public class FilterItemTask extends QuestTask {
     }
 
     @Override
+    public boolean matchesItem(ItemStack stack) {
+        return filter != null && stack != null && !stack.isEmpty() && filter.test(stack);
+    }
+
+    @Override
     public void tryConsume(Player player) {
         if (!consume) return;
         int remaining = count;

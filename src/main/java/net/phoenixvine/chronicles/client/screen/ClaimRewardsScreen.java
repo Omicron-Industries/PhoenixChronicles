@@ -13,8 +13,8 @@ import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SClaimAllRewardsPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,13 +82,13 @@ public class ClaimRewardsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float partial) {
-        int bg = ChroniclesTheme.current().bg.getColor();
-        int panel = ChroniclesTheme.current().panel.getColor();
-        int header = ChroniclesTheme.current().header.getColor();
-        int border = ChroniclesTheme.current().border.getColor();
-        int text = ChroniclesTheme.current().text.getColor();
-        int textDim = ChroniclesTheme.current().textDim.getColor();
-        int textFaint = ChroniclesTheme.current().textFaint.getColor();
+        int bg = PhoenixTheme.current().bg.getColor();
+        int panel = PhoenixTheme.current().panel.getColor();
+        int header = PhoenixTheme.current().header.getColor();
+        int border = PhoenixTheme.current().border.getColor();
+        int text = PhoenixTheme.current().text.getColor();
+        int textDim = PhoenixTheme.current().textDim.getColor();
+        int textFaint = PhoenixTheme.current().textFaint.getColor();
 
         g.fill(0, 0, width, height, bg);
         g.fill(0, 0, width, HEADER_H, header);

@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 public class NewChapterChoiceScreen extends Screen {
 
     private static final int PANEL_W = 200;
-    private static final int PANEL_H = 90;
+    private static final int PANEL_H = 110;
     private static final int MARGIN = 12;
     private static final int ACCENT = 0xFF4499CC;
 

@@ -90,6 +90,11 @@ public class TagItemTask extends QuestTask {
     }
 
     @Override
+    public boolean matchesItem(ItemStack stack) {
+        return tag != null && stack != null && !stack.isEmpty() && stack.is(tag);
+    }
+
+    @Override
     public CompoundTag serializeNBT() {
         CompoundTag t = new CompoundTag();
         t.putString("type", "tag_item");

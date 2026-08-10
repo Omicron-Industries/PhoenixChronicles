@@ -16,8 +16,8 @@ import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -258,7 +258,7 @@ public class QuestCreatorScreen extends Screen {
 
     @Override
     protected void init() {
-        ChroniclesTheme t = ChroniclesTheme.current();
+        PhoenixTheme t = PhoenixTheme.current();
         C_BG = t.bg.getColor();
         C_PANEL = t.panel.getColor();
         C_HEADER = t.header.getColor();

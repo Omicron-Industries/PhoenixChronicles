@@ -2,9 +2,11 @@ package net.phoenixvine.chronicles.client.screen;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 class ToolbarPanel {
 
@@ -23,29 +25,33 @@ class ToolbarPanel {
     private final Map<String, int[]> btnBounds = new HashMap<>();
 
     void render(GuiGraphics g, Font font, int mx, int my, int width, int cl, int cr, int toolbarY, int toolbarH,
-                Colors colors, String stateFilter, boolean hideCompleted, boolean minimapOpen, boolean devMode) {
+                Colors colors, String stateFilter, boolean hideCompleted, boolean minimapOpen, boolean devMode,
+                Consumer<Runnable> deferDraw) {
         int ty = toolbarY;
         g.fill(0, ty, width, ty + toolbarH, colors.panelDark());
         g.fill(0, ty + toolbarH - 1, width, ty + toolbarH, colors.border());
 
-        drawFilterPills(g, font, mx, my, cl, toolbarY, toolbarH, stateFilter);
+        int rightClusterW = rightClusterWidth(font, devMode);
+        drawFilterPills(g, font, mx, my, cl, toolbarY, toolbarH, stateFilter, cr - rightClusterW);
 
         int rx = cr - 4;
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "⊞ Fit", "fit");
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "⊞ Fit", "fit", "Fit all quests to view",
+                deferDraw);
         rx -= 2;
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "⚙", "settings");
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "⚙", "settings", "Settings", deferDraw);
         if (devMode) {
             rx -= 2;
-            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "?", "wiki");
+            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "?", "wiki", "Open dev wiki", deferDraw);
         }
         rx -= 2;
 
         String hideLabel = hideCompleted ? "§a✔ Hide done" : "§8✔ Hide done";
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, hideLabel, "hideDone");
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, hideLabel, "hideDone",
+                "Hide completed quests from the canvas", deferDraw);
         rx -= 2;
 
         String mmLabel = minimapOpen ? "§a⊡ Map" : "§8⊡ Map";
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, mmLabel, "map");
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, mmLabel, "map", "Toggle minimap", deferDraw);
         rx -= 2;
 
         if (devMode) {
@@ -57,17 +63,30 @@ class ToolbarPanel {
         }
     }
 
+    private int rightClusterWidth(Font font, boolean devMode) {
+        int w = 4;
+        w += font.width("⊞ Fit") + 10 + 2;
+        w += font.width("⚙") + 10 + 2;
+        if (devMode) w += font.width("?") + 10 + 2;
+        w += font.width("✔ Hide done") + 10 + 2;
+        w += font.width("⊡ Map") + 10 + 2;
+        if (devMode) w += font.width("DEV") + 8 + 12;
+        return w;
+    }
+
     private void drawFilterPills(GuiGraphics g, Font font, int mx, int my, int cl, int toolbarY, int toolbarH,
-                                 String stateFilter) {
+                                 String stateFilter, int maxX) {
         int px = cl + 4;
         int py = toolbarY + 2;
         int ph = toolbarH - 4;
 
         for (int i = 0; i < FILTER_KEYS.length; i++) {
-            boolean sel = stateFilter.equals(FILTER_KEYS[i]);
             String label = FILTER_GLYPHS[i] + " " +
                     (FILTER_KEYS[i].charAt(0) + FILTER_KEYS[i].substring(1).toLowerCase());
             int pw = font.width(label) + 8;
+            if (px + pw > maxX) break;
+
+            boolean sel = stateFilter.equals(FILTER_KEYS[i]);
             boolean hov = mx >= px && mx < px + pw && my >= py && my < py + ph;
 
             int bg = sel ? (FILTER_COLORS[i] & 0x00FFFFFF | 0x33000000) : (hov ? 0x22FFFFFF : 0x00000000);
@@ -82,7 +101,8 @@ class ToolbarPanel {
         }
     }
 
-    int[][] filterPillBounds(int cl, int toolbarY, int toolbarH, Font font) {
+    int[][] filterPillBounds(int cl, int cr, int toolbarY, int toolbarH, Font font, boolean devMode) {
+        int maxX = cr - rightClusterWidth(font, devMode);
         int px = cl + 4;
         int py = toolbarY + 2, ph = toolbarH - 4;
         int[][] bounds = new int[FILTER_KEYS.length][4];
@@ -90,6 +110,10 @@ class ToolbarPanel {
             String label = FILTER_GLYPHS[i] + " " +
                     (FILTER_KEYS[i].charAt(0) + FILTER_KEYS[i].substring(1).toLowerCase());
             int pw = font.width(label) + 8;
+            if (px + pw > maxX) {
+                bounds[i] = new int[] { 0, 0, 0, 0 };
+                continue;
+            }
             bounds[i] = new int[] { px, py, px + pw, py + ph };
             px += pw + 4;
         }
@@ -105,14 +129,18 @@ class ToolbarPanel {
     }
 
     private int drawBtnR(GuiGraphics g, Font font, int mx, int my, int rx, int ty, int toolbarH, Colors colors,
-                         String label, String key) {
+                         String label, String key, String tooltip, Consumer<Runnable> deferDraw) {
         int tw = font.width(label.replaceAll("§.", "")) + 10;
-        int th = toolbarH - 8;
-        int bx = rx - tw, by = ty + 4;
+
+        int th = toolbarH - 4;
+        int bx = rx - tw, by = ty + 2;
         boolean hov = mx >= bx && mx < bx + tw && my >= by && my < by + th;
         if (hov) g.fill(bx, by, bx + tw, by + th, 0x22FFFFFF);
-        g.drawString(font, label, bx + 5, by + 3, hov ? colors.text() : colors.textDim(), false);
+        g.drawString(font, label, bx + 5, by + 2, hov ? colors.text() : colors.textDim(), false);
         btnBounds.put(key, new int[] { bx, by, bx + tw, by + th });
+        if (hov && tooltip != null) {
+            deferDraw.accept(() -> g.renderTooltip(font, Component.literal("§7" + tooltip), mx, my));
+        }
         return bx - 2;
     }
 

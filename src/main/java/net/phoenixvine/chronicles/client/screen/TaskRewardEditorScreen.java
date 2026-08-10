@@ -26,10 +26,10 @@ import net.phoenixvine.chronicles.item.ItemFilterTokenItem;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
 import net.phoenixvine.chronicles.tasks.*;
 import net.phoenixvine.chronicles.tasks.BlockBreakTask;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -116,6 +116,9 @@ public class TaskRewardEditorScreen extends Screen {
     private boolean dragMovedTask = false;
     private boolean dragMovedReward = false;
 
+    private static final int ROW_HEADER_H = 14;
+    private List<Integer> rewardDisplayOrder = List.of();
+
     private static CompoundTag copiedTaskNBT = null;
 
     private final java.util.Deque<Object[]> undoHistory = new java.util.ArrayDeque<>();
@@ -158,7 +161,7 @@ public class TaskRewardEditorScreen extends Screen {
 
     @Override
     protected void init() {
-        ChroniclesTheme th = ChroniclesTheme.current();
+        PhoenixTheme th = PhoenixTheme.current();
         C_BG = th.bg.getColor();
         C_PANEL = th.panel.getColor();
         C_HEADER = th.header.getColor();
@@ -289,6 +292,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "external_trigger" -> "§8Trigger id";
                 case "view_machine" -> "§8Machine id  (Phantasia multiblock definition id)";
                 case "view_scene" -> "§8Scene id  (Phantasia scene definition id)";
+                case "view_guide" -> "§8Guide id  (Phantasia guide definition id)";
                 default -> {
                     PhoenixTaskRegistry.TaskEntry re = PhoenixTaskRegistry.get(taskType);
                     if (re != null) {
@@ -742,6 +746,7 @@ public class TaskRewardEditorScreen extends Screen {
                         (float) count);
                 case "view_scene" -> new net.phoenixvine.chronicles.tasks.ViewSceneTask(taskId, descComp, target,
                         (float) count);
+                case "view_guide" -> new net.phoenixvine.chronicles.tasks.ViewGuideTask(taskId, descComp, target);
                 case "energy_check" -> {
                     var eType = EnergyStorageTask.EnergyType.FE;
                     if (!target.isBlank()) {
@@ -878,6 +883,8 @@ public class TaskRewardEditorScreen extends Screen {
         } else if (t instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask vst) {
             pendingTaskTarget = vst.getSceneId();
             pendingTaskCount = String.valueOf((int) vst.getMinSeconds());
+        } else if (t instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask vgt) {
+            pendingTaskTarget = vgt.getGuideId();
         } else if (t instanceof EnergyStorageTask est) {
             pendingTaskTarget = est.getEnergyType().name();
             pendingTaskSecondary = est.getSource().name();
@@ -964,6 +971,7 @@ public class TaskRewardEditorScreen extends Screen {
         if (t instanceof InfoTask) return "info";
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "view_machine";
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "view_scene";
+        if (t instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask) return "view_guide";
         if (t instanceof EnergyStorageTask) return "energy_check";
         if (t instanceof FilterItemTask) return "filter_item";
         if (t instanceof FilterFluidTask) return "filter_fluid";
@@ -989,8 +997,8 @@ public class TaskRewardEditorScreen extends Screen {
         } catch (NumberFormatException ignored) {}
 
         QuestReward reward = switch (rewardType) {
-            case "item" -> rewardPickedItem != null ? new QuestReward.ItemReward(rewardPickedItem.getItem(), count) :
-                    null;
+            case "item" -> rewardPickedItem != null ?
+                    new QuestReward.ItemReward(rewardPickedItem.getItem(), count, rewardPickedItem.getTag()) : null;
             case "xp" -> new QuestReward.XPReward(count);
             case "command" -> {
                 String cmd = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
@@ -1045,6 +1053,7 @@ public class TaskRewardEditorScreen extends Screen {
         if (r instanceof QuestReward.ItemReward ir) {
             rewardType = "item";
             rewardPickedItem = new ItemStack(ir.getItem(), ir.getCount());
+            if (ir.getNbt() != null) rewardPickedItem.setTag(ir.getNbt().copy());
             pendingRewardCount = String.valueOf(ir.getCount());
         } else if (r instanceof QuestReward.XPReward xr) {
             rewardType = "xp";
@@ -1209,8 +1218,18 @@ public class TaskRewardEditorScreen extends Screen {
 
         g.enableScissor(splitX, listTop, width, listBottom);
         hoveredRewardRow = -1;
+        rewardDisplayOrder = computeRewardDisplayOrder();
+        int tableSectionStart = rewardTableSectionStart(rewardDisplayOrder);
         int ry = listTop;
-        for (int i = 0; i < rewards.size(); i++) {
+        for (int pos = 0; pos < rewardDisplayOrder.size(); pos++) {
+            if (pos == tableSectionStart) {
+                if (ry + ROW_HEADER_H > listBottom) break;
+                g.drawString(font, "§6⊞ §8Reward Tables", splitX + 5, ry + (ROW_HEADER_H / 2) - 4, C_TEXT_FAINT,
+                        false);
+                g.fill(splitX, ry + ROW_HEADER_H - 1, width - MARGIN, ry + ROW_HEADER_H, C_BORDER);
+                ry += ROW_HEADER_H;
+            }
+            int i = rewardDisplayOrder.get(pos);
             QuestReward reward = rewards.get(i);
             if (ry + ROW_H > listBottom) break;
             boolean hov = mx >= splitX && mx < width - MARGIN && my >= ry && my < ry + ROW_H;
@@ -1467,6 +1486,36 @@ public class TaskRewardEditorScreen extends Screen {
         return idx >= 0 && idx < count ? idx : -1;
     }
 
+    private List<Integer> computeRewardDisplayOrder() {
+        List<Integer> order = new ArrayList<>(rewards.size());
+        for (int i = 0; i < rewards.size(); i++) {
+            if (rewards.get(i).getType() != QuestReward.RewardType.REWARD_TABLE) order.add(i);
+        }
+        for (int i = 0; i < rewards.size(); i++) {
+            if (rewards.get(i).getType() == QuestReward.RewardType.REWARD_TABLE) order.add(i);
+        }
+        return order;
+    }
+
+    private int rewardTableSectionStart(List<Integer> order) {
+        for (int pos = 0; pos < order.size(); pos++) {
+            if (rewards.get(order.get(pos)).getType() == QuestReward.RewardType.REWARD_TABLE) return pos;
+        }
+        return order.size();
+    }
+
+    private int rewardRealIndexAtY(double my) {
+        if (my < listTop || rewardDisplayOrder.isEmpty()) return -1;
+        int tableSectionStart = rewardTableSectionStart(rewardDisplayOrder);
+        int y = listTop;
+        for (int pos = 0; pos < rewardDisplayOrder.size(); pos++) {
+            if (pos == tableSectionStart) y += ROW_HEADER_H;
+            if (my >= y && my < y + ROW_H) return rewardDisplayOrder.get(pos);
+            y += ROW_H;
+        }
+        return -1;
+    }
+
     @Override
     public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
         if (btn == 0 && draggingTaskIndex >= 0) {
@@ -1484,7 +1533,7 @@ public class TaskRewardEditorScreen extends Screen {
             return true;
         }
         if (btn == 0 && draggingRewardIndex >= 0) {
-            int target = rowIndexAtY(my, rewards.size());
+            int target = rewardRealIndexAtY(my);
             if (target >= 0 && target != draggingRewardIndex) {
                 if (!dragMovedReward) {
                     pushUndo();

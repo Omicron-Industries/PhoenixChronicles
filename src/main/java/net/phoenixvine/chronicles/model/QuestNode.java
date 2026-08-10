@@ -14,8 +14,10 @@ import net.phoenixvine.chronicles.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.tracker.TutorialStep;
 
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.*;
+import java.util.function.Function;
 
 public class QuestNode {
 
@@ -82,6 +84,8 @@ public class QuestNode {
 
     private boolean hideDepLine = false;
 
+    @Setter
+    @Getter
     private boolean disabledBlocksChildren = false;
 
     private boolean optional = false;
@@ -117,43 +121,20 @@ public class QuestNode {
         this.optional = optional;
     }
 
+    @Setter
+    @Getter
     private ResourceLocation linkTarget = null;
 
     public boolean isLinkStub() {
         return linkTarget != null;
     }
 
-    public ResourceLocation getLinkTarget() {
-        return linkTarget;
-    }
+    @Setter
+    @Getter
+    private boolean shared = net.phoenixvine.chronicles.tracker.TeamKeyResolver.anyTeamModLoaded();
 
-    public void setLinkTarget(ResourceLocation target) {
-        this.linkTarget = target;
-    }
-
-    public boolean isDisabledBlocksChildren() {
-        return disabledBlocksChildren;
-    }
-
-    public void setDisabledBlocksChildren(boolean v) {
-        this.disabledBlocksChildren = v;
-    }
-
-    private boolean shared = false;
-
-    public boolean isShared() {
-        return shared;
-    }
-
-    public void setShared(boolean s) {
-        this.shared = s;
-    }
-
+    @Getter
     private boolean pooledProgress = false;
-
-    public boolean isPooledProgress() {
-        return pooledProgress;
-    }
 
     public void setPooledProgress(boolean v) {
         this.pooledProgress = v;
@@ -294,7 +275,7 @@ public class QuestNode {
     }
 
     private Component getTitle(int depth) {
-        if (isLinkStub() && title.getString().isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
+        if (isLinkStub() && linkTarget != null && title.getString().isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
             QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
             if (target != null && target != this) return target.getTitle(depth + 1);
         }
@@ -323,7 +304,7 @@ public class QuestNode {
     }
 
     private Component getDescription(int depth) {
-        if (isLinkStub() && description.getString().isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
+        if (isLinkStub() && linkTarget != null && description.getString().isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
             QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
             if (target != null && target != this) return target.getDescription(depth + 1);
         }
@@ -488,7 +469,7 @@ public class QuestNode {
     }
 
     private String getSubtitle(int depth) {
-        if (isLinkStub() && subtitle.isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
+        if (isLinkStub() && linkTarget != null && subtitle.isBlank() && depth < MAX_LINK_CHAIN_DEPTH) {
             QuestNode target = net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(linkTarget);
             if (target != null && target != this) return target.getSubtitle(depth + 1);
         }
@@ -715,6 +696,28 @@ public class QuestNode {
 
     public List<QuestNode> getPrerequisites() {
         return Collections.unmodifiableList(prerequisites);
+    }
+
+    public boolean isSelfGatedHidden(Function<QuestNode, QuestState> stateLookup) {
+        return (visibility == Visibility.HIDDEN || visibility == Visibility.MYSTERY) &&
+                stateLookup.apply(this) == QuestState.LOCKED;
+    }
+
+    public boolean isAncestorGatedHidden(Function<QuestNode, QuestState> stateLookup) {
+        return isAncestorGatedHidden(stateLookup, new HashSet<>());
+    }
+
+    private boolean isAncestorGatedHidden(Function<QuestNode, QuestState> stateLookup, Set<ResourceLocation> visiting) {
+        if (!visiting.add(id)) return false;
+        for (QuestNode prereq : prerequisites) {
+            if (prereq.isSelfGatedHidden(stateLookup) || prereq.isAncestorGatedHidden(stateLookup, visiting))
+                return true;
+        }
+        return false;
+    }
+
+    public boolean isGatedHidden(Function<QuestNode, QuestState> stateLookup) {
+        return isSelfGatedHidden(stateLookup) || isAncestorGatedHidden(stateLookup);
     }
 
     public void addTask(QuestTask task) {

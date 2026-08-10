@@ -9,6 +9,7 @@ import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.tasks.ViewGuideTask;
 import net.phoenixvine.chronicles.tasks.ViewMachineTask;
 import net.phoenixvine.chronicles.tasks.ViewSceneTask;
 import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
@@ -49,7 +50,9 @@ public class C2SPhantasiaTaskCompletePacket {
             for (QuestTask task : node.getTasks()) {
                 if (!taskId.equals(task.getTaskId())) continue;
 
-                if (!(task instanceof ViewMachineTask) && !(task instanceof ViewSceneTask)) break;
+                if (!(task instanceof ViewMachineTask) && !(task instanceof ViewSceneTask) &&
+                        !(task instanceof ViewGuideTask))
+                    break;
                 if (task.isCompletedFor(player)) break;
 
                 TaskProgressAccess.with(player, taskId, nbt -> nbt.putBoolean("completed", true));

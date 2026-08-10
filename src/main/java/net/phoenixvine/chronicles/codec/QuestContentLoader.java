@@ -15,6 +15,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
+import static net.phoenixvine.chronicles.client.util.MarkdownUtils.loadMarkdownContent;
+
 public class QuestContentLoader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QuestContentLoader.class);
@@ -73,30 +75,8 @@ public class QuestContentLoader {
         }
     }
 
-    public static FullQuestData loadFullQuestDetails(ResourceLocation questId) {
-        Path questsFolder = Minecraft.getInstance().gameDirectory.toPath()
-                .resolve("config")
-                .resolve("phoenix_chronicles")
-                .resolve("quests");
-
-        Path file = questsFolder.resolve(questId.getPath() + ".md");
-
-        if (!Files.exists(file)) {
-            LOGGER.warn("[Chronicles] Quest content file not found: {}", file);
-            return null;
-        }
-
-        Path resolved = resolveLocaleFile(file, questId.getPath());
-        QuestContent content = parseQuestFile(resolved);
-
-        if (content == null) return null;
-
-        return new FullQuestData(content.title(), content.description(), java.util.List.of());
-    }
-
     public static QuestContent parseQuestFile(Path file) {
-        FullQuestData data = net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen
-                .loadMarkdownContent(file);
+        FullQuestData data = loadMarkdownContent(file);
         Component title = data.title();
         if (title == null || title.getString().isBlank()) {
 

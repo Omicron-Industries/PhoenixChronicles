@@ -53,6 +53,9 @@ public class CategoryLoader {
         String id = null;
         String displayName = null;
         List<String> chapters = new ArrayList<>();
+        int color = 0;
+        int nameColor = 0;
+        String icon = "";
         boolean inChapters = false;
 
         for (String rawLine : lines) {
@@ -71,6 +74,9 @@ public class CategoryLoader {
                 switch (kv[0]) {
                     case "id" -> id = kv[1];
                     case "display_name" -> displayName = unquote(kv[1]);
+                    case "color" -> color = parseColor(kv[1]);
+                    case "name_color" -> nameColor = parseColor(kv[1]);
+                    case "icon" -> icon = unquote(kv[1]);
                 }
                 continue;
             }
@@ -87,7 +93,17 @@ public class CategoryLoader {
         id = id.toLowerCase();
         if (displayName == null) displayName = id;
 
-        return new CategoryDefinition(id, displayName, chapters);
+        return new CategoryDefinition(id, displayName, chapters, color, icon, nameColor);
+    }
+
+    private static int parseColor(String hex) {
+        try {
+            String clean = hex.trim();
+            if (clean.startsWith("#")) clean = clean.substring(1);
+            return clean.isEmpty() ? 0 : (int) (Long.parseLong(clean, 16) & 0xFFFFFF);
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     public static void writeCategoryFile(Path categoriesFolder, CategoryDefinition category) {
@@ -96,6 +112,12 @@ public class CategoryLoader {
             StringBuilder sb = new StringBuilder();
             sb.append("id: ").append(category.id()).append('\n');
             sb.append("display_name: \"").append(category.displayName()).append("\"\n");
+            if (category.color() != 0)
+                sb.append("color: ").append(String.format("%06X", category.color())).append('\n');
+            if (category.nameColor() != 0)
+                sb.append("name_color: ").append(String.format("%06X", category.nameColor())).append('\n');
+            if (category.icon() != null && !category.icon().isEmpty())
+                sb.append("icon: \"").append(category.icon()).append("\"\n");
             sb.append("chapters:\n");
             for (String chap : category.chapters()) sb.append("  - ").append(chap).append('\n');
             Files.writeString(fileFor(categoriesFolder, category.id()), sb.toString(), StandardCharsets.UTF_8);

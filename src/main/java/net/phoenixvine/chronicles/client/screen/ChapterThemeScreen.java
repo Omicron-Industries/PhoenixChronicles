@@ -27,9 +27,9 @@ public class ChapterThemeScreen extends Screen {
     private static final int ROW_H = 13;
 
     private static final int[] ROW_H_TABLE = { STRIDE + 10, STRIDE, STRIDE, STRIDE + 10, STRIDE + 10, STRIDE + 10,
-            STRIDE + 10 };
-    private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_STYLE = 2, ROW_COLOR = 3, ROW_TEXTURE = 4,
-            ROW_CATEGORY = 5, ROW_PARENT = 6;
+            STRIDE + 10, STRIDE + 10 };
+    private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_STYLE = 2, ROW_COLOR = 3, ROW_NAME_COLOR = 4,
+            ROW_TEXTURE = 5, ROW_CATEGORY = 6, ROW_PARENT = 7;
     private static final int PANEL_H;
 
     static {
@@ -45,6 +45,7 @@ public class ChapterThemeScreen extends Screen {
 
     private ChapterConfig.BgStyle selectedStyle;
     private int cachedColor;
+    private int cachedNameColor;
     private String cachedTexture;
     private String cachedDisplayName;
     private String cachedIcon;
@@ -52,6 +53,7 @@ public class ChapterThemeScreen extends Screen {
     private final String originalDisplayName;
 
     private EditBox colorBox;
+    private EditBox nameColorBox;
     private EditBox textureBox;
     private EditBox nameBox;
 
@@ -75,6 +77,7 @@ public class ChapterThemeScreen extends Screen {
         ChapterConfig cfg = ChapterConfig.get(chapter);
         this.selectedStyle = cfg.getStyle();
         this.cachedColor = cfg.getColor();
+        this.cachedNameColor = cfg.getNameColor();
         this.cachedTexture = cfg.getTexture();
         this.cachedDisplayName = cfg.getDisplayName();
         this.originalDisplayName = this.cachedDisplayName;
@@ -147,9 +150,10 @@ public class ChapterThemeScreen extends Screen {
 
         nameBox = new EditBox(font, fx, rowTop(ROW_NAME) + 11, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(64);
-        nameBox.setHint(Component.literal("§8" + defaultFriendlyName() + "  (empty = default)"));
+        nameBox.setHint(Component.literal("§8" + defaultFriendlyName() +
+                "  (empty = default, &c etc. for color codes)"));
         nameBox.setValue(cachedDisplayName);
-        nameBox.setResponder(v -> cachedDisplayName = v.trim());
+        nameBox.setResponder(v -> cachedDisplayName = v.replace('&', '§').trim());
         addRenderableWidget(nameBox);
 
         int iconPreviewW = FIELD_H + 4;
@@ -172,6 +176,13 @@ public class ChapterThemeScreen extends Screen {
         colorBox.setValue(cachedColor != 0 ? ChroniclesUIKit.formatHexColor(cachedColor) : "");
         colorBox.setResponder(v -> cachedColor = ChroniclesUIKit.parseHexColor(v, 0));
         addRenderableWidget(colorBox);
+
+        nameColorBox = new EditBox(font, fx, rowTop(ROW_NAME_COLOR) + 11, fw, FIELD_H, Component.empty());
+        nameColorBox.setMaxLength(7);
+        nameColorBox.setHint(Component.literal("§8#RRGGBB  (empty = use background color)"));
+        nameColorBox.setValue(cachedNameColor != 0 ? ChroniclesUIKit.formatHexColor(cachedNameColor) : "");
+        nameColorBox.setResponder(v -> cachedNameColor = ChroniclesUIKit.parseHexColor(v, 0));
+        addRenderableWidget(nameColorBox);
 
         int browseW = 48;
         int browseGap = 4;
@@ -274,6 +285,7 @@ public class ChapterThemeScreen extends Screen {
         ChapterConfig cfg = new ChapterConfig();
         cfg.setStyle(selectedStyle);
         cfg.setColor(cachedColor);
+        cfg.setNameColor(cachedNameColor);
         cfg.setTexture(cachedTexture);
         cfg.setDisplayName(cachedDisplayName);
         cfg.setIcon(cachedIcon);
@@ -330,6 +342,7 @@ public class ChapterThemeScreen extends Screen {
         g.renderItem(new net.minecraft.world.item.ItemStack(iconItem), fx + 1, iconRowY + 1);
 
         g.drawString(font, "§8Background Color", fx, rowTop(ROW_COLOR), ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Display Name Color", fx, rowTop(ROW_NAME_COLOR), ChroniclesThemePalette.TEXT_FAINT);
         g.drawString(font, "§8Custom Background", fx, rowTop(ROW_TEXTURE),
                 ChroniclesThemePalette.TEXT_FAINT);
 

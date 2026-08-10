@@ -10,6 +10,7 @@ import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
@@ -38,22 +39,22 @@ public final class ItemLookup {
         ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (itemId == null) return;
 
-        List<QuestNode> matches = findQuestsRequiring(itemId);
+        List<QuestNode> matches = findQuestsRequiring(stack, itemId);
         if (matches.isEmpty()) {
             mc.player.displayClientMessage(Component.literal(
                     "§7No quest requires " + stack.getHoverName().getString() + "§7."), true);
             return;
         }
 
-        QuestNode target = matches.get(0);
-        ChronicleOverviewScreen screen = new ChronicleOverviewScreen();
-        mc.setScreen(screen);
-        screen.navigateToNode(target);
-
-        if (matches.size() > 1) {
-            mc.player.displayClientMessage(Component.literal(
-                    "§7Found §f" + matches.size() + " §7quest(s) requiring this - showing the first."), true);
+        if (matches.size() == 1) {
+            QuestNode target = matches.get(0);
+            ChronicleOverviewScreen screen = new ChronicleOverviewScreen();
+            mc.setScreen(screen);
+            screen.navigateToNode(target);
+            return;
         }
+
+        mc.setScreen(new net.phoenixvine.chronicles.client.screen.ItemLookupResultsScreen(stack, matches));
     }
 
     private static ItemStack getInspectedItem(Minecraft mc) {
@@ -68,18 +69,30 @@ public final class ItemLookup {
         return mc.player.getOffhandItem();
     }
 
-    private static List<QuestNode> findQuestsRequiring(ResourceLocation itemId) {
+    private static List<QuestNode> findQuestsRequiring(ItemStack stack, ResourceLocation itemId) {
         List<QuestNode> matches = new ArrayList<>();
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
             if (node.isLinkStub()) continue;
-            for (QuestTask task : node.getTasks()) {
-                ResourceLocation id = task.getDisplayItemId();
-                if (id != null && id.equals(itemId)) {
-                    matches.add(node);
-                    break;
-                }
-            }
+            if (referencesItem(node, stack, itemId)) matches.add(node);
         }
         return matches;
+    }
+
+    private static boolean referencesItem(QuestNode node, ItemStack stack, ResourceLocation itemId) {
+        for (QuestTask task : node.getTasks()) {
+
+            if (task.matchesItem(stack)) return true;
+        }
+        for (QuestReward reward : node.getRewards()) {
+            if (reward instanceof QuestReward.ItemReward ir) {
+                ResourceLocation id = ForgeRegistries.ITEMS.getKey(ir.getItem());
+                if (id != null && id.equals(itemId)) return true;
+            }
+        }
+        if (node.getIconItem() != null) {
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(node.getIconItem());
+            if (id != null && id.equals(itemId)) return true;
+        }
+        return false;
     }
 }

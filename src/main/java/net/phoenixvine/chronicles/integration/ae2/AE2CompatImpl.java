@@ -7,15 +7,18 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fluids.FluidStack;
 import net.phoenixvine.chronicles.filter.IFluidFilter;
 import net.phoenixvine.chronicles.filter.IItemFilter;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 
 import appeng.api.config.Actionable;
 import appeng.api.networking.IGrid;
+import appeng.api.networking.IGridNode;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.storage.MEStorage;
 import appeng.items.tools.powered.WirelessTerminalItem;
+import appeng.menu.me.common.MEStorageMenu;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -28,7 +31,28 @@ final class AE2CompatImpl {
     @Nullable
     private static IGrid getLinkedGrid(Player player) {
         IGrid grid = getLinkedGrid(player, player.getMainHandItem());
-        return grid != null ? grid : getLinkedGrid(player, player.getOffhandItem());
+        if (grid != null) return grid;
+        grid = getLinkedGrid(player, player.getOffhandItem());
+        if (grid != null) return grid;
+
+        for (ItemStack stack : player.getInventory().items) {
+            grid = getLinkedGrid(player, stack);
+            if (grid != null) return grid;
+        }
+
+        if (CuriosCompat.isAvailable()) {
+            for (ItemStack stack : CuriosCompat.getEquippedCurios(player)) {
+                grid = getLinkedGrid(player, stack);
+                if (grid != null) return grid;
+            }
+        }
+
+        if (player.containerMenu instanceof MEStorageMenu meMenu) {
+            IGridNode node = meMenu.getNetworkNode();
+            if (node != null) return node.getGrid();
+        }
+
+        return null;
     }
 
     @Nullable

@@ -14,8 +14,8 @@ import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.network.packet.C2SSetQuestStatePacket;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import org.jetbrains.annotations.NotNull;
@@ -418,17 +418,17 @@ public class TerminalScreen extends Screen {
 
     private void cmdTheme(String[] parts) {
         if (parts.length < 2) {
-            consoleHistory.add("§8Loaded themes: §f" + String.join("  ", ChroniclesTheme.REGISTRY.keySet()));
-            consoleHistory.add("§8Active: §f" + ChroniclesTheme.getActiveName());
+            consoleHistory.add("§8Loaded themes: §f" + String.join("  ", PhoenixTheme.REGISTRY.keySet()));
+            consoleHistory.add("§8Active: §f" + PhoenixTheme.getActiveName());
             return;
         }
         String name = parts[1].toUpperCase(java.util.Locale.ROOT);
-        if (!ChroniclesTheme.REGISTRY.containsKey(name)) {
+        if (!PhoenixTheme.REGISTRY.containsKey(name)) {
             consoleHistory.add("§cERR: Unknown theme '§f" + parts[1] + "§c'. Available: §f" +
-                    String.join("  ", ChroniclesTheme.REGISTRY.keySet()));
+                    String.join("  ", PhoenixTheme.REGISTRY.keySet()));
             return;
         }
-        ChroniclesTheme.setCurrent(name);
+        PhoenixTheme.setCurrent(name);
         consoleHistory.add("§a[OK] Theme set to §f" + name);
     }
 

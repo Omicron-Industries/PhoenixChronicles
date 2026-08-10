@@ -10,6 +10,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.player.AdvancementEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
@@ -20,6 +21,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.PhoenixChronicles;
+import net.phoenixvine.chronicles.capability.PooledTaskProgress;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
 import net.phoenixvine.chronicles.codec.ChronicleDataLoader;
 import net.phoenixvine.chronicles.codec.KubeJsTaskTypeLoader;
@@ -29,6 +31,7 @@ import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
+import net.phoenixvine.chronicles.network.packet.S2CSyncPooledProgressPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
 import net.phoenixvine.chronicles.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
@@ -37,10 +40,12 @@ import net.phoenixvine.chronicles.registry.RewardTableRegistry;
 import net.phoenixvine.chronicles.tasks.*;
 import net.phoenixvine.chronicles.tasks.BlockBreakTask;
 import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
+import net.phoenixvine.chronicles.tracker.TeamKeyResolver;
 
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -121,7 +126,7 @@ public class ChronicleEvents {
                 for (Object task : node.getEffectiveTasks(player.getServer())) {
                     if (task instanceof ItemRequirementTask ||
                             task instanceof net.phoenixvine.chronicles.tasks.TagItemTask) {
-                        changed = true; 
+                        changed = true;
                     }
                 }
 
@@ -158,7 +163,7 @@ public class ChronicleEvents {
                         changed = true;
                     } else if (task instanceof ItemRequirementTask ||
                             task instanceof net.phoenixvine.chronicles.tasks.TagItemTask) {
-                                changed = true; 
+                                changed = true;
                             }
                 }
 
@@ -167,7 +172,7 @@ public class ChronicleEvents {
                     needSync = true;
                 }
             }
-            
+
             if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
                 QuestProgressTracker.sendProgressSync(sp);
             }
@@ -200,12 +205,44 @@ public class ChronicleEvents {
                         needSync = true;
                     }
                 }
-                
+
                 if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
                     QuestProgressTracker.sendProgressSync(sp);
                 }
             });
         }
+    }
+
+    @SubscribeEvent
+    public static void onAdvancementEarned(AdvancementEvent.AdvancementEarnEvent event) {
+        Player player = event.getEntity();
+        if (player.level().isClientSide) return;
+
+        ResourceLocation advancementId = event.getAdvancement().getId();
+
+        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            boolean needSync = false;
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
+                if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
+
+                boolean changed = false;
+                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                    if (task instanceof AdvancementTask advTask) {
+                        advTask.onAdvancementEarned(player, advancementId);
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    needSync = true;
+                }
+            }
+
+            if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                QuestProgressTracker.sendProgressSync(sp);
+            }
+        });
     }
 
     @SubscribeEvent
@@ -230,7 +267,7 @@ public class ChronicleEvents {
                     needSync = true;
                 }
             }
-            
+
             if (needSync) QuestProgressTracker.sendProgressSync(player);
         });
     }
@@ -274,7 +311,7 @@ public class ChronicleEvents {
                     needSync = true;
                 }
             }
-            
+
             if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
                 QuestProgressTracker.sendProgressSync(sp);
             }
@@ -304,7 +341,7 @@ public class ChronicleEvents {
                     needSync = true;
                 }
             }
-            
+
             if (needSync && player instanceof net.minecraft.server.level.ServerPlayer sp) {
                 QuestProgressTracker.sendProgressSync(sp);
             }
@@ -745,7 +782,8 @@ public class ChronicleEvents {
                 return;
             }
             long tImportDone = System.currentTimeMillis();
-            System.out.println("[PhoenixChronicles] Import (file conversion) took " + (tImportDone - tImportStart) + "ms");
+            System.out.println(
+                    "[PhoenixChronicles] Import (file conversion) took " + (tImportDone - tImportStart) + "ms");
             final net.phoenixvine.chronicles.capability.importer.FtbQuestsImporter.ImportResult r = result;
             server.execute(() -> {
                 long tReloadStart = System.currentTimeMillis();
@@ -759,7 +797,8 @@ public class ChronicleEvents {
                 net.phoenixvine.chronicles.codec.QuestFileLoader.loadAdditiveFromDisk(configDir);
                 long tReloadDone = System.currentTimeMillis();
                 System.out
-                        .println("[PhoenixChronicles] Registry reload (on main thread) took " + (tReloadDone - tReloadStart) +
+                        .println("[PhoenixChronicles] Registry reload (on main thread) took " +
+                                (tReloadDone - tReloadStart) +
                                 "ms" + " (queued " + (tReloadStart - tImportDone) + "ms after import finished)");
 
                 List<String> loadErrors = List.copyOf(net.phoenixvine.chronicles.codec.QuestFileLoader.LOAD_ERRORS);
@@ -782,7 +821,8 @@ public class ChronicleEvents {
                 }
                 long tSyncDone = System.currentTimeMillis();
                 System.out.println(
-                        "[PhoenixChronicles] Player sync/notify (" + (localReload ? "local reload signal" : "full packet") +
+                        "[PhoenixChronicles] Player sync/notify (" +
+                                (localReload ? "local reload signal" : "full packet") +
                                 ") took " + (tSyncDone - tReloadDone) + "ms");
                 final int fp = playerCount;
                 ctx.getSource().sendSuccess(() -> Component.literal(
@@ -850,7 +890,25 @@ public class ChronicleEvents {
 
             QuestProgressTracker.autoUnlockSatisfiedQuests(serverPlayer);
             QuestProgressTracker.sendProgressSync(serverPlayer);
+            sendInitialPooledSync(serverPlayer);
         }
+    }
+
+    private static void sendInitialPooledSync(net.minecraft.server.level.ServerPlayer player) {
+        TeamKeyResolver.resolve(player).ifPresent(teamKey -> {
+            PooledTaskProgress pooled = PooledTaskProgress.get(player.serverLevel());
+            Map<ResourceLocation, net.minecraft.nbt.CompoundTag> bulk = new HashMap<>();
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                if (!node.isPooledProgress()) continue;
+                for (net.phoenixvine.chronicles.model.QuestTask task : node.getEffectiveTasks(player.getServer())) {
+                    bulk.put(task.getTaskId(), pooled.getOrCreate(teamKey, task.getTaskId()));
+                }
+            }
+            if (!bulk.isEmpty()) {
+                ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                        new S2CSyncPooledProgressPacket(bulk));
+            }
+        });
     }
 
     @SubscribeEvent

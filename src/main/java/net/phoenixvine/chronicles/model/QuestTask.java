@@ -4,7 +4,9 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.util.INBTSerializable;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 
 import lombok.Getter;
@@ -85,5 +87,12 @@ public abstract class QuestTask implements INBTSerializable<CompoundTag> {
 
     public ResourceLocation getDisplayItemId() {
         return null;
+    }
+
+    public boolean matchesItem(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        ResourceLocation displayId = getDisplayItemId();
+        if (displayId == null) return false;
+        return displayId.equals(ForgeRegistries.ITEMS.getKey(stack.getItem()));
     }
 }

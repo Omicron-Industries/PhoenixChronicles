@@ -79,63 +79,121 @@ public class QuestChroniclesSettings {
         }
     }
 
-    private TextScale textScale = TextScale.NORMAL;
-    private Theme theme = Theme.DARK;
-    private Density density = Density.SPACIOUS;
+    private TextScale textScale;
+    private Theme theme;
+    private Density density;
     private boolean showDevInfoByDefault = false;
     private boolean showFlagDisabledChapters = false;
     private boolean showFlagDisabledQuests = true;
-    private HUDPosition hudPosition = HUDPosition.TOP_LEFT;
-    private float hudOpacity = 1.0f;
-    private boolean showHUDTitle = true;
-    private boolean showHUDProgress = true;
-    private boolean showHUDRewards = true;
-    private LineStyle lineStyle = LineStyle.SPLINE;
-    private LineVisualStyle lineVisualStyle = LineVisualStyle.NORMAL;
-    private LineAnimSpeed lineAnimSpeed = LineAnimSpeed.NORMAL;
-    private boolean showLineArrows = true;
+    private HUDPosition hudPosition;
+    private Float hudOpacity;
+    private Boolean showHUDTitle;
+    private Boolean showHUDProgress;
+    private Boolean showHUDRewards;
+    private LineStyle lineStyle;
+    private LineVisualStyle lineVisualStyle;
+    private LineAnimSpeed lineAnimSpeed;
+    private Boolean showLineArrows;
 
     private boolean devModeDisabled = true;
 
     private String lastChapter = "";
 
-    private HUDPosition toastPosition = HUDPosition.TOP_RIGHT;
+    private HUDPosition toastPosition;
 
-    private String questbookName = "";
+    private String questbookName;
 
-    private String questbookIcon = "";
+    private String questbookIcon;
 
-    private ToastStyle toastStyle = ToastStyle.COMPACT;
+    private ToastStyle toastStyle;
 
-    private boolean playToastSounds = true;
+    private Boolean playToastSounds;
 
-    private boolean phantasiaAutoSpin = true;
+    private Boolean phantasiaAutoSpin;
 
-    private boolean hideCompletedByDefault = false;
+    private Boolean hideCompletedByDefault;
 
-    private int defaultGridSnap = 8;
+    private Integer defaultGridSnap;
 
-    private boolean showToasts = true;
+    private Boolean showToasts;
 
-    private boolean reduceMotion = false;
+    private Boolean reduceMotion;
 
-    private boolean returnToQuestbookFromRecipeViewer = true;
+    private Boolean returnToQuestbookFromRecipeViewer;
 
-    private boolean showProgressArc = false;
+    private Boolean showProgressArc;
 
-    private SidebarBehavior sidebarBehavior = SidebarBehavior.COLLAPSIBLE;
+    private SidebarBehavior sidebarBehavior;
 
     private int taskInspectorW = -1;
     private int taskRewardW = -1;
 
-    private NodeMoveMode nodeMoveMode = NodeMoveMode.DRAG;
+    private NodeMoveMode nodeMoveMode;
 
-    private boolean middleClickPickupPlace = false;
+    private Boolean middleClickPickupPlace;
 
     private boolean alwaysProfilerEnabled = false;
 
+    private Boolean cascadeHiddenQuests;
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path SETTINGS_FILE = Paths.get("config", "phoenix_chronicles_settings.json");
+
+    private static final class PackDefaults {
+
+        TextScale textScale;
+        Theme theme;
+        Density density;
+        HUDPosition hudPosition;
+        Float hudOpacity;
+        Boolean showHUDTitle;
+        Boolean showHUDProgress;
+        Boolean showHUDRewards;
+        LineStyle lineStyle;
+        LineVisualStyle lineVisualStyle;
+        LineAnimSpeed lineAnimSpeed;
+        Boolean showLineArrows;
+        HUDPosition toastPosition;
+        String questbookName;
+        String questbookIcon;
+        ToastStyle toastStyle;
+        Boolean playToastSounds;
+        Boolean phantasiaAutoSpin;
+        Boolean hideCompletedByDefault;
+        Integer defaultGridSnap;
+        Boolean showToasts;
+        Boolean reduceMotion;
+        Boolean returnToQuestbookFromRecipeViewer;
+        Boolean showProgressArc;
+        SidebarBehavior sidebarBehavior;
+        NodeMoveMode nodeMoveMode;
+        Boolean middleClickPickupPlace;
+        Boolean cascadeHiddenQuests;
+    }
+
+    private static final Path PACK_DEFAULTS_FILE = Paths.get("config", "phoenix_chronicles_pack_defaults.json");
+    private static PackDefaults packDefaults = null;
+
+    private static PackDefaults packDefaults() {
+        if (packDefaults == null) {
+            packDefaults = new PackDefaults();
+            try {
+                if (Files.exists(PACK_DEFAULTS_FILE)) {
+                    PackDefaults loaded = GSON.fromJson(Files.readString(PACK_DEFAULTS_FILE), PackDefaults.class);
+                    if (loaded != null) packDefaults = loaded;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return packDefaults;
+    }
+
+    private static <T> T resolve(T explicit, T packDefault, T hardcoded) {
+        if (explicit != null) return explicit;
+        if (packDefault != null) return packDefault;
+        return hardcoded;
+    }
 
     private static QuestChroniclesSettings INSTANCE = null;
 
@@ -159,6 +217,8 @@ public class QuestChroniclesSettings {
             result = new QuestChroniclesSettings();
         }
         INSTANCE = result;
+        packDefaults = null;
+        net.phoenixvine.wiki.theme.PhoenixTheme.setReduceMotion(result.isReduceMotion());
         return result;
     }
 
@@ -174,15 +234,15 @@ public class QuestChroniclesSettings {
     }
 
     public TextScale getTextScale() {
-        return textScale;
+        return resolve(textScale, packDefaults().textScale, TextScale.NORMAL);
     }
 
     public Theme getTheme() {
-        return theme;
+        return resolve(theme, packDefaults().theme, Theme.DARK);
     }
 
     public Density getDensity() {
-        return density;
+        return resolve(density, packDefaults().density, Density.SPACIOUS);
     }
 
     public boolean isShowDevInfoByDefault() {
@@ -198,23 +258,23 @@ public class QuestChroniclesSettings {
     }
 
     public HUDPosition getHudPosition() {
-        return hudPosition;
+        return resolve(hudPosition, packDefaults().hudPosition, HUDPosition.TOP_LEFT);
     }
 
     public float getHudOpacity() {
-        return hudOpacity;
+        return resolve(hudOpacity, packDefaults().hudOpacity, 1.0f);
     }
 
     public boolean isShowHUDTitle() {
-        return showHUDTitle;
+        return resolve(showHUDTitle, packDefaults().showHUDTitle, true);
     }
 
     public boolean isShowHUDProgress() {
-        return showHUDProgress;
+        return resolve(showHUDProgress, packDefaults().showHUDProgress, true);
     }
 
     public boolean isShowHUDRewards() {
-        return showHUDRewards;
+        return resolve(showHUDRewards, packDefaults().showHUDRewards, true);
     }
 
     public void setTextScale(TextScale scale) {
@@ -262,7 +322,7 @@ public class QuestChroniclesSettings {
     }
 
     public LineStyle getLineStyle() {
-        return lineStyle != null ? lineStyle : LineStyle.SPLINE;
+        return resolve(lineStyle, packDefaults().lineStyle, LineStyle.SPLINE);
     }
 
     public void setLineStyle(LineStyle style) {
@@ -274,7 +334,7 @@ public class QuestChroniclesSettings {
     }
 
     public LineVisualStyle getLineVisualStyle() {
-        return lineVisualStyle != null ? lineVisualStyle : LineVisualStyle.NORMAL;
+        return resolve(lineVisualStyle, packDefaults().lineVisualStyle, LineVisualStyle.NORMAL);
     }
 
     public void setLineVisualStyle(LineVisualStyle s) {
@@ -282,7 +342,7 @@ public class QuestChroniclesSettings {
     }
 
     public LineAnimSpeed getLineAnimSpeed() {
-        return lineAnimSpeed != null ? lineAnimSpeed : LineAnimSpeed.NORMAL;
+        return resolve(lineAnimSpeed, packDefaults().lineAnimSpeed, LineAnimSpeed.NORMAL);
     }
 
     public void setLineAnimSpeed(LineAnimSpeed s) {
@@ -290,7 +350,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isShowLineArrows() {
-        return showLineArrows;
+        return resolve(showLineArrows, packDefaults().showLineArrows, true);
     }
 
     public boolean isDevModeDisabled() {
@@ -314,7 +374,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isShowProgressArc() {
-        return showProgressArc;
+        return resolve(showProgressArc, packDefaults().showProgressArc, false);
     }
 
     public void setShowProgressArc(boolean show) {
@@ -329,8 +389,16 @@ public class QuestChroniclesSettings {
         this.alwaysProfilerEnabled = enabled;
     }
 
+    public boolean isCascadeHiddenQuests() {
+        return resolve(cascadeHiddenQuests, packDefaults().cascadeHiddenQuests, true);
+    }
+
+    public void setCascadeHiddenQuests(boolean cascade) {
+        this.cascadeHiddenQuests = cascade;
+    }
+
     public HUDPosition getToastPosition() {
-        return toastPosition != null ? toastPosition : HUDPosition.TOP_RIGHT;
+        return resolve(toastPosition, packDefaults().toastPosition, HUDPosition.TOP_RIGHT);
     }
 
     public void setToastPosition(HUDPosition pos) {
@@ -338,7 +406,7 @@ public class QuestChroniclesSettings {
     }
 
     public ToastStyle getToastStyle() {
-        return toastStyle != null ? toastStyle : ToastStyle.COMPACT;
+        return resolve(toastStyle, packDefaults().toastStyle, ToastStyle.COMPACT);
     }
 
     public void setToastStyle(ToastStyle style) {
@@ -346,7 +414,8 @@ public class QuestChroniclesSettings {
     }
 
     public String getQuestbookName() {
-        return (questbookName == null || questbookName.isEmpty()) ? "Quest Book" : questbookName;
+        String v = resolve(questbookName, packDefaults().questbookName, null);
+        return (v == null || v.isEmpty()) ? "Quest Book" : v;
     }
 
     public void setQuestbookName(String name) {
@@ -354,7 +423,8 @@ public class QuestChroniclesSettings {
     }
 
     public String getQuestbookIcon() {
-        return questbookIcon != null ? questbookIcon : "";
+        String v = resolve(questbookIcon, packDefaults().questbookIcon, "");
+        return v != null ? v : "";
     }
 
     public void setQuestbookIcon(String icon) {
@@ -362,10 +432,11 @@ public class QuestChroniclesSettings {
     }
 
     public net.minecraft.world.item.Item getQuestbookIconItem() {
-        if (questbookIcon != null && !questbookIcon.isEmpty()) {
+        String icon = getQuestbookIcon();
+        if (!icon.isEmpty()) {
             try {
                 net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                        .getValue(new net.minecraft.resources.ResourceLocation(questbookIcon));
+                        .getValue(new net.minecraft.resources.ResourceLocation(icon));
                 if (item != null && item != net.minecraft.world.item.Items.AIR) return item;
             } catch (Exception ignored) {}
         }
@@ -373,7 +444,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isPlayToastSounds() {
-        return playToastSounds;
+        return resolve(playToastSounds, packDefaults().playToastSounds, true);
     }
 
     public void setPlayToastSounds(boolean play) {
@@ -381,7 +452,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isPhantasiaAutoSpin() {
-        return phantasiaAutoSpin;
+        return resolve(phantasiaAutoSpin, packDefaults().phantasiaAutoSpin, true);
     }
 
     public void setPhantasiaAutoSpin(boolean spin) {
@@ -389,7 +460,7 @@ public class QuestChroniclesSettings {
     }
 
     public NodeMoveMode getNodeMoveMode() {
-        return nodeMoveMode == null ? NodeMoveMode.DRAG : nodeMoveMode;
+        return resolve(nodeMoveMode, packDefaults().nodeMoveMode, NodeMoveMode.DRAG);
     }
 
     public void setNodeMoveMode(NodeMoveMode mode) {
@@ -397,7 +468,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isMiddleClickPickupPlace() {
-        return middleClickPickupPlace;
+        return resolve(middleClickPickupPlace, packDefaults().middleClickPickupPlace, false);
     }
 
     public void setMiddleClickPickupPlace(boolean enabled) {
@@ -405,7 +476,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isHideCompletedByDefault() {
-        return hideCompletedByDefault;
+        return resolve(hideCompletedByDefault, packDefaults().hideCompletedByDefault, false);
     }
 
     public void setHideCompletedByDefault(boolean hide) {
@@ -413,7 +484,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isReturnToQuestbookFromRecipeViewer() {
-        return returnToQuestbookFromRecipeViewer;
+        return resolve(returnToQuestbookFromRecipeViewer, packDefaults().returnToQuestbookFromRecipeViewer, true);
     }
 
     public void setReturnToQuestbookFromRecipeViewer(boolean b) {
@@ -421,7 +492,7 @@ public class QuestChroniclesSettings {
     }
 
     public SidebarBehavior getSidebarBehavior() {
-        return sidebarBehavior != null ? sidebarBehavior : SidebarBehavior.COLLAPSIBLE;
+        return resolve(sidebarBehavior, packDefaults().sidebarBehavior, SidebarBehavior.COLLAPSIBLE);
     }
 
     public void setSidebarBehavior(SidebarBehavior b) {
@@ -429,7 +500,8 @@ public class QuestChroniclesSettings {
     }
 
     public int getDefaultGridSnap() {
-        return defaultGridSnap <= 0 ? 8 : defaultGridSnap;
+        int v = resolve(defaultGridSnap, packDefaults().defaultGridSnap, 8);
+        return v <= 0 ? 8 : v;
     }
 
     public void setDefaultGridSnap(int snap) {
@@ -453,7 +525,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isShowToasts() {
-        return showToasts;
+        return resolve(showToasts, packDefaults().showToasts, true);
     }
 
     public void setShowToasts(boolean show) {
@@ -461,15 +533,16 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isReduceMotion() {
-        return reduceMotion;
+        return resolve(reduceMotion, packDefaults().reduceMotion, false);
     }
 
     public void setReduceMotion(boolean reduce) {
         this.reduceMotion = reduce;
+        net.phoenixvine.wiki.theme.PhoenixTheme.setReduceMotion(reduce);
     }
 
     public float getTextScaleMultiplier() {
-        return switch (textScale) {
+        return switch (getTextScale()) {
             case SMALL -> 0.85f;
             case NORMAL -> 1.0f;
             case LARGE -> 1.2f;
@@ -477,6 +550,6 @@ public class QuestChroniclesSettings {
     }
 
     public int getMarginMultiplier() {
-        return density == Density.COMPACT ? 8 : 12;
+        return getDensity() == Density.COMPACT ? 8 : 12;
     }
 }

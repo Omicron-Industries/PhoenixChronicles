@@ -3,11 +3,11 @@ package net.phoenixvine.chronicles.client.render;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.phoenixvine.chronicles.registry.ChroniclesTheme;
+import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 public class ChroniclesThemeRenderer {
 
-    public static void drawHeader(GuiGraphics g, int width, int heightLimit, String titleText, ChroniclesTheme theme) {
+    public static void drawHeader(GuiGraphics g, int width, int heightLimit, String titleText, PhoenixTheme theme) {
         Font font = Minecraft.getInstance().font;
         int headerColor = theme.header.getColor();
         int borderColor = theme.border.getColor();

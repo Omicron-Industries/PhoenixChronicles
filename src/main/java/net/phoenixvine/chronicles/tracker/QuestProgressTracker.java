@@ -391,6 +391,7 @@ public class QuestProgressTracker {
         List<QuestNode> active = new java.util.ArrayList<>();
         for (QuestNode p : prereqs) {
             if (p.isFlagDisabled()) continue;
+            if (p.isOptional()) continue;
             if (node.isPrereqForbidden(p.getId())) continue;
             if (node.isPrereqCosmetic(p.getId())) continue;
             if (p.getEffectiveVisibility(server) == QuestNode.Visibility.DISABLED && !p.isDisabledBlocksChildren())

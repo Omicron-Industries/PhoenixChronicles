@@ -136,7 +136,6 @@ public class ItemPickerScreen extends Screen {
                 if (!matchesId && !matchesName) continue;
             }
             displayItems.add(stack);
-            if (displayItems.size() >= 2000) break;
         }
     }
 
@@ -178,7 +177,6 @@ public class ItemPickerScreen extends Screen {
                         if (q.isEmpty() || s.getHoverName().getString().toLowerCase().contains(q)) {
                             displayItems.add(s.copy());
                         }
-                        if (displayItems.size() >= 2000) return;
                     }
                 }
             }
@@ -212,7 +210,6 @@ public class ItemPickerScreen extends Screen {
                     if (q.isEmpty() || s.getHoverName().getString().toLowerCase().contains(q)) {
                         displayItems.add(s.copy());
                     }
-                    if (displayItems.size() >= 2000) break;
                 }
             }
         } catch (Exception e) {

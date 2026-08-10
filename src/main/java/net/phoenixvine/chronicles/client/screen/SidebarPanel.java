@@ -449,7 +449,7 @@ class SidebarPanel {
     }
 
     private int chapterAccent(String cat) {
-        int configured = ChapterConfig.get(cat).getColor();
+        int configured = ChapterConfig.get(cat).getEffectiveNameColor();
         if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
         return CAT_ACCENTS[Math.abs(cat.hashCode()) % CAT_ACCENTS.length];
     }
@@ -579,12 +579,68 @@ class SidebarPanel {
         boolean hov = mx >= 0 && mx < width() - 1 && my >= y && my < y + h;
         g.fill(0, y, width() - 1, y + h, hov ? 0xFF1C1C24 : 0xFF15151B);
         g.fill(0, y + h - 1, width() - 1, y + h, colors.border());
+
+        int accent = categoryAccent(row.id());
+        g.fill(0, y, 2, y + h, accent);
+
         String arrow = row.collapsed() ? "▶" : "▼";
-        g.drawString(font, "§8" + arrow, 4, y + (h - 8) / 2, hov ? colors.textDim() : colors.textFaint(), false);
+        int textX = 6;
+        g.drawString(font, "§8" + arrow, textX, y + (h - 8) / 2, hov ? colors.textDim() : colors.textFaint(), false);
+        textX += 9;
+
+        CategoryDefinition cat = CategoryRegistry.get(row.id());
+        String iconId = cat != null ? cat.icon() : "";
+        if (iconId != null && !iconId.isEmpty()) {
+            net.minecraft.world.item.Item item = resolveCategoryIcon(iconId);
+            if (item != null) {
+                try {
+                    g.pose().pushPose();
+                    g.pose().translate(textX, y + (h - 16) / 2f, 0f);
+                    g.pose().scale(0.625f, 0.625f, 1f);
+                    g.renderItem(new net.minecraft.world.item.ItemStack(item), 0, 0);
+                    g.pose().popPose();
+                } catch (Exception ignored) {}
+                textX += 11;
+            }
+        }
+
         String label = row.label();
-        int maxLabelW = width() - 16;
+        CategoryDefinition catForLabel = CategoryRegistry.get(row.id());
+        if (catForLabel != null && catForLabel.nameColor() != 0) label = stripColorCodes(label);
+        int maxLabelW = width() - textX - 3;
         if (font.width(label) > maxLabelW) label = font.plainSubstrByWidth(label, maxLabelW - 4) + "…";
-        g.drawString(font, "§l" + label, 13, y + (h - 8) / 2, hov ? colors.textDim() : colors.textFaint(), false);
+        int nameAccent = categoryNameAccent(row.id());
+        int labelColor = hov ? blendColor(nameAccent, colors.textDim(), 0.4f) :
+                blendColor(nameAccent, colors.textFaint(), 0.6f);
+        g.drawString(font, "§l" + label, textX, y + (h - 8) / 2, labelColor, false);
+    }
+
+    private static String stripColorCodes(String s) {
+        return s.replaceAll("(?i)§[0-9a-f]", "");
+    }
+
+    private int categoryAccent(String categoryId) {
+        CategoryDefinition cat = CategoryRegistry.get(categoryId);
+        int configured = cat != null ? cat.color() : 0;
+        if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
+        return CAT_ACCENTS[Math.abs(categoryId.hashCode()) % CAT_ACCENTS.length];
+    }
+
+    private int categoryNameAccent(String categoryId) {
+        CategoryDefinition cat = CategoryRegistry.get(categoryId);
+        int configured = cat != null ? cat.effectiveNameColor() : 0;
+        if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
+        return CAT_ACCENTS[Math.abs(categoryId.hashCode()) % CAT_ACCENTS.length];
+    }
+
+    private net.minecraft.world.item.Item resolveCategoryIcon(String iconId) {
+        try {
+            net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
+                    .getValue(new net.minecraft.resources.ResourceLocation(iconId));
+            return (item != null && item != net.minecraft.world.item.Items.AIR) ? item : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void renderCatRow(GuiGraphics g, Font font, SidebarRow row, int mx, int my, Colors colors,
@@ -618,7 +674,9 @@ class SidebarPanel {
 
         int textCol = locked ? colors.textFaint() :
                 (isSel || hov) ? accent : blendColor(accent, colors.textDim(), 0.4f);
-        String label = (locked ? "§8🔒 " : "") + row.label();
+        String rowLabel = row.label();
+        if (!locked && ChapterConfig.get(cat).getNameColor() != 0) rowLabel = stripColorCodes(rowLabel);
+        String label = (locked ? "§8🔒 " : "") + rowLabel;
         int maxLabelW = width() - (iconX + 18) - 4;
         if (font.width(label) > maxLabelW) label = font.plainSubstrByWidth(label, maxLabelW - 4) + "…";
         g.drawString(font, label, iconX + 18, y + (h - 8) / 2, textCol, false);
