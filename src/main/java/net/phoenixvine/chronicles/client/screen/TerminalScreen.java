@@ -441,7 +441,7 @@ public class TerminalScreen extends Screen {
     private static ResourceLocation safeRL(String s) {
         try {
             if (!s.contains(":")) s = "minecraft:" + s;
-            return new ResourceLocation(s);
+            return ResourceLocation.parse(s);
         } catch (Exception e) {
             return null;
         }

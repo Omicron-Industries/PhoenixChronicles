@@ -85,7 +85,7 @@ public class KillEntityTask extends QuestTask {
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("entity_id")) {
-            this.entityId = new ResourceLocation(nbt.getString("entity_id"));
+            this.entityId = ResourceLocation.parse(nbt.getString("entity_id"));
         }
         this.requiredCount = nbt.getInt("required");
         this.consume = nbt.getBoolean("consume");

@@ -288,6 +288,14 @@ public class SettingsScreen extends Screen {
                                 "individual quests a chapter_flags.snbt rule has disabled (marked\n" +
                                 "with the purple ⚑ border), so you can see and edit them in place.\n" +
                                 "Turn off to hide flag-disabled quests even while in dev mode."));
+                rows.add(Row.toggle("§fGenerate .md Sidecar Files", settings::isGenerateMdSidecarFiles, on -> {
+                    settings.setGenerateMdSidecarFiles(on);
+                    settings.save();
+                }).tip("Off by default: quest title/description already live in the .snbt\n" +
+                        "and render identically either way (same markdown formatting support).\n" +
+                        "Turn on if you'd rather edit description text in a real .md file next\n" +
+                        "to the .snbt - useful for some workflows, but many packdevs prefer\n" +
+                        "not to have an extra file per quest."));
                 rows.add(Row.toggle("§fAlways-On Profiler", settings::isAlwaysProfilerEnabled, on -> {
                     settings.setAlwaysProfilerEnabled(on);
                     settings.save();

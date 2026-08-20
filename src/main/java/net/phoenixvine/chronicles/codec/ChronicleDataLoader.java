@@ -97,14 +97,14 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                     node.setRepeatCooldownHours(json.get("repeat_cooldown_hours").getAsInt());
 
                 if (json.has("parent")) {
-                    ResourceLocation parentId = new ResourceLocation(json.get("parent").getAsString());
+                    ResourceLocation parentId = ResourceLocation.parse(json.get("parent").getAsString());
                     parentRelations.put(questId, parentId);
                 }
 
                 if (json.has("tasks")) {
                     json.getAsJsonArray("tasks").forEach(element -> {
                         JsonObject taskJson = element.getAsJsonObject();
-                        ResourceLocation taskId = new ResourceLocation(taskJson.get("id").getAsString());
+                        ResourceLocation taskId = ResourceLocation.parse(taskJson.get("id").getAsString());
                         Component taskDesc = Component.Serializer.fromJson(taskJson.get("description"));
 
                         String type = taskJson.get("type").getAsString();
@@ -115,13 +115,13 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                         QuestTask addedTask = null;
                         switch (type) {
                             case "terminal_check" -> {
-                                ResourceLocation terminalId = new ResourceLocation(
-                                        taskJson.get("target_terminal").getAsString());
+                                ResourceLocation terminalId = ResourceLocation
+                                        .parse(taskJson.get("target_terminal").getAsString());
                                 boolean consume = taskJson.has("consume") && taskJson.get("consume").getAsBoolean();
                                 addedTask = new LocationOrTerminalTask(taskId, taskDesc, terminalId, consume);
                             }
                             case "item_check" -> {
-                                ResourceLocation itemId = new ResourceLocation(taskJson.get("item_id").getAsString());
+                                ResourceLocation itemId = ResourceLocation.parse(taskJson.get("item_id").getAsString());
                                 Item item = ForgeRegistries.ITEMS.getValue(itemId);
                                 int amount = taskJson.has("amount") ? taskJson.get("amount").getAsInt() : 1;
                                 if (item != null) {
@@ -133,24 +133,25 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                                 }
                             }
                             case "fluid_check" -> {
-                                ResourceLocation fluidId = new ResourceLocation(taskJson.get("fluid_id").getAsString());
+                                ResourceLocation fluidId = ResourceLocation
+                                        .parse(taskJson.get("fluid_id").getAsString());
                                 int amount = taskJson.has("amount") ? taskJson.get("amount").getAsInt() : 1000;
                                 addedTask = new FluidRequirementTask(taskId, taskDesc, fluidId, amount, defaultConsume);
                             }
                             case "craft_item" -> {
-                                ResourceLocation itemId = new ResourceLocation(taskJson.get("item_id").getAsString());
+                                ResourceLocation itemId = ResourceLocation.parse(taskJson.get("item_id").getAsString());
                                 int count = taskJson.has("count") ? taskJson.get("count").getAsInt() : 1;
                                 addedTask = new CraftItemTask(taskId, taskDesc, itemId, count);
                             }
                             case "kill_entity" -> {
-                                ResourceLocation entityId = new ResourceLocation(
-                                        taskJson.get("entity_id").getAsString());
+                                ResourceLocation entityId = ResourceLocation
+                                        .parse(taskJson.get("entity_id").getAsString());
                                 int required = taskJson.has("required") ? taskJson.get("required").getAsInt() : 1;
                                 boolean consume = taskJson.has("consume") && taskJson.get("consume").getAsBoolean();
                                 addedTask = new KillEntityTask(taskId, taskDesc, entityId, required, consume);
                             }
                             case "stat" -> {
-                                ResourceLocation statId = new ResourceLocation(taskJson.get("stat_id").getAsString());
+                                ResourceLocation statId = ResourceLocation.parse(taskJson.get("stat_id").getAsString());
                                 int target = taskJson.has("target_value") ? taskJson.get("target_value").getAsInt() :
                                         1000;
                                 boolean consume = taskJson.has("consume") && taskJson.get("consume").getAsBoolean();
@@ -161,18 +162,19 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                                 addedTask = new ExperienceTask(taskId, taskDesc, level);
                             }
                             case "biome" -> {
-                                ResourceLocation biomeId = new ResourceLocation(taskJson.get("biome_id").getAsString());
+                                ResourceLocation biomeId = ResourceLocation
+                                        .parse(taskJson.get("biome_id").getAsString());
                                 addedTask = new BiomeTask(taskId, taskDesc, biomeId);
                             }
                             case "structure" -> {
-                                ResourceLocation structureId = new ResourceLocation(
-                                        taskJson.get("structure_id").getAsString());
+                                ResourceLocation structureId = ResourceLocation
+                                        .parse(taskJson.get("structure_id").getAsString());
                                 addedTask = new StructureTask(taskId, taskDesc, structureId);
                             }
                             case "checkmark" -> addedTask = new CheckmarkTask(taskId, taskDesc);
                             case "tag_item" -> {
                                 net.minecraft.tags.TagKey<Item> tag = net.minecraft.tags.ItemTags.create(
-                                        new ResourceLocation(taskJson.get("tag").getAsString()));
+                                        ResourceLocation.parse(taskJson.get("tag").getAsString()));
                                 int required = taskJson.has("required") ? taskJson.get("required").getAsInt() : 1;
                                 addedTask = new TagItemTask(taskId, taskDesc, tag, required);
                             }

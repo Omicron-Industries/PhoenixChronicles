@@ -79,7 +79,7 @@ public class ChapterConfig {
         if (!icon.isEmpty()) {
             try {
                 net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                        .getValue(new net.minecraft.resources.ResourceLocation(icon));
+                        .getValue(net.minecraft.resources.ResourceLocation.parse(icon));
                 if (item != null && item != net.minecraft.world.item.Items.AIR) return item;
             } catch (Exception ignored) {}
         }

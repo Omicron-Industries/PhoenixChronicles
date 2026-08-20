@@ -9,7 +9,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.ChapterConfig;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
-import net.phoenixvine.chronicles.codec.QuestContentLoader;
 import net.phoenixvine.chronicles.codec.QuestFileLoader;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestTask;
@@ -342,7 +341,7 @@ public class LangEditorScreen extends Screen {
                 if (gy + GROUP_H > top && gy < bott) {
                     g.fill(listX, gy, listX + listW, gy + GROUP_H, C_GROUP_BG);
                     g.fill(listX, gy, listX + 3, gy + GROUP_H, C_ACCENT);
-                    g.drawString(font, "§d▸ §7quests/" + entry.questId().getPath() + ".md",
+                    g.drawString(font, "§d▸ §7quests/" + entry.questId().getPath() + ".snbt",
                             listX + 8, gy + 3, ChroniclesThemePalette.TEXT);
                 }
             }
@@ -426,7 +425,7 @@ public class LangEditorScreen extends Screen {
         g.fill(0, HEADER_H - 1, width, HEADER_H, ChroniclesThemePalette.BORDER);
         g.drawString(font, "§dText Editor  §8│  §7" + friendly(selectedChapter),
                 SIDEBAR_W + 6, 6, ChroniclesThemePalette.TEXT);
-        g.drawString(font, "§8Ctrl+S saves  ·  primary: quests/*.md  ·  also exports lang/en_us.json",
+        g.drawString(font, "§8Ctrl+S saves  ·  primary: quests/*.snbt  ·  also exports lang/en_us.json",
                 SIDEBAR_W + 6, 16, ChroniclesThemePalette.TEXT_FAINT);
 
         g.fill(SIDEBAR_W, height - 18, width, height, ChroniclesThemePalette.PANEL);
@@ -565,100 +564,91 @@ public class LangEditorScreen extends Screen {
             byQuest.computeIfAbsent(entry.questId().getPath(), k -> new ArrayList<>()).add(entry);
         }
 
+        boolean generateMd = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                .isGenerateMdSidecarFiles();
+
         int saved = 0;
         for (Map.Entry<String, List<TextEntry>> qe : byQuest.entrySet()) {
             String questPath = qe.getKey();
             List<TextEntry> fields = qe.getValue();
 
-            Path mdFile = questsDir.resolve(questPath + ".md");
-            try {
-                Files.createDirectories(mdFile.getParent());
+            QuestNode qNode = QuestTreeRegistry.getQuest(
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", questPath));
 
-                String newTitle = null;
-                String newDesc = null;
-                for (TextEntry e : fields) {
-                    String v = dirty.get(e.key());
-                    if ("title".equals(e.fieldType())) newTitle = v;
-                    if ("description".equals(e.fieldType())) newDesc = v;
+            String newTitle = null;
+            String newDesc = null;
+            String newSubtitle = null;
+            for (TextEntry e : fields) {
+                String v = dirty.get(e.key());
+                if (v == null) continue;
+                switch (e.fieldType()) {
+                    case "title" -> newTitle = v;
+                    case "description" -> newDesc = v;
+                    case "subtitle" -> newSubtitle = v;
+                    default -> {}
                 }
-
-                if (Files.exists(mdFile)) {
-
-                    String existing = Files.readString(mdFile, StandardCharsets.UTF_8);
-                    String patched = patchMdFile(existing, newTitle, newDesc);
-                    Files.writeString(mdFile, patched, StandardCharsets.UTF_8);
-                } else {
-
-                    String t = newTitle != null ? newTitle : questPath;
-                    String d = newDesc != null ? newDesc : "";
-                    Files.writeString(mdFile, buildMdFile(t, d), StandardCharsets.UTF_8);
-                }
-                saved++;
-            } catch (IOException ex) {
-                ex.printStackTrace();
             }
 
             Path snbt = base.resolve(questPath + ".snbt");
             if (Files.exists(snbt)) {
                 try {
+                    net.minecraft.nbt.CompoundTag tag = net.minecraft.nbt.TagParser.parseTag(
+                            Files.readString(snbt, StandardCharsets.UTF_8));
 
-                    boolean hasTaskChanges = fields.stream().anyMatch(e -> e.fieldType().startsWith("task_"));
+                    if (newTitle != null) tag.putString("title", newTitle);
+                    if (newDesc != null) tag.putString("description", newDesc);
+                    if (newSubtitle != null) tag.putString("subtitle", newSubtitle);
 
-                    if (hasTaskChanges) {
-
-                        net.minecraft.nbt.CompoundTag tag = net.minecraft.nbt.TagParser.parseTag(
-                                Files.readString(snbt, StandardCharsets.UTF_8));
-
-                        for (TextEntry e : fields) {
-                            String v = dirty.get(e.key());
-                            if (v == null) continue;
-                            if ("subtitle".equals(e.fieldType())) {
-                                tag.putString("subtitle", v);
-                            } else if (e.fieldType().startsWith("task_")) {
-                                int idx = Integer.parseInt(e.fieldType().substring(5));
-                                if (tag.contains("tasks")) {
-                                    net.minecraft.nbt.ListTag taskList = tag.getList("tasks",
-                                            net.minecraft.nbt.Tag.TAG_COMPOUND);
-                                    if (idx < taskList.size()) {
-                                        net.minecraft.nbt.CompoundTag tTag = taskList.getCompound(idx).copy();
-                                        tTag.putString("description",
-                                                net.minecraft.network.chat.Component.Serializer.toJson(
-                                                        net.minecraft.network.chat.Component.literal(v)));
-                                        taskList.set(idx, tTag);
-                                    }
-                                }
-
-                                QuestNode qNode = QuestTreeRegistry.getQuest(
-                                        new net.minecraft.resources.ResourceLocation("phoenix_chronicles", questPath));
-                                if (qNode != null) {
-                                    int idx2 = Integer.parseInt(e.fieldType().substring(5));
-                                    if (idx2 < qNode.getTasks().size())
-                                        qNode.getTasks().get(idx2).setDescription(
-                                                net.minecraft.network.chat.Component.literal(v));
-                                }
+                    for (TextEntry e : fields) {
+                        if (!e.fieldType().startsWith("task_")) continue;
+                        String v = dirty.get(e.key());
+                        if (v == null) continue;
+                        int idx = Integer.parseInt(e.fieldType().substring(5));
+                        if (tag.contains("tasks")) {
+                            net.minecraft.nbt.ListTag taskList = tag.getList("tasks",
+                                    net.minecraft.nbt.Tag.TAG_COMPOUND);
+                            if (idx < taskList.size()) {
+                                net.minecraft.nbt.CompoundTag tTag = taskList.getCompound(idx).copy();
+                                tTag.putString("description",
+                                        net.minecraft.network.chat.Component.Serializer.toJson(
+                                                net.minecraft.network.chat.Component.literal(v)));
+                                taskList.set(idx, tTag);
                             }
                         }
-                        Files.writeString(snbt, tag.toString(), StandardCharsets.UTF_8);
-                    } else {
-
-                        String content = Files.readString(snbt, StandardCharsets.UTF_8);
-                        for (TextEntry e : fields) {
-                            String v = dirty.get(e.key());
-                            if ("subtitle".equals(e.fieldType()) && v != null) {
-                                if (content.contains("subtitle:"))
-                                    content = content.replaceAll("subtitle:\\s*\"[^\"]*\"",
-                                            "subtitle: \"" + esc(v) + "\"");
-                                else {
-                                    int last = content.lastIndexOf('}');
-                                    if (last >= 0)
-                                        content = content.substring(0, last) + "  subtitle: \"" + esc(v) + "\"\n" +
-                                                content.substring(last);
-                                }
-                            }
-                        }
-                        Files.writeString(snbt, content, StandardCharsets.UTF_8);
+                        if (qNode != null && idx < qNode.getTasks().size())
+                            qNode.getTasks().get(idx)
+                                    .setDescription(net.minecraft.network.chat.Component.literal(v));
                     }
+
+                    Files.writeString(snbt, tag.toString(), StandardCharsets.UTF_8);
+                    saved++;
                 } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+
+            if (qNode != null) {
+                if (newTitle != null) qNode.setTitle(Component.literal(newTitle));
+                if (newDesc != null) qNode.setDescription(Component.literal(newDesc));
+                if (newSubtitle != null) qNode.setSubtitle(newSubtitle);
+            }
+
+            if (generateMd) {
+                Path mdFile = questsDir.resolve(questPath + ".md");
+                try {
+                    Files.createDirectories(mdFile.getParent());
+                    if (Files.exists(mdFile)) {
+                        String existing = Files.readString(mdFile, StandardCharsets.UTF_8);
+                        String patched = patchMdFile(existing, newTitle, newDesc);
+                        Files.writeString(mdFile, patched, StandardCharsets.UTF_8);
+                    } else {
+                        String t = newTitle != null ? newTitle :
+                                (qNode != null ? qNode.getTitleRaw().getString() : questPath);
+                        String d = newDesc != null ? newDesc :
+                                (qNode != null ? qNode.getDescriptionRaw().getString() : "");
+                        Files.writeString(mdFile, buildMdFile(t, d), StandardCharsets.UTF_8);
+                    }
+                } catch (IOException ex) {
                     ex.printStackTrace();
                 }
             }
@@ -668,11 +658,10 @@ public class LangEditorScreen extends Screen {
 
         dirty.clear();
 
-        QuestContentLoader.reloadAllQuestsFromDisk();
         QuestFileLoader.loadAdditiveFromDisk(base);
         rebuildEntries();
         buildRowBoxes();
-        setStatus("§a✔ Saved " + saved + " quest(s)  →  quests/*.md  +  lang/en_us.json");
+        setStatus("§a✔ Saved " + saved + " quest(s)  →  quests/*.snbt  +  lang/en_us.json");
     }
 
     static String patchMdFile(String original, String newTitle, String newDesc) {
@@ -782,10 +771,6 @@ public class LangEditorScreen extends Screen {
     private void setStatus(String msg) {
         statusMsg = msg;
         statusTimer = 80;
-    }
-
-    private static String esc(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private List<String> buildChapterList() {

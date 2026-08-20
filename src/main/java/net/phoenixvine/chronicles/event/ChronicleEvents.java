@@ -57,8 +57,8 @@ public class ChronicleEvents {
     }
 
     private static net.minecraft.resources.ResourceLocation parseQuestArg(String raw) {
-        return raw.indexOf(':') >= 0 ? new net.minecraft.resources.ResourceLocation(raw) :
-                new net.minecraft.resources.ResourceLocation("phoenix_chronicles", raw);
+        return raw.indexOf(':') >= 0 ? net.minecraft.resources.ResourceLocation.parse(raw) :
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", raw);
     }
 
     private static volatile boolean hasServerStarted = false;
@@ -459,6 +459,17 @@ public class ChronicleEvents {
                                                 net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx,
                                                         "player"))))))
 
+                .then(Commands.literal("resettask")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.argument("task",
+                                com.mojang.brigadier.arguments.StringArgumentType.word())
+                                .executes(ctx -> devResetTask(ctx, null))
+                                .then(Commands
+                                        .argument("player", net.minecraft.commands.arguments.EntityArgument.player())
+                                        .executes(ctx -> devResetTask(ctx,
+                                                net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx,
+                                                        "player"))))))
+
                 .then(Commands.literal("unlock")
                         .requires(src -> src.hasPermission(2))
                         .then(Commands.argument("quest", questArg)
@@ -669,6 +680,51 @@ public class ChronicleEvents {
         String name = fsp.getName().getString();
         ctx.getSource().sendSuccess(
                 () -> Component.literal("Task §aforce-completed§r for " + name + ": " + taskArg), true);
+        return 1;
+    }
+
+    private static int devResetTask(com.mojang.brigadier.context.CommandContext<net.minecraft.commands.CommandSourceStack> ctx,
+                                    @Nullable net.minecraft.server.level.ServerPlayer explicitPlayer) {
+        net.minecraft.server.level.ServerPlayer sp = explicitPlayer;
+        if (sp == null) {
+            if (!(ctx.getSource().getEntity() instanceof net.minecraft.server.level.ServerPlayer self)) {
+                ctx.getSource().sendFailure(Component.literal("Must specify a player when running from console."));
+                return 0;
+            }
+            sp = self;
+        }
+        String taskArg = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "task");
+        net.minecraft.resources.ResourceLocation taskId;
+        try {
+            taskId = parseQuestArg(taskArg);
+        } catch (Exception e) {
+            ctx.getSource().sendFailure(Component.literal("Invalid task ID: " + taskArg));
+            return 0;
+        }
+        QuestNode node = QuestTreeRegistry.getTaskOwner(taskId);
+        if (node == null) {
+            ctx.getSource().sendFailure(Component.literal("Task not found: " + taskArg));
+            return 0;
+        }
+
+        net.minecraft.server.level.ServerPlayer fsp = sp;
+        net.phoenixvine.chronicles.capability.TaskProgressAccess.clear(fsp, taskId);
+
+        fsp.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
+            if (data.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.COMPLETED) {
+                data.setQuestState(node.getId(), QuestState.UNLOCKED);
+                data.clearClaimedRewards(node.getId());
+                data.clearChosenRewardIndex(node.getId());
+            }
+            ChronicleNetwork.CHANNEL.send(
+                    net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> fsp),
+                    new S2CSyncPlayerProgressPacket(data));
+        });
+        QuestProgressTracker.sendProgressSync(fsp);
+
+        String name = fsp.getName().getString();
+        ctx.getSource().sendSuccess(
+                () -> Component.literal("Task §7progress reset§r for " + name + ": " + taskArg), true);
         return 1;
     }
 

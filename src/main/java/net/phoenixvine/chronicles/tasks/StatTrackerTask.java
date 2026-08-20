@@ -112,7 +112,7 @@ public class StatTrackerTask extends QuestTask {
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("stat_id")) {
-            this.statId = new ResourceLocation(nbt.getString("stat_id"));
+            this.statId = ResourceLocation.parse(nbt.getString("stat_id"));
         }
         this.targetValue = nbt.getInt("target");
         this.consume = nbt.getBoolean("consume");

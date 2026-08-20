@@ -85,7 +85,7 @@ public class QuestbookTitleScreen extends Screen {
         if (cachedIcon != null && !cachedIcon.isEmpty()) {
             try {
                 Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                        .getValue(new net.minecraft.resources.ResourceLocation(cachedIcon));
+                        .getValue(net.minecraft.resources.ResourceLocation.parse(cachedIcon));
                 if (item != null && item != Items.AIR) return item;
             } catch (Exception ignored) {}
         }

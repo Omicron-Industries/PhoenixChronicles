@@ -61,6 +61,6 @@ public class StructureTask extends QuestTask {
 
     @Override
     public void deserializeNBT(CompoundTag nbt) {
-        if (nbt.contains("structure_id")) structureId = new ResourceLocation(nbt.getString("structure_id"));
+        if (nbt.contains("structure_id")) structureId = ResourceLocation.parse(nbt.getString("structure_id"));
     }
 }

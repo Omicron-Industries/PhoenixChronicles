@@ -8,16 +8,18 @@ class UndoRedoManager {
 
     private static final int MAX_UNDO = 30;
 
-    private final Deque<Runnable> undoStack = new ArrayDeque<>();
-    private final Deque<Runnable> redoStack = new ArrayDeque<>();
+    private record Entry(Runnable undo, Runnable redo) {}
+
+    private final Deque<Entry> undoStack = new ArrayDeque<>();
+    private final Deque<Entry> redoStack = new ArrayDeque<>();
     private final Consumer<String> feedback;
 
     UndoRedoManager(Consumer<String> feedback) {
         this.feedback = feedback;
     }
 
-    void push(Runnable action) {
-        undoStack.push(action);
+    void push(Runnable undoAction, Runnable redoAction) {
+        undoStack.push(new Entry(undoAction, redoAction));
         if (undoStack.size() > MAX_UNDO) undoStack.pollLast();
         redoStack.clear();
     }
@@ -27,8 +29,9 @@ class UndoRedoManager {
             feedback.accept("Nothing to undo");
             return;
         }
-        Runnable action = undoStack.pop();
-        action.run();
+        Entry entry = undoStack.pop();
+        entry.undo().run();
+        redoStack.push(entry);
     }
 
     void redo() {
@@ -36,7 +39,8 @@ class UndoRedoManager {
             feedback.accept("Nothing to redo");
             return;
         }
-        Runnable action = redoStack.pop();
-        action.run();
+        Entry entry = redoStack.pop();
+        entry.redo().run();
+        undoStack.push(entry);
     }
 }

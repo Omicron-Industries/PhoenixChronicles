@@ -40,7 +40,7 @@ public class VariantEditorScreen extends Screen {
     private final List<QuestNode.QuestVariant> variants = new ArrayList<>();
     private int selected = -1;
 
-    private EditBox conditionBox, titleBox, descBox;
+    private EditBox conditionBox, titleBox, subtitleBox, descBox;
 
     private static final QuestNode.Visibility[] VIS_CYCLE;
     static {
@@ -72,7 +72,7 @@ public class VariantEditorScreen extends Screen {
 
         listTop = HEADER_H + 20;
 
-        formTop = height - FOOTER_H - 4 * (FIELD_H + FIELD_GAP) - 36;
+        formTop = height - FOOTER_H - 5 * (FIELD_H + FIELD_GAP) - 36;
         listBottom = formTop - 10;
 
         rebuildWidgets();
@@ -94,7 +94,7 @@ public class VariantEditorScreen extends Screen {
         }).bounds(MARGIN, listTop - 18, 110, 14).build());
 
         if (selected < 0 || selected >= variants.size()) {
-            conditionBox = titleBox = descBox = null;
+            conditionBox = titleBox = subtitleBox = descBox = null;
             return;
         }
 
@@ -118,6 +118,14 @@ public class VariantEditorScreen extends Screen {
         titleBox.setValue(v.title != null ? v.title : "");
         titleBox.setResponder(s -> v.title = s.isBlank() ? null : s);
         addRenderableWidget(titleBox);
+        fy += FIELD_H + FIELD_GAP;
+
+        subtitleBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
+        subtitleBox.setMaxLength(128);
+        subtitleBox.setHint(Component.literal("§8subtitle override — blank = inherit base subtitle"));
+        subtitleBox.setValue(v.subtitle != null ? v.subtitle : "");
+        subtitleBox.setResponder(s -> v.subtitle = s.isBlank() ? null : s);
+        addRenderableWidget(subtitleBox);
         fy += FIELD_H + FIELD_GAP;
 
         descBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
@@ -248,6 +256,7 @@ public class VariantEditorScreen extends Screen {
     private String variantSummary(QuestNode.QuestVariant v) {
         List<String> parts = new ArrayList<>();
         if (v.title != null) parts.add("title");
+        if (v.subtitle != null) parts.add("subtitle");
         if (v.description != null) parts.add("desc");
         if (v.visibility != null) parts.add("visibility=" + v.visibility.name().toLowerCase());
         if (v.tasks != null) parts.add(v.tasks.size() + " task(s)");

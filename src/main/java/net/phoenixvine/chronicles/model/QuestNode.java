@@ -5,6 +5,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -13,6 +14,7 @@ import net.phoenixvine.chronicles.flag.PhoenixQuestFlags;
 import net.phoenixvine.chronicles.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.tracker.TutorialStep;
 
+import com.google.gson.annotations.SerializedName;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -68,8 +70,8 @@ public class QuestNode {
     @Getter
     private String enableIf = null;
 
-    public boolean isFlagEnabled() {
-        if (enableIf != null && !PhoenixQuestFlags.evaluate(enableIf, null, "quest " + id + " enableIf"))
+    public boolean isFlagEnabled(MinecraftServer server) {
+        if (enableIf != null && !PhoenixQuestFlags.evaluate(enableIf, server, "quest " + id + " enableIf"))
             return false;
         return ChapterFlagRegistry.isChapterEnabled(chapter);
     }
@@ -78,8 +80,8 @@ public class QuestNode {
         this.enableIf = (expr == null || expr.isBlank()) ? null : expr.trim();
     }
 
-    public boolean isFlagDisabled() {
-        return !isFlagEnabled();
+    public boolean isFlagDisabled(MinecraftServer server) {
+        return !isFlagEnabled(server);
     }
 
     private boolean hideDepLine = false;
@@ -246,9 +248,12 @@ public class QuestNode {
 
         public String condition;
         public String title;
+        public String subtitle;
         public String description;
         public Visibility visibility;
+        @SerializedName("tasks")
         public List<QuestTask> tasks;
+        @SerializedName("rewards")
         public List<QuestReward> rewards;
 
         public QuestVariant(String condition) {
@@ -420,7 +425,7 @@ public class QuestNode {
             return;
         }
         try {
-            Item found = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+            Item found = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(id));
             this.iconItem = (found != null && found != Items.AIR) ? found : null;
         } catch (Exception ignored) {
             this.iconItem = null;
@@ -787,6 +792,11 @@ public class QuestNode {
     public List<QuestReward> getEffectiveRewards(net.minecraft.server.MinecraftServer server) {
         QuestVariant v = resolveVariant(server);
         return (v != null && v.rewards != null) ? Collections.unmodifiableList(v.rewards) : getRewards();
+    }
+
+    public String getEffectiveSubtitle(net.minecraft.server.MinecraftServer server) {
+        QuestVariant v = resolveVariant(server);
+        return (v != null && v.subtitle != null && !v.subtitle.isBlank()) ? v.subtitle : getSubtitle();
     }
 
     public List<ItemStack> getEmergencyItems() {

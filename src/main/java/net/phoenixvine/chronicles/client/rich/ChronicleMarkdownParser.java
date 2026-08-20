@@ -328,7 +328,7 @@ public final class ChronicleMarkdownParser {
                     if (inner.startsWith("item:")) {
                         flush(buf, currentStyle, currentBackground, out);
                         try {
-                            out.add(new RichSpan.ItemIcon(new ResourceLocation(inner.substring(5).trim())));
+                            out.add(new RichSpan.ItemIcon(ResourceLocation.parse(inner.substring(5).trim())));
                         } catch (Exception ignored) {}
                         i = bracketEnd + 1;
                         continue;
@@ -428,7 +428,7 @@ public final class ChronicleMarkdownParser {
             } catch (NumberFormatException ignored) {}
         }
         try {
-            out.add(new RichSpan.Image(new ResourceLocation(rlPart), w, h));
+            out.add(new RichSpan.Image(ResourceLocation.parse(rlPart), w, h));
         } catch (Exception ignored) {}
     }
 

@@ -6,7 +6,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.model.QuestNode;
@@ -14,16 +13,12 @@ import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class ItemLookup {
 
     private ItemLookup() {}
-
-    private static final Field HOVERED_SLOT_FIELD = ObfuscationReflectionHelper.findField(AbstractContainerScreen.class,
-            "hoveredSlot");
 
     public static void performLookup() {
         Minecraft mc = Minecraft.getInstance();
@@ -58,11 +53,9 @@ public final class ItemLookup {
     }
 
     private static ItemStack getInspectedItem(Minecraft mc) {
-        if (mc.screen instanceof AbstractContainerScreen<?> containerScreen && HOVERED_SLOT_FIELD != null) {
-            try {
-                Slot hovered = (Slot) HOVERED_SLOT_FIELD.get(containerScreen);
-                if (hovered != null && hovered.hasItem()) return hovered.getItem();
-            } catch (Exception ignored) {}
+        if (mc.screen instanceof AbstractContainerScreen<?> containerScreen) {
+            Slot hovered = containerScreen.hoveredSlot;
+            if (hovered != null && hovered.hasItem()) return hovered.getItem();
         }
         ItemStack held = mc.player.getMainHandItem();
         if (!held.isEmpty()) return held;

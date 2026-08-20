@@ -25,7 +25,8 @@ public class S2COpenExternalScreenPacket {
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeResourceLocation(screenId != null ? screenId : new ResourceLocation("minecraft", "empty"));
+        buf.writeResourceLocation(
+                screenId != null ? screenId : ResourceLocation.fromNamespaceAndPath("minecraft", "empty"));
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {

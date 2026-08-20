@@ -7,7 +7,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
+import net.phoenixvine.chronicles.model.FullQuestData;
 import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
@@ -94,6 +96,10 @@ public class S2CSyncQuestsPacket {
             List<CompoundTag> tasksNbt = new ArrayList<>(taskCount);
             for (int t = 0; t < taskCount; t++) tasksNbt.add(buf.readNbt());
 
+            int rewardCount = buf.readInt();
+            List<CompoundTag> rewardsNbt = new ArrayList<>(rewardCount);
+            for (int r = 0; r < rewardCount; r++) rewardsNbt.add(buf.readNbt());
+
             ResourceLocation linkTarget = buf.readNullable(FriendlyByteBuf::readResourceLocation);
             String iconTexture = buf.readUtf();
             String shapeTexture = buf.readUtf();
@@ -108,7 +114,7 @@ public class S2CSyncQuestsPacket {
                     customX, customY, subtitle, visibility, enableIf, taskMinCount, requireAllPrerequisites,
                     childIds, prereqIds, prereqRequired, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, prereqLineStyleId,
-                    optionalPrereqMinCount, tasksNbt, linkTarget, iconTexture, shapeTexture,
+                    optionalPrereqMinCount, tasksNbt, rewardsNbt, linkTarget, iconTexture, shapeTexture,
                     nodeSize, sizeOverridePx, iconFluid, backgroundType, externalScreenId));
         }
     }
@@ -117,8 +123,10 @@ public class S2CSyncQuestsPacket {
         buf.writeInt(snapshotMap.size());
         for (QuestSnapshot snap : snapshotMap.values()) {
             buf.writeResourceLocation(snap.id);
-            buf.writeComponent(snap.title != null ? snap.title : Component.empty());
-            buf.writeComponent(snap.description != null ? snap.description : Component.empty());
+            buf.writeComponent(snap.fullQuestData != null && snap.fullQuestData.title() != null ?
+                    snap.fullQuestData.title() : Component.empty());
+            buf.writeComponent(snap.fullQuestData != null && snap.fullQuestData.description() != null ?
+                    snap.fullQuestData.description() : Component.empty());
             buf.writeUtf(snap.chapter != null ? snap.chapter : "MAIN");
             buf.writeUtf(snap.shapeType != null ? snap.shapeType : "SQUARE");
             buf.writeUtf(snap.iconItemId != null ? snap.iconItemId : "");
@@ -158,6 +166,9 @@ public class S2CSyncQuestsPacket {
             buf.writeInt(snap.tasksNbt.size());
             for (CompoundTag tag : snap.tasksNbt) buf.writeNbt(tag);
 
+            buf.writeInt(snap.rewardsNbt.size());
+            for (CompoundTag tag : snap.rewardsNbt) buf.writeNbt(tag);
+
             buf.writeNullable(snap.linkTarget, FriendlyByteBuf::writeResourceLocation);
             buf.writeUtf(snap.iconTexture != null ? snap.iconTexture : "");
             buf.writeUtf(snap.shapeTexture != null ? snap.shapeTexture : "");
@@ -181,8 +192,7 @@ public class S2CSyncQuestsPacket {
     private static class QuestSnapshot {
 
         final ResourceLocation id;
-        final Component title;
-        final Component description;
+        final FullQuestData fullQuestData;
         final String chapter;
         final String shapeType;
         final String iconItemId;
@@ -211,6 +221,7 @@ public class S2CSyncQuestsPacket {
 
         final Integer optionalPrereqMinCount;
         final List<CompoundTag> tasksNbt;
+        final List<CompoundTag> rewardsNbt;
 
         final ResourceLocation linkTarget;
         final String iconTexture;
@@ -223,14 +234,15 @@ public class S2CSyncQuestsPacket {
 
         QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
             this.id = node.getId();
-            this.title = node.getEffectiveTitleRaw(server);
-            this.description = node.getEffectiveDescriptionRaw(server);
+            this.fullQuestData = new FullQuestData(node.getEffectiveTitleRaw(server),
+                    node.getEffectiveDescriptionRaw(server), null, node.getEffectiveTasks(server),
+                    node.getEffectiveRewards(server));
             this.chapter = node.getChapter() != null ? node.getChapter() : "MAIN";
             this.shapeType = node.getShapeType() != null ? node.getShapeType() : "SQUARE";
             this.iconItemId = node.getIconItemId();
             this.customX = node.getCustomX();
             this.customY = node.getCustomY();
-            this.subtitle = node.getSubtitle() != null ? node.getSubtitle() : "";
+            this.subtitle = node.getEffectiveSubtitle(server) != null ? node.getEffectiveSubtitle(server) : "";
             this.visibility = node.getEffectiveVisibility(server) != null ? node.getEffectiveVisibility(server).name() :
                     "VISIBLE";
             this.enableIf = node.getEnableIf() != null ? node.getEnableIf() : "";
@@ -296,6 +308,15 @@ public class S2CSyncQuestsPacket {
                     tasksNbt.add(tag);
                 }
             }
+
+            this.rewardsNbt = new ArrayList<>();
+            for (QuestReward reward : node.getEffectiveRewards(server)) {
+                if (reward == null) continue;
+                CompoundTag tag = reward.serializeNBT();
+                if (tag != null) {
+                    rewardsNbt.add(tag);
+                }
+            }
         }
 
         QuestSnapshot(ResourceLocation id, Component title, Component description,
@@ -309,13 +330,12 @@ public class S2CSyncQuestsPacket {
                       List<String> prereqLineShape, List<String> prereqLineVisual, List<String> prereqLineSpeed,
                       List<String> prereqLineArrow, List<String> prereqLineStyleId,
                       Integer optionalPrereqMinCount,
-                      List<CompoundTag> tasksNbt,
+                      List<CompoundTag> tasksNbt, List<CompoundTag> rewardsNbt,
                       ResourceLocation linkTarget, String iconTexture, String shapeTexture,
                       String nodeSize, int sizeOverridePx, String iconFluid,
                       String backgroundType, String externalScreenId) {
             this.id = id;
-            this.title = title;
-            this.description = description;
+            this.fullQuestData = new FullQuestData(title, description, null, new ArrayList<>(), new ArrayList<>());
             this.chapter = chapter;
             this.shapeType = shapeType;
             this.iconItemId = iconItemId;
@@ -339,6 +359,7 @@ public class S2CSyncQuestsPacket {
             this.prereqLineStyleId = prereqLineStyleId;
             this.optionalPrereqMinCount = optionalPrereqMinCount;
             this.tasksNbt = tasksNbt;
+            this.rewardsNbt = rewardsNbt;
             this.linkTarget = linkTarget;
             this.iconTexture = iconTexture;
             this.shapeTexture = shapeTexture;
@@ -357,7 +378,7 @@ public class S2CSyncQuestsPacket {
 
             for (QuestSnapshot snap : snapshots.values()) {
                 if (snap.id == null) continue;
-                QuestNode node = new QuestNode(snap.id, snap.title, snap.description);
+                QuestNode node = new QuestNode(snap.id, snap.fullQuestData.title(), snap.fullQuestData.description());
                 node.setChapter(snap.chapter);
                 node.setShapeType(snap.shapeType);
                 node.setCustomX(snap.customX);
@@ -391,6 +412,14 @@ public class S2CSyncQuestsPacket {
                     if (task != null) {
                         if (tag.contains("optional")) task.setOptional(tag.getBoolean("optional"));
                         node.addTask(task);
+                    }
+                }
+
+                for (CompoundTag tag : snap.rewardsNbt) {
+                    if (tag == null) continue;
+                    QuestReward reward = QuestReward.deserializeNBT(tag);
+                    if (reward != null) {
+                        node.addReward(reward);
                     }
                 }
 

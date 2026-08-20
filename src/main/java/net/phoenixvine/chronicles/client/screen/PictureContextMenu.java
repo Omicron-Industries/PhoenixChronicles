@@ -156,7 +156,7 @@ class PictureContextMenu implements TogglePanel {
     private ResourceLocation texture() {
         if (target == null || target.texture == null || target.texture.isBlank()) return null;
         try {
-            return new ResourceLocation(target.texture);
+            return ResourceLocation.parse(target.texture);
         } catch (Exception e) {
             return null;
         }
@@ -253,14 +253,17 @@ class PictureContextMenu implements TogglePanel {
             for (int pct : OPACITY_PRESETS) {
                 if (mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW) {
                     final float oldOpacity = pic.opacity;
-                    ctx.undoRedo().push(() -> {
+                    final float newOpacity = pct / 100f;
+                    ctx.pushUndo("Undo: picture opacity reverted", () -> {
                         pic.opacity = oldOpacity;
                         BackgroundPictureConfig.save();
-                        ctx.setFeedback("Undo: picture opacity reverted");
+                    }, () -> {
+                        pic.opacity = newOpacity;
+                        BackgroundPictureConfig.save();
                     });
                     pic.opacity = pct / 100f;
                     BackgroundPictureConfig.save();
-                    ctx.setFeedback("Picture opacity set to %d%%  (Ctrl+Z to undo)", pct);
+                    ctx.setFeedbackDone("Picture opacity set to %d%%", pct);
                     close();
                     return true;
                 }
@@ -278,14 +281,16 @@ class PictureContextMenu implements TogglePanel {
                 if (mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW) {
                     final int oldColor = pic.color;
                     final int newColor = TINT_PRESETS[i];
-                    ctx.undoRedo().push(() -> {
+                    ctx.pushUndo("Undo: picture tint reverted", () -> {
                         pic.color = oldColor;
                         BackgroundPictureConfig.save();
-                        ctx.setFeedback("Undo: picture tint reverted");
+                    }, () -> {
+                        pic.color = newColor;
+                        BackgroundPictureConfig.save();
                     });
                     pic.color = newColor;
                     BackgroundPictureConfig.save();
-                    ctx.setFeedback("Picture tint set to %s  (Ctrl+Z to undo)", TINT_NAMES[i]);
+                    ctx.setFeedbackDone("Picture tint set to %s", TINT_NAMES[i]);
                     close();
                     return true;
                 }
@@ -306,14 +311,16 @@ class PictureContextMenu implements TogglePanel {
                 if (mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW) {
                     final String oldCat = ctx.selectedChapter();
                     final String newCat = cat;
-                    ctx.undoRedo().push(() -> {
+                    ctx.pushUndo("Undo: picture moved back to %s".formatted(ctx.friendly(oldCat)), () -> {
                         BackgroundPictureConfig.remove(newCat, pic);
                         BackgroundPictureConfig.add(oldCat, pic);
-                        ctx.setFeedback("Undo: picture moved back to %s", ctx.friendly(oldCat));
+                    }, () -> {
+                        BackgroundPictureConfig.remove(oldCat, pic);
+                        BackgroundPictureConfig.add(newCat, pic);
                     });
                     BackgroundPictureConfig.remove(oldCat, pic);
                     BackgroundPictureConfig.add(newCat, pic);
-                    ctx.setFeedback("Picture moved to %s  (Ctrl+Z to undo)", ctx.friendly(newCat));
+                    ctx.setFeedbackDone("Picture moved to %s", ctx.friendly(newCat));
                     close();
                     return true;
                 }
@@ -352,16 +359,6 @@ class PictureContextMenu implements TogglePanel {
         }
         if (my >= rowY2 && my < rowY2 + CTX_ROW) {
 
-            final BackgroundPictureConfig.Picture editedPic = pic;
-            final float ux = pic.x, uy = pic.y, uw = pic.w, uh = pic.h;
-            ctx.undoRedo().push(() -> {
-                editedPic.x = ux;
-                editedPic.y = uy;
-                editedPic.w = uw;
-                editedPic.h = uh;
-                BackgroundPictureConfig.save();
-                ctx.setFeedback("Undo: picture edit reverted");
-            });
             ctx.setPictureEditMode(pic);
             ctx.setFeedback("§eScroll to resize, drag to move - right-click or Esc to finish");
             close();
@@ -391,12 +388,10 @@ class PictureContextMenu implements TogglePanel {
         if (my >= rowY6 && my < rowY6 + CTX_ROW) {
             final BackgroundPictureConfig.Picture deleted = pic;
             final String cat = ctx.selectedChapter();
-            ctx.undoRedo().push(() -> {
-                BackgroundPictureConfig.add(cat, deleted);
-                ctx.setFeedback("Undo: picture restored");
-            });
+            ctx.pushUndo("Undo: picture restored", () -> BackgroundPictureConfig.add(cat, deleted),
+                    () -> BackgroundPictureConfig.remove(cat, deleted));
             BackgroundPictureConfig.remove(cat, deleted);
-            ctx.setFeedback("Picture deleted  (Ctrl+Z to undo)");
+            ctx.setFeedbackDone("Picture deleted");
             close();
             return true;
         }
@@ -406,16 +401,19 @@ class PictureContextMenu implements TogglePanel {
 
     private void applyResize(BackgroundPictureConfig.Picture pic, float w, float h) {
         final float oldW = pic.w, oldH = pic.h;
-        ctx.undoRedo().push(() -> {
+        ctx.pushUndo("Undo: picture resized", () -> {
             pic.w = oldW;
             pic.h = oldH;
             BackgroundPictureConfig.save();
-            ctx.setFeedback("Undo: picture resized");
+        }, () -> {
+            pic.w = w;
+            pic.h = h;
+            BackgroundPictureConfig.save();
         });
         pic.w = w;
         pic.h = h;
         BackgroundPictureConfig.save();
-        ctx.setFeedback("Picture resized  (Ctrl+Z to undo)");
+        ctx.setFeedbackDone("Picture resized");
         close();
     }
 }

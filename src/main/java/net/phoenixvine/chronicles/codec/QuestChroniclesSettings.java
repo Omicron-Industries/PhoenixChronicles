@@ -1,5 +1,7 @@
 package net.phoenixvine.chronicles.codec;
 
+import net.minecraft.client.Minecraft;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -85,6 +87,7 @@ public class QuestChroniclesSettings {
     private boolean showDevInfoByDefault = false;
     private boolean showFlagDisabledChapters = false;
     private boolean showFlagDisabledQuests = true;
+    private boolean generateMdSidecarFiles = false;
     private HUDPosition hudPosition;
     private Float hudOpacity;
     private Boolean showHUDTitle;
@@ -137,7 +140,20 @@ public class QuestChroniclesSettings {
     private Boolean cascadeHiddenQuests;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path SETTINGS_FILE = Paths.get("config", "phoenix_chronicles_settings.json");
+
+    private static Path configRoot() {
+        Minecraft mc = Minecraft.getInstance();
+        Path gameDir = mc != null ? mc.gameDirectory.toPath() : Paths.get("");
+        return gameDir.resolve("config");
+    }
+
+    private static Path settingsFile() {
+        return configRoot().resolve("phoenix_chronicles").resolve("settings.json");
+    }
+
+    private static Path legacySettingsFile() {
+        return configRoot().resolve("phoenix_chronicles_settings.json");
+    }
 
     private static final class PackDefaults {
 
@@ -171,15 +187,23 @@ public class QuestChroniclesSettings {
         Boolean cascadeHiddenQuests;
     }
 
-    private static final Path PACK_DEFAULTS_FILE = Paths.get("config", "phoenix_chronicles_pack_defaults.json");
+    private static Path packDefaultsFile() {
+        return configRoot().resolve("phoenix_chronicles").resolve("pack_defaults.json");
+    }
+
+    private static Path legacyPackDefaultsFile() {
+        return configRoot().resolve("phoenix_chronicles_pack_defaults.json");
+    }
+
     private static PackDefaults packDefaults = null;
 
     private static PackDefaults packDefaults() {
         if (packDefaults == null) {
             packDefaults = new PackDefaults();
             try {
-                if (Files.exists(PACK_DEFAULTS_FILE)) {
-                    PackDefaults loaded = GSON.fromJson(Files.readString(PACK_DEFAULTS_FILE), PackDefaults.class);
+                Path file = migrateLegacyFile(packDefaultsFile(), legacyPackDefaultsFile());
+                if (Files.exists(file)) {
+                    PackDefaults loaded = GSON.fromJson(Files.readString(file), PackDefaults.class);
                     if (loaded != null) packDefaults = loaded;
                 }
             } catch (Exception e) {
@@ -187,6 +211,14 @@ public class QuestChroniclesSettings {
             }
         }
         return packDefaults;
+    }
+
+    private static Path migrateLegacyFile(Path target, Path legacy) throws java.io.IOException {
+        if (!Files.exists(target) && Files.exists(legacy)) {
+            Files.createDirectories(target.getParent());
+            Files.move(legacy, target);
+        }
+        return target;
     }
 
     private static <T> T resolve(T explicit, T packDefault, T hardcoded) {
@@ -205,8 +237,9 @@ public class QuestChroniclesSettings {
     public static QuestChroniclesSettings load() {
         QuestChroniclesSettings result;
         try {
-            if (Files.exists(SETTINGS_FILE)) {
-                String json = Files.readString(SETTINGS_FILE);
+            Path file = migrateLegacyFile(settingsFile(), legacySettingsFile());
+            if (Files.exists(file)) {
+                String json = Files.readString(file);
                 result = GSON.fromJson(json, QuestChroniclesSettings.class);
                 if (result == null) result = new QuestChroniclesSettings();
             } else {
@@ -224,9 +257,10 @@ public class QuestChroniclesSettings {
 
     public void save() {
         try {
-            Files.createDirectories(SETTINGS_FILE.getParent());
+            Path file = settingsFile();
+            Files.createDirectories(file.getParent());
             String json = GSON.toJson(this);
-            Files.writeString(SETTINGS_FILE, json);
+            Files.writeString(file, json);
             INSTANCE = this;
         } catch (Exception e) {
             e.printStackTrace();
@@ -255,6 +289,10 @@ public class QuestChroniclesSettings {
 
     public boolean isShowFlagDisabledQuests() {
         return showFlagDisabledQuests;
+    }
+
+    public boolean isGenerateMdSidecarFiles() {
+        return generateMdSidecarFiles;
     }
 
     public HUDPosition getHudPosition() {
@@ -295,6 +333,10 @@ public class QuestChroniclesSettings {
 
     public void setShowFlagDisabledChapters(boolean show) {
         this.showFlagDisabledChapters = show;
+    }
+
+    public void setGenerateMdSidecarFiles(boolean generate) {
+        this.generateMdSidecarFiles = generate;
     }
 
     public void setShowFlagDisabledQuests(boolean show) {
@@ -390,7 +432,7 @@ public class QuestChroniclesSettings {
     }
 
     public boolean isCascadeHiddenQuests() {
-        return resolve(cascadeHiddenQuests, packDefaults().cascadeHiddenQuests, true);
+        return resolve(cascadeHiddenQuests, packDefaults().cascadeHiddenQuests, false);
     }
 
     public void setCascadeHiddenQuests(boolean cascade) {
@@ -436,7 +478,7 @@ public class QuestChroniclesSettings {
         if (!icon.isEmpty()) {
             try {
                 net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                        .getValue(new net.minecraft.resources.ResourceLocation(icon));
+                        .getValue(net.minecraft.resources.ResourceLocation.parse(icon));
                 if (item != null && item != net.minecraft.world.item.Items.AIR) return item;
             } catch (Exception ignored) {}
         }

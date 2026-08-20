@@ -36,7 +36,7 @@ public class QuestEmiRecipe implements EmiRecipe {
 
     public QuestEmiRecipe(QuestNode node) {
         this.node = node;
-        this.id = new ResourceLocation(node.getId().getNamespace(), "quest/" + node.getId().getPath());
+        this.id = ResourceLocation.fromNamespaceAndPath(node.getId().getNamespace(), "quest/" + node.getId().getPath());
     }
 
     @Override
@@ -99,7 +99,7 @@ public class QuestEmiRecipe implements EmiRecipe {
                     dynamicOutputs.add(EmiStack.of(Items.BUNDLE, 1));
                 } else if (reward instanceof QuestReward.LootCrateReward) {
                     Item crate = ForgeRegistries.ITEMS
-                            .getValue(new ResourceLocation("phoenix_chronicles", "loot_crate"));
+                            .getValue(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "loot_crate"));
                     dynamicOutputs.add(EmiStack.of(crate != null && crate != Items.AIR ? crate : Items.CHEST, 1));
                 } else if (reward instanceof QuestReward.CommandReward ||
                         reward instanceof QuestReward.ScriptEventReward) {

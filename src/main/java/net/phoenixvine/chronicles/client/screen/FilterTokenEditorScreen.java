@@ -140,7 +140,7 @@ public class FilterTokenEditorScreen extends Screen {
         if (fluidMode) {
             addRenderableWidget(Button.builder(Component.literal("§3+ Fluid"), b -> {
                 if (minecraft != null) minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
-                    ResourceLocation id = new ResourceLocation(fluidId);
+                    ResourceLocation id = ResourceLocation.parse(fluidId);
                     entries.add(new Entry(FluidFilters.exact(id)));
                 }));
             }).bounds(bx, by, 60, 14).build());
@@ -210,7 +210,7 @@ public class FilterTokenEditorScreen extends Screen {
         if (raw.isEmpty()) return;
         if (!raw.contains(":")) raw = "minecraft:" + raw;
         try {
-            ResourceLocation rl = new ResourceLocation(raw);
+            ResourceLocation rl = ResourceLocation.parse(raw);
             if (fluidMode) {
                 entries.add(new Entry(FluidFilters.tag(rl.toString())));
             } else {

@@ -52,7 +52,7 @@ public final class FluidFilters {
         }
 
         public static ExactFluid deserialize(CompoundTag t) {
-            ResourceLocation id = new ResourceLocation(t.getString("fluid"));
+            ResourceLocation id = ResourceLocation.parse(t.getString("fluid"));
             CompoundTag nbt = t.contains("nbt") ? t.getCompound("nbt") : null;
             return new ExactFluid(id, nbt);
         }
@@ -85,7 +85,7 @@ public final class FluidFilters {
         }
 
         public static FluidTag deserialize(CompoundTag t) {
-            return new FluidTag(FluidTags.create(new ResourceLocation(t.getString("tag"))));
+            return new FluidTag(FluidTags.create(ResourceLocation.parse(t.getString("tag"))));
         }
     }
 
@@ -266,7 +266,7 @@ public final class FluidFilters {
     }
 
     public static IFluidFilter tag(String tagPath) {
-        return new FluidTag(FluidTags.create(new ResourceLocation(tagPath)));
+        return new FluidTag(FluidTags.create(ResourceLocation.parse(tagPath)));
     }
 
     public static IFluidFilter mod(String modId) {

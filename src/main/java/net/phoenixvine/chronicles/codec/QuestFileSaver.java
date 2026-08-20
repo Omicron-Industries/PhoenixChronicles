@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.codec;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestReward;
@@ -18,6 +19,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -266,13 +269,17 @@ public class QuestFileSaver {
         Path chapterFolder = base.resolve("quests").resolve(chapter.toLowerCase(Locale.ROOT));
         Path snbtPath = chapterFolder.resolve(id + ".snbt");
         Files.createDirectories(snbtPath.getParent());
-        Files.writeString(snbtPath, tag.toString(), StandardCharsets.UTF_8);
+        Files.writeString(snbtPath, toPrettySnbt(tag), StandardCharsets.UTF_8);
 
         Path mdPath = chapterFolder.resolve(id + ".md");
 
-        Files.writeString(mdPath,
-                "# " + title + "\n\n" + (desc.isEmpty() ? "" : desc + "\n"),
-                StandardCharsets.UTF_8);
+        if (QuestChroniclesSettings.get().isGenerateMdSidecarFiles()) {
+            Files.writeString(mdPath,
+                    "# " + title + "\n\n" + (desc.isEmpty() ? "" : desc + "\n"),
+                    StandardCharsets.UTF_8);
+        } else {
+            Files.deleteIfExists(mdPath);
+        }
     }
 
     private static void cleanupStaleQuestFiles(Path base) {
@@ -404,7 +411,7 @@ public class QuestFileSaver {
             CompoundTag tag = net.minecraft.nbt.TagParser.parseTag(
                     Files.readString(p, StandardCharsets.UTF_8));
             mutator.accept(tag);
-            Files.writeString(p, tag.toString(), StandardCharsets.UTF_8);
+            Files.writeString(p, toPrettySnbt(tag), StandardCharsets.UTF_8);
         } catch (Exception e) {
             System.err.println(
                     "[Phoenix Chronicles] Failed to patch quest file for '" + node.getId() + "': " + e.getMessage());
@@ -434,6 +441,17 @@ public class QuestFileSaver {
         patchNodeTag(node, tag -> {
             tag.putString("chapter", chapter);
             tag.remove("category");
+        });
+    }
+
+    public static void updateNodeEnableIf(QuestNode node) {
+        patchNodeTag(node, tag -> {
+            String enableIf = node.getEnableIf();
+            if (enableIf != null && !enableIf.isEmpty()) {
+                tag.putString("enable_if", enableIf);
+            } else {
+                tag.remove("enable_if");
+            }
         });
     }
 
@@ -578,9 +596,10 @@ public class QuestFileSaver {
         content = offsetSnbtCoord(content, "positionX", 56);
         content = offsetSnbtCoord(content, "positionY", 56);
 
-        Files.writeString(chapterFolder.resolve(newPath + ".snbt"), content, StandardCharsets.UTF_8);
+        Path destFile = chapterFolder.resolve(newPath + ".snbt");
+        Files.writeString(destFile, content, StandardCharsets.UTF_8);
 
-        QuestFileLoader.loadAdditiveFromDisk(chapterFolder);
+        QuestFileLoader.loadOneFromDisk(destFile);
 
         return newPath;
     }
@@ -639,9 +658,7 @@ public class QuestFileSaver {
         Path destFile = srcFile.resolveSibling(newPath + ".snbt");
         Files.writeString(destFile, content, StandardCharsets.UTF_8);
 
-        Path base = Minecraft.getInstance().gameDirectory.toPath()
-                .resolve("config").resolve("phoenix_chronicles");
-        QuestFileLoader.loadAdditiveFromDisk(base);
+        QuestFileLoader.loadOneFromDisk(destFile);
 
         return newPath;
     }
@@ -674,6 +691,62 @@ public class QuestFileSaver {
             return java.nio.file.Files.exists(getQuestSnbtPath(node));
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private static String toPrettySnbt(CompoundTag tag) {
+        return new SnbtPrettyPrinter().prettyPrint(tag);
+    }
+
+    private static class SnbtPrettyPrinter {
+
+        public String prettyPrint(Tag nbt) {
+            StringBuilder builder = new StringBuilder();
+            prettyPrint(nbt, builder, 0);
+            return builder.toString();
+        }
+
+        private void prettyPrint(Tag nbt, StringBuilder builder, int indentLevel) {
+            String indent = "  ".repeat(indentLevel);
+            String innerIndent = "  ".repeat(indentLevel + 1);
+
+            if (nbt instanceof CompoundTag compound) {
+                if (compound.isEmpty()) {
+                    builder.append("{}");
+                    return;
+                }
+                builder.append("{\n");
+                var keys = new ArrayList<>(compound.getAllKeys());
+                Collections.sort(keys);
+                for (int i = 0; i < keys.size(); i++) {
+                    String key = keys.get(i);
+                    builder.append(innerIndent);
+                    builder.append(net.minecraft.nbt.StringTag.quoteAndEscape(key)).append(": ");
+                    prettyPrint(compound.get(key), builder, indentLevel + 1);
+                    if (i < keys.size() - 1) {
+                        builder.append(",");
+                    }
+                    builder.append("\n");
+                }
+                builder.append(indent).append("}");
+            } else if (nbt instanceof net.minecraft.nbt.ListTag list) {
+                if (list.isEmpty()) {
+                    builder.append("[]");
+                    return;
+                }
+                builder.append("[\n");
+                for (int i = 0; i < list.size(); i++) {
+                    builder.append(innerIndent);
+                    prettyPrint(list.get(i), builder, indentLevel + 1);
+                    if (i < list.size() - 1) {
+                        builder.append(",");
+                    }
+                    builder.append("\n");
+                }
+                builder.append(indent).append("]");
+            } else {
+                builder.append(nbt.toString());
+            }
         }
     }
 }

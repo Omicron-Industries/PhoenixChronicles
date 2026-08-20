@@ -64,7 +64,7 @@ public class EnchantmentTask extends QuestTask {
         if (nbt.contains("enchantment_id")) {
             String raw = nbt.getString("enchantment_id");
             try {
-                enchantmentId = new ResourceLocation(raw);
+                enchantmentId = ResourceLocation.parse(raw);
             } catch (Exception ignored) {}
         }
         if (nbt.contains("required_level")) requiredLevel = Math.max(1, nbt.getInt("required_level"));

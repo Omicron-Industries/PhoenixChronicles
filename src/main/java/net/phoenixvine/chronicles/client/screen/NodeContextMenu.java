@@ -25,9 +25,16 @@ class NodeContextMenu implements OverlayComponent {
         List<ChronicleOverviewScreen.CtxItem> items = state.buildCtxItems();
         int menuH = state.menuHeight(items);
         int x = state.ctxX(), y = state.ctxY();
+        float scale = state.ctxScale();
+
+        float lmx = x + (mx - x) / scale;
+        float lmy = y + (my - y) / scale;
 
         g.pose().pushPose();
         g.pose().translate(0, 0, 400);
+        g.pose().translate(x, y, 0);
+        g.pose().scale(scale, scale, 1f);
+        g.pose().translate(-x, -y, 0);
 
         g.flush();
 
@@ -61,8 +68,8 @@ class NodeContextMenu implements OverlayComponent {
                 iy += ChronicleOverviewScreen.CTX_SEP;
                 continue;
             }
-            boolean hov = mx >= x + 1 && mx <= x + ChronicleOverviewScreen.CTX_W - 1 && my >= iy &&
-                    my <= iy + ChronicleOverviewScreen.CTX_ROW;
+            boolean hov = lmx >= x + 1 && lmx <= x + ChronicleOverviewScreen.CTX_W - 1 && lmy >= iy &&
+                    lmy <= iy + ChronicleOverviewScreen.CTX_ROW;
             if (hov) g.fill(x + 1, iy, x + ChronicleOverviewScreen.CTX_W - 1, iy + ChronicleOverviewScreen.CTX_ROW,
                     ChronicleOverviewScreen.C_CTX_HOVER);
             g.drawString(ctx.font(), (item.isDanger() ? "§c" : item.color()) + item.label(), x + 8, iy + 4,
@@ -70,6 +77,12 @@ class NodeContextMenu implements OverlayComponent {
             if (hov && item.label().contains("Move to Chapter")) moveCatRowHov = true;
             iy += ChronicleOverviewScreen.CTX_ROW;
         }
+
+        g.flush();
+        g.pose().popPose();
+
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 400);
 
         List<String> cats = ctx.buildChapterList();
         cats.remove("ALL");

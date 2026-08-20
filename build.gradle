@@ -134,6 +134,14 @@ legacyForge {
             programArguments.addAll('--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath())
             programArguments.addAll('--existing-mod', 'gtceu')
         }
+        gameTestServer {
+            // RunModel has no gameTestServer() convenience method (only client()/clientData()/
+            // data()/server()/serverData()) - the run type still exists in Forge's userdev
+            // template though, so it's set directly via the underlying `type` property.
+            type = 'gameTestServer'
+            sourceSet = sourceSets.main
+            systemProperty('forge.enabledGameTestNamespaces', project.mod_id)
+        }
     }
 
     mods {
@@ -162,8 +170,8 @@ dependencies {
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
     modCompileOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
-    modCompileOnly("local:Phantasia:1.0.0")
-    modRuntimeOnly("local:Phantasia:1.0.0")
+    modCompileOnly("curse.maven:phantasia-1589286:8604345")
+    modRuntimeOnly("curse.maven:phantasia-1589286:8604345")
 
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
@@ -206,6 +214,24 @@ dependencies {
 
     compileOnly 'org.projectlombok:lombok:1.18.24'
     annotationProcessor 'org.projectlombok:lombok:1.18.24'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+sourceSets {
+    test {
+        // Pulls in the same Minecraft/Forge classpath main compiles against, so pure-logic
+        // classes that merely reference simple data types (ResourceLocation, CompoundTag,
+        // Component.literal, Style) can be unit tested without a running game or registry
+        // bootstrap - anything that actually needs live registries/rendering stays untested.
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
 }
 
 

@@ -1,0 +1,28 @@
+{
+  id: "config_enable_if_kjs_variant",
+  title: "Config-Enabled Quest",
+  icon: "minecraft:redstone_block",
+  chapter: "MAIN",
+  parent: "none",
+  positionX: 0,
+  positionY: 0,
+  enable_if: "config:features.json#enable_variant_example",
+  tasks: [
+    {
+      type: "item",
+      item: "minecraft:redstone"
+    }
+  ],
+  variants: [
+    {
+      condition: "flag:holding_nether_star",
+      title: "KJS Variant: Nether Star Power!",
+      tasks: [
+        {
+          type: "item",
+          item: "minecraft:nether_star"
+        }
+      ]
+    }
+  ]
+}

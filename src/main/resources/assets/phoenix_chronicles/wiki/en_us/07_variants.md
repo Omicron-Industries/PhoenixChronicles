@@ -24,9 +24,15 @@ syntax) - evaluated fresh every time the quest is resolved. "pack_mode" is
 just a NAME a pack dev chooses to use consistently; you set what it means
 via one of the same flag mechanisms enable_if already uses:
 
-- **config:file#key=val** — Read from a `config/*.toml|.json|.properties` file
-- **kjs:key** — Read from config/phoenix_chronicles/kjs_flags.json (KubeJS-writable)
+- **config:file#key[=val]** — Read from a `config/*.toml|.json|.properties` file
+- **kjs:key[=val]** — Read from config/phoenix_chronicles/kjs_flags.json (KubeJS-writable) - same comparison operators as config:, not existence-only
 - **flag:name** — Set once in Java via PhoenixQuestFlags.setFlag(name, bool)
+
+Both config: and kjs: take the same optional comparator: `=` `!=` `>` `>=`
+`<` `<=` (config:pack.toml#tier>=2, kjs:pack_tier>=2) - leave it off for a
+plain existence check. See the API Reference page's flag section for the
+exact comparison semantics (string vs. numeric, case sensitivity, what
+counts as "false").
 
 Pick ONE mechanism and use it consistently across every variant's
 condition in the pack - mixing conventions per-quest is how packs end up

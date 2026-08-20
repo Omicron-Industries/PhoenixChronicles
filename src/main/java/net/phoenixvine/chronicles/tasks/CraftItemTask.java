@@ -73,7 +73,7 @@ public class CraftItemTask extends QuestTask {
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("item_id")) {
-            this.itemId = new ResourceLocation(nbt.getString("item_id"));
+            this.itemId = ResourceLocation.parse(nbt.getString("item_id"));
         }
         this.requiredCount = nbt.getInt("required");
     }

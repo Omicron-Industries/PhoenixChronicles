@@ -66,7 +66,7 @@ public final class ChronicleTextParser {
                                 } catch (NumberFormatException ignored) {}
                             }
                             try {
-                                out.add(new RichSpan.Image(new ResourceLocation(rlPart), w, h));
+                                out.add(new RichSpan.Image(ResourceLocation.parse(rlPart), w, h));
                             } catch (Exception ignored) {}
                             i = targetEnd + 1;
                             continue;
@@ -106,7 +106,7 @@ public final class ChronicleTextParser {
                             } catch (NumberFormatException ignored) {}
                         }
                         try {
-                            out.add(new RichSpan.Image(new ResourceLocation(rlPart), w, h));
+                            out.add(new RichSpan.Image(ResourceLocation.parse(rlPart), w, h));
                         } catch (Exception ignored) {}
                         i = imgEnd + 1;
                         continue;

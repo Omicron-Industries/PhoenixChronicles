@@ -121,7 +121,7 @@ public class CategoryThemeScreen extends Screen {
     private Item resolveIconPreview() {
         if (cachedIcon != null && !cachedIcon.isEmpty()) {
             try {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(cachedIcon));
+                Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(cachedIcon));
                 if (item != null && item != Items.AIR) return item;
             } catch (Exception ignored) {}
         }

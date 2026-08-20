@@ -341,7 +341,7 @@ public class SearchOverlayScreen extends Screen {
         }
 
         for (QuestNode n : all) {
-            if (n.isFlagDisabled()) continue;
+            if (n.isFlagDisabled(null)) continue;
             if (n.getVisibility() == QuestNode.Visibility.HIDDEN) continue;
             if (net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isCascadeHiddenQuests() &&
                     n.isAncestorGatedHidden(parent::getState))

@@ -520,13 +520,13 @@ public abstract class QuestReward {
 
         public ConfluxUnlockReward(ResourceLocation nodeId) {
             this.flagMode = false;
-            this.nodeId = nodeId != null ? nodeId : new ResourceLocation("phoenixcore", "unknown");
+            this.nodeId = nodeId != null ? nodeId : ResourceLocation.fromNamespaceAndPath("phoenixcore", "unknown");
             this.flag = "";
         }
 
         public ConfluxUnlockReward(String flag) {
             this.flagMode = true;
-            this.nodeId = new ResourceLocation("phoenixcore", "unknown");
+            this.nodeId = ResourceLocation.fromNamespaceAndPath("phoenixcore", "unknown");
             this.flag = flag != null ? flag : "";
         }
 
@@ -578,7 +578,8 @@ public abstract class QuestReward {
                 return new ConfluxUnlockReward(tag.getString("flag"));
             }
             ResourceLocation parsed = ResourceLocation.tryParse(tag.getString("node_id"));
-            return new ConfluxUnlockReward(parsed != null ? parsed : new ResourceLocation("phoenixcore", "unknown"));
+            return new ConfluxUnlockReward(
+                    parsed != null ? parsed : ResourceLocation.fromNamespaceAndPath("phoenixcore", "unknown"));
         }
     }
 

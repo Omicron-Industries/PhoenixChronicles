@@ -47,6 +47,6 @@ public class BiomeTask extends QuestTask {
 
     @Override
     public void deserializeNBT(CompoundTag nbt) {
-        if (nbt.contains("biome_id")) biomeId = new ResourceLocation(nbt.getString("biome_id"));
+        if (nbt.contains("biome_id")) biomeId = ResourceLocation.parse(nbt.getString("biome_id"));
     }
 }

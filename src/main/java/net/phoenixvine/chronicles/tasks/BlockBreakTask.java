@@ -61,7 +61,7 @@ public class BlockBreakTask extends QuestTask {
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("block_id")) {
-            Block b = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(nbt.getString("block_id")));
+            Block b = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(nbt.getString("block_id")));
             this.targetBlock = b != null ? b : Blocks.AIR;
         }
         if (nbt.contains("required")) this.required = Math.max(1, nbt.getInt("required"));

@@ -167,11 +167,23 @@ enable_if expressions: comma = AND, pipe = OR (lower precedence than AND,
 so "a,b|c,d" = (a AND b) OR (c AND d)), ! negates a single term.
 A bare name checks the static/dynamic registry below; prefixed forms route to
 a built-in provider: mod:modid, rule:gameRuleName[ op value], config:file#key
-[= val], kjs:key. Comparison ops (rule:/config: only): = != > >= < <=
+[ op value], kjs:key[ op value]. Comparison ops (rule:/config:/kjs: - NOT
+mod: or a bare flag name, those are existence-only): = != > >= < <=
+config: and kjs: use the exact same comparison syntax and semantics - kjs:
+is not existence-only, it takes an operator too.
+
+- `=` / `!=` compare as plain strings, case-insensitively (`Expert` matches
+  `expert`)
+- `> >= < <=` parse both sides as numbers; if either side isn't a valid
+  number the comparison is simply false (no error)
+- No operator at all (`config:file#key`, `kjs:key`, a bare flag name) is an
+  existence check: false if the value is missing, blank, or textually
+  "false" / "0" / "null" (case-insensitive) - true otherwise
 
 - enable_if: "expert_mode" (plain registered flag)
 - enable_if: "!hardcore,mod:refinedstorage" (NOT hardcore AND RS loaded)
 - enable_if: "rule:doDaylightCycle=false" (game rule comparison)
+- enable_if: "kjs:pack_tier>=2" (numeric comparison against a KubeJS-written flag)
 
 - **setFlag** — Static value, set once (e.g. a pack-mode read at startup)
 
@@ -283,10 +295,23 @@ file.text = JSON.stringify(taskTypes, null, 2)
 ```js
 const file = new java.io.File('config/phoenix_chronicles/kjs_flags.json')
 file.getParentFile().mkdirs()
-file.text = JSON.stringify({ expert_mode: Platform.isLoaded('somemod') }, null, 2)
+file.text = JSON.stringify({ expert_mode: Platform.isLoaded('somemod'), pack_tier: 2 }, null, 2)
 ```
 
-Then in quest SNBT: enable_if: "kjs:expert_mode"
+Values can be booleans, numbers, or strings - written out as JSON, read back
+as text. Nested objects flatten with dots (`{"pack": {"tier": 2}}` reads back
+as key `pack.tier`). Then in quest SNBT, either an existence check or a
+comparison against the same value:
+
+```
+enable_if: "kjs:expert_mode"
+enable_if: "kjs:pack_tier>=2"
+```
+
+The file is cached for 10s (rewriting it doesn't take effect instantly) -
+call `PhoenixQuestFlags.invalidateCaches()` after writing if you need it
+picked up immediately, or just wait it out. `config:` files use the same
+10s-class cache (15s TTL) for the same reason.
 
 ---
 

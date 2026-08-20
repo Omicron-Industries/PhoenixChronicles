@@ -201,7 +201,8 @@ public class TextureBrowserScreen extends Screen {
                                 String rel = texDir.relativize(p).toString()
                                         .replace('\\', '/');
                                 try {
-                                    result.add(new ResourceLocation("phoenix_chronicles", "textures/custom/" + rel));
+                                    result.add(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles",
+                                            "textures/custom/" + rel));
                                 } catch (Exception ignored2) {}
                             });
                 }

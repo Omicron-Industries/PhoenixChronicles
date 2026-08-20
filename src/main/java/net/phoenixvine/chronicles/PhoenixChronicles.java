@@ -49,7 +49,7 @@ public class PhoenixChronicles {
     }
 
     public static ResourceLocation id(String path) {
-        return new ResourceLocation(MOD_ID, path);
+        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -86,6 +86,16 @@ public class PhoenixChronicles {
                 net.phoenixvine.wiki.theme.PhoenixTheme.current());
 
         net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.imageResolver = net.phoenixvine.chronicles.client.CustomTextureCache::resolve;
+
+        net.phoenixvine.wiki.client.suite.SuiteHudBar.register(MOD_ID,
+                net.phoenixvine.wiki.client.suite.SuiteHudBar.PRIORITY_CHRONICLES,
+                ResourceLocation.fromNamespaceAndPath(MOD_ID, "textures/item/chronicles_quest_book.png"),
+                () -> net.minecraft.network.chat.Component.literal("§fOpen Quest Book"),
+                () -> 1,
+                () -> Minecraft.getInstance()
+                        .setScreen(new net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen(
+                                Minecraft.getInstance().screen)),
+                16, 128, false);
     }
 
     private void addPackFinders(net.minecraftforge.event.AddPackFindersEvent event) {

@@ -7,6 +7,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
+import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestReward;
 import net.phoenixvine.chronicles.model.QuestState;
@@ -62,7 +63,7 @@ public class ClaimRewardsScreen extends Screen {
             return;
         }
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-            if (node.isFlagDisabled()) continue;
+            if (node.isFlagDisabled(null)) continue;
             if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED) continue;
             if (data.hasClaimedRewards(node.getId())) continue;
             if (node.isRewardChoice()) continue;
@@ -93,8 +94,8 @@ public class ClaimRewardsScreen extends Screen {
         g.fill(0, 0, width, height, bg);
         g.fill(0, 0, width, HEADER_H, header);
         g.fill(0, HEADER_H - 1, width, HEADER_H, border);
-        g.drawString(font, "§f🎁 Unclaimed Rewards  §8— §7" + unclaimed.size() + " quest(s)", MARGIN, 10, text,
-                false);
+        String headerText = "§f🎁 Unclaimed Rewards  §8— §7" + unclaimed.size() + " quest(s)";
+        g.drawString(font, ChroniclesUIKit.fitText(font, headerText, width - MARGIN * 2), MARGIN, 10, text, false);
 
         g.fill(0, height - FOOTER_H, width, height, header);
         g.fill(0, height - FOOTER_H, width, height - FOOTER_H + 1, border);
@@ -145,7 +146,9 @@ public class ClaimRewardsScreen extends Screen {
     private void drawRewardIcon(GuiGraphics g, QuestReward reward, int x, int y) {
         g.fill(x, y, x + ICON_SZ, y + ICON_SZ, 0xFF0F0F18);
         if (reward instanceof QuestReward.ItemReward ir) {
-            g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), x, y);
+            ItemStack stack = new ItemStack(ir.getItem(), ir.getCount());
+            if (ir.getNbt() != null && !ir.getNbt().isEmpty()) stack.setTag(ir.getNbt().copy());
+            g.renderItem(stack, x, y);
         } else {
             String glyph = switch (reward.getType()) {
                 case XP -> "⚡";

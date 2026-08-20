@@ -102,6 +102,14 @@ public class QuestFileLoader {
         if (styleId != null) node.setPrereqLineStyleId(prereq.getId(), styleId);
     }
 
+    public static void loadOneFromDisk(Path snbtFile) {
+        if (!Files.exists(snbtFile)) return;
+        QuestRecord rec = parseFile(snbtFile);
+        if (rec == null || QuestTreeRegistry.getQuest(rec.id()) != null) return;
+        wireAndRegister(List.of(rec));
+        QuestTreeRegistry.markAsConfigQuest(rec.id());
+    }
+
     public static void loadAdditiveFromDisk(Path configDir) {
         if (!Files.exists(configDir)) return;
         LOAD_ERRORS.clear();
@@ -226,16 +234,19 @@ public class QuestFileLoader {
             }
 
             for (String pid : rec.prereqRequired().keySet()) {
-                if (QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", pid)) == null)
+                if (QuestTreeRegistry.getQuest(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", pid)) ==
+                        null)
                     LOAD_ERRORS.add("Quest '" + rec.id().getPath() + "': prereq '" + pid + "' not found.");
             }
             for (String pid : rec.prereqForbidden()) {
-                if (QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", pid)) == null)
+                if (QuestTreeRegistry.getQuest(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", pid)) ==
+                        null)
                     LOAD_ERRORS.add("Quest '" + rec.id().getPath() + "': forbidden prereq '" + pid + "' not found.");
             }
 
             for (Map.Entry<String, Boolean> e : rec.prereqRequired().entrySet()) {
-                QuestNode prereq = QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", e.getKey()));
+                QuestNode prereq = QuestTreeRegistry
+                        .getQuest(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", e.getKey()));
                 if (prereq != null) {
                     node.addPrerequisite(prereq);
                     node.setPrereqRequired(prereq.getId(), e.getValue());
@@ -245,7 +256,8 @@ public class QuestFileLoader {
                 }
             }
             for (String pid : rec.prereqForbidden()) {
-                QuestNode prereq = QuestTreeRegistry.getQuest(new ResourceLocation("phoenix_chronicles", pid));
+                QuestNode prereq = QuestTreeRegistry
+                        .getQuest(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", pid));
                 if (prereq != null) {
                     node.addPrerequisite(prereq);
                     node.setPrereqForbidden(prereq.getId(), true);
@@ -290,7 +302,7 @@ public class QuestFileLoader {
     private static ResourceLocation regenerateCollidedTaskId(ResourceLocation original) {
         String newId = original.getPath() + "_fixed_" +
                 java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8);
-        return new ResourceLocation(original.getNamespace(), newId);
+        return ResourceLocation.fromNamespaceAndPath(original.getNamespace(), newId);
     }
 
     private static void forceTaskId(QuestTask task, ResourceLocation newId) {
@@ -311,7 +323,7 @@ public class QuestFileLoader {
             String fileName = file.getFileName().toString();
             String idStr = tag.contains("id") && !tag.getString("id").isEmpty() ? tag.getString("id") :
                     fileName.substring(0, fileName.lastIndexOf('.'));
-            ResourceLocation id = new ResourceLocation("phoenix_chronicles", idStr.toLowerCase());
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", idStr.toLowerCase());
 
             String title = tag.contains("title") ? tag.getString("title") : "Unnamed Quest";
             String desc = tag.contains("description") ? tag.getString("description") : "";
@@ -330,7 +342,7 @@ public class QuestFileLoader {
 
             String parentStr = tag.contains("parent") ? tag.getString("parent") : "none";
             ResourceLocation parentId = (!parentStr.isEmpty() && !parentStr.equals("none")) ?
-                    new ResourceLocation("phoenix_chronicles", parentStr.toLowerCase()) : null;
+                    ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", parentStr.toLowerCase()) : null;
 
             QuestNode.RepeatMode repeatMode = QuestNode.RepeatMode.NONE;
             if (tag.contains("repeat_mode")) {
@@ -364,6 +376,7 @@ public class QuestFileLoader {
                     if (condition.isBlank()) continue;
                     QuestNode.QuestVariant variant = new QuestNode.QuestVariant(condition);
                     if (vTag.contains("title")) variant.title = vTag.getString("title");
+                    if (vTag.contains("subtitle")) variant.subtitle = vTag.getString("subtitle");
                     if (vTag.contains("description")) variant.description = vTag.getString("description");
                     if (vTag.contains("visibility")) {
                         try {
@@ -435,7 +448,7 @@ public class QuestFileLoader {
             ResourceLocation linkTarget = null;
             if (tag.contains("link_target") && !tag.getString("link_target").isEmpty()) {
                 try {
-                    linkTarget = new ResourceLocation(tag.getString("link_target"));
+                    linkTarget = ResourceLocation.parse(tag.getString("link_target"));
                 } catch (Exception ignored) {}
             }
 

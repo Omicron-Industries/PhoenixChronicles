@@ -351,7 +351,7 @@ public class QuestGroupEditorScreen extends Screen {
         try {
             switch (icon.kind) {
                 case ITEM -> {
-                    Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(icon.id));
+                    Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(icon.id));
                     if (item == null || item == Items.AIR) return;
                     float scale = size / 16f;
                     g.pose().pushPose();
@@ -361,11 +361,11 @@ public class QuestGroupEditorScreen extends Screen {
                     g.pose().popPose();
                 }
                 case FLUID -> {
-                    Fluid fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(icon.id));
+                    Fluid fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(icon.id));
                     ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
                     ChroniclesUIKit.drawBorder(g, x, y, size, size, 0xFF444455);
                 }
-                case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
+                case TEXTURE -> g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
 

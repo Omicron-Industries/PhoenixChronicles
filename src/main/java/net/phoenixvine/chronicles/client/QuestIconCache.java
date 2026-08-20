@@ -37,7 +37,8 @@ public final class QuestIconCache {
             int w = img.getWidth(), h = img.getHeight();
             DynamicTexture tex = new DynamicTexture(img);
             String texName = questPath.replace('/', '_').replace(':', '_').toLowerCase();
-            ResourceLocation loc = new ResourceLocation("phoenix_chronicles", "dynamic/quest_icon/" + texName);
+            ResourceLocation loc = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles",
+                    "dynamic/quest_icon/" + texName);
             Minecraft.getInstance().getTextureManager().register(loc, tex);
             CACHE.put(questPath, loc);
             DIMS_CACHE.put(questPath, new int[] { w, h });

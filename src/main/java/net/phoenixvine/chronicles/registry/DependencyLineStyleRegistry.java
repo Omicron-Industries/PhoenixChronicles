@@ -36,13 +36,14 @@ public final class DependencyLineStyleRegistry {
         if (builtinsRegistered) return;
         builtinsRegistered = true;
 
-        register(new ResourceLocation("phoenix_chronicles", "solid"),
+        register(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "solid"),
                 new net.phoenixvine.chronicles.client.render.line.SolidLineStyle());
-        register(new ResourceLocation("phoenix_chronicles", "textured"),
+        register(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "textured"),
                 new net.phoenixvine.chronicles.client.render.line.TexturedLineStyle(
-                        new ResourceLocation("phoenix_chronicles", "textures/gui/sprites/dep_line_dashed.png"),
+                        ResourceLocation.fromNamespaceAndPath("phoenix_chronicles",
+                                "textures/gui/sprites/dep_line_dashed.png"),
                         5, 1, 4f));
-        register(new ResourceLocation("phoenix_chronicles", "flowing_particles"),
+        register(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "flowing_particles"),
                 new net.phoenixvine.chronicles.client.render.line.FlowingParticleLineStyle());
     }
 

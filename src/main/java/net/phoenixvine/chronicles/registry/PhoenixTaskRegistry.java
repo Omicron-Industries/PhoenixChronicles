@@ -234,7 +234,7 @@ public final class PhoenixTaskRegistry {
 
         register("kill_entity", tag -> {
             KillEntityTask t = new KillEntityTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "pig"), 1, false);
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "pig"), 1, false);
             t.deserializeNBT(tag);
             return t;
         }).icon("§c☠").label("Kill Entity")
@@ -261,7 +261,7 @@ public final class PhoenixTaskRegistry {
 
         register("craft_item", tag -> {
             CraftItemTask t = new CraftItemTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "dirt"), 1);
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "dirt"), 1);
             t.deserializeNBT(tag);
             return t;
         }).icon("§6⚒").label("Craft Item")
@@ -281,7 +281,7 @@ public final class PhoenixTaskRegistry {
 
         register("location_terminal", tag -> {
             LocationOrTerminalTask t = new LocationOrTerminalTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "air"), false);
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "air"), false);
             t.deserializeNBT(tag);
             return t;
         }).icon("§b◎").label("Terminal / Location")
@@ -292,7 +292,7 @@ public final class PhoenixTaskRegistry {
 
         register("advancement", tag -> {
             AdvancementTask t = new AdvancementTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "story/root"));
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "story/root"));
             t.deserializeNBT(tag);
             return t;
         }).icon("§d★").label("Advancement")
@@ -315,7 +315,7 @@ public final class PhoenixTaskRegistry {
 
         register("fluid_check", tag -> {
             FluidRequirementTask t = new FluidRequirementTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "water"), 1000, false);
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "water"), 1000, false);
             t.deserializeNBT(tag);
             return t;
         }).icon("§3≋").label("Fluid Check")
@@ -329,7 +329,7 @@ public final class PhoenixTaskRegistry {
 
         register("stat", tag -> {
             StatTrackerTask t = new StatTrackerTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "jump"), 1, false);
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "jump"), 1, false);
             t.deserializeNBT(tag);
             return t;
         }).icon("§9≡").label("Stat Tracker")
@@ -344,7 +344,7 @@ public final class PhoenixTaskRegistry {
             DimensionTask t = new DimensionTask(taskId(tag), desc(tag),
                     net.minecraft.resources.ResourceKey.create(
                             net.minecraft.core.registries.Registries.DIMENSION,
-                            new net.minecraft.resources.ResourceLocation("minecraft", "overworld")));
+                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "overworld")));
             t.deserializeNBT(tag);
             return t;
         }).icon("§5⊕").label("Visit Dimension")
@@ -354,7 +354,7 @@ public final class PhoenixTaskRegistry {
 
         register("biome", tag -> {
             BiomeTask t = new BiomeTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "plains"));
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "plains"));
             t.deserializeNBT(tag);
             return t;
         }).icon("§2⛰").label("Visit Biome")
@@ -364,7 +364,7 @@ public final class PhoenixTaskRegistry {
 
         register("structure", tag -> {
             StructureTask t = new StructureTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "village"));
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "village"));
             t.deserializeNBT(tag);
             return t;
         }).icon("§6⌂").label("Visit Structure")
@@ -382,7 +382,9 @@ public final class PhoenixTaskRegistry {
 
         register("tag_item", tag -> {
             TagItemTask t = new TagItemTask(taskId(tag), desc(tag),
-                    net.minecraft.tags.ItemTags.create(new net.minecraft.resources.ResourceLocation("c", "gems")), 1);
+                    net.minecraft.tags.ItemTags
+                            .create(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("c", "gems")),
+                    1);
             t.deserializeNBT(tag);
             return t;
         }).icon("§e◈").label("Tag Item")
@@ -437,7 +439,7 @@ public final class PhoenixTaskRegistry {
 
         register("ae2_fluid_storage", tag -> {
             FluidRequirementTask t = new FluidRequirementTask(taskId(tag), desc(tag),
-                    new net.minecraft.resources.ResourceLocation("minecraft", "water"), 1000, false);
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "water"), 1000, false);
             t.deserializeNBT(tag);
             t.setCheckAe2Storage(true);
             return t;
@@ -462,7 +464,9 @@ public final class PhoenixTaskRegistry {
 
         register("filter_fluid", tag -> {
             FilterFluidTask t = new FilterFluidTask(taskId(tag), desc(tag),
-                    FluidFilters.exact(new net.minecraft.resources.ResourceLocation("minecraft", "water")), 1000,
+                    FluidFilters.exact(
+                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "water")),
+                    1000,
                     false);
             t.deserializeNBT(tag);
             return t;
@@ -492,7 +496,7 @@ public final class PhoenixTaskRegistry {
 
         register("enchantment", tag -> {
             net.phoenixvine.chronicles.tasks.EnchantmentTask t = new net.phoenixvine.chronicles.tasks.EnchantmentTask(
-                    taskId(tag), desc(tag), new net.minecraft.resources.ResourceLocation("minecraft:sharpness"), 1);
+                    taskId(tag), desc(tag), net.minecraft.resources.ResourceLocation.parse("minecraft:sharpness"), 1);
             t.deserializeNBT(tag);
             return t;
         }).icon("§b✦").label("Enchantment")
@@ -575,9 +579,9 @@ public final class PhoenixTaskRegistry {
 
     private static net.minecraft.resources.ResourceLocation taskId(CompoundTag tag) {
         try {
-            return new net.minecraft.resources.ResourceLocation(tag.getString("task_id"));
+            return net.minecraft.resources.ResourceLocation.parse(tag.getString("task_id"));
         } catch (Exception e) {
-            return new net.minecraft.resources.ResourceLocation(PhoenixChronicles.MOD_ID,
+            return net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID,
                     "task_" + UUID.randomUUID().toString().substring(0, 8));
         }
     }

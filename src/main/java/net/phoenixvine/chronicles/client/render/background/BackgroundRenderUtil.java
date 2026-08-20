@@ -62,6 +62,6 @@ public final class BackgroundRenderUtil {
             case "circle", "diamond", "hexagon", "triangle", "star", "pentagon", "shield", "cross" -> key;
             default -> "square";
         };
-        return new ResourceLocation("phoenix_chronicles", "textures/gui/sprites/" + file + ".png");
+        return ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "textures/gui/sprites/" + file + ".png");
     }
 }

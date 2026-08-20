@@ -174,7 +174,7 @@ public class ItemRequirementTask extends QuestTask {
     public void deserializeNBT(CompoundTag nbt) {
         String itemKey = nbt.contains("item_id") ? "item_id" : nbt.contains("item") ? "item" : null;
         if (itemKey != null)
-            this.item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(nbt.getString(itemKey)));
+            this.item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(nbt.getString(itemKey)));
         this.requiredCount = nbt.contains("count") ? nbt.getInt("count") : nbt.getInt("amount");
         this.consume = nbt.getBoolean("consume");
 

@@ -25,7 +25,7 @@ All fields are optional except id and title.
 ## Visibility
 
 - **visibility** — NORMAL · HIDDEN · MYSTERY · DISABLED
-- **enable_if** — Flag expression: quest hidden+disabled when false
+- **enable_if** — Flag expression: quest hidden+disabled when false. Prefixes: mod:, rule:, config:file#key, kjs:key, flag:name (config: and kjs: both take an optional comparator, e.g. kjs:tier>=2) - see API Reference → "Custom enable_if flags" for full syntax
 - **hide_dep_line** — true / false: hides all dep lines on the canvas
 - **disabled_blocks_children** — true → DISABLED quest still gates children
 

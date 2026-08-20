@@ -57,7 +57,7 @@ public final class ItemFilters {
         }
 
         public static ExactItem deserialize(CompoundTag t) {
-            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(t.getString("item")));
+            Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(t.getString("item")));
             CompoundTag nbt = t.contains("nbt") ? t.getCompound("nbt") : null;
             return new ExactItem(item == null ? net.minecraft.world.item.Items.AIR : item, nbt);
         }
@@ -90,7 +90,7 @@ public final class ItemFilters {
         }
 
         public static Tag deserialize(CompoundTag t) {
-            return new Tag(ItemTags.create(new ResourceLocation(t.getString("tag"))));
+            return new Tag(ItemTags.create(ResourceLocation.parse(t.getString("tag"))));
         }
     }
 
@@ -277,7 +277,7 @@ public final class ItemFilters {
     }
 
     public static IItemFilter tag(String tagPath) {
-        return new Tag(ItemTags.create(new ResourceLocation(tagPath)));
+        return new Tag(ItemTags.create(ResourceLocation.parse(tagPath)));
     }
 
     public static IItemFilter mod(String modId) {

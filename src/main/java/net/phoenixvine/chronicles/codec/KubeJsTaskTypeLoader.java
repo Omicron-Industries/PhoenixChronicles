@@ -81,9 +81,9 @@ public final class KubeJsTaskTypeLoader {
                     int required = tag.contains("required") ? tag.getInt("required") : 1;
                     ResourceLocation taskId;
                     try {
-                        taskId = new ResourceLocation(tag.getString("task_id"));
+                        taskId = ResourceLocation.parse(tag.getString("task_id"));
                     } catch (Exception ex) {
-                        taskId = new ResourceLocation("phoenix_chronicles", "kjs_task");
+                        taskId = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "kjs_task");
                     }
                     Component desc;
                     try {

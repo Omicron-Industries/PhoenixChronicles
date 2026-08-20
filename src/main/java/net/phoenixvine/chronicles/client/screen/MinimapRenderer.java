@@ -43,7 +43,7 @@ class MinimapRenderer {
         g.fill(bx, by + 12, bx2, by + 13, 0xFF222233);
 
         Collection<QuestNode> nodes = QuestTreeRegistry.getAllQuests().values().stream()
-                .filter(n -> catMatches.test(n) && !n.isFlagDisabled())
+                .filter(n -> catMatches.test(n) && !n.isFlagDisabled(null))
                 .collect(Collectors.toList());
 
         if (nodes.isEmpty()) {

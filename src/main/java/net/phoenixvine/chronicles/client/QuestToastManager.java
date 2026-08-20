@@ -323,7 +323,7 @@ public class QuestToastManager {
         try {
             switch (icon.kind) {
                 case ITEM -> {
-                    Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(icon.id));
+                    Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(icon.id));
                     if (item == null || item == net.minecraft.world.item.Items.AIR) return;
                     float scale = size / 16f;
                     g.pose().pushPose();
@@ -336,7 +336,7 @@ public class QuestToastManager {
                     }
                 }
                 case FLUID -> {
-                    Fluid fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(icon.id));
+                    Fluid fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(icon.id));
                     com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
                     try {
                         net.phoenixvine.chronicles.client.render.ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
@@ -347,7 +347,7 @@ public class QuestToastManager {
                 case TEXTURE -> {
                     com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
                     try {
-                        g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
+                        g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
                     } finally {
                         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
                     }

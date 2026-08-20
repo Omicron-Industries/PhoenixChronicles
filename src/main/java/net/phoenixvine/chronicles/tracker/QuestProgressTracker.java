@@ -129,16 +129,21 @@ public class QuestProgressTracker {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) return;
 
         Player player = event.player;
-        int fingerprint = computeInventoryFingerprint(player);
-        Integer previous = lastInventoryFingerprint.put(player.getUUID(), fingerprint);
-        boolean invChanged = previous == null || previous != fingerprint;
-
-        boolean firstTickThisSession = previous == null;
-
         PlayerQuestData data = resolveData(player);
+        java.util.Set<net.minecraft.resources.ResourceLocation> tracked = data != null ?
+                activeTrackedSet(player, data) : null;
+
+        boolean firstTickThisSession = !lastInventoryFingerprint.containsKey(player.getUUID());
+
+        boolean invChanged = false;
+        if (firstTickThisSession || (tracked != null && !tracked.isEmpty())) {
+            int fingerprint = computeInventoryFingerprint(player);
+            Integer previous = lastInventoryFingerprint.put(player.getUUID(), fingerprint);
+            invChanged = previous == null || previous != fingerprint;
+        }
+
         if (data != null) {
 
-            java.util.Set<net.minecraft.resources.ResourceLocation> tracked = activeTrackedSet(player, data);
             for (net.minecraft.resources.ResourceLocation nodeId : tracked) {
 
                 QuestNode node = QuestTreeRegistry.getQuest(nodeId);
@@ -147,7 +152,7 @@ public class QuestProgressTracker {
                     continue;
                 }
 
-                if (node.isFlagDisabled()) continue;
+                if (node.isFlagDisabled(player.getServer())) continue;
 
                 if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
 
@@ -167,11 +172,22 @@ public class QuestProgressTracker {
                 if (!cancelled) {
 
                     List<QuestTask> tasks = node.getEffectiveTasks(player.getServer());
-                    for (QuestTask task : tasks) {
-                        if (skipInventoryScan(task, player, invChanged)) continue;
-                        if (!task.isCompletedFor(player)) task.onTick(player);
+                    boolean[] taskDone = new boolean[tasks.size()];
+                    boolean[] taskSkipped = new boolean[tasks.size()];
+                    for (int i = 0; i < tasks.size(); i++) {
+                        QuestTask task = tasks.get(i);
+                        if (skipInventoryScan(task, player, invChanged)) {
+                            taskSkipped[i] = true;
+                            continue;
+                        }
+                        taskDone[i] = task.isCompletedFor(player);
+                        if (!taskDone[i]) {
+                            task.onTick(player);
+
+                            if (!task.dependsOnInventory()) taskDone[i] = task.isCompletedFor(player);
+                        }
                     }
-                    checkAndTryComplete(player, node, invChanged, tasks);
+                    checkAndTryComplete(player, node, tasks, taskDone, taskSkipped);
                 }
             }
         }
@@ -191,7 +207,7 @@ public class QuestProgressTracker {
         if (count % LOCKED_SWEEP_INTERVAL_TICKS != 0) return;
 
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-            if (node.isFlagDisabled()) continue;
+            if (node.isFlagDisabled(player.getServer())) continue;
             if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.LOCKED) continue;
             if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
 
@@ -221,7 +237,8 @@ public class QuestProgressTracker {
 
     private static void checkAndTryComplete(Player player, QuestNode node, boolean invChanged,
                                             List<QuestTask> tasksOverride) {
-        if (node.isFlagDisabled() || node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
+        if (node.isFlagDisabled(player.getServer()) ||
+                node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
             return;
         PlayerQuestData data = resolveData(player);
         if (data == null) return;
@@ -255,28 +272,61 @@ public class QuestProgressTracker {
         } else {
 
             complete = true;
-            boolean logThisPass = System.currentTimeMillis() % 1000 < 50;
             for (QuestTask task : tasks) {
                 if (task.isOptional()) continue;
-                boolean isFilterTask = task instanceof net.phoenixvine.chronicles.tasks.FilterItemTask ||
-                        task instanceof net.phoenixvine.chronicles.tasks.FilterFluidTask;
                 if (skipInventoryScan(task, player, invChanged)) {
-                    if (isFilterTask && logThisPass) {
-                        System.out.println("[Phoenix Chronicles] checkAndTryComplete: quest " + node.getId() +
-                                " task " + task.getTaskId() + " SKIPPED (dependsOnInventory=" +
-                                task.dependsOnInventory() + " invChanged=" + invChanged + " stickyCached=" +
-                                task.isStickyCompleteCached(player) + ")");
-                    }
                     complete = false;
                     break;
                 }
-                boolean taskDone = task.isCompletedFor(player);
-                if (isFilterTask && logThisPass) {
-                    System.out.println("[Phoenix Chronicles] checkAndTryComplete: quest " + node.getId() +
-                            " task " + task.getTaskId() + " isCompletedFor=" + taskDone + " stickyCached=" +
-                            task.isStickyCompleteCached(player) + " progress=" + task.getProgressString(player));
+                if (!task.isCompletedFor(player)) {
+                    complete = false;
+                    break;
                 }
-                if (!taskDone) {
+            }
+        }
+
+        if (complete && (state == QuestState.UNLOCKED || state == QuestState.ACTIVE)) {
+            changeQuestState(player, node, QuestState.COMPLETED);
+        }
+    }
+
+    private static void checkAndTryComplete(Player player, QuestNode node, List<QuestTask> tasks,
+                                            boolean[] taskDone, boolean[] taskSkipped) {
+        if (node.isFlagDisabled(player.getServer()) ||
+                node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
+            return;
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
+
+        QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
+        if (state == QuestState.COMPLETED) return;
+
+        int minCount = node.getTaskMinCount();
+
+        boolean complete;
+        if (minCount > 0) {
+
+            int done = 0;
+            for (int i = 0; i < tasks.size(); i++) {
+                if (!taskSkipped[i] && taskDone[i]) done++;
+            }
+            complete = done >= minCount;
+        } else if (tasks.isEmpty()) {
+
+            if (node.isLinkStub()) {
+
+                QuestNode target = QuestTreeRegistry.getQuest(node.getLinkTarget());
+                complete = target != null &&
+                        data.getQuestState(target.getId(), QuestState.LOCKED) == QuestState.COMPLETED;
+            } else {
+                complete = false;
+            }
+        } else {
+
+            complete = true;
+            for (int i = 0; i < tasks.size(); i++) {
+                if (tasks.get(i).isOptional()) continue;
+                if (taskSkipped[i] || !taskDone[i]) {
                     complete = false;
                     break;
                 }
@@ -367,7 +417,7 @@ public class QuestProgressTracker {
         if (data == null) return;
 
         for (QuestNode node : net.phoenixvine.chronicles.registry.QuestTreeRegistry.getAllQuests().values()) {
-            if (node.isFlagDisabled()) continue;
+            if (node.isFlagDisabled(player.getServer())) continue;
             if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
             if (data.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.LOCKED) {
                 if (prereqsSatisfied(node, data, player.getServer())) {
@@ -390,7 +440,7 @@ public class QuestProgressTracker {
 
         List<QuestNode> active = new java.util.ArrayList<>();
         for (QuestNode p : prereqs) {
-            if (p.isFlagDisabled()) continue;
+            if (p.isFlagDisabled(server)) continue;
             if (p.isOptional()) continue;
             if (node.isPrereqForbidden(p.getId())) continue;
             if (node.isPrereqCosmetic(p.getId())) continue;

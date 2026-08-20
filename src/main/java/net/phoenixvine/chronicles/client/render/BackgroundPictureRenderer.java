@@ -16,6 +16,8 @@ public final class BackgroundPictureRenderer {
                               String chapter, float zoom, int viewOffX, int viewOffY) {
         FrameProfiler.begin("background:pictures");
         int drawnCount = 0;
+
+        g.enableScissor(cl, top, cr, bottom);
         for (BackgroundPictureConfig.Picture pic : BackgroundPictureConfig.get(chapter)) {
             int[] rect = screenRect(pic, cl, top, zoom, viewOffX, viewOffY);
             if (rect[2] < cl || rect[0] > cr || rect[3] < top || rect[1] > bottom) continue;
@@ -23,7 +25,7 @@ public final class BackgroundPictureRenderer {
 
             ResourceLocation loc;
             try {
-                loc = CustomTextureCache.resolve(new ResourceLocation(pic.texture));
+                loc = CustomTextureCache.resolve(ResourceLocation.parse(pic.texture));
             } catch (Exception ignored) {
                 continue;
             }
@@ -50,6 +52,7 @@ public final class BackgroundPictureRenderer {
             }
             drawnCount++;
         }
+        g.disableScissor();
         FrameProfiler.setCounter("bgPicturesDrawn", drawnCount);
         FrameProfiler.end("background:pictures");
     }

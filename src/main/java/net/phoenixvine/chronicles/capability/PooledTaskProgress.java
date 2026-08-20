@@ -45,7 +45,7 @@ public class PooledTaskProgress extends SavedData {
             for (int j = 0; j < taskList.size(); j++) {
                 CompoundTag e = taskList.getCompound(j);
                 try {
-                    tasks.put(new ResourceLocation(e.getString("id")), e.getCompound("progress"));
+                    tasks.put(ResourceLocation.parse(e.getString("id")), e.getCompound("progress"));
                 } catch (Exception ignored) {}
             }
             data.byTeam.put(teamKey, tasks);

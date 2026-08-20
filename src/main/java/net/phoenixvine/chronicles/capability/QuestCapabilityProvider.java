@@ -19,7 +19,8 @@ import org.jetbrains.annotations.Nullable;
 public class QuestCapabilityProvider implements ICapabilitySerializable<CompoundTag> {
 
     public static final Capability<PlayerQuestData> PLAYER_QUESTS = CapabilityManager.get(new CapabilityToken<>() {});
-    private static final ResourceLocation KEY = new ResourceLocation(PhoenixChronicles.MOD_ID, "player_quests");
+    private static final ResourceLocation KEY = ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID,
+            "player_quests");
 
     private final PlayerQuestData instance = new PlayerQuestData();
     private final LazyOptional<PlayerQuestData> optional = LazyOptional.of(() -> instance);

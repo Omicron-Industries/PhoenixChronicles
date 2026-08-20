@@ -1,8 +1,8 @@
 package net.phoenixvine.chronicles.integration.emi;
 
-import net.phoenixvine.chronicles.client.SuiteHudBarButton;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.wiki.client.suite.SuiteHudBar;
 
 import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.EmiPlugin;
@@ -26,8 +26,8 @@ public class ChroniclesEmiPlugin implements EmiPlugin {
         loadQuestsIntoEmi(registry);
 
         registry.addGenericExclusionArea((screen, consumer) -> {
-            if (SuiteHudBarButton.screenWantsBarPublic(screen)) {
-                consumer.accept(new Bounds(0, 0, SuiteHudBarButton.barWidth(), SuiteHudBarButton.barHeight()));
+            if (SuiteHudBar.screenWantsBar(screen)) {
+                consumer.accept(new Bounds(0, 0, SuiteHudBar.barWidth(), SuiteHudBar.barHeight()));
             }
         });
     }
@@ -35,7 +35,7 @@ public class ChroniclesEmiPlugin implements EmiPlugin {
     public static void loadQuestsIntoEmi(EmiRegistry registry) {
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
 
-            if (node.isFlagDisabled()) {
+            if (node.isFlagDisabled(null)) {
                 continue;
             }
 

@@ -55,7 +55,7 @@ public class AdvancementTask extends QuestTask {
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("advancement_id")) {
-            this.advancementId = new ResourceLocation(nbt.getString("advancement_id"));
+            this.advancementId = ResourceLocation.parse(nbt.getString("advancement_id"));
         }
     }
 }

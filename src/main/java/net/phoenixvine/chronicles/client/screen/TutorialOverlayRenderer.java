@@ -83,7 +83,7 @@ class TutorialOverlayRenderer {
             } else if (step.isNodeHighlight()) {
                 String nid = step.nodeHighlightId();
                 if (nid != null) {
-                    ResourceLocation rid = new ResourceLocation(PhoenixChronicles.MOD_ID, nid);
+                    ResourceLocation rid = ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID, nid);
                     int[] pos = nodeScreenPos.get(rid);
                     if (pos != null) {
                         QuestNode hlNode = QuestTreeRegistry.getQuest(rid);

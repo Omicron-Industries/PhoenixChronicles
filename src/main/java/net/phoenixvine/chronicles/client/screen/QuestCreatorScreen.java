@@ -460,7 +460,7 @@ public class QuestCreatorScreen extends Screen {
         labels.add(new LabelEntry(cx, y, "§fIcon", C_TEXT_FAINT));
         labels.add(new LabelEntry(sX, y, "§fShape  §f" + cachedShape, C_TEXT_FAINT));
         net.minecraft.world.item.Item iconItem = cachedIconItemId.isBlank() ? null :
-                ForgeRegistries.ITEMS.getValue(new ResourceLocation(cachedIconItemId));
+                ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(cachedIconItemId));
         String iconBtnLabel = (iconItem != null && iconItem != net.minecraft.world.item.Items.AIR) ?
                 "§f" + new net.minecraft.world.item.ItemStack(iconItem).getHoverName().getString() : "§fPick icon…";
         addRenderableWidget(Button.builder(Component.literal(iconBtnLabel), b -> {
@@ -644,7 +644,7 @@ public class QuestCreatorScreen extends Screen {
         if (pendingWorkingNode == null) {
             String id = cachedId.trim().isEmpty() ? "_preview_" : cachedId.trim();
             pendingWorkingNode = new QuestNode(
-                    new ResourceLocation("phoenix_chronicles", id),
+                    ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", id),
                     Component.literal(cachedTitle), Component.literal(cachedDesc));
         }
         return pendingWorkingNode;
@@ -725,7 +725,13 @@ public class QuestCreatorScreen extends Screen {
         enableIfBox.setMaxLength(128);
         enableIfBox.setHint(Component.literal("§fenable_if…"));
         enableIfBox.setValue(cachedEnableIf);
-        enableIfBox.setResponder(v -> cachedEnableIf = v);
+        enableIfBox.setResponder(v -> {
+            cachedEnableIf = v;
+            if (editingNode != null) {
+                editingNode.setEnableIf(v);
+                QuestFileSaver.updateNodeEnableIf(editingNode);
+            }
+        });
         addRenderableWidget(enableIfBox);
         y = rowY + FIELD_H + ROW_GAP;
 
@@ -1013,7 +1019,7 @@ public class QuestCreatorScreen extends Screen {
             if (!cachedIconItemId.isBlank()) {
                 try {
                     net.minecraft.world.item.Item prev = ForgeRegistries.ITEMS
-                            .getValue(new ResourceLocation(cachedIconItemId));
+                            .getValue(ResourceLocation.parse(cachedIconItemId));
                     if (prev != null && prev != net.minecraft.world.item.Items.AIR)
                         g.renderItem(new net.minecraft.world.item.ItemStack(prev), cx + iconColW - 18,
                                 shapeRowY - 1);
@@ -1349,7 +1355,7 @@ public class QuestCreatorScreen extends Screen {
         }
 
         try {
-            ResourceLocation questId = new ResourceLocation("phoenix_chronicles", id);
+            ResourceLocation questId = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", id);
 
             ResourceLocation parentLoc = cachedPrerequisites.isEmpty() ? null : cachedPrerequisites.get(0).getId();
             boolean idChanged = editingNode != null && !editingNode.getId().equals(questId);
@@ -1367,6 +1373,7 @@ public class QuestCreatorScreen extends Screen {
                 editingNode.setBackgroundType(cachedBackgroundType);
                 editingNode.setSubtitle(cachedSubtitle.trim());
                 editingNode.setVisibility(cachedVisibility);
+                editingNode.setEnableIf(cachedEnableIf);
                 editingNode.setDisabledBlocksChildren(cachedDisabledBlocksChildren);
                 editingNode.setRequireAllPrerequisites(cachedRequireAll);
                 editingNode.setTaskMinCount(cachedTaskMinCount);
@@ -1406,6 +1413,7 @@ public class QuestCreatorScreen extends Screen {
                 node.setBackgroundType(cachedBackgroundType);
                 node.setSubtitle(cachedSubtitle.trim());
                 node.setVisibility(cachedVisibility);
+                node.setEnableIf(cachedEnableIf);
                 node.setDisabledBlocksChildren(cachedDisabledBlocksChildren);
                 node.setRequireAllPrerequisites(cachedRequireAll);
                 node.setTaskMinCount(cachedTaskMinCount);

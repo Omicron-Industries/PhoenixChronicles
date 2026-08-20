@@ -175,41 +175,41 @@ public class PlayerQuestData {
         for (int i = 0; i < root.getList("Quests", Tag.TAG_COMPOUND).size(); i++) {
             CompoundTag e = root.getList("Quests", Tag.TAG_COMPOUND).getCompound(i);
             try {
-                questStates.put(new ResourceLocation(e.getString("id")),
+                questStates.put(ResourceLocation.parse(e.getString("id")),
                         QuestState.valueOf(e.getString("state")));
             } catch (Exception ignored) {}
         }
 
         for (int i = 0; i < root.getList("Tasks", Tag.TAG_COMPOUND).size(); i++) {
             CompoundTag e = root.getList("Tasks", Tag.TAG_COMPOUND).getCompound(i);
-            taskProgress.put(new ResourceLocation(e.getString("id")), e.getCompound("progress"));
+            taskProgress.put(ResourceLocation.parse(e.getString("id")), e.getCompound("progress"));
         }
 
         for (int i = 0; i < root.getList("LastCompleted", Tag.TAG_COMPOUND).size(); i++) {
             CompoundTag e = root.getList("LastCompleted", Tag.TAG_COMPOUND).getCompound(i);
-            lastCompleted.put(new ResourceLocation(e.getString("id")), e.getLong("time"));
+            lastCompleted.put(ResourceLocation.parse(e.getString("id")), e.getLong("time"));
         }
 
         for (int i = 0; i < root.getList("ClaimedRewards", Tag.TAG_COMPOUND).size(); i++) {
             CompoundTag e = root.getList("ClaimedRewards", Tag.TAG_COMPOUND).getCompound(i);
-            claimedRewards.add(new ResourceLocation(e.getString("id")));
+            claimedRewards.add(ResourceLocation.parse(e.getString("id")));
         }
 
         for (int i = 0; i < root.getList("ChosenRewards", Tag.TAG_COMPOUND).size(); i++) {
             CompoundTag e = root.getList("ChosenRewards", Tag.TAG_COMPOUND).getCompound(i);
-            chosenRewardIndex.put(new ResourceLocation(e.getString("id")), e.getInt("index"));
+            chosenRewardIndex.put(ResourceLocation.parse(e.getString("id")), e.getInt("index"));
         }
 
         for (int i = 0; i < root.getList("PinnedQuests", Tag.TAG_COMPOUND).size(); i++) {
             CompoundTag e = root.getList("PinnedQuests", Tag.TAG_COMPOUND).getCompound(i);
             try {
-                pinnedQuestIds.add(new ResourceLocation(e.getString("id")));
+                pinnedQuestIds.add(ResourceLocation.parse(e.getString("id")));
             } catch (Exception ignored) {}
         }
 
         if (root.contains("PinnedQuest")) {
             try {
-                pinnedQuestIds.add(new ResourceLocation(root.getString("PinnedQuest")));
+                pinnedQuestIds.add(ResourceLocation.parse(root.getString("PinnedQuest")));
             } catch (Exception ignored) {}
         }
     }

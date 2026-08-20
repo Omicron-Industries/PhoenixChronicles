@@ -38,10 +38,10 @@ public class QuestRegistry {
                         String value = parts[1].trim();
 
                         switch (key) {
-                            case "id" -> id = new ResourceLocation("phoenix_chronicles", value);
+                            case "id" -> id = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", value);
                             case "category" -> category = value.toUpperCase();
                             case "parent" -> parent = value.equals("none") ? null :
-                                    new ResourceLocation("phoenix_chronicles", value);
+                                    ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", value);
                             case "shape" -> shape = value.toUpperCase();
                             case "position" -> {
                                 String[] coords = value.split(",");

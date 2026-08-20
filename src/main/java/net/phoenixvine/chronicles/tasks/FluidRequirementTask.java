@@ -205,7 +205,7 @@ public class FluidRequirementTask extends QuestTask {
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("nbt_filter")) this.nbtFilter = nbt.getCompound("nbt_filter");
         if (nbt.contains("fluid_id")) {
-            this.fluidId = new ResourceLocation(nbt.getString("fluid_id"));
+            this.fluidId = ResourceLocation.parse(nbt.getString("fluid_id"));
         }
         this.requiredAmount = nbt.getInt("amount");
         this.consume = nbt.getBoolean("consume");

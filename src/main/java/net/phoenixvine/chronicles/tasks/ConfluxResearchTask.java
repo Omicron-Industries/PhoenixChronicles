@@ -10,7 +10,7 @@ import net.phoenixvine.chronicles.model.QuestTask;
 public class ConfluxResearchTask extends QuestTask {
 
     private boolean flagMode = false;
-    private ResourceLocation nodeId = new ResourceLocation("phoenixcore", "unknown");
+    private ResourceLocation nodeId = ResourceLocation.fromNamespaceAndPath("phoenixcore", "unknown");
     private String flag = "";
 
     public ConfluxResearchTask(ResourceLocation taskId, Component description) {

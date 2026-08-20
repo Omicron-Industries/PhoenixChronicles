@@ -4,6 +4,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.FrameProfiler;
+import net.phoenixvine.chronicles.client.screen.ScreenContext;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.model.QuestNode;
@@ -12,8 +13,10 @@ import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class DependencyLineRenderer {
 
@@ -27,11 +30,11 @@ public class DependencyLineRenderer {
     private final float[] scratchNormY = new float[MAX_STEPS + 1];
     private final float[] scratchCumLen = new float[MAX_STEPS + 1];
 
-    private static final float TRIM_OVERLAP_PX = 2f;
+    private static final float TRIM_OVERLAP_PX = 3f;
 
     private static final float ARROW_SPEED_PX_PER_MS = 0.15f;
 
-    private static final ResourceLocation ARROW_SPRITE = new ResourceLocation("phoenix_chronicles",
+    private static final ResourceLocation ARROW_SPRITE = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles",
             "textures/gui/sprites/arrow_no_background.png");
 
     private final List<int[]> lineCache = new ArrayList<>();
@@ -51,6 +54,199 @@ public class DependencyLineRenderer {
         lineCacheNodes.clear();
         lineCacheNodes.addAll(edgeNodes);
         rebuildLineGeometryCache(zoom, settings);
+    }
+
+    public void rebuildFromGraph(ScreenContext ctx, int sidebarVisualW, Predicate<QuestNode> catMatches,
+                                 int lineLockedColor, QuestChroniclesSettings settings) {
+        List<int[]> edges = new ArrayList<>();
+        List<ResourceLocation[]> edgeNodes = new ArrayList<>();
+
+        Map<ResourceLocation, int[]> nodeScreenPos = ctx.nodeScreenPos();
+        int leftBound = sidebarVisualW;
+        int rightBound = ctx.width();
+        int topBound = 38;
+
+        int bottomBound = ctx.height();
+
+        int linePadding = 400;
+
+        for (Map.Entry<ResourceLocation, int[]> e : nodeScreenPos.entrySet()) {
+            QuestNode parent = QuestTreeRegistry.getQuest(e.getKey());
+            if (parent == null || !catMatches.test(parent)) continue;
+
+            if (parent.isFlagDisabled(null)) continue;
+            if (parent.isHideDepLine()) continue;
+
+            int[] pPos = e.getValue();
+            if (pPos == null) continue;
+            int parentSz = ctx.scaledNodeSize(parent);
+            int px = pPos[0] + parentSz / 2, py = pPos[1] + parentSz / 2;
+            QuestState ps = ctx.getState(parent);
+
+            List<QuestNode> children = parent.getChildren();
+            if (children != null) {
+                for (QuestNode child : children) {
+                    if (child == null || !catMatches.test(child)) continue;
+                    if (child.isHideDepLine()) continue;
+
+                    int[] cPos = nodeScreenPos.get(child.getId());
+                    if (cPos == null) continue;
+                    int childSz = ctx.scaledNodeSize(child);
+                    int cx2 = cPos[0] + childSz / 2, cy2 = cPos[1] + childSz / 2;
+
+                    if ((px < leftBound - linePadding && cx2 < leftBound - linePadding) ||
+                            (px > rightBound + linePadding && cx2 > rightBound + linePadding) ||
+                            (py < topBound - linePadding && cy2 < topBound - linePadding) ||
+                            (py > bottomBound + linePadding && cy2 > bottomBound + linePadding)) {
+                        continue;
+                    }
+
+                    boolean isForbidden = child.isPrereqForbidden(parent.getId());
+                    boolean isLinkEdge = child.isPrereqLink(parent.getId());
+                    boolean isCosmeticEdge = child.isPrereqCosmetic(parent.getId());
+                    boolean isOptionalPrereq = !isForbidden && child.hasPerPrereqFlags() &&
+                            !child.isPrereqRequired(parent.getId());
+
+                    int col, style;
+                    if (isForbidden) {
+                        col = ps == QuestState.COMPLETED ? 0xFFAA2222 : 0xFF661111;
+                        style = ps == QuestState.COMPLETED ? 6 : 5;
+                    } else if (isCosmeticEdge) {
+                        col = 0x1AFFFFFF;
+                        style = 10;
+                    } else if (isLinkEdge) {
+                        col = ps == QuestState.COMPLETED ? 0x6600AA55 :
+                                ps == QuestState.ACTIVE ? 0x66FFAA00 : 0x26FFFFFF;
+                        style = ps == QuestState.ACTIVE ? 9 : (ps == QuestState.COMPLETED ? 8 : 7);
+                    } else if (isOptionalPrereq) {
+                        col = ps == QuestState.COMPLETED ? 0xFF336644 : 0xFF2A2A3A;
+                        style = ps == QuestState.COMPLETED ? 4 : 3;
+                    } else {
+
+                        col = lineLockedColor;
+                        style = 0;
+                    }
+                    int isPlainEdge = !isForbidden && !isCosmeticEdge && !isLinkEdge && !isOptionalPrereq ? 1 : 0;
+
+                    int shapeOrd = -1, visOrd = -1, speedOrd = -1, arrowOrd = -1;
+                    try {
+                        var shapeOv = child.getPrereqLineShape(parent.getId());
+                        if (shapeOv != null) shapeOrd = shapeOv.ordinal();
+                        var visOv = child.getPrereqLineVisual(parent.getId());
+                        if (visOv != null) visOrd = visOv.ordinal();
+                        var speedOv = child.getPrereqLineSpeed(parent.getId());
+                        if (speedOv != null) speedOrd = speedOv.ordinal();
+                        Boolean arrowOv = child.getPrereqLineArrow(parent.getId());
+                        if (arrowOv != null) arrowOrd = arrowOv ? 1 : 0;
+                    } catch (Exception ignored) {}
+
+                    int parentShapeKind = lineTrimShapeKind(parent);
+                    int childShapeKind = lineTrimShapeKind(child);
+                    int horizontalBulge = worldHorizontalBulge(parent, child);
+
+                    edges.add(new int[] {
+                            px, py, cx2, cy2, col, style, shapeOrd, visOrd, speedOrd, arrowOrd, parentSz, childSz,
+                            parentShapeKind, childShapeKind, isPlainEdge, horizontalBulge });
+                    edgeNodes.add(new ResourceLocation[] { parent.getId(), child.getId() });
+                }
+            }
+
+            List<QuestNode> prerequisites = parent.getPrerequisites();
+            if (prerequisites != null) {
+                for (QuestNode prereq : prerequisites) {
+                    if (prereq == null) continue;
+
+                    List<QuestNode> prereqChildren = prereq.getChildren();
+                    if (prereqChildren != null && prereqChildren.contains(parent)) continue;
+
+                    if (!catMatches.test(prereq)) continue;
+                    if (prereq.isFlagDisabled(null)) continue;
+
+                    int[] prereqPos = nodeScreenPos.get(prereq.getId());
+                    if (prereqPos == null) continue;
+
+                    int prereqSz = ctx.scaledNodeSize(prereq);
+                    int prx = prereqPos[0] + prereqSz / 2, pry = prereqPos[1] + prereqSz / 2;
+
+                    if ((prx < leftBound - linePadding && px < leftBound - linePadding) ||
+                            (prx > rightBound + linePadding && px > rightBound + linePadding) ||
+                            (pry < topBound - linePadding && py < topBound - linePadding) ||
+                            (pry > bottomBound + linePadding && py > bottomBound + linePadding)) {
+                        continue;
+                    }
+
+                    QuestState prereqState = ctx.getState(prereq);
+                    boolean isForbidden = parent.isPrereqForbidden(prereq.getId());
+                    boolean isLinkEdge = parent.isPrereqLink(prereq.getId());
+                    boolean isCosmeticEdge = parent.isPrereqCosmetic(prereq.getId());
+                    boolean isOptional = !isForbidden && parent.hasPerPrereqFlags() &&
+                            !parent.isPrereqRequired(prereq.getId());
+
+                    int col, style;
+                    if (isForbidden) {
+                        col = prereqState == QuestState.COMPLETED ? 0xFFAA2222 : 0xFF661111;
+                        style = prereqState == QuestState.COMPLETED ? 6 : 5;
+                    } else if (isCosmeticEdge) {
+                        col = 0x1AFFFFFF;
+                        style = 10;
+                    } else if (isLinkEdge) {
+                        col = prereqState == QuestState.COMPLETED ? 0x6600AA55 :
+                                prereqState == QuestState.ACTIVE ? 0x66FFAA00 : 0x26FFFFFF;
+                        style = prereqState == QuestState.ACTIVE ? 9 : (prereqState == QuestState.COMPLETED ? 8 : 7);
+                    } else if (isOptional) {
+                        col = prereqState == QuestState.COMPLETED ? 0xFF336644 : 0xFF2A2A3A;
+                        style = prereqState == QuestState.COMPLETED ? 4 : 3;
+                    } else {
+
+                        col = lineLockedColor;
+                        style = 0;
+                    }
+                    int isPlainEdge = !isForbidden && !isCosmeticEdge && !isLinkEdge && !isOptional ? 1 : 0;
+
+                    int shapeOrd = -1, visOrd = -1, speedOrd = -1, arrowOrd = -1;
+                    try {
+                        var shapeOv = parent.getPrereqLineShape(prereq.getId());
+                        if (shapeOv != null) shapeOrd = shapeOv.ordinal();
+                        var visOv = parent.getPrereqLineVisual(prereq.getId());
+                        if (visOv != null) visOrd = visOv.ordinal();
+                        var speedOv = parent.getPrereqLineSpeed(prereq.getId());
+                        if (speedOv != null) speedOrd = speedOv.ordinal();
+                        Boolean arrowOv = parent.getPrereqLineArrow(prereq.getId());
+                        if (arrowOv != null) arrowOrd = arrowOv ? 1 : 0;
+                    } catch (Exception ignored) {}
+
+                    int prereqShapeKind = lineTrimShapeKind(prereq);
+                    int parentShapeKind2 = lineTrimShapeKind(parent);
+                    int horizontalBulge2 = worldHorizontalBulge(prereq, parent);
+
+                    edges.add(new int[] {
+                            prx, pry, px, py, col, style, shapeOrd, visOrd, speedOrd, arrowOrd, prereqSz, parentSz,
+                            prereqShapeKind, parentShapeKind2, isPlainEdge, horizontalBulge2 });
+                    edgeNodes.add(new ResourceLocation[] { prereq.getId(), parent.getId() });
+                }
+            }
+        }
+
+        rebuild(edges, edgeNodes, ctx.posZoom(), settings);
+    }
+
+    private static int worldHorizontalBulge(QuestNode a, QuestNode b) {
+        int adx = Math.abs(a.getCustomX() - b.getCustomX());
+        int ady = Math.abs(a.getCustomY() - b.getCustomY());
+        return adx >= ady ? 1 : 0;
+    }
+
+    private static int lineTrimShapeKind(QuestNode n) {
+        String s = n.getShapeType();
+        if (s == null) return 0;
+        return switch (s.toUpperCase(java.util.Locale.ROOT)) {
+            case "STAR" -> 1;
+            case "HEXAGON" -> 2;
+            case "DIAMOND" -> 3;
+            case "PENTAGON" -> 4;
+            case "CIRCLE" -> 5;
+            default -> 0;
+        };
     }
 
     public void refreshEdgeEndpoints(ResourceLocation movedNodeId,
@@ -360,7 +556,7 @@ public class DependencyLineRenderer {
         float currentZoom = Math.max(0.05f, zoom);
         float zoomFactor = Math.max(0.5f, currentZoom);
 
-        float overlapZoomFactor = Math.max(0.3f, Math.min(1f, currentZoom));
+        float overlapZoomFactor = Math.max(0.75f, Math.min(1f, currentZoom));
         float trimOverlapPx = TRIM_OVERLAP_PX * overlapZoomFactor;
         float trimHalfA;
         float trimHalfB;
@@ -722,27 +918,24 @@ public class DependencyLineRenderer {
         lineCtxOpen = false;
     }
 
-    private boolean pointNearBezier(int mx, int my, int x1, int y1, int x2, int y2, int tol) {
-        int dx = x2 - x1, dy = y2 - y1;
-        int cx1 = x1 + dx / 3, cy1 = y1;
-        int cx2 = x2 - dx / 3, cy2 = y2;
-        int steps = Math.max(16, Math.abs(dx) / 4 + Math.abs(dy) / 4);
+    private boolean pointNearBezier(int mx, int my, LineGeometry geo, int tol) {
+        if (geo.segmentCount == 0) return false;
+        int steps = Math.max(16, geo.segmentCount);
         int tolSq = tol * tol;
         for (int i = 0; i <= steps; i++) {
             float t = (float) i / steps;
             float u = 1 - t;
-            float bx = u * u * u * x1 + 3 * u * u * t * cx1 + 3 * u * t * t * cx2 + t * t * t * x2;
-            float by = u * u * u * y1 + 3 * u * u * t * cy1 + 3 * u * t * t * cy2 + t * t * t * y2;
-            int ddx = mx - (int) bx, ddy = my - (int) by;
+            float bx = u * u * u * geo.xa + 3 * u * u * t * geo.cp1x + 3 * u * t * t * geo.cp2x + t * t * t * geo.xb;
+            float by = u * u * u * geo.ya + 3 * u * u * t * geo.cp1y + 3 * u * t * t * geo.cp2y + t * t * t * geo.yb;
+            float ddx = mx - bx, ddy = my - by;
             if (ddx * ddx + ddy * ddy <= tolSq) return true;
         }
         return false;
     }
 
     public boolean tryOpenContextMenuAt(int mx, int my, int tol) {
-        for (int i = 0; i < lineCache.size() && i < lineCacheNodes.size(); i++) {
-            int[] ln = lineCache.get(i);
-            if (pointNearBezier(mx, my, ln[0], ln[1], ln[2], ln[3], tol)) {
+        for (int i = 0; i < lineCache.size() && i < lineCacheNodes.size() && i < lineGeometryCache.size(); i++) {
+            if (pointNearBezier(mx, my, lineGeometryCache.get(i), tol)) {
                 lineCtxOpen = true;
                 lineCtxX = mx;
                 lineCtxY = my;
@@ -843,7 +1036,7 @@ public class DependencyLineRenderer {
 
     public void handleContextMenuClick(int mx, int my, int screenW, int screenH,
                                        Runnable requestRebuild, Consumer<String> feedback,
-                                       Consumer<QuestNode> openLineSettings) {
+                                       Consumer<QuestNode> openLineSettings, ScreenContext.UndoPusher pushUndo) {
         if (!lineCtxOpen) return;
         QuestNode parentNode = lineCtxParentId == null ? null : QuestTreeRegistry.getQuest(lineCtxParentId);
         QuestNode childNode = lineCtxChildId == null ? null : QuestTreeRegistry.getQuest(lineCtxChildId);
@@ -872,14 +1065,47 @@ public class DependencyLineRenderer {
 
         if (idx == 0) {
 
+            boolean wasChild = parentNode.getChildren().contains(childNode);
+            boolean oldRequired = childNode.isPrereqRequired(lineCtxParentId);
+            boolean oldForbidden = childNode.isPrereqForbidden(lineCtxParentId);
+            boolean oldLink = isLink;
+            boolean oldCosmetic = isCosmetic;
+            var oldShape = childNode.getPrereqLineShape(lineCtxParentId);
+            var oldVisual = childNode.getPrereqLineVisual(lineCtxParentId);
+            var oldSpeed = childNode.getPrereqLineSpeed(lineCtxParentId);
+            Boolean oldArrow = childNode.getPrereqLineArrow(lineCtxParentId);
+            String oldStyleId = childNode.getPrereqLineStyleId(lineCtxParentId);
+
             childNode.removePrerequisite(parentNode);
             parentNode.removeChild(childNode);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept(
                     "Removed: " + parentNode.getTitle().getString() + " → " + childNode.getTitle().getString());
+            pushUndo.push("Undo: dependency connection restored", () -> {
+                childNode.addPrerequisite(parentNode);
+                if (wasChild) parentNode.addChild(childNode);
+                childNode.setPrereqRequired(lineCtxParentId, oldRequired);
+                childNode.setPrereqForbidden(lineCtxParentId, oldForbidden);
+                childNode.setPrereqLink(lineCtxParentId, oldLink);
+                childNode.setPrereqCosmetic(lineCtxParentId, oldCosmetic);
+                childNode.setPrereqLineShape(lineCtxParentId, oldShape);
+                childNode.setPrereqLineVisual(lineCtxParentId, oldVisual);
+                childNode.setPrereqLineSpeed(lineCtxParentId, oldSpeed);
+                childNode.setPrereqLineArrow(lineCtxParentId, oldArrow);
+                childNode.setPrereqLineStyleId(lineCtxParentId, oldStyleId);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.removePrerequisite(parentNode);
+                parentNode.removeChild(childNode);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 1) {
 
+            boolean oldRequired = isRequired;
+            boolean oldForbidden = isForbidden;
             if (isForbidden) {
                 childNode.setPrereqForbidden(lineCtxParentId, false);
                 childNode.setPrereqRequired(lineCtxParentId, true);
@@ -891,59 +1117,139 @@ public class DependencyLineRenderer {
                 childNode.setPrereqRequired(lineCtxParentId, false);
                 feedback.accept("Prereq type: Optional");
             }
+            boolean newRequired = childNode.isPrereqRequired(lineCtxParentId);
+            boolean newForbidden = childNode.isPrereqForbidden(lineCtxParentId);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
+            pushUndo.push("Undo: prereq type reverted", () -> {
+                childNode.setPrereqRequired(lineCtxParentId, oldRequired);
+                childNode.setPrereqForbidden(lineCtxParentId, oldForbidden);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setPrereqRequired(lineCtxParentId, newRequired);
+                childNode.setPrereqForbidden(lineCtxParentId, newForbidden);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 2) {
 
+            boolean oldLink = isLink;
             childNode.setPrereqLink(lineCtxParentId, !isLink);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept(isLink ? "Unmarked as link" : "Marked as link");
+            pushUndo.push("Undo: link mark reverted", () -> {
+                childNode.setPrereqLink(lineCtxParentId, oldLink);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setPrereqLink(lineCtxParentId, !oldLink);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 3) {
 
+            boolean oldCosmetic = isCosmetic;
             childNode.setPrereqCosmetic(lineCtxParentId, !isCosmetic);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept(isCosmetic ? "Unmarked as cosmetic-only (now gates unlock)" :
                     "Marked as cosmetic-only (no longer gates unlock)");
+            pushUndo.push("Undo: cosmetic mark reverted", () -> {
+                childNode.setPrereqCosmetic(lineCtxParentId, oldCosmetic);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setPrereqCosmetic(lineCtxParentId, !oldCosmetic);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 4) {
 
-            childNode.setHideDepLine(!childNode.isHideDepLine());
+            boolean oldHide = childNode.isHideDepLine();
+            childNode.setHideDepLine(!oldHide);
             QuestFileSaver.updateHideDepLine(childNode);
             requestRebuild.run();
             feedback.accept(childNode.isHideDepLine() ? "Dep lines hidden: " + childNode.getTitle().getString() :
                     "Dep lines shown: " + childNode.getTitle().getString());
+            pushUndo.push("Undo: dep line visibility reverted", () -> {
+                childNode.setHideDepLine(oldHide);
+                QuestFileSaver.updateHideDepLine(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setHideDepLine(!oldHide);
+                QuestFileSaver.updateHideDepLine(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 5) {
 
-            var next = cycleLineOverride(childNode.getPrereqLineShape(lineCtxParentId),
-                    QuestChroniclesSettings.LineStyle.values());
+            var oldShape = childNode.getPrereqLineShape(lineCtxParentId);
+            var next = cycleLineOverride(oldShape, QuestChroniclesSettings.LineStyle.values());
             childNode.setPrereqLineShape(lineCtxParentId, next);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept("Line shape: " + lineOverrideLabel(next));
+            pushUndo.push("Undo: line shape reverted", () -> {
+                childNode.setPrereqLineShape(lineCtxParentId, oldShape);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setPrereqLineShape(lineCtxParentId, next);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 6) {
 
-            var next = cycleLineOverride(childNode.getPrereqLineVisual(lineCtxParentId),
-                    QuestChroniclesSettings.LineVisualStyle.values());
+            var oldVisual = childNode.getPrereqLineVisual(lineCtxParentId);
+            var next = cycleLineOverride(oldVisual, QuestChroniclesSettings.LineVisualStyle.values());
             childNode.setPrereqLineVisual(lineCtxParentId, next);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept("Line style: " + lineOverrideLabel(next));
+            pushUndo.push("Undo: line style reverted", () -> {
+                childNode.setPrereqLineVisual(lineCtxParentId, oldVisual);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setPrereqLineVisual(lineCtxParentId, next);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 7) {
 
-            var next = cycleLineOverride(childNode.getPrereqLineSpeed(lineCtxParentId),
-                    QuestChroniclesSettings.LineAnimSpeed.values());
+            var oldSpeed = childNode.getPrereqLineSpeed(lineCtxParentId);
+            var next = cycleLineOverride(oldSpeed, QuestChroniclesSettings.LineAnimSpeed.values());
             childNode.setPrereqLineSpeed(lineCtxParentId, next);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept("Dot speed: " + lineOverrideLabel(next));
+            pushUndo.push("Undo: dot speed reverted", () -> {
+                childNode.setPrereqLineSpeed(lineCtxParentId, oldSpeed);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setPrereqLineSpeed(lineCtxParentId, next);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 8) {
 
-            Boolean next = cycleArrowOverride(childNode.getPrereqLineArrow(lineCtxParentId));
+            Boolean oldArrow = childNode.getPrereqLineArrow(lineCtxParentId);
+            Boolean next = cycleArrowOverride(oldArrow);
             childNode.setPrereqLineArrow(lineCtxParentId, next);
             QuestFileSaver.updateNodePrerequisites(childNode);
             requestRebuild.run();
             feedback.accept("Arrow: " + arrowOverrideLabel(next));
+            pushUndo.push("Undo: arrow setting reverted", () -> {
+                childNode.setPrereqLineArrow(lineCtxParentId, oldArrow);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            }, () -> {
+                childNode.setPrereqLineArrow(lineCtxParentId, next);
+                QuestFileSaver.updateNodePrerequisites(childNode);
+                requestRebuild.run();
+            });
         } else if (idx == 9) {
 
             openLineSettings.accept(parentNode);

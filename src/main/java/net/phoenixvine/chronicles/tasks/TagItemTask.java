@@ -108,7 +108,7 @@ public class TagItemTask extends QuestTask {
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("tag")) {
             String raw = nbt.getString("tag");
-            if (!raw.isBlank()) tag = ItemTags.create(new ResourceLocation(raw));
+            if (!raw.isBlank()) tag = ItemTags.create(ResourceLocation.parse(raw));
         }
         if (nbt.contains("required")) required = Math.max(1, nbt.getInt("required"));
         this.sticky = !nbt.contains("sticky") || nbt.getBoolean("sticky");

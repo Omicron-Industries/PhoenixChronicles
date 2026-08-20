@@ -5,6 +5,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.tasks.CheckmarkTask;
@@ -41,6 +42,9 @@ public class C2SCompleteCheckmarkTaskPacket {
                     .findFirst().orElse(null);
             if (!(task instanceof CheckmarkTask)) return;
             if (task.isCompletedFor(player)) return;
+
+            QuestState state = QuestProgressTracker.getQuestState(player, node);
+            if (state != QuestState.UNLOCKED && state != QuestState.ACTIVE) return;
 
             CheckmarkTask.complete(player, taskId);
             QuestProgressTracker.checkAndTryComplete(player, node);

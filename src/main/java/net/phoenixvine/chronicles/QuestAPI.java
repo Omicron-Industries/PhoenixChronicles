@@ -84,7 +84,7 @@ public final class QuestAPI {
 
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(questData -> {
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-                if (node.isFlagDisabled()) continue;
+                if (node.isFlagDisabled(player.getServer())) continue;
                 if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
 
                 QuestState state = questData.getQuestState(node.getId(), QuestState.LOCKED);

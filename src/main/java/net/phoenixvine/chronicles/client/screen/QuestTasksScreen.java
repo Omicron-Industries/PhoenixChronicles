@@ -38,7 +38,9 @@ public class QuestTasksScreen extends Screen {
     private static final int C_SLOT_BG = 0xFF0E0E14;
     private static final int C_SLOT_HI = 0xFF5A4200;
 
-    private static final int HEADER_H = 38;
+    private static final int HEADER_H_BASE = 38;
+    private static final int SUBTITLE_LINE_H = 10;
+    private static final int SUBTITLE_MAX_LINES = 3;
     private static final int ICON_SZ = 18;
     private static final int ICON_STRIP_H = ICON_SZ + 8;
     private static final int FOOTER_H = 22;
@@ -50,6 +52,26 @@ public class QuestTasksScreen extends Screen {
 
     private int cardW() {
         return Math.min(CARD_MAX_WIDTH, Math.max(120, width - 24));
+    }
+
+    private java.util.List<net.minecraft.util.FormattedCharSequence> wrapSubtitle(String subtitle, int maxW) {
+        if (subtitle == null || subtitle.isBlank()) return java.util.List.of();
+        java.util.List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(subtitle),
+                Math.max(20, maxW));
+        return lines.size() > SUBTITLE_MAX_LINES ? lines.subList(0, SUBTITLE_MAX_LINES) : lines;
+    }
+
+    private int headerTitleMaxW() {
+        int pinX = width - 20;
+        int editX = pinX - 18;
+        int fsX = editX - 20;
+        int usesX = fsX - 20;
+        return usesX - 32;
+    }
+
+    private int headerH() {
+        int lines = wrapSubtitle(node.getSubtitle(), headerTitleMaxW()).size();
+        return lines <= 1 ? HEADER_H_BASE : HEADER_H_BASE + (lines - 1) * SUBTITLE_LINE_H;
     }
 
     private static final int CARD_PAD = 6;
@@ -117,12 +139,13 @@ public class QuestTasksScreen extends Screen {
     protected void init() {
         super.init();
         openTimeMs = System.currentTimeMillis();
-        isEditMode = player != null && (player.isCreative() || player.hasPermissions(2));
+
+        isEditMode = player != null && player.hasPermissions(2);
         phantasiaPreview = net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.createPreviewForNode(node);
 
-        boolean hasInfoTasks = node.getTasks().stream().anyMatch(t2 -> t2 instanceof InfoTask);
+        boolean hasInfoTasks = content.effectiveTasks().stream().anyMatch(t2 -> t2 instanceof InfoTask);
         if (hasInfoTasks && playerData != null) {
-            for (var task : node.getTasks()) {
+            for (var task : content.effectiveTasks()) {
                 if (task instanceof InfoTask) {
                     InfoTask.acknowledge(player, task.getTaskId());
                 }
@@ -210,10 +233,14 @@ public class QuestTasksScreen extends Screen {
         return phantasiaPreview != null ? PREVIEW_H_COMPACT + 1 : 0;
     }
 
+    private int compactHeaderH() {
+        int lines = wrapSubtitle(node.getSubtitle(), cardW() - 12).size();
+        return lines == 0 ? 20 : 20 + lines * SUBTITLE_LINE_H;
+    }
+
     private int compactCardH(List<QuestTask> tasks, List<QuestReward> rewards,
                              java.util.List<net.minecraft.util.FormattedCharSequence> descLines, int pageCount) {
-        String subtitleForH = node.getSubtitle();
-        int headerHForH = subtitleForH != null && !subtitleForH.isBlank() ? 30 : 20;
+        int headerHForH = compactHeaderH();
         int fixedH = headerHForH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int allDescLines = buildAllDescLines(tasks, descLines).size();
         int rawDesc = Math.min(allDescLines, CARD_MAX_DESC);
@@ -319,8 +346,8 @@ public class QuestTasksScreen extends Screen {
         g.flush();
         g.fill(0, 0, width, height, 0x88000000);
 
-        List<QuestTask> tasks = node.getTasks();
-        List<QuestReward> rewards = node.getRewards();
+        List<QuestTask> tasks = content.effectiveTasks();
+        List<QuestReward> rewards = content.effectiveRewards();
 
         int compactDescPageCount = splitDescPages(currentDisplayDescriptionText()).size();
         String descText = currentDescriptionPageText(currentDisplayDescriptionText());
@@ -339,9 +366,9 @@ public class QuestTasksScreen extends Screen {
                 .nCopies(questDescLineCount, net.minecraft.util.FormattedCharSequence.EMPTY);
         java.util.List<net.minecraft.util.FormattedCharSequence> descLines = buildAllDescLines(tasks, questDescLines);
 
-        String compactSubtitle = node.getSubtitle();
-        boolean hasCompactSubtitle = compactSubtitle != null && !compactSubtitle.isBlank();
-        int compactHeaderH = hasCompactSubtitle ? 30 : 20;
+        java.util.List<net.minecraft.util.FormattedCharSequence> compactSubtitleLines = wrapSubtitle(node.getSubtitle(),
+                cardW() - 12);
+        int compactHeaderH = compactHeaderH();
 
         int fixedH = compactHeaderH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int rawDesc = Math.min(descLines.size(), CARD_MAX_DESC);
@@ -364,16 +391,14 @@ public class QuestTasksScreen extends Screen {
         int cy = cardY;
 
         g.fill(cardX, cy, cardX + cardW(), cy + compactHeaderH, C_HEADER);
-        String title = (node.isOptional() ? "§d[Optional] §f" : "") + node.getTitle().getString();
+        String title = (node.isOptional() ? "§d[Optional] §f" : "") + content.title().getString();
         if (font.width(title.replaceAll("§.", "")) > cardW() - 50)
             title = font.plainSubstrByWidth(title, cardW() - 56) + "…";
         g.drawString(font, "§f" + title, cardX + CARD_PAD, cy + 6, C_TEXT, false);
 
-        if (hasCompactSubtitle) {
-            String subtitleShown = compactSubtitle;
-            if (font.width(subtitleShown.replaceAll("§.", "")) > cardW() - 12)
-                subtitleShown = font.plainSubstrByWidth(subtitleShown, cardW() - 18) + "…";
-            g.drawString(font, "§7" + subtitleShown, cardX + CARD_PAD, cy + 18, C_TEXT_DIM, false);
+        for (int i = 0; i < compactSubtitleLines.size(); i++) {
+            g.drawString(font, compactSubtitleLines.get(i), cardX + CARD_PAD, cy + 18 + i * SUBTITLE_LINE_H,
+                    C_TEXT_DIM, false);
         }
 
         boolean fsHov = mx >= cardX + cardW() - 18 && mx < cardX + cardW() - 4 && my >= cy + 3 && my < cy + 17;
@@ -637,7 +662,7 @@ public class QuestTasksScreen extends Screen {
     private void renderCompactFooter(GuiGraphics g, int cardX, int cy, int cardW, int h, int mx, int my) {
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
-        boolean canClaim = state == QuestState.COMPLETED && !rewardsClaimed() && !node.getRewards().isEmpty();
+        boolean canClaim = state == QuestState.COMPLETED && !rewardsClaimed() && !content.effectiveRewards().isEmpty();
 
         if (canClaim) {
             int btnW = 120;
@@ -666,7 +691,7 @@ public class QuestTasksScreen extends Screen {
         int[] pw = fullscreenPanelWidths();
         int inspW = pw[0];
         int rewardW = pw[1];
-        int contentTop = HEADER_H + reqBarH() + MARGIN;
+        int contentTop = headerH() + reqBarH() + MARGIN;
         int contentRight = width - inspW - rewardW - MARGIN * 3;
         int contentH = height - contentTop - FOOTER_H - MARGIN;
 
@@ -699,8 +724,9 @@ public class QuestTasksScreen extends Screen {
     }
 
     private void renderHeader(GuiGraphics g, int mx, int my) {
-        g.fill(0, 0, width, HEADER_H, C_HEADER);
-        g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
+        int headerH = headerH();
+        g.fill(0, 0, width, headerH, C_HEADER);
+        g.fill(0, headerH - 1, width, headerH, C_BORDER);
 
         boolean backHov = mx >= 4 && mx < 20 && my >= 6 && my < 22;
         if (backHov) {
@@ -714,21 +740,20 @@ public class QuestTasksScreen extends Screen {
         int editX = pinX - 18;
         int fsX = editX - 20;
         int usesX = fsX - 20;
-        int titleMaxW = usesX - 32;
+        int titleMaxW = headerTitleMaxW();
 
         float headerTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
 
         float titleAvailPreScale = titleMaxW / headerTextScale;
-        String titleStr = (node.isOptional() ? "§d[Optional] §f" : "") + node.getTitle().getString();
+        String titleStr = (node.isOptional() ? "§d[Optional] §f" : "") + content.title().getString();
         if (font.width(titleStr.replaceAll("§.", "")) > titleAvailPreScale)
             titleStr = font.plainSubstrByWidth(titleStr, (int) (titleAvailPreScale - 6)) + "…";
         ChroniclesUIKit.drawScaledString(g, font, "§f" + titleStr, 28, 10, C_TEXT, headerTextScale);
 
-        String subtitleStr = node.getSubtitle();
-        if (subtitleStr != null && !subtitleStr.isBlank()) {
-            if (font.width(subtitleStr.replaceAll("§.", "")) > titleMaxW)
-                subtitleStr = font.plainSubstrByWidth(subtitleStr, titleMaxW - 6) + "…";
-            g.drawString(font, "§7" + subtitleStr, 28, 24, C_TEXT_DIM, false);
+        java.util.List<net.minecraft.util.FormattedCharSequence> subtitleLines = wrapSubtitle(node.getSubtitle(),
+                titleMaxW);
+        for (int i = 0; i < subtitleLines.size(); i++) {
+            g.drawString(font, subtitleLines.get(i), 28, 24 + i * SUBTITLE_LINE_H, C_TEXT_DIM, false);
         }
 
         boolean usesHasAny = !node.getPrerequisites().isEmpty() || !node.getChildren().isEmpty();
@@ -745,9 +770,11 @@ public class QuestTasksScreen extends Screen {
         }
         g.drawCenteredString(font, "§d[-]", fsX + 8, 10, 0xFFAA44FF);
 
-        boolean editHov = mx >= editX && mx < editX + 14 && my >= 6 && my < 22;
-        if (editHov) g.fill(editX, 6, editX + 14, 22, 0x22FFFFFF);
-        g.drawCenteredString(font, editHov ? "§e✎" : "§8✎", editX + 7, 10, editHov ? 0xFFFFDD44 : C_TEXT_FAINT);
+        if (isEditMode) {
+            boolean editHov = mx >= editX && mx < editX + 14 && my >= 6 && my < 22;
+            if (editHov) g.fill(editX, 6, editX + 14, 22, 0x22FFFFFF);
+            g.drawCenteredString(font, editHov ? "§e✎" : "§8✎", editX + 7, 10, editHov ? 0xFFFFDD44 : C_TEXT_FAINT);
+        }
 
         if (mx >= pinX && mx < width - 4 && my >= 6 && my < 22) g.fill(pinX, 6, width - 4, 22, 0x22FFFFFF);
         g.drawCenteredString(font, pinned ? "§d📌" : "§8📌", width - 12, 10, pinned ? 0xFFAA44FF : C_TEXT_FAINT);
@@ -772,7 +799,7 @@ public class QuestTasksScreen extends Screen {
         if (contentRows == 0) popupH = padTop + 14 + padBot;
 
         int popupX = Math.max(4, Math.min(anchorX + 16 - innerW, width - innerW - 4));
-        int popupY = HEADER_H + 2;
+        int popupY = headerH() + 2;
 
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 250f);
@@ -813,7 +840,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private int reqBarH() {
-        boolean hasIcons = !node.getTasks().isEmpty() || !node.getRewards().isEmpty();
+        boolean hasIcons = !content.effectiveTasks().isEmpty() || !content.effectiveRewards().isEmpty();
         return hasIcons ? ICON_STRIP_H : 1;
     }
 
@@ -823,18 +850,19 @@ public class QuestTasksScreen extends Screen {
         hoveredStripRewardIdx = -1;
 
         int barH = reqBarH();
-        g.fill(0, HEADER_H, width, HEADER_H + barH, C_PANEL);
-        g.fill(0, HEADER_H, width, HEADER_H + 1, C_BORDER);
-        g.fill(0, HEADER_H + barH - 1, width, HEADER_H + barH, C_BORDER);
+        int headerH = headerH();
+        g.fill(0, headerH, width, headerH + barH, C_PANEL);
+        g.fill(0, headerH, width, headerH + 1, C_BORDER);
+        g.fill(0, headerH + barH - 1, width, headerH + barH, C_BORDER);
         if (barH <= 1) return;
 
-        int iconY = HEADER_H + (ICON_STRIP_H - ICON_SZ) / 2;
+        int iconY = headerH + (ICON_STRIP_H - ICON_SZ) / 2;
         int iconX = MARGIN + 2;
         int sz = ICON_SZ;
         int gap = 3;
 
-        List<QuestTask> tasks = node.getTasks();
-        List<QuestReward> rewards = node.getRewards();
+        List<QuestTask> tasks = content.effectiveTasks();
+        List<QuestReward> rewards = content.effectiveRewards();
 
         for (QuestTask task : tasks) {
             boolean done = isTaskDone(task);
@@ -1137,7 +1165,7 @@ public class QuestTasksScreen extends Screen {
                     false);
         cy += 24;
 
-        for (QuestTask task : node.getTasks()) {
+        for (QuestTask task : content.effectiveTasks()) {
             if (!(task instanceof InfoTask info)) continue;
             String body = info.getBody();
             if (body == null || body.isBlank()) continue;
@@ -1162,7 +1190,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private void renderTasksTab(GuiGraphics g, int x, int y, int w, int h, int mx, int my) {
-        List<QuestTask> tasks = node.getTasks();
+        List<QuestTask> tasks = content.effectiveTasks();
         List<QuestNode> prereqs = node.getPrerequisites();
         List<QuestNode> dependents = dependentsOf(node);
         int m = 6;
@@ -1324,7 +1352,7 @@ public class QuestTasksScreen extends Screen {
         g.drawString(font, "§8Rewards", x + m, y + 5, C_TEXT_FAINT, false);
         g.fill(x + m, y + 15, x + w - m, y + 16, C_BORDER);
 
-        List<QuestReward> rewards = node.getRewards();
+        List<QuestReward> rewards = content.effectiveRewards();
         int cy = y + 21;
         if (rewards.isEmpty()) {
             g.drawString(font, "§8(none)", x + m, cy, C_TEXT_FAINT, false);
@@ -1339,7 +1367,7 @@ public class QuestTasksScreen extends Screen {
 
         if (node.isRewardChoice()) {
             String choiceHdr = node.getRewardChoiceCount() == 1 ? "§6Pick 1 reward:" :
-                    "§6Pick " + node.getRewardChoiceCount() + " reward(s):";
+                    "§6Pick " + node.getRewardChoiceCount() + " rewards:";
             g.drawString(font, choiceHdr, x + m, cy, C_TEXT, false);
             cy += 12;
         }
@@ -1418,7 +1446,7 @@ public class QuestTasksScreen extends Screen {
 
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
-        boolean canClaim = state == QuestState.COMPLETED && !rewardsClaimed() && !node.getRewards().isEmpty();
+        boolean canClaim = state == QuestState.COMPLETED && !rewardsClaimed() && !content.effectiveRewards().isEmpty();
 
         if (canClaim) {
             int btnW = 140, btnX = (width - btnW) / 2, btnY = footerY + 2;
@@ -1581,8 +1609,13 @@ public class QuestTasksScreen extends Screen {
     private java.util.List<Component> buildRewardTooltip(QuestReward reward) {
         java.util.List<Component> lines = new java.util.ArrayList<>();
         if (reward instanceof QuestReward.ItemReward ir) {
-            lines.add(Component.literal("§fReward: " + rewardStack(ir).getHoverName().getString() +
-                    " §8×" + ir.getCount()));
+            ItemStack stack = rewardStack(ir);
+            lines.add(Component.literal("§fReward: " + stack.getHoverName().getString() + " §8×" + ir.getCount()));
+
+            java.util.List<Component> vanillaLines = stack.getTooltipLines(
+                    minecraft != null ? minecraft.player : null,
+                    net.minecraft.world.item.TooltipFlag.Default.NORMAL);
+            for (int i = 1; i < vanillaLines.size(); i++) lines.add(vanillaLines.get(i));
             lines.add(Component.literal("§8[Click to view in recipe browser]"));
         } else {
             lines.add(Component.literal("§f" + reward.getType().name() + " Reward"));
@@ -1691,13 +1724,14 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
         if (btn == 2 && isEditMode && hoveredTask != null) {
-            forceCompleteTask(hoveredTask);
+            if (hasShiftDown()) resetTaskProgress(hoveredTask);
+            else forceCompleteTask(hoveredTask);
             return true;
         }
         if (btn != 0) return super.mouseClicked(mx, my, btn);
 
-        List<QuestTask> tasks = node.getTasks();
-        List<QuestReward> rewards = node.getRewards();
+        List<QuestTask> tasks = content.effectiveTasks();
+        List<QuestReward> rewards = content.effectiveRewards();
 
         String fullDescText = currentDisplayDescriptionText();
         int pageCount = splitDescPages(fullDescText).size();
@@ -1820,7 +1854,9 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
         if (btn == 2 && isEditMode && (hoveredStripTask != null || hoveredTaskFs != null)) {
-            forceCompleteTask(hoveredStripTask != null ? hoveredStripTask : hoveredTaskFs);
+            QuestTask target = hoveredStripTask != null ? hoveredStripTask : hoveredTaskFs;
+            if (hasShiftDown()) resetTaskProgress(target);
+            else forceCompleteTask(target);
             return true;
         }
 
@@ -1856,7 +1892,7 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
 
-        if (mx >= editX2 && mx < editX2 + 14 && my >= 6 && my < 22 && btn == 0) {
+        if (isEditMode && mx >= editX2 && mx < editX2 + 14 && my >= 6 && my < 22 && btn == 0) {
             if (minecraft != null) minecraft.setScreen(new QuestCreatorScreen(this, node));
             return true;
         }
@@ -1870,7 +1906,7 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
 
-        int contentTop = HEADER_H + reqBarH() + MARGIN;
+        int contentTop = headerH() + reqBarH() + MARGIN;
         int[] pw2 = fullscreenPanelWidths();
         int inspW2 = pw2[0];
         int contentRight = width - inspW2 - pw2[1] - MARGIN * 3;
@@ -1923,7 +1959,7 @@ public class QuestTasksScreen extends Screen {
         if (my >= footerY + 2 && my < footerY + 20) {
             QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                     QuestState.LOCKED;
-            if (state == QuestState.COMPLETED && !rewardsClaimed() && !node.getRewards().isEmpty() &&
+            if (state == QuestState.COMPLETED && !rewardsClaimed() && !content.effectiveRewards().isEmpty() &&
                     !node.isRewardChoice()) {
                 ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), -1));
                 return true;
@@ -1984,7 +2020,7 @@ public class QuestTasksScreen extends Screen {
     private String currentDisplayDescriptionText() {
         if (liveDescOverride != null) return liveDescOverride;
         String mdDesc = (content != null && content.description() != null) ? content.description().getString() : "";
-        return mdDesc.isBlank() ? node.getDescription().getString() : mdDesc;
+        return mdDesc.isBlank() ? content.description().getString() : mdDesc;
     }
 
     private String currentDescriptionPageText(String fullText) {
@@ -2025,7 +2061,7 @@ public class QuestTasksScreen extends Screen {
             compactDescScrollLine = Math.max(0, Math.min(maxScrollLine, compactDescScrollLine - (int) (delta * 2)));
             return true;
         }
-        int contentTop = HEADER_H + reqBarH() + MARGIN;
+        int contentTop = headerH() + reqBarH() + MARGIN;
         int[] pw3 = fullscreenPanelWidths();
         int inspW3 = pw3[0];
         int contentRight = width - inspW3 - pw3[1] - MARGIN * 3;
@@ -2145,7 +2181,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private boolean tryStartDividerDrag(double mx, double my) {
-        int contentTop = HEADER_H + reqBarH() + MARGIN;
+        int contentTop = headerH() + reqBarH() + MARGIN;
         int contentH = height - contentTop - FOOTER_H - MARGIN;
         int[] pw = fullscreenPanelWidths();
         int inspW = pw[0], rewardW = pw[1];
@@ -2201,7 +2237,7 @@ public class QuestTasksScreen extends Screen {
     private boolean tryClaimReward(int rewardIndex) {
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
-        if (state != QuestState.COMPLETED || rewardsClaimed() || node.getRewards().isEmpty()) return false;
+        if (state != QuestState.COMPLETED || rewardsClaimed() || content.effectiveRewards().isEmpty()) return false;
         if (node.isRewardChoice()) {
             if (rewardIndex < 0) return false;
             ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), rewardIndex));
@@ -2216,9 +2252,19 @@ public class QuestTasksScreen extends Screen {
         minecraft.player.connection.sendCommand("chronicles forcetask " + task.getTaskId().getPath());
     }
 
+    private void resetTaskProgress(QuestTask task) {
+        if (minecraft == null || minecraft.player == null || task == null) return;
+        minecraft.player.connection.sendCommand("chronicles resettask " + task.getTaskId().getPath());
+    }
+
     private boolean tryCompleteCheckmark(QuestTask task) {
         if (!(task instanceof net.phoenixvine.chronicles.tasks.CheckmarkTask)) return false;
         if (task.isCompletedFor(minecraft.player)) return true;
+
+        QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
+                QuestState.LOCKED;
+        if (state != QuestState.UNLOCKED && state != QuestState.ACTIVE) return true;
+
         ChronicleNetwork.CHANNEL.sendToServer(
                 new net.phoenixvine.chronicles.network.packet.C2SCompleteCheckmarkTaskPacket(task.getTaskId()));
         return true;

@@ -54,7 +54,7 @@ public class DimensionTask extends QuestTask {
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("target")) {
             this.targetDimension = ResourceKey.create(Registries.DIMENSION,
-                    new ResourceLocation(nbt.getString("target")));
+                    ResourceLocation.parse(nbt.getString("target")));
         }
     }
 }

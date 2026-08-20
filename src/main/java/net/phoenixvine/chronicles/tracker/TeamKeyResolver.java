@@ -13,6 +13,7 @@ public final class TeamKeyResolver {
 
     public static boolean anyTeamModLoaded() {
         var modList = net.minecraftforge.fml.ModList.get();
+        if (modList == null) return false;
         return modList.isLoaded("phoenix_guilds") || modList.isLoaded("ftbteams");
     }
 

@@ -51,7 +51,7 @@ public class QuestContentLoader {
         try {
             String fileName = file.getFileName().toString();
             String id = fileName.substring(0, fileName.lastIndexOf('.'));
-            ResourceLocation questId = new ResourceLocation("phoenix_chronicles", id.toLowerCase());
+            ResourceLocation questId = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", id.toLowerCase());
 
             Path resolvedFile = resolveLocaleFile(file, id);
             QuestContent content = parseQuestFile(resolvedFile);

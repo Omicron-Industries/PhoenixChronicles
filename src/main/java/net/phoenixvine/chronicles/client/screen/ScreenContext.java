@@ -21,6 +21,8 @@ public interface ScreenContext {
 
     int sidebarW();
 
+    float posZoom();
+
     boolean isDevMode();
 
     boolean isRenderingAsBackdrop();
@@ -40,6 +42,16 @@ public interface ScreenContext {
     String selectedChapter();
 
     void setFeedback(String message, Object... args);
+
+    void pushUndo(String undoMsg, Runnable revertAction, Runnable redoAction);
+
+    @FunctionalInterface
+    interface UndoPusher {
+
+        void push(String undoMsg, Runnable revertAction, Runnable redoAction);
+    }
+
+    void setFeedbackDone(String doneMsg, Object... args);
 
     UndoRedoManager undoRedo();
 

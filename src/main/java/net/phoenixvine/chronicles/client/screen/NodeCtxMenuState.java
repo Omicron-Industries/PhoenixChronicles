@@ -18,6 +18,8 @@ interface NodeCtxMenuState {
 
     int ctxY();
 
+    float ctxScale();
+
     @Nullable
     QuestNode ctxNode();
 

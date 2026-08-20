@@ -116,10 +116,12 @@ class SidebarPanel {
         return ctxActions != null;
     }
 
-    void openContextMenu(int mx, int my, List<MenuAction> actions) {
+    void openContextMenu(int mx, int my, List<MenuAction> actions, int screenW, int screenH) {
         ctxActions = actions;
-        ctxX = mx;
-        ctxY = my;
+
+        int h = actions.size() * CTX_ROW_H + 4;
+        ctxX = Math.min(mx, screenW - CTX_MENU_W - 2);
+        ctxY = Math.min(my, screenH - h - 2);
     }
 
     void closeContextMenu() {
@@ -464,7 +466,7 @@ class SidebarPanel {
     void renderPanel(GuiGraphics g, Font font, int mx, int my, int width, int height, Colors colors,
                      boolean devMode, String selectedChapter, Function<String, String> friendly,
                      Function<String, int[]> progressLookup, Function<String, Boolean> attentionLookup,
-                     Consumer<Runnable> deferDraw, List<String> cats) {
+                     Function<String, Boolean> rewardsLookup, Consumer<Runnable> deferDraw, List<String> cats) {
         g.fill(0, HEADER_H, visualWidth() - 1, HEADER_H + 1, colors.border());
 
         int toggleY = HEADER_H + 1;
@@ -508,7 +510,7 @@ class SidebarPanel {
             if (row.y() + row.height() < scrollTop || row.y() > scrollBottom) continue;
             if (row.isFolder()) renderFolderRow(g, font, row, mx, my, colors);
             else renderCatRow(g, font, row, mx, my, colors, devMode, selectedChapter, progressLookup,
-                    attentionLookup);
+                    attentionLookup, rewardsLookup);
         }
 
         if (dragMoved && dragRow != null) {
@@ -525,6 +527,7 @@ class SidebarPanel {
             g.drawCenteredString(font, "§8chapters", width() / 2, scrollTop + 20, colors.textFaint());
         }
 
+        g.flush();
         g.disableScissor();
         g.fill(visualWidth() - 1, 0, visualWidth(), height, colors.border());
 
@@ -543,12 +546,12 @@ class SidebarPanel {
         SidebarRow hovRow = my >= scrollTop && my < scrollBottom ? rowAt(sidebarRows, mx, my) : null;
         if (hovRow != null) {
             SidebarRow finalRow = hovRow;
-            deferDraw.accept(() -> renderTooltip(g, font, height, finalRow, mx, my, colors, progressLookup));
+            deferDraw.accept(() -> renderTooltip(g, font, width, height, finalRow, mx, my, colors, progressLookup));
         }
     }
 
-    private void renderTooltip(GuiGraphics g, Font font, int height, SidebarRow row, int mx, int my, Colors colors,
-                               Function<String, int[]> progressLookup) {
+    private void renderTooltip(GuiGraphics g, Font font, int width, int height, SidebarRow row, int mx, int my,
+                               Colors colors, Function<String, int[]> progressLookup) {
         String line1 = row.label();
         String line2 = null;
         if (!row.isFolder()) {
@@ -558,8 +561,8 @@ class SidebarPanel {
         int ttW = Math.max(font.width(line1), line2 != null ? font.width(line2) : 0) + 10;
         int ttH = line2 != null ? 24 : 14;
 
-        int ttX = visualWidth() + 3;
-        int ttY = Math.min(height - ttH - 2, my - ttH / 2);
+        int ttX = Math.min(visualWidth() + 3, width - ttW - 2);
+        int ttY = Math.max(2, Math.min(height - ttH - 2, my - ttH / 2));
 
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 250f);
@@ -593,12 +596,15 @@ class SidebarPanel {
         if (iconId != null && !iconId.isEmpty()) {
             net.minecraft.world.item.Item item = resolveCategoryIcon(iconId);
             if (item != null) {
+                int iconTextX = textX;
                 try {
-                    g.pose().pushPose();
-                    g.pose().translate(textX, y + (h - 16) / 2f, 0f);
-                    g.pose().scale(0.625f, 0.625f, 1f);
-                    g.renderItem(new net.minecraft.world.item.ItemStack(item), 0, 0);
-                    g.pose().popPose();
+                    NodeRenderer.withNoIconMipBleed(g, () -> {
+                        g.pose().pushPose();
+                        g.pose().translate(iconTextX, y + (h - 16 * 0.625f) / 2f, 0f);
+                        g.pose().scale(0.625f, 0.625f, 1f);
+                        g.renderItem(new net.minecraft.world.item.ItemStack(item), 0, 0);
+                        g.pose().popPose();
+                    });
                 } catch (Exception ignored) {}
                 textX += 11;
             }
@@ -636,7 +642,7 @@ class SidebarPanel {
     private net.minecraft.world.item.Item resolveCategoryIcon(String iconId) {
         try {
             net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                    .getValue(new net.minecraft.resources.ResourceLocation(iconId));
+                    .getValue(net.minecraft.resources.ResourceLocation.parse(iconId));
             return (item != null && item != net.minecraft.world.item.Items.AIR) ? item : null;
         } catch (Exception e) {
             return null;
@@ -645,7 +651,7 @@ class SidebarPanel {
 
     private void renderCatRow(GuiGraphics g, Font font, SidebarRow row, int mx, int my, Colors colors,
                               boolean devMode, String selectedChapter, Function<String, int[]> progressLookup,
-                              Function<String, Boolean> attentionLookup) {
+                              Function<String, Boolean> attentionLookup, Function<String, Boolean> rewardsLookup) {
         String cat = row.id();
         int y = row.y(), h = row.height();
 
@@ -662,6 +668,10 @@ class SidebarPanel {
             ChroniclesUIKit.drawBorder(g, 1, y + 1, width() - 3, h - 2, accent);
         } else if (hov) {
             g.fill(1, y + 1, width() - 2, y + h - 1, 0x14FFFFFF);
+        }
+
+        if (rewardsLookup.apply(cat)) {
+            g.fill(1, y + 1, 3, y + h - 1, 0xFFFFCC00);
         }
 
         net.minecraft.world.item.Item iconItem = ChapterConfig.get(cat).getIconItem();

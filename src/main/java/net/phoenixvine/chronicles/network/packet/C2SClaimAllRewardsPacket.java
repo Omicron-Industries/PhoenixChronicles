@@ -29,7 +29,7 @@ public class C2SClaimAllRewardsPacket {
             if (data == null) return;
 
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-                if (node.isFlagDisabled()) continue;
+                if (node.isFlagDisabled(player.getServer())) continue;
                 if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED) continue;
                 if (data.hasClaimedRewards(node.getId())) continue;
                 if (node.isRewardChoice()) continue;

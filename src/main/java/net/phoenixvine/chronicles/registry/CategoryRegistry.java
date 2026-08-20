@@ -34,20 +34,20 @@ public final class CategoryRegistry {
 
     private CategoryRegistry() {}
 
-    public static void register(CategoryDefinition category) {
+    public static synchronized void register(CategoryDefinition category) {
         if (category != null) CATEGORIES.put(category.id(), category);
     }
 
     @Nullable
-    public static CategoryDefinition get(String id) {
+    public static synchronized CategoryDefinition get(String id) {
         return CATEGORIES.get(id);
     }
 
-    public static void clear() {
+    public static synchronized void clear() {
         CATEGORIES.clear();
     }
 
-    public static List<CategoryDefinition> getCategories() {
+    public static synchronized List<CategoryDefinition> getCategories() {
         List<CategoryDefinition> ordered = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (String id : categoryOrder) {
@@ -60,38 +60,39 @@ public final class CategoryRegistry {
         return Collections.unmodifiableList(ordered);
     }
 
-    public static boolean isCollapsed(String categoryId) {
+    public static synchronized boolean isCollapsed(String categoryId) {
         return collapsed.contains(categoryId);
     }
 
-    public static void toggleCollapsed(String categoryId) {
+    public static synchronized void toggleCollapsed(String categoryId) {
         if (!collapsed.remove(categoryId)) collapsed.add(categoryId);
     }
 
     @Nullable
-    public static CategoryDefinition categoryFor(String chapter) {
+    public static synchronized CategoryDefinition categoryFor(String chapter) {
         String upper = chapter.toUpperCase();
         for (CategoryDefinition c : CATEGORIES.values())
             if (c.chapters().contains(upper)) return c;
         return null;
     }
 
-    public static void load(Path configDir) {
+    public static synchronized void load(Path configDir) {
         categoriesFolder = configDir.resolve("categories");
         uiStatePath = configDir.resolve("category_ui_state.snbt");
         CategoryLoader.reloadAllCategoriesFromDisk(categoriesFolder);
         loadUiState();
     }
 
-    public static void save() {
+    public static synchronized void save() {
         saveUiState();
     }
 
-    public static List<String> getStandaloneOrder() {
+    public static synchronized List<String> getStandaloneOrder() {
         return Collections.unmodifiableList(standaloneOrder);
     }
 
-    public static void reorderStandaloneChapter(String chapId, String targetId, List<String> currentOrder) {
+    public static synchronized void reorderStandaloneChapter(String chapId, String targetId,
+                                                             List<String> currentOrder) {
         List<String> order = new ArrayList<>(currentOrder);
 
         for (String id : standaloneOrder) {
@@ -123,7 +124,7 @@ public final class CategoryRegistry {
         saveUiState();
     }
 
-    public static void reorderCategoryChapter(String categoryId, String chapId, String targetId) {
+    public static synchronized void reorderCategoryChapter(String categoryId, String chapId, String targetId) {
         CategoryDefinition cat = CATEGORIES.get(categoryId);
         if (cat == null) return;
 
@@ -152,7 +153,7 @@ public final class CategoryRegistry {
         writeCategory(updated);
     }
 
-    public static void addCategory(String id, String label) {
+    public static synchronized void addCategory(String id, String label) {
         if (CATEGORIES.containsKey(id)) return;
         CategoryDefinition category = new CategoryDefinition(id, label, new ArrayList<>());
         CATEGORIES.put(id, category);
@@ -160,7 +161,7 @@ public final class CategoryRegistry {
         writeCategory(category);
     }
 
-    public static void removeCategory(String id) {
+    public static synchronized void removeCategory(String id) {
         CATEGORIES.remove(id);
         categoryOrder.remove(id);
         collapsed.remove(id);
@@ -170,7 +171,7 @@ public final class CategoryRegistry {
         }
     }
 
-    public static void reorderCategory(String id, int newIndex) {
+    public static synchronized void reorderCategory(String id, int newIndex) {
         List<String> order = new ArrayList<>();
         for (CategoryDefinition c : getCategories()) order.add(c.id());
 
@@ -190,7 +191,7 @@ public final class CategoryRegistry {
         saveUiState();
     }
 
-    public static void renameCategory(String id, String newLabel) {
+    public static synchronized void renameCategory(String id, String newLabel) {
         CategoryDefinition c = CATEGORIES.get(id);
         if (c == null) return;
         CategoryDefinition updated = new CategoryDefinition(id, newLabel, c.chapters(), c.color(), c.icon(),
@@ -199,7 +200,7 @@ public final class CategoryRegistry {
         writeCategory(updated);
     }
 
-    public static void updateTheme(String id, int color, String icon, int nameColor) {
+    public static synchronized void updateTheme(String id, int color, String icon, int nameColor) {
         CategoryDefinition c = CATEGORIES.get(id);
         if (c == null) return;
         CategoryDefinition updated = c.withTheme(color, icon, nameColor);
@@ -207,7 +208,7 @@ public final class CategoryRegistry {
         writeCategory(updated);
     }
 
-    public static void addChapterToCategory(String categoryId, String chapter) {
+    public static synchronized void addChapterToCategory(String categoryId, String chapter) {
         CategoryDefinition c = CATEGORIES.get(categoryId);
         if (c == null) return;
         List<String> chaps = new ArrayList<>(c.chapters());
@@ -219,7 +220,7 @@ public final class CategoryRegistry {
         writeCategory(updated);
     }
 
-    public static void removeChapterFromCategory(String categoryId, String chapter) {
+    public static synchronized void removeChapterFromCategory(String categoryId, String chapter) {
         CategoryDefinition c = CATEGORIES.get(categoryId);
         if (c == null) return;
         List<String> chaps = new ArrayList<>(c.chapters());

@@ -70,3 +70,51 @@ the compact card and fullscreen quest views with a Prev/Next pager pill.
 The in-game description editor has a dedicated "PB" toolbar button that
 inserts one at the cursor. FTB Quests imports: {@pagebreak} in the source
 description maps to this automatically.
+
+## Heading sizes
+
+`#`, `##`, and `###` aren't just colour differences - each level renders at
+a real, larger size, and levels 4-6 fall back to the `###` treatment:
+
+# This is an H1
+## This is an H2
+### This is an H3
+
+Bold text is scaled up too, everywhere - not just in headings - since
+Minecraft's normal bold is just a heavier stroke at the same size:
+
+**This bold sentence reads noticeably bigger than this plain one.**
+
+## Collapsible sections
+
+Any heading (this page is full of them) doubles as a collapse toggle -
+click the ▾/▸ arrow next to a heading's text to fold or unfold everything
+under it, down to the next heading of the same or shallower level. It
+defaults open, so nothing about a page's contents changes unless someone
+clicks. `:::spoiler` blocks (below) still exist too, for collapsible
+content that isn't naturally headed by a heading.
+
+## Per-text scaling
+
+- **{scale:X}...{reset}** — Scale a run of inline text up or down (X is a
+  multiplier, e.g. 1.4), stacking multiplicatively with whatever size that
+  text would already render at (page default, heading level, bold)
+
+- Example: Normal size, then {scale:1.6}noticeably bigger{reset}, back to normal.
+- Example: {scale:0.8}fine print{reset} for a caveat that shouldn't compete with the main text.
+
+A whole page can also opt into a bigger (or smaller) base size by putting
+`{scale:1.2}` alone on its own line anywhere in the source - see the
+[Live Stats](wiki:live_stats) page for a worked page-level example.
+
+## Clickable links inside code blocks
+
+Fenced code blocks aren't just syntax-highlighted plain text anymore -
+`[label](wiki:...)`, `[label](tip:...)`, and `[label](https://...)`
+annotations work inside them too, reusing the same click/hover handling
+as normal inline links:
+
+```yaml
+# See [the SNBT format reference](wiki:snbt_format) for the full schema
+visibility: "HIDDEN"  # [what does HIDDEN mean?](tip:Hidden until an ancestor prerequisite completes)
+```

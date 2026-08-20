@@ -62,7 +62,7 @@ public class LocationOrTerminalTask extends QuestTask {
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("TargetTerminal")) {
-            this.targetTerminalId = new ResourceLocation(nbt.getString("TargetTerminal"));
+            this.targetTerminalId = ResourceLocation.parse(nbt.getString("TargetTerminal"));
         }
         this.consume = nbt.getBoolean("consume");
     }

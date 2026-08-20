@@ -654,7 +654,8 @@ public class ToastDesignerScreen extends Screen {
         try {
             switch (icon.kind) {
                 case ITEM -> {
-                    net.minecraft.world.item.Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(icon.id));
+                    net.minecraft.world.item.Item item = ForgeRegistries.ITEMS
+                            .getValue(ResourceLocation.parse(icon.id));
                     if (item == null || item == net.minecraft.world.item.Items.AIR) return;
                     float scale = size / 16f;
                     g.pose().pushPose();
@@ -665,11 +666,11 @@ public class ToastDesignerScreen extends Screen {
                 }
                 case FLUID -> {
                     net.minecraft.world.level.material.Fluid fluid = ForgeRegistries.FLUIDS
-                            .getValue(new ResourceLocation(icon.id));
+                            .getValue(ResourceLocation.parse(icon.id));
                     ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
                     ChroniclesUIKit.drawBorder(g, x, y, size, size, 0xFF444455);
                 }
-                case TEXTURE -> g.blit(new ResourceLocation(icon.id), x, y, 0, 0, size, size, size, size);
+                case TEXTURE -> g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
 

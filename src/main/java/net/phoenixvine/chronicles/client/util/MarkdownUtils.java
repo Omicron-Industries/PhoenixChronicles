@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 
 public final class MarkdownUtils {
@@ -39,6 +40,7 @@ public final class MarkdownUtils {
             }
         } catch (IOException ignored) {}
 
-        return new FullQuestData(title, Component.literal(desc.toString().trim()), List.of());
+        return new FullQuestData(title, Component.literal(desc.toString().trim()), List.of(), Collections.emptyList(),
+                Collections.emptyList());
     }
 }

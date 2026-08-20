@@ -274,7 +274,7 @@ public class ChapterThemeScreen extends Screen {
         if (cachedIcon != null && !cachedIcon.isEmpty()) {
             try {
                 net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                        .getValue(new net.minecraft.resources.ResourceLocation(cachedIcon));
+                        .getValue(net.minecraft.resources.ResourceLocation.parse(cachedIcon));
                 if (item != null && item != net.minecraft.world.item.Items.AIR) return item;
             } catch (Exception ignored) {}
         }

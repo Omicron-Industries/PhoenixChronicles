@@ -25,6 +25,10 @@ public final class ChroniclesUIKit {
         drawBorder(g, x, y, w, h, ChroniclesThemePalette.BORDER);
     }
 
+    public static String fitText(Font font, String text, int maxW) {
+        return font.width(text) > maxW ? font.plainSubstrByWidth(text, Math.max(0, maxW - 4)) + "…" : text;
+    }
+
     public static void drawModalChrome(GuiGraphics g, Font font, int screenW, int screenH,
                                        int panelX, int panelY, int panelW, int panelH, int headerH,
                                        String title, int panelColor, int headerColor, int borderColor,
@@ -37,7 +41,8 @@ public final class ChroniclesUIKit {
 
         g.fill(panelX, panelY, panelX + panelW, panelY + headerH, headerColor);
         g.fill(panelX, panelY + headerH - 1, panelX + panelW, panelY + headerH, borderColor);
-        g.drawCenteredString(font, title, panelX + panelW / 2,
+        String fitTitle = fitText(font, title, panelW - 12);
+        g.drawCenteredString(font, fitTitle, panelX + panelW / 2,
                 panelY + (headerH / 2) - (font.lineHeight / 2), textColor);
     }
 

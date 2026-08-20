@@ -121,8 +121,7 @@ public class TaskRewardEditorScreen extends Screen {
 
     private static CompoundTag copiedTaskNBT = null;
 
-    private final java.util.Deque<Object[]> undoHistory = new java.util.ArrayDeque<>();
-    private static final int MAX_UNDO = 30;
+    private final UndoRedoManager undoRedo = new UndoRedoManager(msg -> {});
 
     private static final String[] REWARD_TYPES = { "item", "xp", "command", "loot_table", "script_event",
             "reward_table" };
@@ -375,8 +374,7 @@ public class TaskRewardEditorScreen extends Screen {
         taskNbtBox = null;
         if (taskType.equals("item_check")) {
             taskNbtBox = new EditBox(font, tx, fy, colW, FIELD_H, Component.empty());
-            taskNbtBox.setHint(Component
-                    .literal("§8NBT filter  {Enchantments:[{id:\"minecraft:sharpness\",lvl:5s}]}  (optional)"));
+            taskNbtBox.setHint(Component.literal("§8NBT filter (optional)"));
             taskNbtBox.setMaxLength(512);
             taskNbtBox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
                     Component.literal(
@@ -402,6 +400,9 @@ public class TaskRewardEditorScreen extends Screen {
         }
 
         int rowY = formBottom - FIELD_H - 4;
+        int flexGap = 4;
+        int flexX = tx;
+        int flexAvail = colW;
         if (needsCount) {
             String countHint = switch (taskType) {
                 case "experience" -> "§8XP level";
@@ -422,66 +423,66 @@ public class TaskRewardEditorScreen extends Screen {
             taskCountBox.setMaxLength(8);
             taskCountBox.setValue(countVal);
             addRenderableWidget(taskCountBox);
+            flexX = tx + 52 + flexGap;
+            flexAvail = colW - 52 - flexGap;
         }
+
+        record FlexBtn(int idealW, java.util.function.Supplier<Button.Builder> factory) {}
+        List<FlexBtn> flexBtns = new ArrayList<>();
         if (showConsume) {
-            int cx2 = needsCount ? tx + 56 : tx;
-            addRenderableWidget(Button.builder(
+            flexBtns.add(new FlexBtn(54, () -> Button.builder(
                     Component.literal(taskConsume ? "§aConsume" : "§8Consume"),
                     b -> {
                         taskConsume = !taskConsume;
                         rebuildWidgets();
-                    })
-                    .bounds(cx2, rowY, 54, FIELD_H)
-                    .tooltip(Tooltip.create(
-                            Component.literal("Remove the item/fluid from the player's inventory on completion")))
-                    .build());
+                    }).tooltip(Tooltip.create(
+                            Component.literal("Remove the item/fluid from the player's inventory on completion")))));
         }
         if (showAe2Toggle) {
-            int cx3 = (needsCount ? tx + 56 : tx) + 58;
-            addRenderableWidget(Button.builder(
+            flexBtns.add(new FlexBtn(40, () -> Button.builder(
                     Component.literal(taskCheckAe2Storage ? "§bAE2" : "§8AE2"),
                     b -> {
                         taskCheckAe2Storage = !taskCheckAe2Storage;
                         rebuildWidgets();
-                    })
-                    .bounds(cx3, rowY, 40, FIELD_H)
-                    .tooltip(Tooltip.create(Component.literal(
+                    }).tooltip(Tooltip.create(Component.literal(
                             "ON (default when AE2 is installed): also count/withdraw matching items or\n" +
                                     "fluid stored in your linked Applied Energistics 2 ME network, in addition\n" +
-                                    "to the player's inventory.")))
-                    .build());
+                                    "to the player's inventory.")))));
         }
         if (showSticky) {
-            addRenderableWidget(Button.builder(
+            flexBtns.add(new FlexBtn(56, () -> Button.builder(
                     Component.literal(taskSticky ? "§bSticky" : "§8Sticky"),
                     b -> {
                         taskSticky = !taskSticky;
                         rebuildWidgets();
-                    })
-                    .bounds(tx + colW - 162, rowY, 56, FIELD_H)
-                    .tooltip(Tooltip.create(Component.literal(
+                    }).tooltip(Tooltip.create(Component.literal(
                             "ON (default): once satisfied, stays satisfied - placing/using the item\n" +
                                     "later won't un-complete this task.\n" +
-                                    "OFF: re-checked live - task un-completes if you stop holding enough.")))
-                    .build());
+                                    "OFF: re-checked live - task un-completes if you stop holding enough.")))));
         }
-        addRenderableWidget(Button.builder(
+        flexBtns.add(new FlexBtn(50, () -> Button.builder(
                 Component.literal(taskOptional ? "§eOptional" : "§8Optional"),
                 b -> {
                     taskOptional = !taskOptional;
                     rebuildWidgets();
-                })
-                .bounds(tx + colW - 100, rowY, 50, FIELD_H)
-                .tooltip(Tooltip.create(Component.literal("Task is optional — won't block quest completion")))
-                .build());
-        addRenderableWidget(Button.builder(
+                }).tooltip(Tooltip.create(Component.literal("Task is optional — won't block quest completion")))));
+        flexBtns.add(new FlexBtn(46, () -> Button.builder(
                 Component.literal(editingTaskIndex >= 0 ? "§b✎ Update" : "§a✔ Add"),
                 b -> commitTaskFromForm())
-                .bounds(tx + colW - 46, rowY, 46, FIELD_H)
                 .tooltip(Tooltip.create(Component.literal(editingTaskIndex >= 0 ?
                         "Save changes to this task (right-click it again to cancel)" :
-                        "Add this task to the quest (Ctrl+Z to undo)")))
-                .build());
+                        "Add this task to the quest (Ctrl+Z to undo)")))));
+
+        int idealTotal = flexBtns.stream().mapToInt(FlexBtn::idealW).sum() + flexGap * (flexBtns.size() - 1);
+        int minFlexBtnW = 26;
+        double scale = idealTotal > flexAvail && idealTotal > 0 ? Math.max(
+                minFlexBtnW * flexBtns.size() / (double) idealTotal, flexAvail / (double) idealTotal) : 1.0;
+        int flexCursor = flexX;
+        for (FlexBtn fb : flexBtns) {
+            int w = Math.max(minFlexBtnW, (int) Math.round(fb.idealW() * scale));
+            addRenderableWidget(fb.factory().get().bounds(flexCursor, rowY, w, FIELD_H).build());
+            flexCursor += w + flexGap;
+        }
 
         int rx = splitX;
         int rfy = formTop + 8;
@@ -568,22 +569,61 @@ public class TaskRewardEditorScreen extends Screen {
                 .build());
     }
 
-    private void pushUndo() {
-        undoHistory.push(new Object[] { new ArrayList<>(tasks), new ArrayList<>(rewards) });
-        if (undoHistory.size() > MAX_UNDO) undoHistory.pollLast();
+    private List<QuestTask> dragBeforeTasks;
+    private List<QuestReward> dragBeforeRewards;
+
+    private void pushUndo(Runnable mutation) {
+        List<QuestTask> beforeTasks = new ArrayList<>(tasks);
+        List<QuestReward> beforeRewards = new ArrayList<>(rewards);
+
+        mutation.run();
+
+        registerUndoRedo(beforeTasks, beforeRewards, new ArrayList<>(tasks), new ArrayList<>(rewards));
     }
 
-    @SuppressWarnings("unchecked")
+    private void beginDragUndo() {
+        dragBeforeTasks = new ArrayList<>(tasks);
+        dragBeforeRewards = new ArrayList<>(rewards);
+    }
+
+    private void finishDragUndo() {
+        if (dragBeforeTasks == null) return;
+        List<QuestTask> beforeTasks = dragBeforeTasks;
+        List<QuestReward> beforeRewards = dragBeforeRewards;
+        dragBeforeTasks = null;
+        dragBeforeRewards = null;
+        registerUndoRedo(beforeTasks, beforeRewards, new ArrayList<>(tasks), new ArrayList<>(rewards));
+    }
+
+    private void registerUndoRedo(List<QuestTask> beforeTasks, List<QuestReward> beforeRewards,
+                                  List<QuestTask> afterTasks, List<QuestReward> afterRewards) {
+        undoRedo.push(
+                () -> {
+                    tasks.clear();
+                    tasks.addAll(beforeTasks);
+                    rewards.clear();
+                    rewards.addAll(beforeRewards);
+                    editingTaskIndex = -1;
+                    editingRewardIndex = -1;
+                    rebuildWidgets();
+                },
+                () -> {
+                    tasks.clear();
+                    tasks.addAll(afterTasks);
+                    rewards.clear();
+                    rewards.addAll(afterRewards);
+                    editingTaskIndex = -1;
+                    editingRewardIndex = -1;
+                    rebuildWidgets();
+                });
+    }
+
     private void undoLastChange() {
-        if (undoHistory.isEmpty()) return;
-        Object[] snap = undoHistory.pop();
-        tasks.clear();
-        tasks.addAll((List<QuestTask>) snap[0]);
-        rewards.clear();
-        rewards.addAll((List<QuestReward>) snap[1]);
-        editingTaskIndex = -1;
-        editingRewardIndex = -1;
-        rebuildWidgets();
+        undoRedo.undo();
+    }
+
+    private void redoLastChange() {
+        undoRedo.redo();
     }
 
     private boolean applyPickedItemFilter(ItemStack stack) {
@@ -633,7 +673,7 @@ public class TaskRewardEditorScreen extends Screen {
 
         if (desc.isEmpty() && taskType.equals("item_check") && !target.isEmpty()) {
             try {
-                Item targetItem = ForgeRegistries.ITEMS.getValue(new ResourceLocation(target));
+                Item targetItem = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(target));
                 if (targetItem != null) {
                     String itemName = new net.minecraft.world.item.ItemStack(targetItem).getHoverName().getString();
                     desc = count > 1 ? "Collect " + count + "x " + itemName : "Collect " + itemName;
@@ -648,16 +688,16 @@ public class TaskRewardEditorScreen extends Screen {
 
         ResourceLocation taskId = (editingTaskIndex >= 0 && editingTaskIndex < tasks.size()) ?
                 tasks.get(editingTaskIndex).getTaskId() :
-                new ResourceLocation("phoenix_chronicles", "task_" + taskType + "_" +
+                ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "task_" + taskType + "_" +
                         java.util.UUID.randomUUID().toString().replace("-", ""));
         Component descComp = Component.literal(desc);
         QuestTask task = null;
         try {
             task = switch (taskType) {
-                case "kill_entity" -> new KillEntityTask(taskId, descComp, new ResourceLocation(target), count,
+                case "kill_entity" -> new KillEntityTask(taskId, descComp, ResourceLocation.parse(target), count,
                         taskConsume);
                 case "item_check" -> {
-                    Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(target));
+                    Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(target));
                     if (item == null) yield null;
                     ItemRequirementTask irt = new ItemRequirementTask(taskId, descComp, item, count, taskConsume);
                     String nbtStr = taskNbtBox != null ? taskNbtBox.getValue().trim() : "";
@@ -669,11 +709,11 @@ public class TaskRewardEditorScreen extends Screen {
                     irt.setCheckAe2Storage(taskCheckAe2Storage);
                     yield irt;
                 }
-                case "craft_item" -> new CraftItemTask(taskId, descComp, new ResourceLocation(target), count);
+                case "craft_item" -> new CraftItemTask(taskId, descComp, ResourceLocation.parse(target), count);
                 case "experience" -> new ExperienceTask(taskId, descComp, count);
-                case "location_terminal" -> new LocationOrTerminalTask(taskId, descComp, new ResourceLocation(target),
+                case "location_terminal" -> new LocationOrTerminalTask(taskId, descComp, ResourceLocation.parse(target),
                         taskConsume);
-                case "advancement" -> new AdvancementTask(taskId, descComp, new ResourceLocation(target));
+                case "advancement" -> new AdvancementTask(taskId, descComp, ResourceLocation.parse(target));
                 case "filter_item" -> {
                     IItemFilter filter = pendingPickedItemFilter;
                     if (filter == null) {
@@ -681,7 +721,7 @@ public class TaskRewardEditorScreen extends Screen {
                         for (String part : target.split(";")) {
                             String id = part.trim();
                             if (id.isEmpty()) continue;
-                            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+                            Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(id));
                             if (item != null && item != Items.AIR) alts.add(ItemFilters.exact(item));
                         }
                         if (alts.isEmpty()) yield null;
@@ -698,10 +738,10 @@ public class TaskRewardEditorScreen extends Screen {
                         for (String part : target.split(";")) {
                             String id = part.trim();
                             if (id.isEmpty()) continue;
-                            var fluid = ForgeRegistries.FLUIDS.getValue(new ResourceLocation(id));
+                            var fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(id));
                             if (fluid != null && fluid != net.minecraft.world.level.material.Fluids.EMPTY)
                                 alts.add(net.phoenixvine.chronicles.filter.FluidFilters
-                                        .exact(new ResourceLocation(id)));
+                                        .exact(ResourceLocation.parse(id)));
                         }
                         if (alts.isEmpty()) yield null;
                         filter = alts.size() == 1 ? alts.get(0) :
@@ -713,32 +753,34 @@ public class TaskRewardEditorScreen extends Screen {
                     yield fft;
                 }
                 case "block_interact" -> {
-                    var block = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(target));
+                    var block = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(target));
                     String mode = second.isEmpty() ? "PLACE" : second.toUpperCase();
                     yield block != null ? new BlockInteractTask(taskId, descComp, block, mode) : null;
                 }
                 case "block_break" -> {
-                    var block = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(target));
+                    var block = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(target));
                     yield block != null ? new BlockBreakTask(taskId, descComp, block, count) : null;
                 }
-                case "enchantment" -> new EnchantmentTask(taskId, descComp, new ResourceLocation(target), count);
+                case "enchantment" -> new EnchantmentTask(taskId, descComp, ResourceLocation.parse(target), count);
                 case "fluid_check" -> {
-                    FluidRequirementTask frt = new FluidRequirementTask(taskId, descComp, new ResourceLocation(target),
+                    FluidRequirementTask frt = new FluidRequirementTask(taskId, descComp,
+                            ResourceLocation.parse(target),
                             count, taskConsume);
                     frt.setCheckAe2Storage(taskCheckAe2Storage);
                     yield frt;
                 }
-                case "stat" -> new StatTrackerTask(taskId, descComp, new ResourceLocation(target), count, taskConsume);
+                case "stat" -> new StatTrackerTask(taskId, descComp, ResourceLocation.parse(target), count,
+                        taskConsume);
                 case "dimension" -> {
                     String dim = second.isEmpty() ? "minecraft:overworld" : second;
                     yield new DimensionTask(taskId, descComp,
-                            ResourceKey.create(Registries.DIMENSION, new ResourceLocation(dim)));
+                            ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(dim)));
                 }
-                case "biome" -> new BiomeTask(taskId, descComp, new ResourceLocation(target));
-                case "structure" -> new StructureTask(taskId, descComp, new ResourceLocation(target));
+                case "biome" -> new BiomeTask(taskId, descComp, ResourceLocation.parse(target));
+                case "structure" -> new StructureTask(taskId, descComp, ResourceLocation.parse(target));
                 case "checkmark" -> new CheckmarkTask(taskId, descComp);
                 case "timer" -> new TimerTask(taskId, descComp, count);
-                case "tag_item" -> new TagItemTask(taskId, descComp, ItemTags.create(new ResourceLocation(target)),
+                case "tag_item" -> new TagItemTask(taskId, descComp, ItemTags.create(ResourceLocation.parse(target)),
                         count);
                 case "info" -> new InfoTask(taskId, descComp, target);
                 case "external_trigger" -> new ExternalTriggerTask(taskId, descComp, target, count);
@@ -777,13 +819,15 @@ public class TaskRewardEditorScreen extends Screen {
         if (task != null) {
             task.setOptional(taskOptional);
             applyStickyIfSupported(task, taskSticky);
-            pushUndo();
-            if (editingTaskIndex >= 0 && editingTaskIndex < tasks.size()) {
-                tasks.set(editingTaskIndex, task);
-            } else {
-                tasks.add(task);
-            }
-            editingTaskIndex = -1;
+            QuestTask finalTask = task;
+            pushUndo(() -> {
+                if (editingTaskIndex >= 0 && editingTaskIndex < tasks.size()) {
+                    tasks.set(editingTaskIndex, finalTask);
+                } else {
+                    tasks.add(finalTask);
+                }
+                editingTaskIndex = -1;
+            });
             taskTypeDropOpen = false;
             taskOptional = false;
             taskSticky = true;
@@ -1006,7 +1050,7 @@ public class TaskRewardEditorScreen extends Screen {
             }
             case "loot_table" -> {
                 String lt = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
-                yield lt.isEmpty() ? null : new QuestReward.LootTableReward(new ResourceLocation(lt));
+                yield lt.isEmpty() ? null : new QuestReward.LootTableReward(ResourceLocation.parse(lt));
             }
             case "reward_table" -> {
                 String tid = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
@@ -1027,13 +1071,14 @@ public class TaskRewardEditorScreen extends Screen {
         };
 
         if (reward != null) {
-            pushUndo();
-            if (editingRewardIndex >= 0 && editingRewardIndex < rewards.size()) {
-                rewards.set(editingRewardIndex, reward);
-            } else {
-                rewards.add(reward);
-            }
-            editingRewardIndex = -1;
+            pushUndo(() -> {
+                if (editingRewardIndex >= 0 && editingRewardIndex < rewards.size()) {
+                    rewards.set(editingRewardIndex, reward);
+                } else {
+                    rewards.add(reward);
+                }
+                editingRewardIndex = -1;
+            });
             rewardPickedItem = null;
             rewardTypeDropOpen = false;
             pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
@@ -1362,8 +1407,13 @@ public class TaskRewardEditorScreen extends Screen {
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
         boolean ctrl = (mods & 2) != 0;
-        if (ctrl && key == 90) {
+        boolean shift = (mods & 1) != 0;
+        if (ctrl && key == 90 && !shift) {
             undoLastChange();
+            return true;
+        }
+        if (ctrl && (key == 89 || (key == 90 && shift))) {
+            redoLastChange();
             return true;
         }
         if (ctrl && key == 86 && copiedTaskNBT != null) {
@@ -1439,16 +1489,16 @@ public class TaskRewardEditorScreen extends Screen {
             }
 
             if (hoveredTaskRow >= 0 && mx >= splitX - COL_GAP - 14 && mx < splitX - COL_GAP) {
-                pushUndo();
-                tasks.remove(hoveredTaskRow);
+                int removeIdx = hoveredTaskRow;
+                pushUndo(() -> tasks.remove(removeIdx));
                 hoveredTaskRow = -1;
                 if (editingTaskIndex >= 0) cancelTaskEdit();
                 return true;
             }
 
             if (hoveredRewardRow >= 0 && mx >= width - MARGIN - 14 && mx < width - MARGIN) {
-                pushUndo();
-                rewards.remove(hoveredRewardRow);
+                int removeIdx = hoveredRewardRow;
+                pushUndo(() -> rewards.remove(removeIdx));
                 hoveredRewardRow = -1;
                 if (editingRewardIndex >= 0) cancelRewardEdit();
                 return true;
@@ -1522,7 +1572,7 @@ public class TaskRewardEditorScreen extends Screen {
             int target = rowIndexAtY(my, tasks.size());
             if (target >= 0 && target != draggingTaskIndex) {
                 if (!dragMovedTask) {
-                    pushUndo();
+                    beginDragUndo();
                     dragMovedTask = true;
                 }
                 Collections.swap(tasks, draggingTaskIndex, target);
@@ -1536,7 +1586,7 @@ public class TaskRewardEditorScreen extends Screen {
             int target = rewardRealIndexAtY(my);
             if (target >= 0 && target != draggingRewardIndex) {
                 if (!dragMovedReward) {
-                    pushUndo();
+                    beginDragUndo();
                     dragMovedReward = true;
                 }
                 Collections.swap(rewards, draggingRewardIndex, target);
@@ -1552,6 +1602,7 @@ public class TaskRewardEditorScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int btn) {
         if (btn == 0 && (draggingTaskIndex >= 0 || draggingRewardIndex >= 0)) {
+            if (dragMovedTask || dragMovedReward) finishDragUndo();
             draggingTaskIndex = -1;
             draggingRewardIndex = -1;
             dragMovedTask = false;

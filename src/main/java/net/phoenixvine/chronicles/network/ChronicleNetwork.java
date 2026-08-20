@@ -31,7 +31,7 @@ public class ChronicleNetwork {
 
     public static void init() {
         CHANNEL = NetworkRegistry.newSimpleChannel(
-                new ResourceLocation("phoenix_chronicles", "main"),
+                ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "main"),
                 () -> PROTOCOL,
                 PROTOCOL::equals,
                 PROTOCOL::equals);

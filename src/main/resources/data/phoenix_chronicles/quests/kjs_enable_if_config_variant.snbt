@@ -1,0 +1,28 @@
+{
+  id: "kjs_enable_if_config_variant",
+  title: "KJS-Enabled Quest (Hold a Nether Star)",
+  icon: "minecraft:nether_star",
+  chapter: "MAIN",
+  parent: "none",
+  positionX: 0,
+  positionY: 20,
+  enable_if: "flag:holding_nether_star",
+  tasks: [
+    {
+      type: "item",
+      item: "minecraft:nether_star"
+    }
+  ],
+  variants: [
+    {
+      condition: "config:features.json#enable_variant_example",
+      title: "Config Variant: The Feature is On!",
+      tasks: [
+        {
+          type: "item",
+          item: "minecraft:beacon"
+        }
+      ]
+    }
+  ]
+}

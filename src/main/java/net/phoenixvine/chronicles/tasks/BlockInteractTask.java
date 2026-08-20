@@ -60,7 +60,7 @@ public class BlockInteractTask extends QuestTask {
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         if (nbt.contains("block_id")) {
-            this.targetBlock = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(nbt.getString("block_id")));
+            this.targetBlock = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(nbt.getString("block_id")));
         } else {
             this.targetBlock = Blocks.AIR;
         }
