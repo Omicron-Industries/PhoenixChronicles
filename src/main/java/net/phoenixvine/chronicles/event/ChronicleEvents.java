@@ -714,7 +714,7 @@ public class ChronicleEvents {
             if (data.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.COMPLETED) {
                 data.setQuestState(node.getId(), QuestState.UNLOCKED);
                 data.clearClaimedRewards(node.getId());
-                data.clearChosenRewardIndex(node.getId());
+                data.clearChosenRewardIndices(node.getId());
             }
             ChronicleNetwork.CHANNEL.send(
                     net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> fsp),

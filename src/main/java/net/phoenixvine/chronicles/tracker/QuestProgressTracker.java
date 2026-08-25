@@ -514,7 +514,8 @@ public class QuestProgressTracker {
         }
 
         data.clearClaimedRewards(node.getId());
-        data.clearChosenRewardIndex(node.getId());
+        data.clearChosenRewardIndices(node.getId());
+        data.clearChoiceBoxes(node.getId());
 
         changeQuestState(player, node, QuestState.UNLOCKED);
     }
@@ -524,7 +525,18 @@ public class QuestProgressTracker {
         if (data == null) return;
         if (data.hasClaimedRewards(node.getId())) return;
         if (MinecraftForge.EVENT_BUS.post(new QuestEvent.RewardClaimed(player, node))) return;
-        for (QuestReward reward : node.getEffectiveRewards(player.getServer())) {
+
+        List<QuestReward> rewards = node.getEffectiveRewards(player.getServer());
+        for (int i = 0; i < rewards.size(); i++) {
+            QuestReward reward = rewards.get(i);
+            if (reward instanceof QuestReward.ChoiceBoxReward box) {
+
+                if (box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX &&
+                        !data.isChoiceBoxResolved(node.getId(), i)) {
+                    resolveChoiceBox(player, node, i, -1);
+                }
+                continue;
+            }
             reward.grant(player);
         }
         consumeTaskProgress(player, node);
@@ -560,10 +572,41 @@ public class QuestProgressTracker {
         if (data.hasClaimedRewards(node.getId())) return;
         List<QuestReward> effectiveRewards = node.getEffectiveRewards(player.getServer());
         if (choiceIndex < 0 || choiceIndex >= effectiveRewards.size()) return;
+        if (data.hasChosenRewardIndex(node.getId(), choiceIndex)) return;
+
         effectiveRewards.get(choiceIndex).grant(player);
-        consumeTaskProgress(player, node);
-        data.setChosenRewardIndex(node.getId(), choiceIndex);
-        data.markRewardsClaimed(node.getId());
+        data.addChosenRewardIndex(node.getId(), choiceIndex);
+
+        int quota = Math.min(node.getRewardChoiceCount(), effectiveRewards.size());
+        if (data.getChosenRewardIndices(node.getId()).size() >= quota) {
+            consumeTaskProgress(player, node);
+            data.markRewardsClaimed(node.getId());
+        }
+        sendProgressSync(player);
+    }
+
+    public static void resolveChoiceBox(ServerPlayer player, QuestNode node, int boxIndex,
+                                        int requestedOptionIndex) {
+        PlayerQuestData data = resolveData(player);
+        if (data == null) return;
+
+        QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
+        if (state != QuestState.COMPLETED) return;
+
+        List<QuestReward> rewards = node.getEffectiveRewards(player.getServer());
+        if (boxIndex < 0 || boxIndex >= rewards.size()) return;
+        if (!(rewards.get(boxIndex) instanceof QuestReward.ChoiceBoxReward box)) return;
+        if (data.isChoiceBoxResolved(node.getId(), boxIndex)) return;
+
+        List<QuestReward> options = box.getOptions();
+        if (options.isEmpty()) return;
+
+        int chosenIndex = box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ?
+                player.getRandom().nextInt(options.size()) : requestedOptionIndex;
+        if (chosenIndex < 0 || chosenIndex >= options.size()) return;
+
+        options.get(chosenIndex).grant(player);
+        data.resolveChoiceBox(node.getId(), boxIndex, chosenIndex);
         sendProgressSync(player);
     }
 }

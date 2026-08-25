@@ -17,6 +17,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -56,7 +57,8 @@ public final class QuestAPI {
         return node;
     }
 
-    public static void fireExternalEvent(Player player, String triggerId, @Nullable CompoundTag data) {
+    public static void fireExternalEvent(@Nullable Player player, @Nullable String triggerId,
+                                         @Nullable CompoundTag data) {
         if (player == null) {
             warnOnce("fireExternalEvent:null-player", "fireExternalEvent() called with a null player - ignored.");
             return;
@@ -84,7 +86,7 @@ public final class QuestAPI {
 
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(questData -> {
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
-                if (node.isFlagDisabled(player.getServer())) continue;
+                if (node.isFlagDisabled(Objects.requireNonNull(player.getServer()))) continue;
                 if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
 
                 QuestState state = questData.getQuestState(node.getId(), QuestState.LOCKED);

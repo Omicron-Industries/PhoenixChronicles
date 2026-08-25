@@ -3,8 +3,10 @@ package net.phoenixvine.chronicles.client.screen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.phoenixvine.chronicles.client.ChapterConfig;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
@@ -27,9 +29,9 @@ public class ChapterThemeScreen extends Screen {
     private static final int ROW_H = 13;
 
     private static final int[] ROW_H_TABLE = { STRIDE + 10, STRIDE, STRIDE, STRIDE + 10, STRIDE + 10, STRIDE + 10,
-            STRIDE + 10, STRIDE + 10 };
-    private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_STYLE = 2, ROW_COLOR = 3, ROW_NAME_COLOR = 4,
-            ROW_TEXTURE = 5, ROW_CATEGORY = 6, ROW_PARENT = 7;
+            STRIDE + 10, STRIDE + 10, STRIDE + 10 };
+    private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_STYLE = 2, ROW_COLOR = 3, ROW_OPACITY = 4,
+            ROW_NAME_COLOR = 5, ROW_TEXTURE = 6, ROW_CATEGORY = 7, ROW_PARENT = 8;
     private static final int PANEL_H;
 
     static {
@@ -45,6 +47,7 @@ public class ChapterThemeScreen extends Screen {
 
     private ChapterConfig.BgStyle selectedStyle;
     private int cachedColor;
+    private int cachedColorAlpha;
     private int cachedNameColor;
     private String cachedTexture;
     private String cachedDisplayName;
@@ -53,6 +56,7 @@ public class ChapterThemeScreen extends Screen {
     private final String originalDisplayName;
 
     private EditBox colorBox;
+    private EditBox opacityBox;
     private EditBox nameColorBox;
     private EditBox textureBox;
     private EditBox nameBox;
@@ -67,6 +71,9 @@ public class ChapterThemeScreen extends Screen {
     private String cachedParentChapter;
     private int panelLeft, panelTop;
 
+    private float uiScale = 1f;
+    private int vw, vh;
+
     private static final ChapterConfig.BgStyle[] STYLES = ChapterConfig.BgStyle.values();
 
     public ChapterThemeScreen(Screen parent, String chapter) {
@@ -77,6 +84,7 @@ public class ChapterThemeScreen extends Screen {
         ChapterConfig cfg = ChapterConfig.get(chapter);
         this.selectedStyle = cfg.getStyle();
         this.cachedColor = cfg.getColor();
+        this.cachedColorAlpha = cfg.getColorAlpha();
         this.cachedNameColor = cfg.getNameColor();
         this.cachedTexture = cfg.getTexture();
         this.cachedDisplayName = cfg.getDisplayName();
@@ -142,18 +150,24 @@ public class ChapterThemeScreen extends Screen {
 
     @Override
     protected void init() {
-        panelLeft = (width - PANEL_W) / 2;
-        panelTop = (height - PANEL_H) / 2;
+        uiScale = Math.min(1f, Math.min((width - 8f) / PANEL_W, (height - 8f) / PANEL_H));
+        vw = Math.round(width / uiScale);
+        vh = Math.round(height / uiScale);
+
+        panelLeft = Mth.clamp((vw - PANEL_W) / 2, 4, Math.max(4, vw - PANEL_W - 4));
+        panelTop = Mth.clamp((vh - PANEL_H) / 2, 4, Math.max(4, vh - PANEL_H - 4));
 
         int fx = panelLeft + MARGIN;
         int fw = PANEL_W - MARGIN * 2;
 
         nameBox = new EditBox(font, fx, rowTop(ROW_NAME) + 11, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(64);
-        nameBox.setHint(Component.literal("§8" + defaultFriendlyName() +
-                "  (empty = default, &c etc. for color codes)"));
+        nameBox.setHint(Component.literal("§8" + defaultFriendlyName()));
         nameBox.setValue(cachedDisplayName);
         nameBox.setResponder(v -> cachedDisplayName = v.replace('&', '§').trim());
+        nameBox.setTooltip(Tooltip.create(Component.literal(
+                "Leave empty to use the default name shown above (\"" + defaultFriendlyName() + "\").\n" +
+                        "Use & for color/formatting codes, e.g. &6&lGolden Chapter.")));
         addRenderableWidget(nameBox);
 
         int iconPreviewW = FIELD_H + 4;
@@ -176,6 +190,31 @@ public class ChapterThemeScreen extends Screen {
         colorBox.setValue(cachedColor != 0 ? ChroniclesUIKit.formatHexColor(cachedColor) : "");
         colorBox.setResponder(v -> cachedColor = ChroniclesUIKit.parseHexColor(v, 0));
         addRenderableWidget(colorBox);
+
+        int transparentW = 52;
+        int transparentGap = 4;
+        int opacityRowY = rowTop(ROW_OPACITY);
+        opacityBox = new EditBox(font, fx, opacityRowY + 11, fw - transparentW - transparentGap, FIELD_H,
+                Component.empty());
+        opacityBox.setMaxLength(3);
+        opacityBox.setHint(Component.literal("§80-100"));
+        opacityBox.setValue(String.valueOf(Math.round(cachedColorAlpha / 255f * 100)));
+        opacityBox.setResponder(v -> {
+            try {
+                int pct = Mth.clamp(Integer.parseInt(v.trim()), 0, 100);
+                cachedColorAlpha = Math.round(pct / 100f * 255);
+            } catch (NumberFormatException ignored) {}
+        });
+        opacityBox.setTooltip(Tooltip.create(Component.literal(
+                "How solid the background color above looks, 0-100%.\n" +
+                        "0 = fully transparent (shows through to the game world/menu blur behind it).")));
+        addRenderableWidget(opacityBox);
+        addRenderableWidget(Button.builder(Component.literal("§7None"), b -> {
+            cachedColorAlpha = 0;
+            opacityBox.setValue("0");
+        }).bounds(fx + fw - transparentW, opacityRowY + 11, transparentW, FIELD_H)
+                .tooltip(Tooltip.create(Component.literal("Make the background fully transparent")))
+                .build());
 
         nameColorBox = new EditBox(font, fx, rowTop(ROW_NAME_COLOR) + 11, fw, FIELD_H, Component.empty());
         nameColorBox.setMaxLength(7);
@@ -285,6 +324,7 @@ public class ChapterThemeScreen extends Screen {
         ChapterConfig cfg = new ChapterConfig();
         cfg.setStyle(selectedStyle);
         cfg.setColor(cachedColor);
+        cfg.setColorAlpha(cachedColorAlpha);
         cfg.setNameColor(cachedNameColor);
         cfg.setTexture(cachedTexture);
         cfg.setDisplayName(cachedDisplayName);
@@ -319,13 +359,17 @@ public class ChapterThemeScreen extends Screen {
     public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
-    public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+    public void render(@NotNull GuiGraphics g, int rmx, int rmy, float partial) {
         g.flush();
+
+        int mx = Math.round(rmx / uiScale);
+        int my = Math.round(rmy / uiScale);
 
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
+        g.pose().scale(uiScale, uiScale, 1f);
 
-        ChroniclesUIKit.drawModalChrome(g, font, width, height, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
+        ChroniclesUIKit.drawModalChrome(g, font, vw, vh, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
                 "§dTheme — §7" + chapter, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
                 ACCENT, ChroniclesThemePalette.TEXT);
 
@@ -342,6 +386,7 @@ public class ChapterThemeScreen extends Screen {
         g.renderItem(new net.minecraft.world.item.ItemStack(iconItem), fx + 1, iconRowY + 1);
 
         g.drawString(font, "§8Background Color", fx, rowTop(ROW_COLOR), ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Background Opacity", fx, rowTop(ROW_OPACITY), ChroniclesThemePalette.TEXT_FAINT);
         g.drawString(font, "§8Display Name Color", fx, rowTop(ROW_NAME_COLOR), ChroniclesThemePalette.TEXT_FAINT);
         g.drawString(font, "§8Custom Background", fx, rowTop(ROW_TEXTURE),
                 ChroniclesThemePalette.TEXT_FAINT);
@@ -352,7 +397,8 @@ public class ChapterThemeScreen extends Screen {
         }
 
         int previewY = rowTop(ROW_CATEGORY) + STRIDE + 10 + 8;
-        int bg = (cachedColor != 0) ? (0xFF000000 | cachedColor) : 0xFF0B0B0F;
+        int bg = (cachedColor != 0) ? ((cachedColorAlpha << 24) | (cachedColor & 0x00FFFFFF)) : 0xFF0B0B0F;
+        g.fill(fx, previewY, fx + fw, previewY + 22, 0xFF0B0B0F);
         g.fill(fx, previewY, fx + fw, previewY + 22, bg);
         ChroniclesUIKit.drawBorder(g, fx, previewY, fw, 22, 0xFF333344);
 
@@ -424,7 +470,9 @@ public class ChapterThemeScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int btn) {
+    public boolean mouseClicked(double rmx, double rmy, int btn) {
+        double mx = rmx / uiScale;
+        double my = rmy / uiScale;
         if (btn == 0 && styleDropOpen) {
             int fx = panelLeft + MARGIN;
             int fw = PANEL_W - MARGIN * 2;
@@ -498,6 +546,16 @@ public class ChapterThemeScreen extends Screen {
             return true;
         }
         return super.mouseClicked(mx, my, btn);
+    }
+
+    @Override
+    public boolean mouseDragged(double rmx, double rmy, int btn, double dragX, double dragY) {
+        return super.mouseDragged(rmx / uiScale, rmy / uiScale, btn, dragX / uiScale, dragY / uiScale);
+    }
+
+    @Override
+    public boolean mouseReleased(double rmx, double rmy, int btn) {
+        return super.mouseReleased(rmx / uiScale, rmy / uiScale, btn);
     }
 
     @Override

@@ -10,6 +10,7 @@ import net.phoenixvine.chronicles.network.packet.C2SClaimAllRewardsPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.network.packet.C2SCompleteCheckmarkTaskPacket;
 import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
+import net.phoenixvine.chronicles.network.packet.C2SResolveChoiceBoxPacket;
 import net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket;
 import net.phoenixvine.chronicles.network.packet.C2SSetFilterTokenPacket;
 import net.phoenixvine.chronicles.network.packet.C2SSetQuestStatePacket;
@@ -48,6 +49,13 @@ public class ChronicleNetwork {
                 C2SClaimQuestRewardPacket::encode,
                 C2SClaimQuestRewardPacket::new,
                 C2SClaimQuestRewardPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                C2SResolveChoiceBoxPacket.class,
+                C2SResolveChoiceBoxPacket::encode,
+                C2SResolveChoiceBoxPacket::new,
+                C2SResolveChoiceBoxPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
 
         CHANNEL.registerMessage(id++,

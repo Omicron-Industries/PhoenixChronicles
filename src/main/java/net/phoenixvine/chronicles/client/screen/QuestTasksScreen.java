@@ -15,6 +15,7 @@ import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
+import net.phoenixvine.chronicles.network.packet.C2SResolveChoiceBoxPacket;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.tasks.*;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
@@ -50,8 +51,16 @@ public class QuestTasksScreen extends Screen {
 
     private static final int CARD_MAX_WIDTH = 310;
 
+    private static final float MAX_CARD_WIDTH_FRACTION = 0.82f;
+    private static final float MAX_CARD_HEIGHT_FRACTION = 0.82f;
+
     private int cardW() {
-        return Math.min(CARD_MAX_WIDTH, Math.max(120, width - 24));
+        int fractionCap = Math.round(width * MAX_CARD_WIDTH_FRACTION);
+        return Math.min(CARD_MAX_WIDTH, Math.max(120, Math.min(width - 24, fractionCap)));
+    }
+
+    private int maxCardH() {
+        return Math.max(60, Math.round(height * MAX_CARD_HEIGHT_FRACTION));
     }
 
     private java.util.List<net.minecraft.util.FormattedCharSequence> wrapSubtitle(String subtitle, int maxW) {
@@ -177,6 +186,8 @@ public class QuestTasksScreen extends Screen {
             renderCompact(g, mx, my, partial);
         }
 
+        if (openChoiceBox != null) renderChoiceBoxPopup(g, mx, my);
+
         if (openTimeMs > 0) {
             long elapsed = System.currentTimeMillis() - openTimeMs;
             if (elapsed < OPEN_FADE_MS) {
@@ -244,12 +255,13 @@ public class QuestTasksScreen extends Screen {
         int fixedH = headerHForH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int allDescLines = buildAllDescLines(tasks, descLines).size();
         int rawDesc = Math.min(allDescLines, CARD_MAX_DESC);
-        int fitted = Math.max(0, Math.min(rawDesc, ((height - headerHForH) - fixedH - 9) / 10));
+        int fitted = Math.max(0, Math.min(rawDesc, ((maxCardH() - headerHForH) - fixedH - 9) / 10));
 
         int descH = fitted > 0 ? 4 + fitted * 10 + 4 : (isEditMode ? 24 : 0);
 
         int pagerStripH = pageCount > 1 ? 17 : 0;
-        return fixedH + descH + (descH > 0 ? 1 : 0) + pagerStripH + (pagerStripH > 0 ? 1 : 0);
+        int total = fixedH + descH + (descH > 0 ? 1 : 0) + pagerStripH + (pagerStripH > 0 ? 1 : 0);
+        return Math.min(total, maxCardH());
     }
 
     private java.util.List<net.minecraft.util.FormattedCharSequence> buildAllDescLines(
@@ -305,6 +317,10 @@ public class QuestTasksScreen extends Screen {
     private boolean usesPopupOpen = false;
     private final List<int[]> usesPopupRowRects = new ArrayList<>();
     private final List<QuestNode> usesPopupRowTargets = new ArrayList<>();
+
+    private QuestReward.ChoiceBoxReward openChoiceBox = null;
+    private int openChoiceBoxRewardIndex = -1;
+    private final List<int[]> choiceBoxRowRects = new ArrayList<>();
 
     private final List<int[]> prereqRowRects = new ArrayList<>();
     private final List<QuestNode> prereqRowTargets = new ArrayList<>();
@@ -372,12 +388,13 @@ public class QuestTasksScreen extends Screen {
 
         int fixedH = compactHeaderH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
         int rawDesc = Math.min(descLines.size(), CARD_MAX_DESC);
-        int fittedDesc = Math.max(0, Math.min(rawDesc, ((height - compactHeaderH) - fixedH - 9) / compactLineH));
+        int fittedDesc = Math.max(0, Math.min(rawDesc, ((maxCardH() - compactHeaderH) - fixedH - 9) / compactLineH));
 
         int descH = fittedDesc > 0 ? 4 + fittedDesc * compactLineH + 6 : (isEditMode ? 24 : 0);
 
         int pagerStripH = compactDescPageCount > 1 ? 17 : 0;
         int cardH = fixedH + descH + (descH > 0 ? 1 : 0) + pagerStripH + (pagerStripH > 0 ? 1 : 0);
+        cardH = Math.min(cardH, maxCardH());
 
         int cardX = (width - cardW()) / 2;
         int cardY = Math.max(10, (height - cardH) / 2);
@@ -569,9 +586,11 @@ public class QuestTasksScreen extends Screen {
         for (int ri = 0; ri < rewards.size(); ri++) {
             if (rix < cardX + CARD_PAD) break;
             QuestReward reward = rewards.get(ri);
+            QuestReward display = displayRewardFor(ri, reward);
+            boolean picked = isSlotPicked(ri, claimed);
             boolean hov = mx >= rix && mx < rix + sz && my >= iy && my < iy + sz;
-            int border = claimed ? C_DONE : C_TEXT_FAINT;
-            int bg = claimed ? 0xFF1A140A : 0xFF0F0F18;
+            int border = picked ? C_DONE : C_TEXT_FAINT;
+            int bg = picked ? 0xFF1A140A : 0xFF0F0F18;
             if (hov) {
                 hoveredReward = reward;
                 hoveredRewardIndex = ri;
@@ -580,22 +599,14 @@ public class QuestTasksScreen extends Screen {
             }
             drawIconSlot(g, rix, iy, sz, bg, border, hov);
             int off = (sz - 16) / 2;
-            if (reward instanceof QuestReward.ItemReward ir) {
+            if (display instanceof QuestReward.ItemReward ir) {
                 g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), rix + off, iy + off);
-                if (claimed) g.fill(rix, iy, rix + sz, iy + sz, 0x55CC8800);
+                if (picked) g.fill(rix, iy, rix + sz, iy + sz, 0x55CC8800);
             } else {
-                String glyph = switch (reward.getType()) {
-                    case XP -> "⚡";
-                    case COMMAND -> "◆";
-                    case LOOT_TABLE -> "📦";
-                    case SCRIPT_EVENT -> "✦";
-                    case REWARD_TABLE -> "⊞";
-                    default -> "?";
-                };
-                g.drawCenteredString(font, "§7" + glyph, rix + sz / 2, iy + sz / 2 - 4, C_TEXT_DIM);
-                if (claimed) g.fill(rix, iy, rix + sz, iy + sz, 0x55CC8800);
+                g.drawCenteredString(font, "§7" + rewardGlyph(display), rix + sz / 2, iy + sz / 2 - 4, C_TEXT_DIM);
+                if (picked) g.fill(rix, iy, rix + sz, iy + sz, 0x55CC8800);
             }
-            if (claimed) {
+            if (picked) {
                 g.fill(rix + sz - 7, iy + sz - 8, rix + sz, iy + sz, 0xFF1A1000);
                 g.drawString(font, "§6✔", rix + sz - 7, iy + sz - 8, 0xFFFFFFFF, false);
             }
@@ -839,6 +850,54 @@ public class QuestTasksScreen extends Screen {
         return ry;
     }
 
+    private void openChoiceBox(QuestReward.ChoiceBoxReward box, int rewardIndex) {
+        openChoiceBox = box;
+        openChoiceBoxRewardIndex = rewardIndex;
+    }
+
+    private void renderChoiceBoxPopup(GuiGraphics g, int mx, int my) {
+        choiceBoxRowRects.clear();
+        List<QuestReward> options = openChoiceBox.getOptions();
+
+        int rowH = 20, padW = 8, padTop = 24, padBot = 8;
+        int innerW = 200;
+        int popupH = padTop + options.size() * rowH + padBot;
+        int popupX = (width - innerW) / 2;
+        int popupY = (height - popupH) / 2;
+
+        g.pose().pushPose();
+        g.pose().translate(0f, 0f, 400f);
+        g.fill(0, 0, width, height, 0x99000000);
+        g.fill(popupX, popupY, popupX + innerW, popupY + popupH, 0xF00A0A0E);
+        drawBorder(g, popupX, popupY, innerW, popupH);
+        g.drawCenteredString(font, "§6Choose your reward", popupX + innerW / 2, popupY + 8, C_TEXT);
+
+        int ry = popupY + padTop;
+        for (QuestReward option : options) {
+            boolean hov = mx >= popupX + padW && mx < popupX + innerW - padW && my >= ry && my < ry + rowH;
+            if (hov) g.fill(popupX + padW, ry, popupX + innerW - padW, ry + rowH, 0x22FFFFFF);
+
+            int iconX = popupX + padW + 2;
+            if (option instanceof QuestReward.ItemReward ir) {
+                ItemStack stack = rewardStack(ir);
+                g.renderItem(stack, iconX, ry + 2);
+                g.renderItemDecorations(font, stack, iconX, ry + 2);
+            } else {
+                g.drawCenteredString(font, "§7?", iconX + 8, ry + 6, C_TEXT_DIM);
+            }
+
+            String label = option.getSummary().getString();
+            int labelMaxW = innerW - padW * 2 - 22;
+            if (font.width(label) > labelMaxW) label = font.plainSubstrByWidth(label, labelMaxW - 6) + "…";
+            g.drawString(font, (hov ? "§f" : "§7") + label, iconX + 20, ry + 6, hov ? C_TEXT : C_TEXT_DIM, false);
+
+            choiceBoxRowRects.add(new int[] { popupX + padW, ry, innerW - padW * 2, rowH });
+            ry += rowH;
+        }
+
+        g.pose().popPose();
+    }
+
     private int reqBarH() {
         boolean hasIcons = !content.effectiveTasks().isEmpty() || !content.effectiveRewards().isEmpty();
         return hasIcons ? ICON_STRIP_H : 1;
@@ -901,9 +960,11 @@ public class QuestTasksScreen extends Screen {
         boolean claimed = rewardsClaimed();
         for (int ri = 0; ri < rewards.size(); ri++) {
             QuestReward reward = rewards.get(ri);
+            QuestReward display = displayRewardFor(ri, reward);
+            boolean picked = isSlotPicked(ri, claimed);
             boolean hov = mx >= rIconX && mx < rIconX + sz && my >= iconY && my < iconY + sz;
-            int border = claimed ? C_DONE : C_TEXT_FAINT;
-            int bg = claimed ? 0xFF1A140A : 0xFF0F0F18;
+            int border = picked ? C_DONE : C_TEXT_FAINT;
+            int bg = picked ? 0xFF1A140A : 0xFF0F0F18;
 
             if (hov) {
                 hoveredStripReward = reward;
@@ -915,23 +976,16 @@ public class QuestTasksScreen extends Screen {
             drawIconSlot(g, rIconX, iconY, sz, bg, border, hov);
 
             int off = (sz - 16) / 2;
-            if (reward instanceof QuestReward.ItemReward ir) {
+            if (display instanceof QuestReward.ItemReward ir) {
                 g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), rIconX + off, iconY + off);
-                if (claimed) g.fill(rIconX, iconY, rIconX + sz, iconY + sz, 0x55CC8800);
+                if (picked) g.fill(rIconX, iconY, rIconX + sz, iconY + sz, 0x55CC8800);
             } else {
-                String glyph = switch (reward.getType()) {
-                    case XP -> "⚡";
-                    case COMMAND -> "◆";
-                    case LOOT_TABLE -> "📦";
-                    case SCRIPT_EVENT -> "✦";
-                    case REWARD_TABLE -> "⊞";
-                    default -> "?";
-                };
-                g.drawCenteredString(font, "§7" + glyph, rIconX + sz / 2, iconY + sz / 2 - 4, C_TEXT_DIM);
-                if (claimed) g.fill(rIconX, iconY, rIconX + sz, iconY + sz, 0x55CC8800);
+                g.drawCenteredString(font, "§7" + rewardGlyph(display), rIconX + sz / 2, iconY + sz / 2 - 4,
+                        C_TEXT_DIM);
+                if (picked) g.fill(rIconX, iconY, rIconX + sz, iconY + sz, 0x55CC8800);
             }
 
-            if (claimed) {
+            if (picked) {
                 g.fill(rIconX + sz - 7, iconY + sz - 8, rIconX + sz, iconY + sz, 0xFF1A1000);
                 g.drawString(font, "§6✔", rIconX + sz - 7, iconY + sz - 8, 0xFFFFFFFF, false);
             }
@@ -1375,8 +1429,9 @@ public class QuestTasksScreen extends Screen {
         int slotSz = 18;
         for (int ri = 0; ri < rewards.size(); ri++) {
             QuestReward reward = rewards.get(ri);
+            QuestReward display = displayRewardFor(ri, reward);
             if (cy > y + h) break;
-            renderRewardSlot(g, x + m, cy, slotSz, reward, mx, my);
+            renderRewardSlot(g, x + m, cy, slotSz, display, mx, my);
 
             boolean rowHov = mx >= x + m && mx < x + m + w - m * 2 && my >= cy && my < cy + slotSz;
             if (rowHov) {
@@ -1387,22 +1442,33 @@ public class QuestTasksScreen extends Screen {
             }
 
             String label;
-            if (reward instanceof QuestReward.ItemReward ir) {
+            if (display instanceof QuestReward.ItemReward ir) {
                 label = rewardStack(ir).getHoverName().getString() + " ×" + ir.getCount();
+            } else if (reward instanceof QuestReward.ChoiceBoxReward) {
+                label = reward.getSummary().getString();
             } else {
-                label = switch (reward.getType()) {
+                label = switch (display.getType()) {
                     case XP -> "XP Reward";
                     case COMMAND -> "Command";
                     case LOOT_TABLE -> "Loot Table";
                     case SCRIPT_EVENT -> "Script Event";
                     case REWARD_TABLE -> "Reward Table";
-                    default -> reward.getType().name();
+                    default -> display.getType().name();
                 };
             }
             int labelMaxW = w - m * 2 - slotSz - 8;
             if (font.width(label.replaceAll("§.", "")) > labelMaxW)
                 label = font.plainSubstrByWidth(label, Math.max(0, labelMaxW - 6)) + "…";
-            String prefix = node.isRewardChoice() ? (rowHov ? "§e► §f" : "§e○ §7") : (rowHov ? "§f" : "§7");
+            String prefix;
+            if (boxAt(ri) != null) {
+                prefix = isRewardPicked(ri) ? "§a✔ §7" : (rowHov ? "§e► §f" : "§e○ §7");
+            } else if (node.isRewardChoice() && isRewardPicked(ri)) {
+                prefix = "§a✔ §7";
+            } else if (node.isRewardChoice()) {
+                prefix = rowHov ? "§e► §f" : "§e○ §7";
+            } else {
+                prefix = rowHov ? "§f" : "§7";
+            }
             g.drawString(font, prefix + label, x + m + slotSz + 4, cy + 4, rowHov ? C_TEXT : C_TEXT_DIM, false);
             cy += slotSz + 4;
         }
@@ -1427,15 +1493,7 @@ public class QuestTasksScreen extends Screen {
             g.renderItem(stack, x + off, y + off);
             if (sz >= 18) g.renderItemDecorations(font, stack, x + off, y + off);
         } else {
-            String glyph = switch (reward.getType()) {
-                case XP -> "⚡";
-                case COMMAND -> "◆";
-                case LOOT_TABLE -> "📦";
-                case SCRIPT_EVENT -> "✦";
-                case REWARD_TABLE -> "⊞";
-                default -> "?";
-            };
-            g.drawCenteredString(font, "§7" + glyph, x + sz / 2, y + sz / 2 - 4, C_TEXT_DIM);
+            g.drawCenteredString(font, "§7" + rewardGlyph(reward), x + sz / 2, y + sz / 2 - 4, C_TEXT_DIM);
         }
     }
 
@@ -1617,6 +1675,13 @@ public class QuestTasksScreen extends Screen {
                     net.minecraft.world.item.TooltipFlag.Default.NORMAL);
             for (int i = 1; i < vanillaLines.size(); i++) lines.add(vanillaLines.get(i));
             lines.add(Component.literal("§8[Click to view in recipe browser]"));
+        } else if (reward instanceof QuestReward.ChoiceBoxReward box) {
+            boolean resolved = playerData != null &&
+                    playerData.isChoiceBoxResolved(node.getId(), content.effectiveRewards().indexOf(box));
+            lines.add(reward.getSummary());
+            lines.add(Component.literal(resolved ? "§8(already opened)" :
+                    box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ?
+                            "§8[Click to open - random pick]" : "§8[Click to choose]"));
         } else {
             lines.add(Component.literal("§f" + reward.getType().name() + " Reward"));
         }
@@ -1675,6 +1740,23 @@ public class QuestTasksScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int btn) {
+        if (openChoiceBox != null) {
+            if (btn == 0) {
+                for (int i = 0; i < choiceBoxRowRects.size(); i++) {
+                    int[] r = choiceBoxRowRects.get(i);
+                    if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) {
+                        ChronicleNetwork.CHANNEL.sendToServer(
+                                new C2SResolveChoiceBoxPacket(node.getId(), openChoiceBoxRewardIndex, i));
+                        openChoiceBox = null;
+                        openChoiceBoxRewardIndex = -1;
+                        return true;
+                    }
+                }
+            }
+            openChoiceBox = null;
+            openChoiceBoxRewardIndex = -1;
+            return true;
+        }
         if (phantasiaPreview != null && previewW > 0 &&
                 net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.previewMouseClicked(phantasiaPreview,
                         mx, my, previewX, previewY, previewW, previewH, this)) {
@@ -2089,6 +2171,11 @@ public class QuestTasksScreen extends Screen {
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
         if (key == 256) {
+            if (openChoiceBox != null) {
+                openChoiceBox = null;
+                openChoiceBoxRewardIndex = -1;
+                return true;
+            }
             if (isFullscreen) {
                 isFullscreen = false;
                 return true;
@@ -2234,12 +2321,65 @@ public class QuestTasksScreen extends Screen {
         return playerData != null && playerData.hasClaimedRewards(node.getId());
     }
 
+    private boolean isRewardPicked(int rewardIndex) {
+        if (playerData == null) return false;
+        if (playerData.getChosenRewardIndices(node.getId()).contains(rewardIndex)) return true;
+        return playerData.isChoiceBoxResolved(node.getId(), rewardIndex);
+    }
+
+    private QuestReward.ChoiceBoxReward boxAt(int rewardIndex) {
+        List<QuestReward> rewards = content.effectiveRewards();
+        if (rewardIndex < 0 || rewardIndex >= rewards.size()) return null;
+        return rewards.get(rewardIndex) instanceof QuestReward.ChoiceBoxReward box ? box : null;
+    }
+
+    private boolean isSlotPicked(int ri, boolean wholeNodeClaimed) {
+        return boxAt(ri) != null ? isRewardPicked(ri) : (wholeNodeClaimed || isRewardPicked(ri));
+    }
+
+    private QuestReward displayRewardFor(int rewardIndex, QuestReward reward) {
+        if (reward instanceof QuestReward.ChoiceBoxReward box && playerData != null) {
+            int chosen = playerData.getResolvedChoiceBoxOption(node.getId(), rewardIndex);
+            if (chosen >= 0 && chosen < box.getOptions().size()) return box.getOptions().get(chosen);
+        }
+        return reward;
+    }
+
+    private String rewardGlyph(QuestReward reward) {
+        if (reward instanceof QuestReward.ChoiceBoxReward box) {
+            return box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ? "🎲" : "🎁";
+        }
+        return switch (reward.getType()) {
+            case XP -> "⚡";
+            case COMMAND -> "◆";
+            case LOOT_TABLE -> "📦";
+            case SCRIPT_EVENT -> "✦";
+            case REWARD_TABLE -> "⊞";
+            default -> "?";
+        };
+    }
+
     private boolean tryClaimReward(int rewardIndex) {
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
-        if (state != QuestState.COMPLETED || rewardsClaimed() || content.effectiveRewards().isEmpty()) return false;
+        if (state != QuestState.COMPLETED || content.effectiveRewards().isEmpty()) return false;
+
+        QuestReward.ChoiceBoxReward box = boxAt(rewardIndex);
+        if (box != null) {
+            if (playerData != null && playerData.isChoiceBoxResolved(node.getId(), rewardIndex)) return false;
+            if (box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX) {
+                ChronicleNetwork.CHANNEL.sendToServer(new C2SResolveChoiceBoxPacket(node.getId(), rewardIndex, -1));
+            } else {
+                openChoiceBox(box, rewardIndex);
+            }
+            return true;
+        }
+
+        if (rewardsClaimed()) return false;
         if (node.isRewardChoice()) {
             if (rewardIndex < 0) return false;
+            if (playerData != null && playerData.getChosenRewardIndices(node.getId()).contains(rewardIndex))
+                return false;
             ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), rewardIndex));
         } else {
             ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), -1));

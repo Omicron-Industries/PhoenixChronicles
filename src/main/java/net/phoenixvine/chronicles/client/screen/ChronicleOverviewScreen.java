@@ -2324,8 +2324,16 @@ public class ChronicleOverviewScreen extends Screen
 
     private void renderHeaderAndBaseLayout(GuiGraphics g, int mx, int my, int cl, int cr) {
         renderBackground(g);
-        g.fill(0, 0, sidebarW(), height, palette.panelDark);
-        g.fill(cl, 0, cr, height, palette.bg);
+
+        int visW = sidebarVisualW();
+        g.fill(0, 0, visW, height, palette.panelDark);
+
+        ChapterConfig canvasCfg = selectedChapter.isEmpty() ? new ChapterConfig() :
+                ChapterConfig.getEffective(selectedChapter);
+        if (canvasCfg.getColorAlpha() > 0) {
+            g.fill(visW, 0, cr, height, palette.bg);
+        }
+
         g.fill(cr, 0, width, height, palette.panelDark);
         g.fill(cr, 0, cr + 1, height, palette.border);
 

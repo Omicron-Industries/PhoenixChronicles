@@ -29,6 +29,8 @@ public class ChapterConfig {
 
     private int color = 0;
 
+    private int colorAlpha = 0xCC;
+
     private int nameColor = 0;
 
     private String texture = "";
@@ -45,6 +47,14 @@ public class ChapterConfig {
 
     public int getColor() {
         return color;
+    }
+
+    public int getColorAlpha() {
+        return colorAlpha;
+    }
+
+    public void setColorAlpha(int a) {
+        this.colorAlpha = Math.max(0, Math.min(255, a));
     }
 
     public int getEffectiveNameColor() {
@@ -114,6 +124,7 @@ public class ChapterConfig {
         JsonObject o = new JsonObject();
         o.addProperty("style", style.name());
         if (color != 0) o.addProperty("color", String.format("#%06X", color & 0x00FFFFFF));
+        if (colorAlpha != 0xCC) o.addProperty("color_alpha", colorAlpha);
         if (nameColor != 0) o.addProperty("name_color", String.format("#%06X", nameColor & 0x00FFFFFF));
         if (!texture.isEmpty()) o.addProperty("texture", texture);
         if (!displayName.isEmpty()) o.addProperty("display_name", displayName);
@@ -132,6 +143,11 @@ public class ChapterConfig {
         if (o.has("color")) {
             try {
                 cfg.color = (int) Long.parseLong(o.get("color").getAsString().replace("#", ""), 16);
+            } catch (Exception ignored) {}
+        }
+        if (o.has("color_alpha")) {
+            try {
+                cfg.colorAlpha = Math.max(0, Math.min(255, o.get("color_alpha").getAsInt()));
             } catch (Exception ignored) {}
         }
         if (o.has("name_color")) {
@@ -161,7 +177,8 @@ public class ChapterConfig {
 
     private static ChapterConfig getEffective(String chapter, java.util.Set<String> visited) {
         ChapterConfig own = get(chapter);
-        boolean hasOwnTheme = own.style != BgStyle.DOT_GRID || own.color != 0 || !own.texture.isEmpty();
+        boolean hasOwnTheme = own.style != BgStyle.DOT_GRID || own.color != 0 || own.colorAlpha != 0xCC ||
+                !own.texture.isEmpty();
         if (hasOwnTheme || own.parentChapter.isEmpty() || !visited.add(chapter)) return own;
         return getEffective(own.parentChapter, visited);
     }

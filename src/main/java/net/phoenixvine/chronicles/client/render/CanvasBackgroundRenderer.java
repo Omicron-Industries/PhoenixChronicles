@@ -28,7 +28,10 @@ public final class CanvasBackgroundRenderer {
                 ChapterConfig.getEffective(selectedChapter);
         int tint = cfg.getColor();
         FrameProfiler.begin("background:tint");
-        if (tint != 0) g.fill(x1, y1, x2, y2, 0xCC000000 | (tint & 0x00FFFFFF));
+
+        if (tint != 0 && cfg.getColorAlpha() > 0) {
+            g.fill(x1, y1, x2, y2, (cfg.getColorAlpha() << 24) | (tint & 0x00FFFFFF));
+        }
         FrameProfiler.end("background:tint");
         FrameProfiler.begin("background:pattern");
 

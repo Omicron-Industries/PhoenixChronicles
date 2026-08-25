@@ -33,7 +33,8 @@ public abstract class QuestReward {
         REWARD_TABLE,
         LOOT_CRATE,
         CONFLUX_UNLOCK,
-        OPEN_SCREEN
+        OPEN_SCREEN,
+        CHOICE_BOX
     }
 
     public abstract RewardType getType();
@@ -102,6 +103,7 @@ public abstract class QuestReward {
             case "loot_crate" -> LootCrateReward.fromNBT(tag);
             case "conflux_unlock" -> ConfluxUnlockReward.fromNBT(tag);
             case "open_screen" -> OpenScreenReward.fromNBT(tag);
+            case "choice_box" -> ChoiceBoxReward.fromNBT(tag);
             default -> null;
         };
     }
@@ -625,6 +627,74 @@ public abstract class QuestReward {
             if (!tag.contains("screen_id")) return null;
             ResourceLocation parsed = ResourceLocation.tryParse(tag.getString("screen_id"));
             return parsed != null ? new OpenScreenReward(parsed) : null;
+        }
+    }
+
+    public static class ChoiceBoxReward extends QuestReward {
+
+        public enum Mode {
+            MENU,
+            LOOTBOX
+        }
+
+        private final List<QuestReward> options;
+        private final Mode mode;
+
+        public ChoiceBoxReward(List<QuestReward> options, Mode mode) {
+            this.options = options != null ? options : List.of();
+            this.mode = mode != null ? mode : Mode.MENU;
+        }
+
+        public List<QuestReward> getOptions() {
+            return options;
+        }
+
+        public Mode getMode() {
+            return mode;
+        }
+
+        @Override
+        public RewardType getType() {
+            return RewardType.CHOICE_BOX;
+        }
+
+        @Override
+        public Component getSummary() {
+            return mode == Mode.LOOTBOX ?
+                    Component.literal("§d? Mystery reward") :
+                    Component.literal("§d? Choose 1 of " + options.size());
+        }
+
+        @Override
+        public void grant(ServerPlayer player) {}
+
+        @Override
+        public CompoundTag serializeNBT() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString("type", "choice_box");
+            tag.putString("mode", mode.name());
+            ListTag list = new ListTag();
+            for (QuestReward r : options) list.add(r.serializeNBT());
+            tag.put("options", list);
+            return tag;
+        }
+
+        public static ChoiceBoxReward fromNBT(CompoundTag tag) {
+            Mode mode = Mode.MENU;
+            if (tag.contains("mode")) {
+                try {
+                    mode = Mode.valueOf(tag.getString("mode"));
+                } catch (IllegalArgumentException ignored) {}
+            }
+            List<QuestReward> options = new ArrayList<>();
+            if (tag.contains("options")) {
+                ListTag list = tag.getList("options", Tag.TAG_COMPOUND);
+                for (int i = 0; i < list.size(); i++) {
+                    QuestReward r = QuestReward.deserializeNBT(list.getCompound(i));
+                    if (r != null) options.add(r);
+                }
+            }
+            return options.isEmpty() ? null : new ChoiceBoxReward(options, mode);
         }
     }
 }

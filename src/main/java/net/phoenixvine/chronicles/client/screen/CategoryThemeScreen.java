@@ -3,9 +3,11 @@ package net.phoenixvine.chronicles.client.screen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -50,6 +52,9 @@ public class CategoryThemeScreen extends Screen {
 
     private int panelLeft, panelTop;
 
+    private float uiScale = 1f;
+    private int vw, vh;
+
     public CategoryThemeScreen(Screen parent, String categoryId) {
         super(Component.literal("Category Theme"));
         this.parent = parent;
@@ -70,17 +75,24 @@ public class CategoryThemeScreen extends Screen {
 
     @Override
     protected void init() {
-        panelLeft = (width - PANEL_W) / 2;
-        panelTop = (height - PANEL_H) / 2;
+        uiScale = Math.min(1f, Math.min((width - 8f) / PANEL_W, (height - 8f) / PANEL_H));
+        vw = Math.round(width / uiScale);
+        vh = Math.round(height / uiScale);
+
+        panelLeft = Mth.clamp((vw - PANEL_W) / 2, 4, Math.max(4, vw - PANEL_W - 4));
+        panelTop = Mth.clamp((vh - PANEL_H) / 2, 4, Math.max(4, vh - PANEL_H - 4));
 
         int fx = panelLeft + MARGIN;
         int fw = PANEL_W - MARGIN * 2;
 
         nameBox = new EditBox(font, fx, rowTop(ROW_NAME) + 11, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(64);
-        nameBox.setHint(Component.literal("§8&c etc. for color codes"));
+        nameBox.setHint(Component.literal("§8" + categoryId));
         nameBox.setValue(cachedDisplayName);
         nameBox.setResponder(v -> cachedDisplayName = v.replace('&', '§').trim());
+        nameBox.setTooltip(Tooltip.create(Component.literal(
+                "Leave empty to use the category's ID (\"" + categoryId + "\") as its name.\n" +
+                        "Use & for color/formatting codes, e.g. &6&lGolden Category.")));
         addRenderableWidget(nameBox);
 
         int iconPreviewW = FIELD_H + 4;
@@ -139,12 +151,17 @@ public class CategoryThemeScreen extends Screen {
     public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
-    public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+    public void render(@NotNull GuiGraphics g, int rmx, int rmy, float partial) {
         g.flush();
+
+        int mx = Math.round(rmx / uiScale);
+        int my = Math.round(rmy / uiScale);
+
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
+        g.pose().scale(uiScale, uiScale, 1f);
 
-        ChroniclesUIKit.drawModalChrome(g, font, width, height, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
+        ChroniclesUIKit.drawModalChrome(g, font, vw, vh, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
                 "§dCategory Theme — §7" + categoryId, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
                 ACCENT, ChroniclesThemePalette.TEXT);
 
@@ -173,12 +190,24 @@ public class CategoryThemeScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int btn) {
+    public boolean mouseClicked(double rmx, double rmy, int btn) {
+        double mx = rmx / uiScale;
+        double my = rmy / uiScale;
         if (btn == 0 && (mx < panelLeft || mx >= panelLeft + PANEL_W || my < panelTop || my >= panelTop + PANEL_H)) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
         return super.mouseClicked(mx, my, btn);
+    }
+
+    @Override
+    public boolean mouseDragged(double rmx, double rmy, int btn, double dragX, double dragY) {
+        return super.mouseDragged(rmx / uiScale, rmy / uiScale, btn, dragX / uiScale, dragY / uiScale);
+    }
+
+    @Override
+    public boolean mouseReleased(double rmx, double rmy, int btn) {
+        return super.mouseReleased(rmx / uiScale, rmy / uiScale, btn);
     }
 
     @Override

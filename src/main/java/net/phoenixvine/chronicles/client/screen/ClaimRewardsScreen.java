@@ -28,9 +28,11 @@ public class ClaimRewardsScreen extends Screen {
     private static final int MARGIN = 10;
     private static final int ICON_SZ = 16;
 
+    private record Row(QuestNode node, boolean pendingBoxOnly) {}
+
     private final Screen parent;
     private int scrollY = 0;
-    private List<QuestNode> unclaimed = List.of();
+    private List<Row> unclaimed = List.of();
 
     public ClaimRewardsScreen(Screen parent) {
         super(Component.literal("Unclaimed Rewards"));
@@ -52,7 +54,7 @@ public class ClaimRewardsScreen extends Screen {
     }
 
     private void refreshList() {
-        List<QuestNode> list = new ArrayList<>();
+        List<Row> list = new ArrayList<>();
         if (minecraft == null || minecraft.player == null) {
             unclaimed = list;
             return;
@@ -65,12 +67,26 @@ public class ClaimRewardsScreen extends Screen {
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
             if (node.isFlagDisabled(null)) continue;
             if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED) continue;
-            if (data.hasClaimedRewards(node.getId())) continue;
             if (node.isRewardChoice()) continue;
             if (node.getRewards().isEmpty()) continue;
-            list.add(node);
+
+            boolean pendingBox = hasPendingMenuBox(node, data);
+            if (data.hasClaimedRewards(node.getId()) && !pendingBox) continue;
+            list.add(new Row(node, data.hasClaimedRewards(node.getId())));
         }
         unclaimed = list;
+    }
+
+    private boolean hasPendingMenuBox(QuestNode node, PlayerQuestData data) {
+        List<QuestReward> rewards = node.getRewards();
+        for (int i = 0; i < rewards.size(); i++) {
+            if (rewards.get(i) instanceof QuestReward.ChoiceBoxReward box &&
+                    box.getMode() == QuestReward.ChoiceBoxReward.Mode.MENU &&
+                    !data.isChoiceBoxResolved(node.getId(), i)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int listTop() {
@@ -107,11 +123,12 @@ public class ClaimRewardsScreen extends Screen {
             g.enableScissor(0, listTop(), width, listBottom());
             int rowW = width - MARGIN * 2;
             int ty = listTop() - scrollY;
-            for (QuestNode node : unclaimed) {
+            for (Row row : unclaimed) {
+                QuestNode node = row.node();
                 if (ty + ROW_H > listTop() && ty < listBottom()) {
                     boolean hov = mx >= MARGIN && mx < MARGIN + rowW && my >= ty && my < ty + ROW_H;
                     g.fill(MARGIN, ty, MARGIN + rowW, ty + ROW_H, hov ? blend(panel, 0x22FFFFFF) : panel);
-                    g.fill(MARGIN, ty, MARGIN + 2, ty + ROW_H, 0xFF44CC88);
+                    g.fill(MARGIN, ty, MARGIN + 2, ty + ROW_H, row.pendingBoxOnly() ? 0xFFCC88FF : 0xFF44CC88);
 
                     String title = node.getTitle().getString();
                     int maxTitleW = rowW - 3 - 60 -
@@ -128,8 +145,13 @@ public class ClaimRewardsScreen extends Screen {
 
                     int btnX = MARGIN + rowW - 58;
                     boolean btnHov = mx >= btnX && mx < btnX + 52 && my >= ty + 4 && my < ty + ROW_H - 4;
-                    g.fill(btnX, ty + 4, btnX + 52, ty + ROW_H - 4, btnHov ? 0xFF2C6644 : 0xFF1C4430);
-                    g.drawCenteredString(font, "§aClaim", btnX + 26, ty + (ROW_H - 8) / 2, 0xFF88FFAA);
+                    if (row.pendingBoxOnly()) {
+                        g.fill(btnX, ty + 4, btnX + 52, ty + ROW_H - 4, btnHov ? 0xFF6B4C8F : 0xFF473262);
+                        g.drawCenteredString(font, "§dOpen", btnX + 26, ty + (ROW_H - 8) / 2, 0xFFDDAAFF);
+                    } else {
+                        g.fill(btnX, ty + 4, btnX + 52, ty + ROW_H - 4, btnHov ? 0xFF2C6644 : 0xFF1C4430);
+                        g.drawCenteredString(font, "§aClaim", btnX + 26, ty + (ROW_H - 8) / 2, 0xFF88FFAA);
+                    }
                 }
                 ty += ROW_H;
             }
@@ -149,6 +171,9 @@ public class ClaimRewardsScreen extends Screen {
             ItemStack stack = new ItemStack(ir.getItem(), ir.getCount());
             if (ir.getNbt() != null && !ir.getNbt().isEmpty()) stack.setTag(ir.getNbt().copy());
             g.renderItem(stack, x, y);
+        } else if (reward instanceof QuestReward.ChoiceBoxReward box) {
+            String glyph = box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ? "🎲" : "🎁";
+            g.drawString(font, "§7" + glyph, x + 4, y + 4, 0xFF888898, false);
         } else {
             String glyph = switch (reward.getType()) {
                 case XP -> "⚡";
@@ -166,12 +191,22 @@ public class ClaimRewardsScreen extends Screen {
         if (btn == 0 && !unclaimed.isEmpty()) {
             int rowW = width - MARGIN * 2;
             int ty = listTop() - scrollY;
-            for (QuestNode node : unclaimed) {
+            for (Row row : unclaimed) {
+                QuestNode node = row.node();
                 if (my >= ty && my < ty + ROW_H && ty >= listTop() - ROW_H && ty < listBottom()) {
                     int btnX = MARGIN + rowW - 58;
                     if (mx >= btnX && mx < btnX + 52 && my >= ty + 4 && my < ty + ROW_H - 4) {
-                        ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), -1));
-                        if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(parent));
+                        if (row.pendingBoxOnly()) {
+                            if (minecraft != null) {
+                                minecraft.setScreen(parent);
+                                if (parent instanceof ChronicleOverviewScreen overview) {
+                                    overview.navigateToNode(node);
+                                }
+                            }
+                        } else {
+                            ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), -1));
+                            if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(parent));
+                        }
                         return true;
                     }
                 }

@@ -22,7 +22,9 @@ public class PlayerQuestData {
 
     private final Set<ResourceLocation> claimedRewards = new HashSet<>();
 
-    private final Map<ResourceLocation, Integer> chosenRewardIndex = new HashMap<>();
+    private final Map<ResourceLocation, Set<Integer>> chosenRewardIndices = new HashMap<>();
+
+    private final Map<ResourceLocation, Map<Integer, Integer>> resolvedChoiceBoxes = new HashMap<>();
 
     private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
 
@@ -62,16 +64,38 @@ public class PlayerQuestData {
         claimedRewards.remove(questId);
     }
 
-    public int getChosenRewardIndex(ResourceLocation questId) {
-        return chosenRewardIndex.getOrDefault(questId, -1);
+    public Set<Integer> getChosenRewardIndices(ResourceLocation questId) {
+        return java.util.Collections.unmodifiableSet(chosenRewardIndices.getOrDefault(questId, Set.of()));
     }
 
-    public void setChosenRewardIndex(ResourceLocation questId, int index) {
-        chosenRewardIndex.put(questId, index);
+    public boolean hasChosenRewardIndex(ResourceLocation questId, int index) {
+        return chosenRewardIndices.getOrDefault(questId, Set.of()).contains(index);
     }
 
-    public void clearChosenRewardIndex(ResourceLocation questId) {
-        chosenRewardIndex.remove(questId);
+    public void addChosenRewardIndex(ResourceLocation questId, int index) {
+        chosenRewardIndices.computeIfAbsent(questId, id -> new HashSet<>()).add(index);
+    }
+
+    public void clearChosenRewardIndices(ResourceLocation questId) {
+        chosenRewardIndices.remove(questId);
+    }
+
+    public boolean isChoiceBoxResolved(ResourceLocation questId, int boxIndex) {
+        Map<Integer, Integer> boxes = resolvedChoiceBoxes.get(questId);
+        return boxes != null && boxes.containsKey(boxIndex);
+    }
+
+    public int getResolvedChoiceBoxOption(ResourceLocation questId, int boxIndex) {
+        Map<Integer, Integer> boxes = resolvedChoiceBoxes.get(questId);
+        return boxes == null ? -1 : boxes.getOrDefault(boxIndex, -1);
+    }
+
+    public void resolveChoiceBox(ResourceLocation questId, int boxIndex, int optionIndex) {
+        resolvedChoiceBoxes.computeIfAbsent(questId, id -> new HashMap<>()).put(boxIndex, optionIndex);
+    }
+
+    public void clearChoiceBoxes(ResourceLocation questId) {
+        resolvedChoiceBoxes.remove(questId);
     }
 
     public void clearTaskProgress(ResourceLocation taskId) {
@@ -83,7 +107,8 @@ public class PlayerQuestData {
         for (ResourceLocation taskId : taskIds) taskProgress.remove(taskId);
         lastCompleted.remove(questId);
         claimedRewards.remove(questId);
-        chosenRewardIndex.remove(questId);
+        chosenRewardIndices.remove(questId);
+        resolvedChoiceBoxes.remove(questId);
     }
 
     public Set<ResourceLocation> getPinnedQuestIds() {
@@ -145,13 +170,29 @@ public class PlayerQuestData {
         root.put("ClaimedRewards", claimedList);
 
         ListTag chosenList = new ListTag();
-        chosenRewardIndex.forEach((id, idx) -> {
+        chosenRewardIndices.forEach((id, indices) -> {
             CompoundTag e = new CompoundTag();
             e.putString("id", id.toString());
-            e.putInt("index", idx);
+            e.putIntArray("indices", indices.stream().mapToInt(Integer::intValue).toArray());
             chosenList.add(e);
         });
         root.put("ChosenRewards", chosenList);
+
+        ListTag boxesList = new ListTag();
+        resolvedChoiceBoxes.forEach((id, boxes) -> {
+            CompoundTag e = new CompoundTag();
+            e.putString("id", id.toString());
+            ListTag entries = new ListTag();
+            boxes.forEach((boxIndex, optionIndex) -> {
+                CompoundTag entry = new CompoundTag();
+                entry.putInt("box", boxIndex);
+                entry.putInt("option", optionIndex);
+                entries.add(entry);
+            });
+            e.put("boxes", entries);
+            boxesList.add(e);
+        });
+        root.put("ResolvedChoiceBoxes", boxesList);
 
         ListTag pinnedList = new ListTag();
         for (ResourceLocation id : pinnedQuestIds) {
@@ -169,7 +210,8 @@ public class PlayerQuestData {
         taskProgress.clear();
         lastCompleted.clear();
         claimedRewards.clear();
-        chosenRewardIndex.clear();
+        chosenRewardIndices.clear();
+        resolvedChoiceBoxes.clear();
         pinnedQuestIds.clear();
 
         for (int i = 0; i < root.getList("Quests", Tag.TAG_COMPOUND).size(); i++) {
@@ -197,7 +239,25 @@ public class PlayerQuestData {
 
         for (int i = 0; i < root.getList("ChosenRewards", Tag.TAG_COMPOUND).size(); i++) {
             CompoundTag e = root.getList("ChosenRewards", Tag.TAG_COMPOUND).getCompound(i);
-            chosenRewardIndex.put(ResourceLocation.parse(e.getString("id")), e.getInt("index"));
+            Set<Integer> indices = new HashSet<>();
+            if (e.contains("indices")) {
+                for (int idx : e.getIntArray("indices")) indices.add(idx);
+            } else if (e.contains("index")) {
+
+                indices.add(e.getInt("index"));
+            }
+            if (!indices.isEmpty()) chosenRewardIndices.put(ResourceLocation.parse(e.getString("id")), indices);
+        }
+
+        for (int i = 0; i < root.getList("ResolvedChoiceBoxes", Tag.TAG_COMPOUND).size(); i++) {
+            CompoundTag e = root.getList("ResolvedChoiceBoxes", Tag.TAG_COMPOUND).getCompound(i);
+            Map<Integer, Integer> boxes = new HashMap<>();
+            ListTag entries = e.getList("boxes", Tag.TAG_COMPOUND);
+            for (int j = 0; j < entries.size(); j++) {
+                CompoundTag entry = entries.getCompound(j);
+                boxes.put(entry.getInt("box"), entry.getInt("option"));
+            }
+            if (!boxes.isEmpty()) resolvedChoiceBoxes.put(ResourceLocation.parse(e.getString("id")), boxes);
         }
 
         for (int i = 0; i < root.getList("PinnedQuests", Tag.TAG_COMPOUND).size(); i++) {

@@ -319,7 +319,7 @@ class SidebarPanel {
     }
 
     int scrollAreaHeight(int height) {
-        return Math.max(0, (newCatBtnY(height) - 6) - (HEADER_H + 1));
+        return Math.max(0, (newCatBtnY(height) - 6) - (HEADER_H + 1 + SIDEBAR_COLLAPSE_TOGGLE_H));
     }
 
     int contentHeight(int height, Function<String, String> friendly, Function<String, int[]> progressLookup,

@@ -56,6 +56,11 @@ public class TaskRewardEditorScreen extends Screen {
 
     private static final int FORM_ROWS = 5;
 
+    private static final int MIN_W = 560;
+    private static final int MIN_H = 380;
+    private float uiScale = 1f;
+    private int vw, vh;
+
     private int splitX;
     private int colW;
     private int listTop;
@@ -107,6 +112,19 @@ public class TaskRewardEditorScreen extends Screen {
     private ItemStack rewardPickedItem = null;
     private EditBox rewardCountBox, rewardCommandBox;
 
+    private QuestReward.ChoiceBoxReward.Mode boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
+    private final List<QuestReward> boxOptions = new ArrayList<>();
+    private static final int BOX_OPTION_ROW_H = 14;
+    private int boxOptionsListX, boxOptionsListY, boxOptionsListW, boxOptionsListBottom;
+    private int boxOptionsScroll = 0;
+    private final List<int[]> boxOptionRowRects = new ArrayList<>();
+
+    private int editingBoxOptionIndex = -1;
+    private ItemStack boxOptionPickedItem = null;
+    private EditBox boxOptionCountBox, boxOptionNbtBox;
+    private boolean forcePendingBoxOptionValues = false;
+    private String pendingBoxOptionCount = "1", pendingBoxOptionNbt = "";
+
     private int hoveredTaskRow = -1;
     private int hoveredRewardRow = -1;
     private int hoveredDropRow = -1;
@@ -124,7 +142,7 @@ public class TaskRewardEditorScreen extends Screen {
     private final UndoRedoManager undoRedo = new UndoRedoManager(msg -> {});
 
     private static final String[] REWARD_TYPES = { "item", "xp", "command", "loot_table", "script_event",
-            "reward_table" };
+            "reward_table", "choice_box" };
 
     private static String rewardTypeLabel(String type) {
         return switch (type) {
@@ -134,6 +152,7 @@ public class TaskRewardEditorScreen extends Screen {
             case "loot_table" -> "Loot Table";
             case "script_event" -> "Script Event";
             case "reward_table" -> "Reward Table";
+            case "choice_box" -> "Choice Box";
             default -> type;
         };
     }
@@ -171,9 +190,13 @@ public class TaskRewardEditorScreen extends Screen {
         C_TEXT_FAINT = th.textFaint.getColor();
         C_OK = th.done.getColor();
 
-        colW = (width - MARGIN * 2 - COL_GAP) / 2;
+        uiScale = (width < MIN_W || height < MIN_H) ? Math.min(width / (float) MIN_W, height / (float) MIN_H) : 1f;
+        vw = Math.round(width / uiScale);
+        vh = Math.round(height / uiScale);
+
+        colW = (vw - MARGIN * 2 - COL_GAP) / 2;
         splitX = MARGIN + colW + COL_GAP;
-        formBottom = height - FOOTER_H;
+        formBottom = vh - FOOTER_H;
         formTop = formBottom - MARGIN - FORM_ROWS * (FIELD_H + FIELD_GAP) - 8;
         listTop = HEADER_H + 22;
         listBottom = formTop - 22;
@@ -203,13 +226,19 @@ public class TaskRewardEditorScreen extends Screen {
                 (rewardEventDataBox != null ? rewardEventDataBox.getValue() : "");
         forcePendingRewardValues = false;
 
+        String boCountVal = forcePendingBoxOptionValues ? pendingBoxOptionCount :
+                (boxOptionCountBox != null ? boxOptionCountBox.getValue() : "1");
+        String boNbtVal = forcePendingBoxOptionValues ? pendingBoxOptionNbt :
+                (boxOptionNbtBox != null ? boxOptionNbtBox.getValue() : "");
+        forcePendingBoxOptionValues = false;
+
         clearWidgets();
 
         addRenderableWidget(Button.builder(Component.literal("§7‹ Done"), b -> {
             flushToQuestNode();
             ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
             if (minecraft != null) minecraft.setScreen(parent);
-        }).bounds(width / 2 - 40, height - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
+        }).bounds(vw / 2 - 40, vh - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
                 .tooltip(Tooltip.create(Component.literal("Save changes and return to quest editor"))).build());
 
         int tx = MARGIN;
@@ -494,6 +523,8 @@ public class TaskRewardEditorScreen extends Screen {
             case "loot_table" -> "Roll a loot table and give all resulting items";
             case "script_event" -> "Fire a Forge event for KubeJS or Java handlers";
             case "reward_table" -> "Reference a named reward table (config/phoenix_chronicles/reward_tables/)";
+            case "choice_box" -> "A single slot the player resolves themselves - Menu mode lets them " +
+                    "pick one of the options below, Lootbox mode grants a random one instantly";
             default -> "Choose a reward type";
         };
         addRenderableWidget(Button.builder(
@@ -548,6 +579,67 @@ public class TaskRewardEditorScreen extends Screen {
             rewardCommandBox.setMaxLength(128);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
+        } else if (rewardType.equals("choice_box") && editingBoxOptionIndex >= 0) {
+            String itemLabel = boxOptionPickedItem != null ?
+                    "§f" + boxOptionPickedItem.getHoverName().getString() : "§8Pick Item";
+            addRenderableWidget(Button.builder(Component.literal(itemLabel), b -> {
+                if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                    boxOptionPickedItem = stack;
+                    rebuildWidgets();
+                }));
+            }).bounds(rx, rfy, colW - 44, FIELD_H).build());
+            boxOptionCountBox = new EditBox(font, rx + colW - 42, rfy, 42, FIELD_H, Component.empty());
+            boxOptionCountBox.setHint(Component.literal("§8Qty"));
+            boxOptionCountBox.setMaxLength(4);
+            boxOptionCountBox.setValue(boCountVal);
+            addRenderableWidget(boxOptionCountBox);
+            rfy += FIELD_H + FIELD_GAP;
+
+            boxOptionNbtBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
+            boxOptionNbtBox.setHint(Component.literal("§8NBT  {display:{Name:'...'}}  (optional)"));
+            boxOptionNbtBox.setMaxLength(256);
+            boxOptionNbtBox.setValue(boNbtVal);
+            addRenderableWidget(boxOptionNbtBox);
+            rfy += FIELD_H + FIELD_GAP;
+
+            addRenderableWidget(Button.builder(Component.literal("§a✔ Save Option"), b -> commitBoxOptionEdit())
+                    .bounds(rx, rfy, colW / 2 - 2, FIELD_H)
+                    .tooltip(Tooltip.create(Component.literal("Save changes to this option")))
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("§7Cancel"), b -> cancelBoxOptionEdit())
+                    .bounds(rx + colW / 2 + 2, rfy, colW / 2 - 2, FIELD_H).build());
+        } else if (rewardType.equals("choice_box")) {
+            addRenderableWidget(Button.builder(
+                    Component.literal("§8Mode: §7" +
+                            (boxMode == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ? "Lootbox" : "Menu") + " §8▾"),
+                    b -> {
+                        boxMode = boxMode == QuestReward.ChoiceBoxReward.Mode.MENU ?
+                                QuestReward.ChoiceBoxReward.Mode.LOOTBOX : QuestReward.ChoiceBoxReward.Mode.MENU;
+                        rebuildWidgets();
+                    })
+                    .bounds(rx, rfy, colW - 76, FIELD_H)
+                    .tooltip(Tooltip.create(Component.literal(
+                            "Menu: player clicks the box and picks which option they get.\n" +
+                                    "Lootbox: player clicks the box and the server grants a random option.")))
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("§a+ Item"), b -> {
+                if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                    boxOptions.add(new QuestReward.ItemReward(stack.getItem(), Math.max(1, stack.getCount())));
+                    rebuildWidgets();
+                }));
+            }).bounds(rx + colW - 72, rfy, 72, FIELD_H)
+                    .tooltip(Tooltip.create(Component.literal(
+                            "Add an item option to this choice box (right-click an option to edit its qty/NBT)")))
+                    .build());
+            rfy += FIELD_H + FIELD_GAP;
+
+            boxOptionsListX = rx;
+            boxOptionsListY = rfy;
+            boxOptionsListW = colW;
+            boxOptionsListBottom = formBottom - FIELD_H - 4 - FIELD_GAP;
+            int visibleRows = Math.max(1, (boxOptionsListBottom - boxOptionsListY) / BOX_OPTION_ROW_H);
+            int maxScroll = Math.max(0, boxOptions.size() - visibleRows);
+            boxOptionsScroll = Math.max(0, Math.min(boxOptionsScroll, maxScroll));
         } else {
 
             String hint = rewardType.equals("loot_table") ? "§8Loot table id  (e.g. minecraft:chests/simple_dungeon)" :
@@ -1067,6 +1159,8 @@ public class TaskRewardEditorScreen extends Screen {
                 }
                 yield new QuestReward.ScriptEventReward(eid, data);
             }
+            case "choice_box" -> boxOptions.isEmpty() ? null :
+                    new QuestReward.ChoiceBoxReward(new ArrayList<>(boxOptions), boxMode);
             default -> null;
         };
 
@@ -1082,6 +1176,10 @@ public class TaskRewardEditorScreen extends Screen {
             rewardPickedItem = null;
             rewardTypeDropOpen = false;
             pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
+            boxOptions.clear();
+            boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
+            editingBoxOptionIndex = -1;
+            boxOptionPickedItem = null;
             forcePendingRewardValues = true;
             rebuildWidgets();
         }
@@ -1094,6 +1192,10 @@ public class TaskRewardEditorScreen extends Screen {
         pendingRewardCount = "1";
         pendingRewardCommand = "";
         pendingRewardEventData = "";
+        boxOptions.clear();
+        boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
+        editingBoxOptionIndex = -1;
+        boxOptionPickedItem = null;
 
         if (r instanceof QuestReward.ItemReward ir) {
             rewardType = "item";
@@ -1116,6 +1218,10 @@ public class TaskRewardEditorScreen extends Screen {
             rewardType = "script_event";
             pendingRewardCommand = ser.getEventId();
             pendingRewardEventData = ser.getData() != null && !ser.getData().isEmpty() ? ser.getData().toString() : "";
+        } else if (r instanceof QuestReward.ChoiceBoxReward box) {
+            rewardType = "choice_box";
+            boxMode = box.getMode();
+            boxOptions.addAll(box.getOptions());
         } else {
             return;
         }
@@ -1131,7 +1237,56 @@ public class TaskRewardEditorScreen extends Screen {
         editingRewardIndex = -1;
         rewardPickedItem = null;
         pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
+        boxOptions.clear();
+        boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
+        editingBoxOptionIndex = -1;
+        boxOptionPickedItem = null;
         forcePendingRewardValues = true;
+        rebuildWidgets();
+    }
+
+    private void startEditingBoxOption(int idx) {
+        if (idx < 0 || idx >= boxOptions.size()) return;
+        if (!(boxOptions.get(idx) instanceof QuestReward.ItemReward ir)) return;
+
+        editingBoxOptionIndex = idx;
+        boxOptionPickedItem = new ItemStack(ir.getItem(), ir.getCount());
+        if (ir.getNbt() != null) boxOptionPickedItem.setTag(ir.getNbt().copy());
+        pendingBoxOptionCount = String.valueOf(ir.getCount());
+        pendingBoxOptionNbt = ir.getNbt() != null && !ir.getNbt().isEmpty() ? ir.getNbt().toString() : "";
+        forcePendingBoxOptionValues = true;
+        rebuildWidgets();
+    }
+
+    private void commitBoxOptionEdit() {
+        if (editingBoxOptionIndex < 0 || editingBoxOptionIndex >= boxOptions.size() || boxOptionPickedItem == null) {
+            cancelBoxOptionEdit();
+            return;
+        }
+
+        int count = 1;
+        try {
+            count = Math.max(1, Integer.parseInt(boxOptionCountBox.getValue().trim()));
+        } catch (NumberFormatException ignored) {}
+
+        net.minecraft.nbt.CompoundTag nbt = null;
+        String nbtStr = boxOptionNbtBox != null ? boxOptionNbtBox.getValue().trim() : "";
+        if (!nbtStr.isEmpty()) {
+            try {
+                nbt = net.minecraft.nbt.TagParser.parseTag(nbtStr);
+            } catch (Exception ignored) {}
+        }
+
+        boxOptions.set(editingBoxOptionIndex, new QuestReward.ItemReward(boxOptionPickedItem.getItem(), count, nbt));
+        cancelBoxOptionEdit();
+    }
+
+    private void cancelBoxOptionEdit() {
+        editingBoxOptionIndex = -1;
+        boxOptionPickedItem = null;
+        pendingBoxOptionCount = "1";
+        pendingBoxOptionNbt = "";
+        forcePendingBoxOptionValues = true;
         rebuildWidgets();
     }
 
@@ -1156,15 +1311,21 @@ public class TaskRewardEditorScreen extends Screen {
     public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
-    public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+    public void render(@NotNull GuiGraphics g, int rawMx, int rawMy, float partial) {
         if (width != lastLayoutWidth || height != lastLayoutHeight) init();
 
-        com.mojang.blaze3d.systems.RenderSystem.disableScissor();
-        g.fill(0, 0, width, height, C_BG);
+        int mx = Math.round(rawMx / uiScale);
+        int my = Math.round(rawMy / uiScale);
 
-        g.fill(0, 0, width, HEADER_H, C_HEADER);
-        g.fill(0, 0, width, 2, C_ACCENT);
-        g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
+        g.pose().pushPose();
+        g.pose().scale(uiScale, uiScale, 1f);
+
+        com.mojang.blaze3d.systems.RenderSystem.disableScissor();
+        g.fill(0, 0, vw, vh, C_BG);
+
+        g.fill(0, 0, vw, HEADER_H, C_HEADER);
+        g.fill(0, 0, vw, 2, C_ACCENT);
+        g.fill(0, HEADER_H - 1, vw, HEADER_H, C_BORDER);
         String repeatBadge = switch (questNode.getRepeatMode()) {
             case DAILY -> "  §b[Daily]";
             case COOLDOWN -> "  §e[Cooldown " + questNode.getRepeatCooldownHours() + "h]";
@@ -1174,10 +1335,10 @@ public class TaskRewardEditorScreen extends Screen {
         String variantBadge = variantTarget != null ? "  §d[variant: " + variantTarget.condition + "]" : "";
         g.drawCenteredString(font,
                 "§fTasks & Rewards  §8— §7" + questNode.getId().getPath() + repeatBadge + variantBadge,
-                width / 2, (HEADER_H - 8) / 2, C_TEXT);
+                vw / 2, (HEADER_H - 8) / 2, C_TEXT);
 
-        g.fill(0, HEADER_H, width, listTop - 1, C_PANEL);
-        g.fill(0, listTop - 1, width, listTop, C_BORDER);
+        g.fill(0, HEADER_H, vw, listTop - 1, C_PANEL);
+        g.fill(0, listTop - 1, vw, listTop, C_BORDER);
         String taskSubHeader;
         if (tasks.isEmpty()) {
             taskSubHeader = "§c⚠ No tasks — quest auto-completes on unlock";
@@ -1192,11 +1353,11 @@ public class TaskRewardEditorScreen extends Screen {
                     false);
         g.drawString(font, "§8Rewards  §7" + rewards.size(), splitX + 4, HEADER_H + 6, C_TEXT_FAINT, false);
 
-        g.fill(splitX - COL_GAP / 2, HEADER_H, splitX - COL_GAP / 2 + 1, height - FOOTER_H, C_SPLIT);
+        g.fill(splitX - COL_GAP / 2, HEADER_H, splitX - COL_GAP / 2 + 1, vh - FOOTER_H, C_SPLIT);
 
         int formPanelTop = formTop - 20;
-        g.fill(0, formPanelTop, width, formBottom, C_PANEL);
-        g.fill(0, formPanelTop, width, formPanelTop + 1, C_BORDER);
+        g.fill(0, formPanelTop, vw, formBottom, C_PANEL);
+        g.fill(0, formPanelTop, vw, formPanelTop + 1, C_BORDER);
 
         g.fill(MARGIN, formPanelTop + 2, MARGIN + colW, formBottom - 2, C_FORM_BG);
         drawBorder(g, MARGIN, formPanelTop + 2, colW, formBottom - 2 - (formPanelTop + 2), C_BORDER);
@@ -1208,10 +1369,11 @@ public class TaskRewardEditorScreen extends Screen {
                 editingRewardIndex >= 0 ? "§b✎ Editing Reward (right-click to cancel)" : "§8Add Reward",
                 splitX + 6, formPanelTop + 6, C_TEXT_FAINT, false);
 
-        g.fill(0, height - FOOTER_H, width, height, C_HEADER);
-        g.fill(0, height - FOOTER_H, width, height - FOOTER_H + 1, C_BORDER);
+        if (rewardType.equals("choice_box") && editingBoxOptionIndex < 0) renderBoxOptionsList(g, mx, my);
 
-        g.enableScissor(0, listTop, splitX - COL_GAP / 2, listBottom);
+        g.fill(0, vh - FOOTER_H, vw, vh, C_HEADER);
+        g.fill(0, vh - FOOTER_H, vw, vh - FOOTER_H + 1, C_BORDER);
+
         hoveredTaskRow = -1;
         int ty = listTop;
         for (int i = 0; i < tasks.size(); i++) {
@@ -1259,9 +1421,7 @@ public class TaskRewardEditorScreen extends Screen {
         }
         if (tasks.isEmpty())
             g.drawString(font, "§8No tasks yet — add one below.", MARGIN + 6, listTop + 5, C_TEXT_FAINT, false);
-        g.disableScissor();
 
-        g.enableScissor(splitX, listTop, width, listBottom);
         hoveredRewardRow = -1;
         rewardDisplayOrder = computeRewardDisplayOrder();
         int tableSectionStart = rewardTableSectionStart(rewardDisplayOrder);
@@ -1271,18 +1431,18 @@ public class TaskRewardEditorScreen extends Screen {
                 if (ry + ROW_HEADER_H > listBottom) break;
                 g.drawString(font, "§6⊞ §8Reward Tables", splitX + 5, ry + (ROW_HEADER_H / 2) - 4, C_TEXT_FAINT,
                         false);
-                g.fill(splitX, ry + ROW_HEADER_H - 1, width - MARGIN, ry + ROW_HEADER_H, C_BORDER);
+                g.fill(splitX, ry + ROW_HEADER_H - 1, vw - MARGIN, ry + ROW_HEADER_H, C_BORDER);
                 ry += ROW_HEADER_H;
             }
             int i = rewardDisplayOrder.get(pos);
             QuestReward reward = rewards.get(i);
             if (ry + ROW_H > listBottom) break;
-            boolean hov = mx >= splitX && mx < width - MARGIN && my >= ry && my < ry + ROW_H;
+            boolean hov = mx >= splitX && mx < vw - MARGIN && my >= ry && my < ry + ROW_H;
             if (hov) {
-                g.fill(splitX, ry, width - MARGIN, ry + ROW_H, C_ROW_HOVER);
+                g.fill(splitX, ry, vw - MARGIN, ry + ROW_H, C_ROW_HOVER);
                 hoveredRewardRow = i;
             }
-            if (draggingRewardIndex == i) drawBorder(g, splitX, ry, width - MARGIN - splitX, ROW_H, 0xFF55DD55);
+            if (draggingRewardIndex == i) drawBorder(g, splitX, ry, vw - MARGIN - splitX, ROW_H, 0xFF55DD55);
 
             g.fill(splitX, ry + 2, splitX + 2, ry + ROW_H - 2, C_ACCENT);
             int rewardTextX = splitX + 5;
@@ -1290,7 +1450,7 @@ public class TaskRewardEditorScreen extends Screen {
                 ItemStack stack = new ItemStack(ir.getItem(), ir.getCount());
                 g.renderItem(stack, rewardTextX, ry + 4);
                 rewardTextX += 18;
-                int rmaxW = (width - MARGIN - (hov ? 16 : 6)) - rewardTextX;
+                int rmaxW = (vw - MARGIN - (hov ? 16 : 6)) - rewardTextX;
                 String rl = "§f" + stack.getHoverName().getString();
                 if (font.width(rl) > rmaxW) rl = font.plainSubstrByWidth(rl, rmaxW - 4) + "…";
                 g.drawString(font, rl, rewardTextX, ry + 4, C_TEXT_DIM, false);
@@ -1312,19 +1472,18 @@ public class TaskRewardEditorScreen extends Screen {
                     case REWARD_TABLE -> "§8reward table";
                     default -> "§8reward";
                 };
-                int rmaxW = (width - MARGIN - (hov ? 16 : 6)) - rewardTextX - font.width(icon) - 4;
+                int rmaxW = (vw - MARGIN - (hov ? 16 : 6)) - rewardTextX - font.width(icon) - 4;
                 String rl = reward.getSummary().getString();
                 String[] rwrapped = wordWrap(rl, rmaxW);
                 g.drawString(font, icon + " §7" + rwrapped[0], rewardTextX, ry + 4, C_TEXT_DIM, false);
                 g.drawString(font, rwrapped[1] != null ? "§8" + rwrapped[1] : typeLine,
                         rewardTextX, ry + 15, C_TEXT_FAINT, false);
             }
-            if (hov) g.drawString(font, "§c×", width - MARGIN - 12, ry + 9, 0xFFFF5555, false);
+            if (hov) g.drawString(font, "§c×", vw - MARGIN - 12, ry + 9, 0xFFFF5555, false);
             ry += ROW_H;
         }
         if (rewards.isEmpty())
             g.drawString(font, "§8No rewards yet — add one below.", splitX + 6, listTop + 5, C_TEXT_FAINT, false);
-        g.disableScissor();
 
         super.render(g, mx, my, partial);
 
@@ -1344,7 +1503,7 @@ public class TaskRewardEditorScreen extends Screen {
 
             g.fill(MARGIN, dy, MARGIN + colW, dy + dropH, C_PANEL);
             drawBorder(g, MARGIN, dy, colW, dropH, C_ACCENT);
-            g.enableScissor(MARGIN, dy, MARGIN + colW, dy + dropH);
+
             hoveredDropRow = -1;
             for (int i = 0; i < editorTypes.size(); i++) {
                 int dropRowY = dy - taskTypeDropScroll + i * rowH;
@@ -1359,7 +1518,6 @@ public class TaskRewardEditorScreen extends Screen {
                 g.drawString(font, m.editorIcon() + " §7" + m.editorLabel(), MARGIN + 5, dropRowY + 3,
                         hov ? C_TEXT : C_TEXT_DIM, false);
             }
-            g.disableScissor();
             ChroniclesThemeRenderer.drawScrollbar(g, MARGIN + colW, dy, dy + dropH, taskTypeDropScroll, totalH);
 
             if (hoveredDropRow >= 0 && hoveredDropRow < editorTypes.size()) {
@@ -1377,8 +1535,8 @@ public class TaskRewardEditorScreen extends Screen {
                 int tipW = maxLw + 10, tipH = wrappedLines.size() * 10 + 6;
                 int tipX = MARGIN + colW + 4;
                 int dropRowY = dy - taskTypeDropScroll + hoveredDropRow * rowH;
-                int tipY = Math.min(Math.max(dropRowY, 2), height - tipH - 2);
-                if (tipX + tipW > width - 2) tipX = Math.max(2, width - 2 - tipW);
+                int tipY = Math.min(Math.max(dropRowY, 2), vh - tipH - 2);
+                if (tipX + tipW > vw - 2) tipX = Math.max(2, vw - 2 - tipW);
                 g.fill(tipX, tipY, tipX + tipW, tipY + tipH, C_TOOLTIP_BG);
                 drawBorder(g, tipX, tipY, tipW, tipH, C_ACCENT);
                 for (int li = 0; li < wrappedLines.size(); li++)
@@ -1401,6 +1559,7 @@ public class TaskRewardEditorScreen extends Screen {
             }
         }
 
+        g.pose().popPose();
         g.pose().popPose();
     }
 
@@ -1428,7 +1587,9 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double delta) {
+    public boolean mouseScrolled(double rawMx, double rawMy, double delta) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
         if (taskTypeDropOpen) {
             List<PhoenixTaskRegistry.TaskEntry> edTypes = PhoenixTaskRegistry.getEditorTypes();
             int totalH = edTypes.size() * FIELD_H;
@@ -1438,11 +1599,20 @@ public class TaskRewardEditorScreen extends Screen {
             taskTypeDropScroll = Math.max(0, Math.min(maxScroll, (int) (taskTypeDropScroll - delta * FIELD_H)));
             return true;
         }
+        if (rewardType.equals("choice_box") && editingBoxOptionIndex < 0 && mx >= boxOptionsListX &&
+                mx < boxOptionsListX + boxOptionsListW && my >= boxOptionsListY && my < boxOptionsListBottom) {
+            int visibleRows = Math.max(1, (boxOptionsListBottom - boxOptionsListY) / BOX_OPTION_ROW_H);
+            int maxScroll = Math.max(0, boxOptions.size() - visibleRows);
+            boxOptionsScroll = Math.max(0, Math.min(maxScroll, boxOptionsScroll - (int) Math.signum(delta)));
+            return true;
+        }
         return super.mouseScrolled(mx, my, delta);
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int btn) {
+    public boolean mouseClicked(double rawMx, double rawMy, int btn) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
         if (btn == 0) {
             if (taskTypeDropOpen) {
                 List<PhoenixTaskRegistry.TaskEntry> edTypes = PhoenixTaskRegistry.getEditorTypes();
@@ -1482,6 +1652,16 @@ public class TaskRewardEditorScreen extends Screen {
                 rewardTypeDropOpen = false;
                 return true;
             }
+            if (rewardType.equals("choice_box") && editingBoxOptionIndex < 0) {
+                for (int i = 0; i < boxOptionRowRects.size(); i++) {
+                    int[] r = boxOptionRowRects.get(i);
+                    if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) {
+                        boxOptions.remove(boxOptionsScroll + i);
+                        rebuildWidgets();
+                        return true;
+                    }
+                }
+            }
 
             if (hoveredTaskRow >= 0 && mx >= splitX - COL_GAP - 28 && mx < splitX - COL_GAP - 14) {
                 copiedTaskNBT = tasks.get(hoveredTaskRow).serializeNBT();
@@ -1496,7 +1676,7 @@ public class TaskRewardEditorScreen extends Screen {
                 return true;
             }
 
-            if (hoveredRewardRow >= 0 && mx >= width - MARGIN - 14 && mx < width - MARGIN) {
+            if (hoveredRewardRow >= 0 && mx >= vw - MARGIN - 14 && mx < vw - MARGIN) {
                 int removeIdx = hoveredRewardRow;
                 pushUndo(() -> rewards.remove(removeIdx));
                 hoveredRewardRow = -1;
@@ -1524,6 +1704,18 @@ public class TaskRewardEditorScreen extends Screen {
             if (hoveredRewardRow >= 0) {
                 if (editingRewardIndex == hoveredRewardRow) cancelRewardEdit();
                 else startEditingReward(hoveredRewardRow);
+                return true;
+            }
+            if (rewardType.equals("choice_box") && editingBoxOptionIndex < 0) {
+                for (int i = 0; i < boxOptionRowRects.size(); i++) {
+                    int[] r = boxOptionRowRects.get(i);
+                    if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) {
+                        startEditingBoxOption(boxOptionsScroll + i);
+                        return true;
+                    }
+                }
+            } else if (rewardType.equals("choice_box")) {
+                cancelBoxOptionEdit();
                 return true;
             }
         }
@@ -1567,7 +1759,11 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
+    public boolean mouseDragged(double rawMx, double rawMy, int btn, double rawDx, double rawDy) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
+        double dx = rawDx / uiScale;
+        double dy = rawDy / uiScale;
         if (btn == 0 && draggingTaskIndex >= 0) {
             int target = rowIndexAtY(my, tasks.size());
             if (target >= 0 && target != draggingTaskIndex) {
@@ -1600,7 +1796,9 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(double mx, double my, int btn) {
+    public boolean mouseReleased(double rawMx, double rawMy, int btn) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
         if (btn == 0 && (draggingTaskIndex >= 0 || draggingRewardIndex >= 0)) {
             if (dragMovedTask || dragMovedReward) finishDragUndo();
             draggingTaskIndex = -1;
@@ -1699,5 +1897,45 @@ public class TaskRewardEditorScreen extends Screen {
 
     private void drawBorder(GuiGraphics g, int x, int y, int w, int h, int color) {
         ChroniclesUIKit.drawBorder(g, x, y, w, h, color);
+    }
+
+    private void renderBoxOptionsList(GuiGraphics g, int mx, int my) {
+        boxOptionRowRects.clear();
+        if (boxOptions.isEmpty()) {
+            g.drawString(font, "§8No options yet - use §7+ Item", boxOptionsListX, boxOptionsListY, C_TEXT_FAINT,
+                    false);
+            return;
+        }
+
+        int visibleRows = Math.max(1, (boxOptionsListBottom - boxOptionsListY) / BOX_OPTION_ROW_H);
+
+        int ry = boxOptionsListY;
+        int end = Math.min(boxOptions.size(), boxOptionsScroll + visibleRows);
+        for (int i = boxOptionsScroll; i < end; i++) {
+            QuestReward opt = boxOptions.get(i);
+            boolean hov = mx >= boxOptionsListX && mx < boxOptionsListX + boxOptionsListW &&
+                    my >= ry && my < ry + BOX_OPTION_ROW_H;
+            if (hov) g.fill(boxOptionsListX, ry, boxOptionsListX + boxOptionsListW, ry + BOX_OPTION_ROW_H,
+                    C_ROW_HOVER);
+
+            String label = opt.getSummary().getString();
+            int maxW = boxOptionsListW - 12;
+            if (font.width(label) > maxW) label = font.plainSubstrByWidth(label, Math.max(0, maxW - 6)) + "…";
+            g.drawString(font, "§7" + label, boxOptionsListX + 1, ry + 3, C_TEXT_DIM, false);
+            g.drawString(font, "§c✕", boxOptionsListX + boxOptionsListW - 9, ry + 3, 0xFFFF5555, false);
+
+            boxOptionRowRects.add(new int[] { boxOptionsListX, ry, boxOptionsListW, BOX_OPTION_ROW_H });
+            ry += BOX_OPTION_ROW_H;
+        }
+
+        int maxScroll = Math.max(0, boxOptions.size() - visibleRows);
+        if (maxScroll > 0) {
+            if (boxOptionsScroll > 0)
+                g.drawString(font, "§8▲", boxOptionsListX + boxOptionsListW - 9, boxOptionsListY - 8, C_TEXT_FAINT,
+                        false);
+            if (boxOptionsScroll < maxScroll)
+                g.drawString(font, "§8▼", boxOptionsListX + boxOptionsListW - 9, boxOptionsListBottom + 1,
+                        C_TEXT_FAINT, false);
+        }
     }
 }

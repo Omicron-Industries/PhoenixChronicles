@@ -28,6 +28,11 @@ public class VariantEditorScreen extends Screen {
     private static final int FIELD_H = 15;
     private static final int FIELD_GAP = 4;
 
+    private static final int MIN_W = 460;
+    private static final int MIN_H = 340;
+    private float uiScale = 1f;
+    private int vw, vh;
+
     private int listTop, listBottom, formTop;
 
     private final Screen parent;
@@ -70,9 +75,13 @@ public class VariantEditorScreen extends Screen {
         C_TEXT_DIM = th.textDim.getColor();
         C_TEXT_FAINT = th.textFaint.getColor();
 
+        uiScale = (width < MIN_W || height < MIN_H) ? Math.min(width / (float) MIN_W, height / (float) MIN_H) : 1f;
+        vw = Math.round(width / uiScale);
+        vh = Math.round(height / uiScale);
+
         listTop = HEADER_H + 20;
 
-        formTop = height - FOOTER_H - 5 * (FIELD_H + FIELD_GAP) - 36;
+        formTop = vh - FOOTER_H - 5 * (FIELD_H + FIELD_GAP) - 36;
         listBottom = formTop - 10;
 
         rebuildWidgets();
@@ -84,7 +93,7 @@ public class VariantEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("§7‹ Done"), b -> {
             flushToQuestNode();
             if (minecraft != null) minecraft.setScreen(parent);
-        }).bounds(width / 2 - 40, height - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
+        }).bounds(vw / 2 - 40, vh - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
                 .tooltip(Tooltip.create(Component.literal("Save changes and return to quest editor"))).build());
 
         addRenderableWidget(Button.builder(Component.literal("§a+ Add Variant"), b -> {
@@ -102,7 +111,7 @@ public class VariantEditorScreen extends Screen {
         int fx = MARGIN;
 
         int fy = formTop + 14;
-        int fw = width - MARGIN * 2;
+        int fw = vw - MARGIN * 2;
 
         conditionBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         conditionBox.setMaxLength(160);
@@ -186,59 +195,64 @@ public class VariantEditorScreen extends Screen {
     public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
-    public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+    public void render(@NotNull GuiGraphics g, int rawMx, int rawMy, float partial) {
+        int mx = Math.round(rawMx / uiScale);
+        int my = Math.round(rawMy / uiScale);
+
+        g.pose().pushPose();
+        g.pose().scale(uiScale, uiScale, 1f);
+
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
-        g.fill(0, 0, width, height, C_BG);
+        g.fill(0, 0, vw, vh, C_BG);
 
-        g.fill(0, 0, width, HEADER_H, C_HEADER);
-        g.fill(0, 0, width, 2, C_ACCENT);
-        g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
+        g.fill(0, 0, vw, HEADER_H, C_HEADER);
+        g.fill(0, 0, vw, 2, C_ACCENT);
+        g.fill(0, HEADER_H - 1, vw, HEADER_H, C_BORDER);
         g.drawCenteredString(font, "§fQuest Variants  §8— §7" + questNode.getId().getPath(),
-                width / 2, (HEADER_H - 8) / 2, C_TEXT);
+                vw / 2, (HEADER_H - 8) / 2, C_TEXT);
 
-        g.fill(0, HEADER_H, width, listTop - 1, C_PANEL);
-        g.fill(0, listTop - 1, width, listTop, C_BORDER);
+        g.fill(0, HEADER_H, vw, listTop - 1, C_PANEL);
+        g.fill(0, listTop - 1, vw, listTop, C_BORDER);
         g.drawString(font, "§8VARIANTS  §7" + variants.size() + "  §8(first matching condition wins)",
                 MARGIN + 120, HEADER_H + 3, C_TEXT_FAINT, false);
 
         int formPanelTop = formTop - 6;
-        g.fill(0, formPanelTop, width, height - FOOTER_H, C_PANEL);
-        g.fill(0, formPanelTop, width, formPanelTop + 1, C_BORDER);
+        g.fill(0, formPanelTop, vw, vh - FOOTER_H, C_PANEL);
+        g.fill(0, formPanelTop, vw, formPanelTop + 1, C_BORDER);
         if (selected >= 0 && selected < variants.size()) {
-            g.fill(MARGIN, formPanelTop + 2, width - MARGIN, height - FOOTER_H - 2, C_FORM_BG);
-            drawBorder(g, MARGIN, formPanelTop + 2, width - MARGIN * 2, height - FOOTER_H - 2 - (formPanelTop + 2),
+            g.fill(MARGIN, formPanelTop + 2, vw - MARGIN, vh - FOOTER_H - 2, C_FORM_BG);
+            drawBorder(g, MARGIN, formPanelTop + 2, vw - MARGIN * 2, vh - FOOTER_H - 2 - (formPanelTop + 2),
                     C_BORDER);
             g.drawString(font, "§8EDITING VARIANT " + (selected + 1), MARGIN + 6, formPanelTop + 6, C_TEXT_FAINT,
                     false);
         } else {
             g.drawCenteredString(font, "§8Add a variant, or select one below to edit it.",
-                    width / 2, formPanelTop + 20, C_TEXT_FAINT);
+                    vw / 2, formPanelTop + 20, C_TEXT_FAINT);
         }
 
-        g.fill(0, height - FOOTER_H, width, height, C_HEADER);
-        g.fill(0, height - FOOTER_H, width, height - FOOTER_H + 1, C_BORDER);
+        g.fill(0, vh - FOOTER_H, vw, vh, C_HEADER);
+        g.fill(0, vh - FOOTER_H, vw, vh - FOOTER_H + 1, C_BORDER);
 
-        g.enableScissor(0, listTop, width, listBottom);
         int ty = listTop;
         for (int i = 0; i < variants.size(); i++) {
             QuestNode.QuestVariant v = variants.get(i);
             if (ty + ROW_H > listBottom) break;
-            boolean hov = mx >= MARGIN && mx < width - MARGIN && my >= ty && my < ty + ROW_H;
+            boolean hov = mx >= MARGIN && mx < vw - MARGIN && my >= ty && my < ty + ROW_H;
             boolean sel = i == selected;
-            if (sel) g.fill(MARGIN, ty, width - MARGIN, ty + ROW_H, 0x3355AAFF);
-            else if (hov) g.fill(MARGIN, ty, width - MARGIN, ty + ROW_H, C_ROW_HOVER);
+            if (sel) g.fill(MARGIN, ty, vw - MARGIN, ty + ROW_H, 0x3355AAFF);
+            else if (hov) g.fill(MARGIN, ty, vw - MARGIN, ty + ROW_H, C_ROW_HOVER);
             g.fill(MARGIN, ty + 2, MARGIN + 2, ty + ROW_H - 2, C_ACCENT);
 
             String cond = v.condition.isBlank() ? "§c(no condition set)" : "§7" + v.condition;
             String summary = variantSummary(v);
             int textX = MARGIN + 8;
-            int maxW = width - MARGIN - textX - 40;
+            int maxW = vw - MARGIN - textX - 40;
             String condLine = cond;
             if (font.width(condLine) > maxW) condLine = font.plainSubstrByWidth(condLine, maxW - 4) + "…";
             g.drawString(font, condLine, textX, ty + 3, C_TEXT_DIM, false);
             g.drawString(font, "§8" + summary, textX, ty + 12, C_TEXT_FAINT, false);
 
-            int cx = width - MARGIN - 12;
+            int cx = vw - MARGIN - 12;
             g.drawString(font, "§c×", cx, ty + 6, 0xFFFF5555, false);
             if (i > 0) g.drawString(font, "§7▲", cx - 24, ty + 6, C_TEXT_DIM, false);
             if (i < variants.size() - 1) g.drawString(font, "§7▼", cx - 12, ty + 6, C_TEXT_DIM, false);
@@ -248,9 +262,10 @@ public class VariantEditorScreen extends Screen {
         if (variants.isEmpty())
             g.drawString(font, "§8No variants yet — this quest behaves identically in every pack mode.",
                     MARGIN + 8, listTop + 4, C_TEXT_FAINT, false);
-        g.disableScissor();
 
         super.render(g, mx, my, partial);
+
+        g.pose().popPose();
     }
 
     private String variantSummary(QuestNode.QuestVariant v) {
@@ -265,13 +280,15 @@ public class VariantEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int btn) {
+    public boolean mouseClicked(double rawMx, double rawMy, int btn) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
         if (btn == 0) {
             int ty = listTop;
             for (int i = 0; i < variants.size(); i++) {
                 if (ty + ROW_H > listBottom) break;
                 if (my >= ty && my < ty + ROW_H) {
-                    int cx = width - MARGIN - 12;
+                    int cx = vw - MARGIN - 12;
                     if (mx >= cx - 2 && mx < cx + 10) {
                         variants.remove(i);
                         if (selected >= variants.size()) selected = variants.size() - 1;
@@ -290,7 +307,7 @@ public class VariantEditorScreen extends Screen {
                         rebuildWidgets();
                         return true;
                     }
-                    if (mx >= MARGIN && mx < width - MARGIN) {
+                    if (mx >= MARGIN && mx < vw - MARGIN) {
                         selected = i;
                         rebuildWidgets();
                         return true;
@@ -300,6 +317,21 @@ public class VariantEditorScreen extends Screen {
             }
         }
         return super.mouseClicked(mx, my, btn);
+    }
+
+    @Override
+    public boolean mouseDragged(double rawMx, double rawMy, int btn, double dragX, double dragY) {
+        return super.mouseDragged(rawMx / uiScale, rawMy / uiScale, btn, dragX / uiScale, dragY / uiScale);
+    }
+
+    @Override
+    public boolean mouseReleased(double rawMx, double rawMy, int btn) {
+        return super.mouseReleased(rawMx / uiScale, rawMy / uiScale, btn);
+    }
+
+    @Override
+    public boolean mouseScrolled(double rawMx, double rawMy, double delta) {
+        return super.mouseScrolled(rawMx / uiScale, rawMy / uiScale, delta);
     }
 
     @Override
