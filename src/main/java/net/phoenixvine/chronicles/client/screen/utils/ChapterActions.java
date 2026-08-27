@@ -40,7 +40,7 @@ public class ChapterActions {
         this.editorState = editorState;
     }
 
-    void forceCompleteChapterOnRightClick(String chapter) {
+    public void forceCompleteChapterOnRightClick(String chapter) {
         List<ResourceLocation> ids = state.questIdsInChapter(chapter);
         if (ids.isEmpty()) {
             ctx.setFeedback("§7No quests in '%s'", ctx.friendly(chapter));
@@ -51,7 +51,7 @@ public class ChapterActions {
         ctx.setFeedback("§aForce-completed %d quest(s) in %s", ids.size(), ctx.friendly(chapter));
     }
 
-    void resetChapterOnRightClick(String chapter) {
+    public void resetChapterOnRightClick(String chapter) {
         List<ResourceLocation> ids = state.questIdsInChapter(chapter);
         if (ids.isEmpty()) {
             ctx.setFeedback("§7No quests in '%s'", ctx.friendly(chapter));
@@ -62,7 +62,7 @@ public class ChapterActions {
         ctx.setFeedback("§7Reset %d quest(s) in %s", ids.size(), ctx.friendly(chapter));
     }
 
-    void forceCompleteCategoryOnRightClick(String categoryId) {
+    public void forceCompleteCategoryOnRightClick(String categoryId) {
         List<ResourceLocation> ids = state.questIdsInCategory(categoryId);
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         String label = cat != null ? cat.displayName() : categoryId;
@@ -75,7 +75,7 @@ public class ChapterActions {
         ctx.setFeedback("§aForce-completed %d quest(s) in %s", ids.size(), label);
     }
 
-    void resetCategoryOnRightClick(String categoryId) {
+    public void resetCategoryOnRightClick(String categoryId) {
         List<ResourceLocation> ids = state.questIdsInCategory(categoryId);
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         String label = cat != null ? cat.displayName() : categoryId;
@@ -88,7 +88,7 @@ public class ChapterActions {
         ctx.setFeedback("§7Reset %d quest(s) in %s", ids.size(), label);
     }
 
-    void deleteChapter(String chapter) {
+    public void deleteChapter(String chapter) {
         String upper = chapter.toUpperCase(Locale.ROOT);
 
         List<QuestNode> questsInChapter = new ArrayList<>();
@@ -191,7 +191,7 @@ public class ChapterActions {
         ctx.setFeedbackDone("Chapter deleted: %s%s", chapter, countSuffix);
     }
 
-    void deleteCategoryOnRightClick(String categoryId) {
+    public void deleteCategoryOnRightClick(String categoryId) {
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         if (cat == null) return;
 
@@ -212,7 +212,7 @@ public class ChapterActions {
         ctx.setFeedback("§aCategory deleted: %s%s", cat.displayName(), uncatSuffix);
     }
 
-    void deleteChapterOnRightClick(String chapter) {
+    public void deleteChapterOnRightClick(String chapter) {
         int questCount = state.chapterQuestCount(chapter);
         if (questCount > 0 && !chapter.equals(armedDeleteChapterId)) {
             armedDeleteChapterId = chapter;
@@ -226,7 +226,7 @@ public class ChapterActions {
         ctx.setFeedback("§aChapter deleted: %s", ctx.friendly(chapter));
     }
 
-    void openSidebarContextMenu(SidebarRow row, int mx, int my) {
+    public void openSidebarContextMenu(SidebarRow row, int mx, int my) {
         List<SidebarPanel.MenuAction> actions = new ArrayList<>();
         Screen parent = state.thisScreen();
         if (row.isFolder()) {

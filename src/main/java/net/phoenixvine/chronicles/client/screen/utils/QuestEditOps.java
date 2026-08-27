@@ -30,7 +30,7 @@ public class QuestEditOps {
         this.editorState = editorState;
     }
 
-    void questCopy(QuestNode node) {
+    public void questCopy(QuestNode node) {
         String content = QuestFileSaver.readRawSnbt(node);
         if (content == null || content.isBlank()) {
             ctx.setFeedback("§cCopy failed. Quest file not found on disk");
@@ -42,7 +42,7 @@ public class QuestEditOps {
         ctx.setFeedback("§aCopied SNBT for '%s'  (Ctrl+V to paste)", node.getId().getPath());
     }
 
-    void questPaste() {
+    public void questPaste() {
         String src = editorState.questClipboard;
         Minecraft mc = Minecraft.getInstance();
         if (src == null || src.isBlank()) {
@@ -83,7 +83,7 @@ public class QuestEditOps {
         }
     }
 
-    void chainMultiSelection() {
+    public void chainMultiSelection() {
         List<QuestNode> ordered = editorState.multiSelection.stream()
                 .map(QuestTreeRegistry::getQuest)
                 .filter(Objects::nonNull)
@@ -127,7 +127,7 @@ public class QuestEditOps {
         }
     }
 
-    void fanFromLeftmost() {
+    public void fanFromLeftmost() {
         List<QuestNode> nodes = editorState.multiSelection.stream()
                 .map(QuestTreeRegistry::getQuest)
                 .filter(Objects::nonNull)

@@ -439,7 +439,7 @@ public class NodeContextMenuBuilder {
         return Math.max(4, x);
     }
 
-    int ctxMoveCatYClamped(List<ChronicleOverviewScreen.CtxItem> items, int catCount) {
+    public int ctxMoveCatYClamped(List<ChronicleOverviewScreen.CtxItem> items, int catCount) {
         int y = ctxMoveCatY(items);
         int visibleRows = Math.min(catCount, ChronicleOverviewScreen.CTX_MOVE_CAT_MAX_ROWS);
         int subH = visibleRows * ChronicleOverviewScreen.CTX_ROW + 4;

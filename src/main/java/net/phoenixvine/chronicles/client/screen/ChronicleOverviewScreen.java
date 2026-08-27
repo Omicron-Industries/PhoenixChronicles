@@ -4,17 +4,23 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
 import net.phoenixvine.chronicles.client.event.ChronicleKeyBindings;
 import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 import net.phoenixvine.chronicles.client.registry.ChroniclesLangPack;
+import net.phoenixvine.chronicles.client.registry.ExternalScreenRegistry;
 import net.phoenixvine.chronicles.client.registry.SeenQuestTracker;
 import net.phoenixvine.chronicles.client.render.*;
 import net.phoenixvine.chronicles.client.screen.utils.*;
@@ -25,9 +31,12 @@ import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.model.*;
+import net.phoenixvine.chronicles.network.ChronicleNetwork;
+import net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
 import net.phoenixvine.chronicles.registry.CategoryRegistry;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.tasks.ScreenOpenedTask;
 import net.phoenixvine.wiki.client.screen.WikiTheme;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
@@ -70,7 +79,7 @@ public class ChronicleOverviewScreen extends Screen
     public static final int CTX_ROW = 16;
     public static final int CTX_SEP = 5;
     public static final int CTX_W = 128;
-    static final int CTX_MOVE_CAT_MAX_ROWS = 10;
+    public static final int CTX_MOVE_CAT_MAX_ROWS = 10;
     public static final Set<ResourceLocation> collapsedSubtreeRoots = new HashSet<>();
     private static final int[] GRID_SNAP_CYCLE = { 1, 4, 8, 16, 32, 64, 128 };
     public static final long OPEN_FADE_MS = 120;
@@ -81,7 +90,7 @@ public class ChronicleOverviewScreen extends Screen
     final Map<ResourceLocation, String> searchCache = new HashMap<>();
     private final SidebarPanel sidebarPanel = new SidebarPanel();
 
-    SidebarPanel sidebarPanelInstance() {
+    public SidebarPanel sidebarPanelInstance() {
         return sidebarPanel;
     }
 
@@ -127,7 +136,7 @@ public class ChronicleOverviewScreen extends Screen
     private final java.util.Set<ResourceLocation> subgraphNodes = new java.util.HashSet<>();
     private final ToolbarPanel toolbarPanel = new ToolbarPanel();
 
-    ToolbarPanel toolbarPanelInstance() {
+    public ToolbarPanel toolbarPanelInstance() {
         return toolbarPanel;
     }
 
@@ -169,7 +178,7 @@ public class ChronicleOverviewScreen extends Screen
     private final TogglePanel.NodeContextMenu nodeCtxMenu = new TogglePanel.NodeContextMenu(this);
     private final GraphEditorState editorState = new GraphEditorState();
 
-    GraphEditorState editorStateInstance() {
+    public GraphEditorState editorStateInstance() {
         return editorState;
     }
 
@@ -201,7 +210,7 @@ public class ChronicleOverviewScreen extends Screen
     private QuestGroup ctxGroup = null;
     private boolean renderingAsBackdrop = false;
 
-    String stateFilter = "ALL";
+    public String stateFilter = "ALL";
     private Object phantasiaPreview = null;
     private List<String> chapterListCache = null;
     private long chapterListCacheAtMs = 0;
@@ -552,7 +561,7 @@ public class ChronicleOverviewScreen extends Screen
         return cat -> rewardsCache.computeIfAbsent(cat, this::computeChapterHasUnclaimedRewards);
     }
 
-    List<SidebarRow> buildSidebarRows() {
+    public List<SidebarRow> buildSidebarRows() {
         return sidebarPanel.buildRows(this::friendly, progressLookup(), buildChapterList());
     }
 
@@ -705,19 +714,19 @@ public class ChronicleOverviewScreen extends Screen
 
         String externalScreenIdStr = target.getExternalScreenId();
         if (minecraft != null && externalScreenIdStr != null && !externalScreenIdStr.isEmpty()) {
-            net.minecraft.resources.ResourceLocation externalScreenId = net.minecraft.resources.ResourceLocation
+            ResourceLocation externalScreenId = ResourceLocation
                     .tryParse(externalScreenIdStr);
             if (externalScreenId != null &&
-                    net.phoenixvine.chronicles.client.registry.ExternalScreenRegistry.isRegistered(externalScreenId)) {
-                net.minecraft.client.gui.screens.Screen external = net.phoenixvine.chronicles.client.registry.ExternalScreenRegistry
+                    ExternalScreenRegistry.isRegistered(externalScreenId)) {
+                Screen external = ExternalScreenRegistry
                         .open(externalScreenId,
                                 target);
                 if (external != null) {
                     for (QuestTask task : target.getEffectiveTasks(minecraft.getSingleplayerServer())) {
-                        if (task instanceof net.phoenixvine.chronicles.tasks.ScreenOpenedTask &&
+                        if (task instanceof ScreenOpenedTask &&
                                 minecraft.player != null && !task.isCompletedFor(minecraft.player)) {
-                            net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.sendToServer(
-                                    new net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket(
+                            ChronicleNetwork.CHANNEL.sendToServer(
+                                    new C2SScreenOpenedTaskPacket(
                                             task.getTaskId()));
                         }
                     }
@@ -1377,7 +1386,7 @@ public class ChronicleOverviewScreen extends Screen
         return mx >= b[0] && mx < b[2] && my >= b[1] && my < b[3];
     }
 
-    int[][] computeHeaderBarLayout(int cr) {
+    public int[][] computeHeaderBarLayout(int cr) {
         String zoomStr2 = Math.round(zoom * 100) + "%";
         int zw2 = font.width(zoomStr2);
         int zx2 = cr - zw2 - 10;
@@ -2443,9 +2452,9 @@ public class ChronicleOverviewScreen extends Screen
         QuestChroniclesSettings s = QuestChroniclesSettings.get();
         if (hov) g.fill(0, 0, sidebarW() - 1, TOOLBAR_Y - 1, 0x14FFFFFF);
 
-        net.minecraft.world.item.Item iconItem = s.getQuestbookIconItem();
+        Item iconItem = s.getQuestbookIconItem();
         int iconY = (TOOLBAR_Y - 1 - 16) / 2;
-        g.renderItem(new net.minecraft.world.item.ItemStack(iconItem), 3, iconY);
+        g.renderItem(new ItemStack(iconItem), 3, iconY);
 
         String name = s.getQuestbookName();
         int maxW = sidebarW() - 22;
@@ -2849,7 +2858,7 @@ public class ChronicleOverviewScreen extends Screen
                     sb.append(displayId.toString().toLowerCase()).append(' ');
 
                     try {
-                        net.minecraft.core.Registry<net.minecraft.world.item.Item> itemReg = net.minecraft.core.registries.BuiltInRegistries.ITEM;
+                        Registry<Item> itemReg = BuiltInRegistries.ITEM;
                         var holder = itemReg.getHolder(itemReg.getId(item));
                         if (holder.isPresent()) {
                             for (var tag : holder.get().tags().toList()) {
@@ -2861,11 +2870,11 @@ public class ChronicleOverviewScreen extends Screen
                     } catch (Exception ignored) {}
 
                     try {
-                        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
-                        net.minecraft.client.player.LocalPlayer localPlayer = net.minecraft.client.Minecraft
+                        ItemStack stack = new ItemStack(item);
+                       LocalPlayer localPlayer = Minecraft
                                 .getInstance().player;
                         var tooltipLines = stack.getTooltipLines(localPlayer,
-                                net.minecraft.world.item.TooltipFlag.Default.NORMAL);
+                                TooltipFlag.Default.NORMAL);
                         for (int ti = 1; ti < tooltipLines.size(); ti++) {
 
                             String txt = tooltipLines.get(ti).getString().trim().toLowerCase();
@@ -2879,7 +2888,7 @@ public class ChronicleOverviewScreen extends Screen
         for (QuestReward reward : n.getEffectiveRewards(server)) {
             sb.append(reward.getSummary().getString()).append(' ');
             if (reward instanceof QuestReward.ItemReward ir) {
-                ResourceLocation rid = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(ir.getItem());
+                ResourceLocation rid = ForgeRegistries.ITEMS.getKey(ir.getItem());
                 if (rid != null) {
                     sb.append(rid.getPath().replace('_', ' ')).append(' ');
                     sb.append(rid).append(' ');
@@ -3261,7 +3270,7 @@ public class ChronicleOverviewScreen extends Screen
     }
 
     @Override
-    public net.phoenixvine.chronicles.capability.PlayerQuestData playerData() {
+    public PlayerQuestData playerData() {
         return playerData;
     }
 
@@ -3411,7 +3420,7 @@ public class ChronicleOverviewScreen extends Screen
         return dbgShapeCounts;
     }
 
-    int unclaimedRewardCount() {
+    public int unclaimedRewardCount() {
         if (playerData == null) return 0;
         int count = 0;
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
@@ -3686,13 +3695,13 @@ public class ChronicleOverviewScreen extends Screen
         ALWAYS("Always"),
         CURSOR_BOX("Cursor Box");
 
-        final String label;
+        public final String label;
 
         GridDisplayMode(String label) {
             this.label = label;
         }
 
-        GridDisplayMode next() {
+       public GridDisplayMode next() {
             GridDisplayMode[] v = values();
             return v[(ordinal() + 1) % v.length];
         }
@@ -3728,9 +3737,9 @@ public class ChronicleOverviewScreen extends Screen
         }
     }
 
-    record CtxItem(String label, String color, boolean isSep, boolean isDanger, Runnable action) {
+   public record CtxItem(String label, String color, boolean isSep, boolean isDanger, Runnable action) {
 
-        static CtxItem sep() {
+        public static CtxItem sep() {
             return new CtxItem("", "", true, false, () -> {});
         }
     }

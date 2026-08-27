@@ -15,13 +15,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class ScreenClickSmokeTest {
+public final class ScreenClickSmokeTest {
 
     private ScreenClickSmokeTest() {}
 
     private record Result(String label, boolean passed, Throwable error) {}
 
-    static void run(ChronicleOverviewScreen screen) {
+    public static void run(ChronicleOverviewScreen screen) {
         List<Result> results = new ArrayList<>();
 
         String origChapter = screen.selectedChapter();

@@ -163,7 +163,7 @@ public final class ProfilerSession {
         writeLine(sb.toString());
     }
 
-    static void logKeyEvent(int key, int mods, String screenName) {
+    public static void logKeyEvent(int key, int mods, String screenName) {
         ProfilerSession session = active;
         if (session == null) return;
         session.keyPressCount++;

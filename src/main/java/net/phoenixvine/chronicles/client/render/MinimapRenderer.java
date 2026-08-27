@@ -17,15 +17,15 @@ public class MinimapRenderer {
 
     private int[] renderState = null;
 
-    int[] bounds(int cr, int height) {
+    public int[] bounds(int cr, int height) {
         int mx2 = cr - MM_PAD;
         int my2 = height - MM_PAD;
         return new int[] { mx2 - MM_W, my2 - MM_H, mx2, my2 };
     }
 
-    void render(GuiGraphics g, Font font, int cl, int cr, int width, int height, int headerH,
-                float zoom, int viewOffX, int viewOffY, Predicate<QuestNode> catMatches,
-                Function<QuestNode, QuestState> stateLookup) {
+    public void render(GuiGraphics g, Font font, int cl, int cr, int width, int height, int headerH,
+                       float zoom, int viewOffX, int viewOffY, Predicate<QuestNode> catMatches,
+                       Function<QuestNode, QuestState> stateLookup) {
         int[] b = bounds(cr, height);
         int bx = b[0], by = b[1], bx2 = b[2], by2 = b[3];
 
@@ -105,13 +105,13 @@ public class MinimapRenderer {
         renderState = new int[] { offsetX, offsetY, minX, minY, (int) (scale * 1000) };
     }
 
-    boolean isInMinimap(double x, double y, boolean minimapOpen, int width, int height) {
+    public boolean isInMinimap(double x, double y, boolean minimapOpen, int width, int height) {
         if (!minimapOpen) return false;
         int[] b = bounds(width, height);
         return x >= b[0] && x < b[2] && y >= b[1] && y < b[3];
     }
 
-    int[] panTo(double sx, double sy, int cl, int width, int height, int headerH, float zoom) {
+    public int[] panTo(double sx, double sy, int cl, int width, int height, int headerH, float zoom) {
         if (renderState == null) return null;
         int offsetX = renderState[0], offsetY = renderState[1];
         int minX = renderState[2], minY = renderState[3];

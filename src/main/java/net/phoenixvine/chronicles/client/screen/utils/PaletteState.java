@@ -5,33 +5,33 @@ import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 public class PaletteState {
 
-    int bg = 0xFF0B0B0F;
+    public int bg = 0xFF0B0B0F;
     public int panelDark = 0xFF0E0E12;
     public int header = 0xFF09090D;
     public int border = 0xFF252530;
-    int borderLit = 0xFF353548;
-    int selTab = 0xFF1A1A26;
-    int selAccent = 0xFF00AA55;
-    int nodeLocked = 0xFF1A1A24;
-    int nodeUnlocked = 0xFF1E1E2C;
-    int nodeActive = 0xFF221C00;
-    int nodeDone = 0xFF081A0E;
-    int nbordLocked = 0xFF2E2E40;
-    int nbordUnlocked = 0xFF4A4A60;
-    int nbordActive = 0xFFCC9900;
-    int nbordDone = 0xFF00BB66;
-    int nbordDev = 0xFF8844AA;
-    int lineLocked = 0x38FFFFFF;
-    int lineDone = 0x9900CC66;
-    int lineActive = 0x88FFAA00;
+    public int borderLit = 0xFF353548;
+    public int selTab = 0xFF1A1A26;
+    public int selAccent = 0xFF00AA55;
+    public int nodeLocked = 0xFF1A1A24;
+    public int nodeUnlocked = 0xFF1E1E2C;
+    public int nodeActive = 0xFF221C00;
+    public int nodeDone = 0xFF081A0E;
+    public int nbordLocked = 0xFF2E2E40;
+    public int nbordUnlocked = 0xFF4A4A60;
+    public int nbordActive = 0xFFCC9900;
+    public int nbordDone = 0xFF00BB66;
+    public int nbordDev = 0xFF8844AA;
+    public int lineLocked = 0x38FFFFFF;
+    public int lineDone = 0x9900CC66;
+    public int lineActive = 0x88FFAA00;
     public int text = 0xFFD8D8E4;
     public int textDim = 0xFF7A7A8A;
-    int textFaint = 0xFF404050;
-    int textDone = 0xFF44CC88;
-    int textAct = 0xFFFFBB33;
-    int progFill = 0xFF00AA55;
+    public int textFaint = 0xFF404050;
+    public int textDone = 0xFF44CC88;
+    public int textAct = 0xFFFFBB33;
+    public int progFill = 0xFF00AA55;
 
-    void refresh(PhoenixTheme t) {
+    public void refresh(PhoenixTheme t) {
         bg = t.bg.getColor();
         panelDark = t.header.getColor();
         header = t.header.getColor();

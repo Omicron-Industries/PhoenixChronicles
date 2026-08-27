@@ -33,7 +33,7 @@ public class ValidationPanel implements TogglePanel {
         open = true;
     }
 
-    void toggle() {
+    public void toggle() {
         open = !open;
     }
 
@@ -47,23 +47,23 @@ public class ValidationPanel implements TogglePanel {
         return ctx.isDevMode() && isOpen();
     }
 
-    List<String> issuesFor(QuestNode node) {
+    public List<String> issuesFor(QuestNode node) {
         return cache.computeIfAbsent(node.getId(), id -> compute(node));
     }
 
-    void invalidate(ResourceLocation id) {
+    public void invalidate(ResourceLocation id) {
         cache.remove(id);
     }
 
-    void clear() {
+    public void clear() {
         cache.clear();
     }
 
-    Map<ResourceLocation, List<String>> snapshot() {
+    public Map<ResourceLocation, List<String>> snapshot() {
         return new HashMap<>(cache);
     }
 
-    void restore(Map<ResourceLocation, List<String>> saved) {
+    public void restore(Map<ResourceLocation, List<String>> saved) {
         cache.putAll(saved);
     }
 

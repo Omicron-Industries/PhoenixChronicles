@@ -20,13 +20,13 @@ public class ToolbarPanel {
             0xFF666688,
     };
 
-    record Colors(int panelDark, int border, int text, int textDim) {}
+    public record Colors(int panelDark, int border, int text, int textDim) {}
 
     private final Map<String, int[]> btnBounds = new HashMap<>();
 
-    void render(GuiGraphics g, Font font, int mx, int my, int width, int cl, int cr, int toolbarY, int toolbarH,
-                Colors colors, String stateFilter, boolean hideCompleted, boolean minimapOpen, boolean devMode,
-                Consumer<Runnable> deferDraw) {
+    public void render(GuiGraphics g, Font font, int mx, int my, int width, int cl, int cr, int toolbarY, int toolbarH,
+                       Colors colors, String stateFilter, boolean hideCompleted, boolean minimapOpen, boolean devMode,
+                       Consumer<Runnable> deferDraw) {
         int ty = toolbarY;
         g.fill(0, ty, width, ty + toolbarH, colors.panelDark());
         g.fill(0, ty + toolbarH - 1, width, ty + toolbarH, colors.border());
@@ -101,7 +101,7 @@ public class ToolbarPanel {
         }
     }
 
-    int[][] filterPillBounds(int cl, int cr, int toolbarY, int toolbarH, Font font, boolean devMode) {
+    public int[][] filterPillBounds(int cl, int cr, int toolbarY, int toolbarH, Font font, boolean devMode) {
         int maxX = cr - rightClusterWidth(font, devMode);
         int px = cl + 4;
         int py = toolbarY + 2, ph = toolbarH - 4;
@@ -120,11 +120,11 @@ public class ToolbarPanel {
         return bounds;
     }
 
-    String filterKey(int index) {
+    public String filterKey(int index) {
         return FILTER_KEYS[index];
     }
 
-    int filterKeyCount() {
+    public int filterKeyCount() {
         return FILTER_KEYS.length;
     }
 
@@ -144,7 +144,7 @@ public class ToolbarPanel {
         return bx - 2;
     }
 
-    boolean hits(String key, double mx, double my) {
+    public boolean hits(String key, double mx, double my) {
         int[] b = btnBounds.get(key);
         return b != null && mx >= b[0] && mx < b[2] && my >= b[1] && my < b[3];
     }

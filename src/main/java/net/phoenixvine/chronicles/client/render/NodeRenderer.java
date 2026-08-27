@@ -37,7 +37,7 @@ public class NodeRenderer {
         this.editorState = editorState;
     }
 
-    void renderNodesAndDetails(GuiGraphics g, int mx, int my, int cl, int cr, int sz) {
+    public void renderNodesAndDetails(GuiGraphics g, int mx, int my, int cl, int cr, int sz) {
         int height = ctx.height();
         g.enableScissor(cl, ChronicleOverviewScreen.HEADER_H, cr, height);
 
@@ -234,7 +234,7 @@ public class NodeRenderer {
     }
 
     @Nullable
-    ResourceLocation resolveShapeTexture(QuestNode node) {
+    public ResourceLocation resolveShapeTexture(QuestNode node) {
         String tex = node.getShapeTexture();
         if (tex == null || tex.isEmpty()) return null;
         try {
@@ -244,8 +244,8 @@ public class NodeRenderer {
         }
     }
 
-    void renderNodeShape(GuiGraphics g, QuestNode node, int x, int y, int sz,
-                         boolean hovered, boolean selected) {
+    public void renderNodeShape(GuiGraphics g, QuestNode node, int x, int y, int sz,
+                                boolean hovered, boolean selected) {
         QuestNode linkTargetNode = state.resolveLinkTarget(node);
         QuestNode displaySource = linkTargetNode != null ? linkTargetNode : node;
         QuestState st = ctx.getState(displaySource);
@@ -407,8 +407,8 @@ public class NodeRenderer {
         }
     }
 
-    void renderNodeDetails(GuiGraphics g, QuestNode node, int x, int y, int sz,
-                           boolean hovered, boolean selected) {
+    public void renderNodeDetails(GuiGraphics g, QuestNode node, int x, int y, int sz,
+                                  boolean hovered, boolean selected) {
         QuestNode linkTargetNode = state.resolveLinkTarget(node);
         QuestNode displaySource = linkTargetNode != null ? linkTargetNode : node;
         QuestState st = ctx.getState(displaySource);
@@ -632,7 +632,7 @@ public class NodeRenderer {
         FrameProfiler.end("node:badges");
     }
 
-    void renderQuestGroup(GuiGraphics g, QuestGroup grp, int cl, int cr) {
+    public void renderQuestGroup(GuiGraphics g, QuestGroup grp, int cl, int cr) {
         int sx = (int) (grp.getX() * ctx.posZoom()) + state.viewOffX() + cl;
         int sy = (int) (grp.getY() * ctx.posZoom()) + state.viewOffY() + ChronicleOverviewScreen.HEADER_H;
         int sw = (int) (grp.getWidth() * ctx.posZoom());
@@ -673,7 +673,7 @@ public class NodeRenderer {
         }
     }
 
-    void renderGroupIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
+    public void renderGroupIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
         try {
             switch (icon.kind) {
                 case ITEM -> {
@@ -709,7 +709,7 @@ public class NodeRenderer {
     }
 
     @Nullable
-    QuestGroup groupAtLabelBar(double mx, double my, int cl) {
+    public QuestGroup groupAtLabelBar(double mx, double my, int cl) {
         for (QuestGroup grp : QuestGroupManager.forChapter(ctx.selectedChapter())) {
             int sx = (int) (grp.getX() * ctx.posZoom()) + state.viewOffX() + cl;
             int sy = (int) (grp.getY() * ctx.posZoom()) + state.viewOffY() + ChronicleOverviewScreen.HEADER_H;
@@ -721,7 +721,7 @@ public class NodeRenderer {
         return null;
     }
 
-    BackgroundPictureConfig.Picture pictureAt(double mx, double my, int cl) {
+    public BackgroundPictureConfig.Picture pictureAt(double mx, double my, int cl) {
         List<BackgroundPictureConfig.Picture> pics = BackgroundPictureConfig.get(ctx.selectedChapter());
         BackgroundPictureConfig.Picture hit = null;
         for (BackgroundPictureConfig.Picture pic : pics) {
@@ -732,8 +732,8 @@ public class NodeRenderer {
         return hit;
     }
 
-    void drawProgressArc(GuiGraphics g, int cx, int cy, int r,
-                         float fraction, int fillColor, int bgColor) {
+    public void drawProgressArc(GuiGraphics g, int cx, int cy, int r,
+                                float fraction, int fillColor, int bgColor) {
         double gs = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale();
         float s = (float) (1.0 / gs);
 
@@ -760,7 +760,7 @@ public class NodeRenderer {
         g.pose().popPose();
     }
 
-    void renderStateBadge(GuiGraphics g, int nx, int ny, int sz, QuestState st) {
+    public void renderStateBadge(GuiGraphics g, int nx, int ny, int sz, QuestState st) {
         int badgeSz = Math.min(8, Math.max(4, sz / 5));
         int bx = nx + sz - badgeSz - 1, by = ny + sz - badgeSz - 1;
         int bc = switch (st) {
@@ -773,7 +773,7 @@ public class NodeRenderer {
         NodeShapeRenderer.queueFillRect(g, bx, by, bx + badgeSz, by + badgeSz, bc);
     }
 
-    void renderNodeTooltip(GuiGraphics g, QuestNode node, int mx, int my) {
+    public void renderNodeTooltip(GuiGraphics g, QuestNode node, int mx, int my) {
         QuestNode linkTarget = state.resolveLinkTarget(node);
         node = linkTarget != null ? linkTarget : node;
 

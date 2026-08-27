@@ -29,7 +29,7 @@ public class DragController {
         this.editorState = editorState;
     }
 
-    void handleLiveDragging(int mx, int my) {
+    public void handleLiveDragging(int mx, int my) {
         if (editorState.draggedNode == null) return;
         updateDraggedNodeScreenPos(mx, my, currentDragSnap());
     }
@@ -163,7 +163,7 @@ public class DragController {
         state.rebuild();
     }
 
-    void renderDragSnapPosBox(GuiGraphics g, int mx, int my) {
+    public void renderDragSnapPosBox(GuiGraphics g, int mx, int my) {
         if (editorState.draggedNode == null) return;
         int[] logPos = computeDraggedNodeSnapLogicalPos(mx, my, currentDragSnap());
         String label = "X: " + logPos[0] + ", Y: " + logPos[1];
@@ -189,7 +189,7 @@ public class DragController {
         }
     }
 
-    void renderSnapGridOverlay(GuiGraphics g, int cl, int cr) {
+    public void renderSnapGridOverlay(GuiGraphics g, int cl, int cr) {
         if (state.gridSnap() <= 1) return;
         int step = Math.round(state.gridSnap() * ctx.posZoom());
         if (step < 6) return;
@@ -207,7 +207,7 @@ public class DragController {
         NodeShapeRenderer.flushFillQueue(g);
     }
 
-    void renderSnapCursorBox(GuiGraphics g, int mx, int my, int cl, int cr) {
+    public void renderSnapCursorBox(GuiGraphics g, int mx, int my, int cl, int cr) {
         if (state.gridSnap() <= 1) return;
         if (mx < cl || mx > cr || my < ChronicleOverviewScreen.HEADER_H || my > ctx.height()) return;
 

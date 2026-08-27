@@ -48,7 +48,7 @@ public class BulkOpsPanel {
         moveCatOpen = false;
     }
 
-    void render(GuiGraphics g, int mx, int my, int cl) {
+    public void render(GuiGraphics g, int mx, int my, int cl) {
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 400f);
         g.flush();
@@ -114,7 +114,7 @@ public class BulkOpsPanel {
         g.pose().popPose();
     }
 
-    boolean mouseClicked(double mx, double my, int btn, int cl) {
+    public boolean mouseClicked(double mx, double my, int btn, int cl) {
         if (btn != 0 || !ctx.isDevMode() || editorState.multiSelection.size() < 2) return false;
 
         int bx = cl + 4, by = ChronicleOverviewScreen.HEADER_H + 4;

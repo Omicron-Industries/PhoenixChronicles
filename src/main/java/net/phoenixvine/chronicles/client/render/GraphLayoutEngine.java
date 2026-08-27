@@ -25,7 +25,7 @@ public class GraphLayoutEngine {
         this.layoutState = layoutState;
     }
 
-    void placeNodeRecursive(QuestNode node, int cl, int cr) {
+    public void placeNodeRecursive(QuestNode node, int cl, int cr) {
         if (dragState.nodeButtons().containsKey(node.getId())) return;
         if (layoutState.hiddenByCollapse().contains(node.getId())) return;
 
@@ -59,7 +59,7 @@ public class GraphLayoutEngine {
         }
     }
 
-    int scaledNodeSize(QuestNode node) {
+    public int scaledNodeSize(QuestNode node) {
         int pixelSize = node.getNodePixelSize();
         int floor = Math.max(4, Math.round(pixelSize * ChronicleOverviewScreen.MIN_NODE_FLOOR_FRACTION));
         return Math.max(floor, (int) (pixelSize * ctx.posZoom()));
@@ -70,7 +70,7 @@ public class GraphLayoutEngine {
                 (int) (ChronicleOverviewScreen.NODE_SIZE * ctx.posZoom()));
     }
 
-    void autoArrangeChapter() {
+    public void autoArrangeChapter() {
         final int X_STRIDE = 80;
         final int Y_STRIDE = 56;
         final int ORIGIN_X = 30;
