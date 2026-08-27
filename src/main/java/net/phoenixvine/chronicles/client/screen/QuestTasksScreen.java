@@ -9,8 +9,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
+import net.phoenixvine.chronicles.client.event.ChronicleKeyBindings;
+import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.client.rich.RichSpan;
+import net.phoenixvine.chronicles.client.render.EmiReturnScreenFix;
 import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
@@ -1603,7 +1605,7 @@ public class QuestTasksScreen extends Screen {
         }
         if (task instanceof FluidRequirementTask t) {
             String fluid = t.getFluidId() != null ? prettifyId(t.getFluidId()) : "fluid";
-            return fluid + " — " + t.getRequiredAmount() + " mB";
+            return fluid + ": " + t.getRequiredAmount() + " mB";
         }
         if (task instanceof ExperienceTask t) {
             return "Reach Level " + t.getRequiredLevel();
@@ -1631,7 +1633,7 @@ public class QuestTasksScreen extends Screen {
             return t.getFilter().describe() + " ×" + t.getCount() + (t.isConsume() ? "  (consumed)" : "");
         }
         if (task instanceof FilterFluidTask t) {
-            return t.getFilter().describe() + " — " + String.format("%,d", t.getAmount()) + " mB" +
+            return t.getFilter().describe() + ": " + String.format("%,d", t.getAmount()) + " mB" +
                     (t.isConsume() ? "  (consumed)" : "");
         }
         if (task instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask t) {
@@ -1708,7 +1710,7 @@ public class QuestTasksScreen extends Screen {
                     Object ephemeral = recipeScreenClass.getField("old").get(current);
                     if (ephemeral instanceof net.minecraft.client.gui.screens.Screen ephemeralScreen &&
                             ephemeralScreen != this) {
-                        net.phoenixvine.chronicles.client.EmiReturnScreenFix.armReturnTo(ephemeralScreen, this);
+                        EmiReturnScreenFix.armReturnTo(ephemeralScreen, this);
                     }
                 }
             } catch (Exception ignored) {}
@@ -1856,7 +1858,7 @@ public class QuestTasksScreen extends Screen {
                         liveDescOverride = v;
                         richSpansPage = -1;
                         net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
-                        net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
+                        LangSyncScheduler.markDirty();
                     }));
             return true;
         }
@@ -2086,7 +2088,7 @@ public class QuestTasksScreen extends Screen {
                         liveDescOverride = v;
                         richSpansPage = -1;
                         net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
-                        net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
+                        LangSyncScheduler.markDirty();
                     }));
             return true;
         }
@@ -2183,7 +2185,7 @@ public class QuestTasksScreen extends Screen {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
-        if (net.phoenixvine.chronicles.client.ChronicleKeyBindings.TOGGLE_QUEST_VIEW.matches(key, scan)) {
+        if (ChronicleKeyBindings.TOGGLE_QUEST_VIEW.matches(key, scan)) {
             if (!toggleViewKeyDown) {
                 isFullscreen = !isFullscreen;
                 toggleViewKeyDown = true;
@@ -2195,7 +2197,7 @@ public class QuestTasksScreen extends Screen {
 
     @Override
     public boolean keyReleased(int key, int scan, int mods) {
-        if (net.phoenixvine.chronicles.client.ChronicleKeyBindings.TOGGLE_QUEST_VIEW.matches(key, scan)) {
+        if (ChronicleKeyBindings.TOGGLE_QUEST_VIEW.matches(key, scan)) {
             toggleViewKeyDown = false;
         }
         return super.keyReleased(key, scan, mods);
@@ -2207,7 +2209,7 @@ public class QuestTasksScreen extends Screen {
             net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.closePreview(phantasiaPreview);
             phantasiaPreview = null;
         }
-        net.phoenixvine.chronicles.client.LangSyncScheduler.flushNow();
+        LangSyncScheduler.flushNow();
         if (minecraft != null) minecraft.setScreen(parent);
     }
 

@@ -6,6 +6,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
+import net.phoenixvine.chronicles.client.util.ClientPooledProgress;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,7 +39,7 @@ public class S2CSyncPooledProgressPacket {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             for (Map.Entry<ResourceLocation, CompoundTag> entry : progress.entrySet()) {
-                net.phoenixvine.chronicles.client.ClientPooledProgress.put(entry.getKey(), entry.getValue());
+                ClientPooledProgress.put(entry.getKey(), entry.getValue());
             }
         }));
         ctx.get().setPacketHandled(true);

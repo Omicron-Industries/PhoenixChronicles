@@ -115,7 +115,7 @@ public class VariantEditorScreen extends Screen {
 
         conditionBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         conditionBox.setMaxLength(160);
-        conditionBox.setHint(Component.literal("§8condition — e.g. config:pack_mode=expert"));
+        conditionBox.setHint(Component.literal("§8condition: e.g. config:pack_mode=expert"));
         conditionBox.setValue(v.condition);
         conditionBox.setResponder(s -> v.condition = s);
         addRenderableWidget(conditionBox);
@@ -123,7 +123,7 @@ public class VariantEditorScreen extends Screen {
 
         titleBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         titleBox.setMaxLength(128);
-        titleBox.setHint(Component.literal("§8title override — blank = inherit base title"));
+        titleBox.setHint(Component.literal("§8title override: blank = inherit base title"));
         titleBox.setValue(v.title != null ? v.title : "");
         titleBox.setResponder(s -> v.title = s.isBlank() ? null : s);
         addRenderableWidget(titleBox);
@@ -131,7 +131,7 @@ public class VariantEditorScreen extends Screen {
 
         subtitleBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         subtitleBox.setMaxLength(128);
-        subtitleBox.setHint(Component.literal("§8subtitle override — blank = inherit base subtitle"));
+        subtitleBox.setHint(Component.literal("§8subtitle override: blank = inherit base subtitle"));
         subtitleBox.setValue(v.subtitle != null ? v.subtitle : "");
         subtitleBox.setResponder(s -> v.subtitle = s.isBlank() ? null : s);
         addRenderableWidget(subtitleBox);
@@ -139,7 +139,7 @@ public class VariantEditorScreen extends Screen {
 
         descBox = new EditBox(font, fx, fy, fw, FIELD_H, Component.empty());
         descBox.setMaxLength(512);
-        descBox.setHint(Component.literal("§8description override — blank = inherit base description"));
+        descBox.setHint(Component.literal("§8description override: blank = inherit base description"));
         descBox.setValue(v.description != null ? v.description : "");
         descBox.setResponder(s -> v.description = s.isBlank() ? null : s);
         addRenderableWidget(descBox);
@@ -208,7 +208,7 @@ public class VariantEditorScreen extends Screen {
         g.fill(0, 0, vw, HEADER_H, C_HEADER);
         g.fill(0, 0, vw, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, vw, HEADER_H, C_BORDER);
-        g.drawCenteredString(font, "§fQuest Variants  §8— §7" + questNode.getId().getPath(),
+        g.drawCenteredString(font, "§fQuest Variants  §8: §7" + questNode.getId().getPath(),
                 vw / 2, (HEADER_H - 8) / 2, C_TEXT);
 
         g.fill(0, HEADER_H, vw, listTop - 1, C_PANEL);
@@ -260,7 +260,7 @@ public class VariantEditorScreen extends Screen {
             ty += ROW_H;
         }
         if (variants.isEmpty())
-            g.drawString(font, "§8No variants yet — this quest behaves identically in every pack mode.",
+            g.drawString(font, "§8No variants yet: this quest behaves identically in every pack mode.",
                     MARGIN + 8, listTop + 4, C_TEXT_FAINT, false);
 
         super.render(g, mx, my, partial);
@@ -276,7 +276,7 @@ public class VariantEditorScreen extends Screen {
         if (v.visibility != null) parts.add("visibility=" + v.visibility.name().toLowerCase());
         if (v.tasks != null) parts.add(v.tasks.size() + " task(s)");
         if (v.rewards != null) parts.add(v.rewards.size() + " reward(s)");
-        return parts.isEmpty() ? "no overrides — condition only gates nothing" : String.join(", ", parts);
+        return parts.isEmpty() ? "no overrides: condition only gates nothing" : String.join(", ", parts);
     }
 
     @Override

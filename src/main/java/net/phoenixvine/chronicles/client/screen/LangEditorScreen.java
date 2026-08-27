@@ -7,7 +7,8 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.client.ChapterConfig;
+import net.phoenixvine.chronicles.client.rich.MultilineTextArea;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.codec.QuestFileLoader;
 import net.phoenixvine.chronicles.model.QuestNode;
@@ -42,6 +43,15 @@ public class LangEditorScreen extends Screen {
     private static final int DESC_ROW_H = 148;
     private static final int FIELD_H = 13;
     private static final int FOOTER_H = 20;
+
+    // Minimum usable real-estate for the list column + sidebar; below this we shrink the whole
+    // screen via a pose scale (same idea as the chapter/category theme popups) instead of letting
+    // fixed-size rows and widgets overlap or run off-screen at small windows/high GUI scale.
+    private static final int MIN_CONTENT_W = 420;
+    private static final int MIN_CONTENT_H = 240;
+
+    private float uiScale = 1f;
+    private int vw, vh;
 
     private final Screen parent;
     private String selectedChapter = "";
@@ -86,13 +96,21 @@ public class LangEditorScreen extends Screen {
         clearWidgets();
         rowBoxes.clear();
 
+        float neededW = SIDEBAR_W + MIN_CONTENT_W + 20f;
+        float neededH = HEADER_H + 28f + MIN_CONTENT_H + FOOTER_H;
+        uiScale = (width < neededW || height < neededH) ?
+                Math.min(width / neededW, height / neededH) : 1f;
+        uiScale = Math.max(0.1f, uiScale);
+        vw = Math.round(width / uiScale);
+        vh = Math.round(height / uiScale);
+
         List<String> cats = buildChapterList();
         if (!cats.isEmpty() && !cats.contains(selectedChapter)) {
             selectedChapter = cats.get(0);
         }
 
         int listX = SIDEBAR_W + 4;
-        searchBox = new EditBox(font, listX, HEADER_H + 11, (width - SIDEBAR_W) / 2 - 8, 13, Component.empty());
+        searchBox = new EditBox(font, listX, HEADER_H + 11, (vw - SIDEBAR_W) / 2 - 8, 13, Component.empty());
         searchBox.setHint(Component.literal("§8Search text… (Regex supported)"));
         searchBox.setMaxLength(128);
         searchBox.setValue(searchQuery);
@@ -108,13 +126,13 @@ public class LangEditorScreen extends Screen {
         addRenderableWidget(searchBox);
 
         addRenderableWidget(Button.builder(Component.literal("§a✔ Save all"),
-                b -> saveAll()).bounds(width - 100, HEADER_H + 11, 96, 13).build());
+                b -> saveAll()).bounds(vw - 100, HEADER_H + 11, 96, 13).build());
 
         addRenderableWidget(Button.builder(Component.literal("§7‹ Back"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })
-                .bounds(listX, height - 16, 56, 12).build());
+                .bounds(listX, vh - 16, 56, 12).build());
 
         rebuildEntries();
         buildRowBoxes();
@@ -223,7 +241,7 @@ public class LangEditorScreen extends Screen {
     }
 
     private int listBott() {
-        return height - FOOTER_H;
+        return vh - FOOTER_H;
     }
 
     private static int rowHeightFor(TextEntry e) {
@@ -259,7 +277,7 @@ public class LangEditorScreen extends Screen {
         rowBoxes.clear();
 
         int listX = SIDEBAR_W + 4;
-        int listW = width - SIDEBAR_W - 8;
+        int listW = vw - SIDEBAR_W - 8;
         int top = listTop();
         int bott = listBott();
 
@@ -318,17 +336,30 @@ public class LangEditorScreen extends Screen {
         g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
     }
 
+    // enableScissor operates in raw real screen pixels and ignores pose().scale(), so any scissor
+    // call made inside the uiScale transform below must have its bounds pre-multiplied by uiScale.
+    private void enableScissorScaled(GuiGraphics g, int x1, int y1, int x2, int y2) {
+        g.enableScissor(Math.round(x1 * uiScale), Math.round(y1 * uiScale), Math.round(x2 * uiScale),
+                Math.round(y2 * uiScale));
+    }
+
     @Override
-    public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+    public void render(@NotNull GuiGraphics g, int rmx, int rmy, float partial) {
         renderBackground(g);
         if (statusTimer > 0) statusTimer--;
 
+        int mx = Math.round(rmx / uiScale);
+        int my = Math.round(rmy / uiScale);
+
+        g.pose().pushPose();
+        g.pose().scale(uiScale, uiScale, 1f);
+
         int listX = SIDEBAR_W + 4;
-        int listW = width - SIDEBAR_W - 8;
+        int listW = vw - SIDEBAR_W - 8;
         int top = listTop();
         int bott = listBott();
 
-        g.enableScissor(listX, top, listX + listW, bott);
+        enableScissorScaled(g, listX, top, listX + listW, bott);
 
         ResourceLocation lastGroupRendered = null;
         for (int ei = 0; ei < entries.size(); ei++) {
@@ -387,17 +418,17 @@ public class LangEditorScreen extends Screen {
             g.fill(trackX, thumbY, trackX + 3, thumbY + thumbH, 0x88AAAACC);
         }
 
-        g.fill(0, 0, SIDEBAR_W, height, C_SIDEBAR);
-        g.fill(SIDEBAR_W, 0, SIDEBAR_W + 1, height, ChroniclesThemePalette.BORDER);
+        g.fill(0, 0, SIDEBAR_W, vh, C_SIDEBAR);
+        g.fill(SIDEBAR_W, 0, SIDEBAR_W + 1, vh, ChroniclesThemePalette.BORDER);
         g.drawCenteredString(font, "§8CHAPTERS", SIDEBAR_W / 2, HEADER_H - 10, ChroniclesThemePalette.TEXT_FAINT);
 
         List<String> cats = buildChapterList();
         int sidebarContentH = cats.size() * 15;
-        int sidebarViewH = height - HEADER_H - 4;
+        int sidebarViewH = vh - HEADER_H - 4;
         int maxSidebarScroll = Math.max(0, sidebarContentH - sidebarViewH);
         sidebarScrollPx = Math.max(0, Math.min(maxSidebarScroll, sidebarScrollPx));
 
-        g.enableScissor(0, HEADER_H, SIDEBAR_W, height);
+        enableScissorScaled(g, 0, HEADER_H, SIDEBAR_W, vh);
         int ty = HEADER_H + 4 - sidebarScrollPx;
         for (String cat : cats) {
             boolean sel = cat.equals(selectedChapter);
@@ -417,30 +448,30 @@ public class LangEditorScreen extends Screen {
         if (maxSidebarScroll > 0) {
             int thumbH = Math.max(12, sidebarViewH * sidebarViewH / (sidebarViewH + maxSidebarScroll));
             int thumbY = HEADER_H + 4 + (int) ((long) sidebarScrollPx * (sidebarViewH - thumbH) / maxSidebarScroll);
-            g.fill(SIDEBAR_W - 3, HEADER_H + 4, SIDEBAR_W - 1, height - 4, 0x22FFFFFF);
+            g.fill(SIDEBAR_W - 3, HEADER_H + 4, SIDEBAR_W - 1, vh - 4, 0x22FFFFFF);
             g.fill(SIDEBAR_W - 3, thumbY, SIDEBAR_W - 1, thumbY + thumbH, 0x88AAAACC);
         }
 
-        g.fill(0, 0, width, HEADER_H, ChroniclesThemePalette.HEADER);
-        g.fill(0, HEADER_H - 1, width, HEADER_H, ChroniclesThemePalette.BORDER);
+        g.fill(0, 0, vw, HEADER_H, ChroniclesThemePalette.HEADER);
+        g.fill(0, HEADER_H - 1, vw, HEADER_H, ChroniclesThemePalette.BORDER);
         g.drawString(font, "§dText Editor  §8│  §7" + friendly(selectedChapter),
                 SIDEBAR_W + 6, 6, ChroniclesThemePalette.TEXT);
         g.drawString(font, "§8Ctrl+S saves  ·  primary: quests/*.snbt  ·  also exports lang/en_us.json",
                 SIDEBAR_W + 6, 16, ChroniclesThemePalette.TEXT_FAINT);
 
-        g.fill(SIDEBAR_W, height - 18, width, height, ChroniclesThemePalette.PANEL);
-        g.fill(SIDEBAR_W, height - 19, width, height - 18, ChroniclesThemePalette.BORDER);
+        g.fill(SIDEBAR_W, vh - 18, vw, vh, ChroniclesThemePalette.PANEL);
+        g.fill(SIDEBAR_W, vh - 19, vw, vh - 18, ChroniclesThemePalette.BORDER);
 
         int dirtyCount = dirty.size();
         if (dirtyCount > 0)
             g.drawString(font, "§6" + dirtyCount + " unsaved change(s)",
-                    listX + 64, height - 13, C_DIRTY_DOT);
+                    listX + 64, vh - 13, C_DIRTY_DOT);
 
         if (statusTimer > 0)
-            g.drawString(font, statusMsg, listX + 64, height - 13, ChroniclesThemePalette.TEXT);
+            g.drawString(font, statusMsg, listX + 64, vh - 13, ChroniclesThemePalette.TEXT);
 
         g.drawString(font, "§8" + entries.size() + " fields  ·  " + countQuests() + " quests",
-                width - 140, height - 13, ChroniclesThemePalette.TEXT_FAINT);
+                vw - 140, vh - 13, ChroniclesThemePalette.TEXT_FAINT);
 
         searchBox.render(g, mx, my, partial);
         for (net.minecraft.client.gui.components.events.GuiEventListener child : children()) {
@@ -448,6 +479,8 @@ public class LangEditorScreen extends Screen {
                 btn.render(g, mx, my, partial);
             }
         }
+
+        g.pose().popPose();
     }
 
     private int countQuests() {
@@ -470,7 +503,10 @@ public class LangEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int btn) {
+    public boolean mouseClicked(double rmx, double rmy, int btn) {
+        double mx = rmx / uiScale;
+        double my = rmy / uiScale;
+
         if (mx < SIDEBAR_W && my > HEADER_H) {
             List<String> cats = buildChapterList();
             int ty = HEADER_H + 4 - sidebarScrollPx;
@@ -508,12 +544,24 @@ public class LangEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double delta) {
+    public boolean mouseDragged(double rmx, double rmy, int btn, double dx, double dy) {
+        return super.mouseDragged(rmx / uiScale, rmy / uiScale, btn, dx / uiScale, dy / uiScale);
+    }
+
+    @Override
+    public boolean mouseReleased(double rmx, double rmy, int btn) {
+        return super.mouseReleased(rmx / uiScale, rmy / uiScale, btn);
+    }
+
+    @Override
+    public boolean mouseScrolled(double rmx, double rmy, double delta) {
+        double mx = rmx / uiScale;
+
         if (mx < SIDEBAR_W) {
 
             List<String> cats = buildChapterList();
             int sidebarContentH = cats.size() * 15;
-            int sidebarViewH = height - HEADER_H - 4;
+            int sidebarViewH = vh - HEADER_H - 4;
             int maxSidebarScroll = Math.max(0, sidebarContentH - sidebarViewH);
             sidebarScrollPx = (int) Math.max(0, Math.min(maxSidebarScroll, sidebarScrollPx - delta * 15));
             return true;

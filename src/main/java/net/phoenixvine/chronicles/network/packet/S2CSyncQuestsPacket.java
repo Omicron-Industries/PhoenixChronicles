@@ -519,7 +519,7 @@ public class S2CSyncQuestsPacket {
             QuestTask task = PhoenixTaskRegistry.deserialize(tag);
             if (task == null) {
                 System.err.println("[Phoenix Chronicles] Unknown task type in sync packet: '" +
-                        tag.getString("type") + "' — skipping.");
+                        tag.getString("type") + "': skipping.");
             }
             return task;
         }

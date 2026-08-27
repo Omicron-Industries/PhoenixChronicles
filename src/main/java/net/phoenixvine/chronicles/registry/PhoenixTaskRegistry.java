@@ -275,7 +275,7 @@ public final class PhoenixTaskRegistry {
             t.deserializeNBT(tag);
             return t;
         }).icon("§a✦").label("XP Level")
-                .tooltip("Reach a minimum XP level.\nNo target needed — just set the required level.")
+                .tooltip("Reach a minimum XP level.\nNo target needed. Just set the required level.")
                 .field(FieldDef.integer("required_level", "Level"))
                 .register();
 
@@ -377,7 +377,7 @@ public final class PhoenixTaskRegistry {
             t.deserializeNBT(tag);
             return t;
         }).icon("§a✓").label("Checkmark")
-                .tooltip("Admin-completable manual task.\nNo target needed — complete with /chronicle task complete.")
+                .tooltip("Admin-completable manual task.\nNo target needed: complete with /chronicle task complete.")
                 .register();
 
         register("tag_item", tag -> {
@@ -400,7 +400,7 @@ public final class PhoenixTaskRegistry {
             return t;
         }).icon("§7§l!").label("Info / Text")
                 .tooltip(
-                        "A read-only information panel the player must acknowledge.\nNo target — body text is shown to the player.")
+                        "A read-only information panel the player must acknowledge.\nNo target: body text is shown to the player.")
                 .field(FieldDef.text("body", "Body Text"))
                 .register();
 
@@ -412,7 +412,7 @@ public final class PhoenixTaskRegistry {
         }).icon("§b⏱").label("Timer")
                 .tooltip(
                         "Completes automatically once the configured duration has elapsed since the quest became " +
-                                "active for the player.\nNo target needed — set Duration (seconds).")
+                                "active for the player.\nNo target needed: set Duration (seconds).")
                 .field(FieldDef.integer("duration_seconds", "Duration (seconds)"))
                 .register();
 

@@ -2,6 +2,9 @@ package net.phoenixvine.chronicles.client.screen;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
+import net.phoenixvine.chronicles.client.screen.utils.QuestEditOps;
+import net.phoenixvine.chronicles.client.screen.utils.QuestEditOpsState;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 

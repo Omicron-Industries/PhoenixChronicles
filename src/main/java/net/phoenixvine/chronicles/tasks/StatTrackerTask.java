@@ -10,6 +10,7 @@ import net.minecraft.stats.Stats;
 import net.minecraft.stats.StatsCounter;
 import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
+import net.phoenixvine.chronicles.client.util.ClientStatsHelper;
 import net.phoenixvine.chronicles.model.QuestTask;
 
 public class StatTrackerTask extends QuestTask {
@@ -40,7 +41,7 @@ public class StatTrackerTask extends QuestTask {
 
     private StatsCounter statsFor(Player player) {
         if (player instanceof ServerPlayer serverPlayer) return serverPlayer.getStats();
-        if (player.level().isClientSide()) return net.phoenixvine.chronicles.client.ClientStatsHelper.getStats(player);
+        if (player.level().isClientSide()) return ClientStatsHelper.getStats(player);
         return null;
     }
 

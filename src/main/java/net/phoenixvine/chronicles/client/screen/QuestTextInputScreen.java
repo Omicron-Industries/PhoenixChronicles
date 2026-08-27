@@ -11,6 +11,7 @@ import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 
+import net.phoenixvine.chronicles.client.rich.MultilineTextArea;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.function.Consumer;
@@ -134,7 +135,7 @@ public class QuestTextInputScreen extends Screen {
                 g.fill(insX + 44, rowY, insX + 58, rowY + 12, col);
             }
         }
-        g.drawString(font, "§8{#RRGGBB} syntax — no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
+        g.drawString(font, "§8{#RRGGBB} syntax: no & needed", insX + 60, rowY + 2, ChroniclesThemePalette.TEXT_DIM,
                 false);
     }
 

@@ -320,7 +320,7 @@ public class FilterTokenEditorScreen extends Screen {
             if (hov) g.drawString(font, "§c×", panelLeft + PANEL_W - 14, ry + 5, 0xFFFF5555, false);
         }
         if (entries.isEmpty())
-            g.drawString(font, "§8No rules yet — add an item/tag/mod above.", panelLeft + 4, rowsTop + 4,
+            g.drawString(font, "§8No rules yet. Add an item/tag/mod above.", panelLeft + 4, rowsTop + 4,
                     ChroniclesThemePalette.TEXT_FAINT, false);
         g.disableScissor();
 

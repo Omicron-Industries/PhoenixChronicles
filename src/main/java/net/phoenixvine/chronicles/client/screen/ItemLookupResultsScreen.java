@@ -9,7 +9,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.phoenixvine.chronicles.client.ChapterConfig;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
@@ -76,7 +76,7 @@ public class ItemLookupResultsScreen extends Screen {
         g.fill(0, HEADER_H - 1, width, HEADER_H, border);
 
         String itemName = lookupStack.getHoverName().getString();
-        g.drawCenteredString(font, "§f" + itemName + " §8— §7used by " + matches.size() + " quest(s)", width / 2,
+        g.drawCenteredString(font, "§f" + itemName + " §8: §7used by " + matches.size() + " quest(s)", width / 2,
                 10, text);
 
         g.fill(0, height - FOOTER_H, width, height, header);

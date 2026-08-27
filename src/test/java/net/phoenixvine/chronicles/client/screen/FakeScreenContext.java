@@ -2,7 +2,9 @@ package net.phoenixvine.chronicles.client.screen;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.client.BackgroundPictureConfig;
+import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
+import net.phoenixvine.chronicles.client.screen.utils.UndoRedoManager;
+import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 

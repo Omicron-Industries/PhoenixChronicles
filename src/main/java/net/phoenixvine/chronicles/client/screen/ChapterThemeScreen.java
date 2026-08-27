@@ -7,7 +7,8 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
-import net.phoenixvine.chronicles.client.ChapterConfig;
+import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.model.CategoryDefinition;
@@ -349,7 +350,7 @@ public class ChapterThemeScreen extends Screen {
             String value = cachedDisplayName.isEmpty() ? defaultFriendlyName() : cachedDisplayName;
             net.phoenixvine.chronicles.registry.QuestLangRegistry.writeKey(base, key, value);
 
-            net.phoenixvine.chronicles.client.ClientTextOverrides.put(key, value);
+            ClientTextOverrides.put(key, value);
         }
 
         if (minecraft != null) minecraft.setScreen(parent);
@@ -370,7 +371,7 @@ public class ChapterThemeScreen extends Screen {
         g.pose().scale(uiScale, uiScale, 1f);
 
         ChroniclesUIKit.drawModalChrome(g, font, vw, vh, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
-                "§dTheme — §7" + chapter, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
+                "§dTheme: §7" + chapter, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
                 ACCENT, ChroniclesThemePalette.TEXT);
 
         int fx = panelLeft + MARGIN;

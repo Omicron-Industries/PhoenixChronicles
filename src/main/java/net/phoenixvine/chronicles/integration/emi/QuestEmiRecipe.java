@@ -24,7 +24,10 @@ import dev.emi.emi.api.render.EmiTexture;
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.widget.SlotWidget;
+import dev.emi.emi.api.widget.TextWidget;
 import dev.emi.emi.api.widget.WidgetHolder;
+import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
+import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -129,7 +132,7 @@ public class QuestEmiRecipe implements EmiRecipe {
     public void addWidgets(WidgetHolder widgets) {
         Font font = Minecraft.getInstance().font;
 
-        widgets.addText(node.getTitle().getVisualOrderText(), 4, 4, 0x1A1A1A, false);
+        widgets.add(new JumpToQuestWidget(node.getTitle().getVisualOrderText(), 4, 4, this::jumpToQuest));
 
         Component descComp = node.getDescription();
         if (descComp != null) {
@@ -175,6 +178,33 @@ public class QuestEmiRecipe implements EmiRecipe {
             } else {
                 slot.appendTooltip(Component.literal("§7Quest Completion Record"));
             }
+        }
+    }
+
+    private void jumpToQuest() {
+        Minecraft mc = Minecraft.getInstance();
+        ChronicleOverviewScreen screen = new ChronicleOverviewScreen();
+        mc.setScreen(screen);
+        screen.navigateToNode(node);
+    }
+
+    // A plain TextWidget has no click handling of its own (Widget#mouseClicked defaults to a
+    // no-op) - this makes the quest title double as a "jump back to this quest" link so players
+    // browsing recipes in EMI aren't stuck re-finding the quest by hand.
+    private static final class JumpToQuestWidget extends TextWidget {
+
+        private final Runnable onClick;
+
+        JumpToQuestWidget(FormattedCharSequence text, int x, int y, Runnable onClick) {
+            super(text, x, y, 0x1A56C4, false);
+            this.onClick = onClick;
+        }
+
+        @Override
+        public boolean mouseClicked(int mouseX, int mouseY, int button) {
+            if (button != 0 || !getBounds().contains(mouseX, mouseY)) return false;
+            onClick.run();
+            return true;
         }
     }
 }

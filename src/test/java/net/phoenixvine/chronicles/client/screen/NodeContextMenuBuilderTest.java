@@ -3,6 +3,10 @@ package net.phoenixvine.chronicles.client.screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
+import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
+import net.phoenixvine.chronicles.client.screen.utils.NodeContextMenuBuilder;
+import net.phoenixvine.chronicles.client.screen.utils.NodeContextMenuBuilderState;
+import net.phoenixvine.chronicles.client.screen.utils.NodeCtxMenuState;
 import net.phoenixvine.chronicles.model.QuestGroup;
 import net.phoenixvine.chronicles.model.QuestNode;
 

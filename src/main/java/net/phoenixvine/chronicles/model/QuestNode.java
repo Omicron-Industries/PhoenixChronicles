@@ -10,6 +10,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
 import net.phoenixvine.chronicles.flag.PhoenixQuestFlags;
 import net.phoenixvine.chronicles.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.tracker.TutorialStep;
@@ -285,7 +286,7 @@ public class QuestNode {
             if (target != null && target != this) return target.getTitle(depth + 1);
         }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
-            String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("title"));
+            String override = ClientTextOverrides.get(langKey("title"));
             if (override != null) return Component.literal(override);
             Component t = ClientLangLookup.resolve(langKey("title"));
             if (t != null) return t;
@@ -297,7 +298,7 @@ public class QuestNode {
         this.title = t != null ? t : Component.empty();
 
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
-            net.phoenixvine.chronicles.client.ClientTextOverrides.put(langKey("title"), this.title.getString());
+            ClientTextOverrides.put(langKey("title"), this.title.getString());
     }
 
     public Component getTitleRaw() {
@@ -314,7 +315,7 @@ public class QuestNode {
             if (target != null && target != this) return target.getDescription(depth + 1);
         }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
-            String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("description"));
+            String override = ClientTextOverrides.get(langKey("description"));
             if (override != null) return Component.literal(override);
             Component d = ClientLangLookup.resolve(langKey("description"));
             if (d != null) return d;
@@ -325,7 +326,7 @@ public class QuestNode {
     public void setDescription(Component d) {
         this.description = d != null ? d : Component.empty();
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
-            net.phoenixvine.chronicles.client.ClientTextOverrides.put(langKey("description"),
+            ClientTextOverrides.put(langKey("description"),
                     this.description.getString());
     }
 
@@ -479,7 +480,7 @@ public class QuestNode {
             if (target != null && target != this) return target.getSubtitle(depth + 1);
         }
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
-            String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey("subtitle"));
+            String override = ClientTextOverrides.get(langKey("subtitle"));
             if (override != null) return override;
             Component s = ClientLangLookup.resolve(langKey("subtitle"));
             if (s != null) return s.getString();
@@ -494,7 +495,7 @@ public class QuestNode {
     public void setSubtitle(String s) {
         this.subtitle = s != null ? s : "";
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
-            net.phoenixvine.chronicles.client.ClientTextOverrides.put(langKey("subtitle"), this.subtitle);
+            ClientTextOverrides.put(langKey("subtitle"), this.subtitle);
     }
 
     public Visibility getVisibility() {

@@ -110,7 +110,7 @@ public class ClaimRewardsScreen extends Screen {
         g.fill(0, 0, width, height, bg);
         g.fill(0, 0, width, HEADER_H, header);
         g.fill(0, HEADER_H - 1, width, HEADER_H, border);
-        String headerText = "§f🎁 Unclaimed Rewards  §8— §7" + unclaimed.size() + " quest(s)";
+        String headerText = "§f🎁 Unclaimed Rewards  §8: §7" + unclaimed.size() + " quest(s)";
         g.drawString(font, ChroniclesUIKit.fitText(font, headerText, width - MARGIN * 2), MARGIN, 10, text, false);
 
         g.fill(0, height - FOOTER_H, width, height, header);

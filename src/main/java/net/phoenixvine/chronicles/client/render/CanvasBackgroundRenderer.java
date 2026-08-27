@@ -2,8 +2,9 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.client.ChapterConfig;
-import net.phoenixvine.chronicles.client.FrameProfiler;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
+import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
+import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 
 public final class CanvasBackgroundRenderer {
 
@@ -193,7 +194,7 @@ public final class CanvasBackgroundRenderer {
     private static void drawCustomBg(GuiGraphics g, int x1, int y1, int x2, int y2, String textureLoc) {
         if (textureLoc == null || textureLoc.isBlank()) return;
         try {
-            ResourceLocation loc = net.phoenixvine.chronicles.client.CustomTextureCache.resolve(
+            ResourceLocation loc = CustomTextureCache.resolve(
                     ResourceLocation.parse(textureLoc));
             int w = x2 - x1, h = y2 - y1;
             g.blit(loc, x1, y1, 0, 0, w, h, w, h);

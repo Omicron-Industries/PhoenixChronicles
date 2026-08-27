@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
@@ -561,7 +562,7 @@ public class QuestCreatorScreen extends Screen {
 
         rowY = y + LABEL_H + LABEL_GAP;
         String sizeHeaderLabel = cachedSizeOverridePx > 0 ?
-                "§fNode size  §b(custom " + cachedSizeOverridePx + "px active — pick a preset below to reset)" :
+                "§fNode size  §b(custom " + cachedSizeOverridePx + "px active. Pick a preset below to reset)" :
                 "§fNode size";
         labels.add(new LabelEntry(cx, y, sizeHeaderLabel, C_TEXT_FAINT));
         int sizeBtnW = cw / NODE_SIZES.length;
@@ -628,7 +629,7 @@ public class QuestCreatorScreen extends Screen {
             Minecraft.getInstance().setScreen(new VariantEditorScreen(this, resolveWorkingNode()));
         }).bounds(cx, rowY, cw, FIELD_H)
                 .tooltip(Tooltip.create(Component.literal(
-                        "Pack-mode variants — override this quest's title/description/visibility/tasks/rewards based on a flag condition (e.g. config:pack_mode=expert)")))
+                        "Pack-mode variants: override this quest's title/description/visibility/tasks/rewards based on a flag condition (e.g. config:pack_mode=expert)")))
                 .build());
         return rowY + FIELD_H;
     }
@@ -811,7 +812,7 @@ public class QuestCreatorScreen extends Screen {
                 })
                 .bounds(cx, rowY, cw, FIELD_H)
                 .tooltip(Tooltip.create(Component.literal(
-                        "Automatically grant rewards on completion — no claim button needed")))
+                        "Automatically grant rewards on completion. No claim button needed")))
                 .build());
         y = rowY + FIELD_H + ROW_GAP;
 
@@ -976,7 +977,7 @@ public class QuestCreatorScreen extends Screen {
         g.fill(0, 0, width, HEADER_H, C_HEADER);
         g.fill(0, 0, width, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
-        String heading = editingNode != null ? "§fEdit Quest  §f— §f" + editingNode.getId().getPath() : "§fNew Quest";
+        String heading = editingNode != null ? "§fEdit Quest  §f: §f" + editingNode.getId().getPath() : "§fNew Quest";
         g.drawCenteredString(font, heading, width / 2, (HEADER_H - 8) / 2, C_TEXT);
 
         g.fill(0, height - FOOTER_H, width, height, C_HEADER);
@@ -1271,7 +1272,7 @@ public class QuestCreatorScreen extends Screen {
 
     @Override
     public void onClose() {
-        net.phoenixvine.chronicles.client.LangSyncScheduler.flushNow();
+        LangSyncScheduler.flushNow();
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
@@ -1476,7 +1477,7 @@ public class QuestCreatorScreen extends Screen {
                 lastSavedNode = node;
             }
 
-            net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
+            LangSyncScheduler.markDirty();
 
             statusMsg = "Saved!";
             statusIsErr = false;

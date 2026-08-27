@@ -3,6 +3,7 @@ package net.phoenixvine.chronicles.client.screen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
@@ -37,6 +38,15 @@ public class SettingsScreen extends Screen {
     private static final int PANEL_W = 380;
     private static final int ARROW_W = 18;
     private static final int ARROW_GAP = 2;
+
+    // Minimum usable real-estate for the sidebar + settings panel; below this we shrink the whole
+    // screen via a pose scale (same idea as the chapter/category theme popups and the lang editor)
+    // instead of letting the fixed-width sidebar/panel/footer overlap or run off-screen.
+    private static final int MIN_CONTENT_W = SIDEBAR_W + MARGIN + PANEL_W + MARGIN;
+    private static final int MIN_CONTENT_H = 260;
+
+    private float uiScale = 1f;
+    private int vw, vh;
 
     private enum Category {
 
@@ -137,6 +147,15 @@ public class SettingsScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+
+        float neededW = MIN_CONTENT_W + 20f;
+        float neededH = HEADER_H + FOOTER_H + MIN_CONTENT_H;
+        uiScale = (width < neededW || height < neededH) ?
+                Math.min(width / neededW, height / neededH) : 1f;
+        uiScale = Math.max(0.1f, uiScale);
+        vw = Math.round(width / uiScale);
+        vh = Math.round(height / uiScale);
+
         PhoenixTheme t = PhoenixTheme.current();
         C_BG = t.bg.getColor();
         C_PANEL = t.panel.getColor();
@@ -299,7 +318,7 @@ public class SettingsScreen extends Screen {
                 rows.add(Row.toggle("§fAlways-On Profiler", settings::isAlwaysProfilerEnabled, on -> {
                     settings.setAlwaysProfilerEnabled(on);
                     settings.save();
-                    net.phoenixvine.chronicles.client.FrameProfiler.setEnabled(on);
+                    FrameProfiler.setEnabled(on);
                 }).tip("Keeps the rolling render-cost profiler (Ctrl+P) running for the\n" +
                         "whole session and logs a snapshot every 10s - useful for tracking\n" +
                         "down intermittent performance issues without remembering to toggle it."));
@@ -318,20 +337,33 @@ public class SettingsScreen extends Screen {
 
     private int contentOffsetX() {
         int totalW = SIDEBAR_W + MARGIN + PANEL_W + MARGIN;
-        return Math.max(0, (width - totalW) / 2);
+        return Math.max(0, (vw - totalW) / 2);
+    }
+
+    // enableScissor operates in raw real screen pixels and ignores pose().scale(), so any scissor
+    // call made inside the uiScale transform below must have its bounds pre-multiplied by uiScale.
+    private void enableScissorScaled(GuiGraphics g, int x1, int y1, int x2, int y2) {
+        g.enableScissor(Math.round(x1 * uiScale), Math.round(y1 * uiScale), Math.round(x2 * uiScale),
+                Math.round(y2 * uiScale));
     }
 
     @Override
-    public void render(GuiGraphics g, int mx, int my, float partial) {
+    public void render(GuiGraphics g, int rmx, int rmy, float partial) {
         g.fill(0, 0, width, height, C_BG);
 
-        g.fill(0, 0, width, HEADER_H, C_HEADER);
-        g.fill(0, 0, width, 2, C_ACCENT);
-        g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
-        g.drawCenteredString(font, "§fChronicles Settings", width / 2, 9, C_TEXT);
+        int mx = Math.round(rmx / uiScale);
+        int my = Math.round(rmy / uiScale);
+
+        g.pose().pushPose();
+        g.pose().scale(uiScale, uiScale, 1f);
+
+        g.fill(0, 0, vw, HEADER_H, C_HEADER);
+        g.fill(0, 0, vw, 2, C_ACCENT);
+        g.fill(0, HEADER_H - 1, vw, HEADER_H, C_BORDER);
+        g.drawCenteredString(font, "§fChronicles Settings", vw / 2, 9, C_TEXT);
 
         int contentTop = HEADER_H;
-        int contentBottom = height - FOOTER_H;
+        int contentBottom = vh - FOOTER_H;
         int off = contentOffsetX();
 
         g.fill(off, contentTop, off + SIDEBAR_W, contentBottom, C_PANEL);
@@ -353,8 +385,8 @@ public class SettingsScreen extends Screen {
         }
 
         int x = off + SIDEBAR_W + MARGIN;
-        int w = Math.min(PANEL_W, width - x - MARGIN);
-        g.enableScissor(x, contentTop, x + w, contentBottom);
+        int w = Math.min(PANEL_W, vw - x - MARGIN);
+        enableScissorScaled(g, x, contentTop, x + w, contentBottom);
 
         String hoveredTooltip = null;
         for (Row r : rows) {
@@ -386,33 +418,35 @@ public class SettingsScreen extends Screen {
         }
         g.disableScissor();
 
-        int footerY = height - FOOTER_H;
-        g.fill(0, footerY, width, height, C_HEADER);
-        g.fill(0, footerY, width, footerY + 1, C_BORDER);
+        int footerY = vh - FOOTER_H;
+        g.fill(0, footerY, vw, vh, C_HEADER);
+        g.fill(0, footerY, vw, footerY + 1, C_BORDER);
 
         int btnW = 100;
         int btnGap = 8;
         int btnY = footerY + 5;
 
-        boolean saveHov = mx >= width / 2 - btnW - btnGap / 2 && mx < width / 2 - btnGap / 2 && my >= btnY &&
+        boolean saveHov = mx >= vw / 2 - btnW - btnGap / 2 && mx < vw / 2 - btnGap / 2 && my >= btnY &&
                 my < btnY + 18;
-        g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 18,
+        g.fill(vw / 2 - btnW - btnGap / 2, btnY, vw / 2 - btnGap / 2, btnY + 18,
                 saveHov ? 0xFF2A4A2A : 0xFF1A2A1A);
-        if (saveHov) g.fill(width / 2 - btnW - btnGap / 2, btnY, width / 2 - btnGap / 2, btnY + 1, C_OK);
-        g.drawCenteredString(font, "§a✓ Save", width / 2 - btnW / 2 - btnGap / 2, btnY + 6, saveHov ? C_OK : C_TEXT);
+        if (saveHov) g.fill(vw / 2 - btnW - btnGap / 2, btnY, vw / 2 - btnGap / 2, btnY + 1, C_OK);
+        g.drawCenteredString(font, "§a✓ Save", vw / 2 - btnW / 2 - btnGap / 2, btnY + 6, saveHov ? C_OK : C_TEXT);
 
-        boolean cancelHov = mx >= width / 2 + btnGap / 2 && mx < width / 2 + btnW + btnGap / 2 && my >= btnY &&
+        boolean cancelHov = mx >= vw / 2 + btnGap / 2 && mx < vw / 2 + btnW + btnGap / 2 && my >= btnY &&
                 my < btnY + 18;
-        g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 18,
+        g.fill(vw / 2 + btnGap / 2, btnY, vw / 2 + btnW + btnGap / 2, btnY + 18,
                 cancelHov ? 0xFF3A3A3A : 0xFF2A2A2A);
-        if (cancelHov) g.fill(width / 2 + btnGap / 2, btnY, width / 2 + btnW + btnGap / 2, btnY + 1, C_CANCEL);
-        g.drawCenteredString(font, "§7✕ Cancel", width / 2 + btnW / 2 + btnGap / 2, btnY + 6,
+        if (cancelHov) g.fill(vw / 2 + btnGap / 2, btnY, vw / 2 + btnW + btnGap / 2, btnY + 1, C_CANCEL);
+        g.drawCenteredString(font, "§7✕ Cancel", vw / 2 + btnW / 2 + btnGap / 2, btnY + 6,
                 cancelHov ? C_CANCEL : C_TEXT);
 
         if (hoveredTooltip != null) {
             g.flush();
             renderRowTooltip(g, mx, my, hoveredTooltip);
         }
+
+        g.pose().popPose();
     }
 
     private void renderRowTooltip(GuiGraphics g, int mx, int my, String text) {
@@ -422,8 +456,8 @@ public class SettingsScreen extends Screen {
         int th = lines.length * LABEL_LINE_H + 4;
         int tx = mx + 12;
         int ty = my - 4;
-        if (tx + tw + 8 > width) tx = mx - tw - 20;
-        if (ty + th > height) ty = height - th;
+        if (tx + tw + 8 > vw) tx = mx - tw - 20;
+        if (ty + th > vh) ty = vh - th;
         if (ty < 0) ty = 0;
 
         g.fill(tx - 4, ty - 3, tx + tw + 4, ty + th, 0xFF0A0A0E);
@@ -456,24 +490,27 @@ public class SettingsScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int btn) {
-        int footerY = height - FOOTER_H;
+    public boolean mouseClicked(double rmx, double rmy, int btn) {
+        double mx = rmx / uiScale;
+        double my = rmy / uiScale;
+
+        int footerY = vh - FOOTER_H;
         int btnW = 100;
         int btnGap = 8;
         int btnY = footerY + 5;
 
-        if (mx >= width / 2 - btnW - btnGap / 2 && mx < width / 2 - btnGap / 2 && my >= btnY && my < btnY + 18) {
+        if (mx >= vw / 2 - btnW - btnGap / 2 && mx < vw / 2 - btnGap / 2 && my >= btnY && my < btnY + 18) {
             settings.save();
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
-        if (mx >= width / 2 + btnGap / 2 && mx < width / 2 + btnW + btnGap / 2 && my >= btnY && my < btnY + 18) {
+        if (mx >= vw / 2 + btnGap / 2 && mx < vw / 2 + btnW + btnGap / 2 && my >= btnY && my < btnY + 18) {
             if (minecraft != null) minecraft.setScreen(parent);
             return true;
         }
 
         int contentTop = HEADER_H;
-        int contentBottom = height - FOOTER_H;
+        int contentBottom = vh - FOOTER_H;
         int off = contentOffsetX();
 
         if (mx >= off && mx < off + SIDEBAR_W && my >= contentTop && my < contentBottom) {
@@ -490,7 +527,7 @@ public class SettingsScreen extends Screen {
         }
 
         int x = off + SIDEBAR_W + MARGIN;
-        int w = Math.min(PANEL_W, width - x - MARGIN);
+        int w = Math.min(PANEL_W, vw - x - MARGIN);
         for (Row r : rows) {
             int ry = r.y - scrollY;
             if (my < ry || my >= ry + ROW_H || mx < x || mx >= x + w) continue;

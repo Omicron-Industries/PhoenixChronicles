@@ -15,8 +15,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemeRenderer;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.screen.utils.UndoRedoManager;
 import net.phoenixvine.chronicles.filter.IFluidFilter;
 import net.phoenixvine.chronicles.filter.IItemFilter;
 import net.phoenixvine.chronicles.filter.ItemFilters;
@@ -315,8 +317,8 @@ public class TaskRewardEditorScreen extends Screen {
                 case "structure" -> "§8Structure id";
                 case "tag_item" -> "§8Item tag  (e.g. c:ores/iron)";
                 case "energy_check" -> "§8FE / EU / ANY";
-                case "filter_item" -> "§8Item id(s), semicolon-separated — ANY match  (e.g. wire;cable)";
-                case "filter_fluid" -> "§8Fluid id(s), semicolon-separated — ANY match  (e.g. water;lava)";
+                case "filter_item" -> "§8Item id(s), semicolon-separated: ANY match  (e.g. wire;cable)";
+                case "filter_fluid" -> "§8Fluid id(s), semicolon-separated: ANY match  (e.g. water;lava)";
                 case "external_trigger" -> "§8Trigger id";
                 case "view_machine" -> "§8Machine id  (Phantasia multiblock definition id)";
                 case "view_scene" -> "§8Scene id  (Phantasia scene definition id)";
@@ -407,7 +409,7 @@ public class TaskRewardEditorScreen extends Screen {
             taskNbtBox.setMaxLength(512);
             taskNbtBox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
                     Component.literal(
-                            "Subset NBT match — item must contain ALL keys listed here.\nLeave blank to match any stack of the item.")));
+                            "Subset NBT match. Item must contain ALL keys listed here.\nLeave blank to match any stack of the item.")));
             taskNbtBox.setValue(nbtVal);
             addRenderableWidget(taskNbtBox);
             fy += FIELD_H + FIELD_GAP;
@@ -494,7 +496,7 @@ public class TaskRewardEditorScreen extends Screen {
                 b -> {
                     taskOptional = !taskOptional;
                     rebuildWidgets();
-                }).tooltip(Tooltip.create(Component.literal("Task is optional — won't block quest completion")))));
+                }).tooltip(Tooltip.create(Component.literal("Task is optional: won't block quest completion")))));
         flexBtns.add(new FlexBtn(46, () -> Button.builder(
                 Component.literal(editingTaskIndex >= 0 ? "§b✎ Update" : "§a✔ Add"),
                 b -> commitTaskFromForm())
@@ -573,7 +575,7 @@ public class TaskRewardEditorScreen extends Screen {
             String knownTables = net.phoenixvine.chronicles.registry.RewardTableRegistry.getAll().keySet()
                     .stream().reduce("", (a, b) -> a.isEmpty() ? b : a + ", " + b);
             String hint = knownTables.isEmpty() ? "§8Table ID  (no tables loaded yet)" :
-                    "§8Table ID  — known: " + knownTables;
+                    "§8Table ID: known: " + knownTables;
             rewardCommandBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
             rewardCommandBox.setHint(Component.literal(hint));
             rewardCommandBox.setMaxLength(128);
@@ -1303,7 +1305,7 @@ public class TaskRewardEditorScreen extends Screen {
 
         if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
             net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
-            net.phoenixvine.chronicles.client.LangSyncScheduler.markDirty();
+            LangSyncScheduler.markDirty();
         }
     }
 
@@ -1334,14 +1336,14 @@ public class TaskRewardEditorScreen extends Screen {
         };
         String variantBadge = variantTarget != null ? "  §d[variant: " + variantTarget.condition + "]" : "";
         g.drawCenteredString(font,
-                "§fTasks & Rewards  §8— §7" + questNode.getId().getPath() + repeatBadge + variantBadge,
+                "§fTasks & Rewards  §8: §7" + questNode.getId().getPath() + repeatBadge + variantBadge,
                 vw / 2, (HEADER_H - 8) / 2, C_TEXT);
 
         g.fill(0, HEADER_H, vw, listTop - 1, C_PANEL);
         g.fill(0, listTop - 1, vw, listTop, C_BORDER);
         String taskSubHeader;
         if (tasks.isEmpty()) {
-            taskSubHeader = "§c⚠ No tasks — quest auto-completes on unlock";
+            taskSubHeader = "§c⚠ No tasks: quest auto-completes on unlock";
         } else {
             long optCount = tasks.stream().filter(QuestTask::isOptional).count();
             long reqCount = tasks.size() - optCount;
@@ -1420,7 +1422,7 @@ public class TaskRewardEditorScreen extends Screen {
             ty += ROW_H;
         }
         if (tasks.isEmpty())
-            g.drawString(font, "§8No tasks yet — add one below.", MARGIN + 6, listTop + 5, C_TEXT_FAINT, false);
+            g.drawString(font, "§8No tasks yet: add one below.", MARGIN + 6, listTop + 5, C_TEXT_FAINT, false);
 
         hoveredRewardRow = -1;
         rewardDisplayOrder = computeRewardDisplayOrder();
@@ -1483,7 +1485,7 @@ public class TaskRewardEditorScreen extends Screen {
             ry += ROW_H;
         }
         if (rewards.isEmpty())
-            g.drawString(font, "§8No rewards yet — add one below.", splitX + 6, listTop + 5, C_TEXT_FAINT, false);
+            g.drawString(font, "§8No rewards yet: add one below.", splitX + 6, listTop + 5, C_TEXT_FAINT, false);
 
         super.render(g, mx, my, partial);
 
@@ -1813,7 +1815,7 @@ public class TaskRewardEditorScreen extends Screen {
     @Override
     public void onClose() {
         flushToQuestNode();
-        net.phoenixvine.chronicles.client.LangSyncScheduler.flushNow();
+        LangSyncScheduler.flushNow();
         ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
         if (minecraft != null) minecraft.setScreen(parent);
     }

@@ -7,9 +7,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.phoenixvine.chronicles.client.QuestToastConfig;
-import net.phoenixvine.chronicles.client.QuestToastManager;
-import net.phoenixvine.chronicles.client.QuestToastPresetRegistry;
+import net.phoenixvine.chronicles.client.registry.QuestToastConfig;
+import net.phoenixvine.chronicles.client.registry.QuestToastManager;
+import net.phoenixvine.chronicles.client.registry.QuestToastPresetRegistry;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
@@ -41,6 +41,16 @@ public class ToastDesignerScreen extends Screen {
     private static final int FIELD_H = 13;
     private static final int STRIDE = FIELD_H + 7;
     private static final boolean PHANTASIA = PhantasiaCompat.isAvailable();
+
+    // No floor previously - the right-hand panel (fixed PANEL_W=184) plus the toast preview area
+    // both need real room: the preview needs to actually be visible next to the panel, and the
+    // panel's own tabs/fields need enough height even though panelScrollY already lets its
+    // content scroll (that covers overflow *within* the panel, not the panel/preview being
+    // squeezed into a too-small window overall).
+    private static final int MIN_W = 520;
+    private static final int MIN_H = 340;
+    private float uiScale = 1f;
+    private int vw, vh;
 
     private final Screen parent;
     private final QuestNode node;
@@ -100,6 +110,10 @@ public class ToastDesignerScreen extends Screen {
 
     @Override
     protected void init() {
+        uiScale = (width < MIN_W || height < MIN_H) ? Math.min(width / (float) MIN_W, height / (float) MIN_H) : 1f;
+        vw = Math.round(width / uiScale);
+        vh = Math.round(height / uiScale);
+
         if (previewToast == null) previewToast = QuestToastManager.makePreviewToast(node, previewType);
 
         if (cfg.bgAutoFit) {
@@ -107,7 +121,7 @@ public class ToastDesignerScreen extends Screen {
             cfg.bgAutoFit = false;
         }
 
-        int px = width - PANEL_W;
+        int px = vw - PANEL_W;
         int fx = px + MARGIN;
         int fw = PANEL_W - MARGIN * 2;
         int y = 30;
@@ -139,7 +153,7 @@ public class ToastDesignerScreen extends Screen {
         y += STRIDE + 8;
 
         int half = (fw - 6) / 2;
-        int saveY = height - (hadExistingConfig ? 60 : 38);
+        int saveY = vh - (hadExistingConfig ? 60 : 38);
         contentTop = y;
         contentBottom = saveY - 4;
 
@@ -400,10 +414,10 @@ public class ToastDesignerScreen extends Screen {
     private static final float FIT_MARGIN_Y = 10f;
 
     private void fitBackgroundToElements() {
-        int previewW = width - PANEL_W;
-        float tx = cfg.title.x * previewW, ty = cfg.title.y * height;
-        float lx = cfg.label.x * previewW, ly = cfg.label.y * height;
-        float ix = cfg.icon.x * previewW, iy = cfg.icon.y * height;
+        int previewW = vw - PANEL_W;
+        float tx = cfg.title.x * previewW, ty = cfg.title.y * vh;
+        float lx = cfg.label.x * previewW, ly = cfg.label.y * vh;
+        float ix = cfg.icon.x * previewW, iy = cfg.icon.y * vh;
 
         float titleHalfH = textBlockHalfHeight(cfg.title, node.getTitle().getString(), previewW);
         float labelHalfH = textBlockHalfHeight(cfg.label, "Quest Complete!", previewW);
@@ -417,7 +431,7 @@ public class ToastDesignerScreen extends Screen {
         float minY = Math.min(ty - titleHalfH, Math.min(ly - labelHalfH, iy)) - FIT_MARGIN_Y;
         float maxY = Math.max(ty + titleHalfH, Math.max(ly + labelHalfH, iy)) + FIT_MARGIN_Y;
         cfg.bgX = ((minX + maxX) / 2f) / previewW;
-        cfg.bgY = ((minY + maxY) / 2f) / height;
+        cfg.bgY = ((minY + maxY) / 2f) / vh;
         cfg.bgPadX = (maxX - minX) / 2f;
         cfg.bgPadY = (maxY - minY) / 2f;
     }
@@ -516,40 +530,44 @@ public class ToastDesignerScreen extends Screen {
     public void renderBackground(@NotNull GuiGraphics g) {}
 
     @Override
-    public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
+    public void render(@NotNull GuiGraphics g, int rawMx, int rawMy, float partial) {
+        int mx = Math.round(rawMx / uiScale);
+        int my = Math.round(rawMy / uiScale);
+
         g.flush();
 
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 300f);
+        g.pose().scale(uiScale, uiScale, 1f);
 
         g.flush();
 
-        int previewW = width - PANEL_W;
+        int previewW = vw - PANEL_W;
 
-        g.fill(0, 0, previewW, height, ChroniclesThemePalette.BG);
-        g.fill(0, 0, previewW, height, 0x33000000);
+        g.fill(0, 0, previewW, vh, ChroniclesThemePalette.BG);
+        g.fill(0, 0, previewW, vh, 0x33000000);
 
-        QuestToastManager.get().renderCustom(g, font, previewW, height, previewToast, cfg);
+        QuestToastManager.get().renderCustom(g, font, previewW, vh, previewToast, cfg);
         drawDragHandles(g, previewW, mx, my);
         if (snapGuideX != null) {
             int gx = Math.round(snapGuideX);
-            for (int gy = 0; gy < height; gy += 4) g.fill(gx, gy, gx + 1, gy + 2, 0xAA55FFAA);
+            for (int gy = 0; gy < vh; gy += 4) g.fill(gx, gy, gx + 1, gy + 2, 0xAA55FFAA);
         }
         if (snapGuideY != null) {
             int gy = Math.round(snapGuideY);
             for (int gx = 0; gx < previewW; gx += 4) g.fill(gx, gy, gx + 2, gy + 1, 0xAA55FFAA);
         }
 
-        int px = width - PANEL_W;
-        g.fill(px, 0, width, height, ChroniclesThemePalette.PANEL);
-        g.fill(px, 0, px + 1, height, ChroniclesThemePalette.BORDER);
+        int px = vw - PANEL_W;
+        g.fill(px, 0, vw, vh, ChroniclesThemePalette.PANEL);
+        g.fill(px, 0, px + 1, vh, ChroniclesThemePalette.BORDER);
         g.drawCenteredString(font, "§eToast Designer", px + PANEL_W / 2, 8, ChroniclesThemePalette.TEXT);
         g.drawString(font, "§8" + shortTitle(), px + MARGIN, 18, ChroniclesThemePalette.TEXT_FAINT, false);
 
         int fx = px + MARGIN;
         int fw = PANEL_W - MARGIN * 2;
 
-        g.enableScissor(px, contentTop, width, contentBottom);
+        g.enableScissor(px, contentTop, vw, contentBottom);
         switch (activeTab) {
             case ELEMENT -> {
                 g.drawString(font, "§8Position (% X, Y)", fx, positionY, ChroniclesThemePalette.TEXT_FAINT);
@@ -577,7 +595,7 @@ public class ToastDesignerScreen extends Screen {
         }
         g.disableScissor();
 
-        int saveY = height - (hadExistingConfig ? 60 : 38);
+        int saveY = vh - (hadExistingConfig ? 60 : 38);
         int feedbackY = saveY - 11;
         int hintY = saveY - 22;
 
@@ -629,7 +647,7 @@ public class ToastDesignerScreen extends Screen {
         hoveredIconIndex = -1;
         hoveredRemoveIconIndex = -1;
         if (cfg.icons.isEmpty()) {
-            g.drawString(font, "§8(none — auto quest icon used)", x, y + 4, ChroniclesThemePalette.TEXT_FAINT, false);
+            g.drawString(font, "§8(none: auto quest icon used)", x, y + 4, ChroniclesThemePalette.TEXT_FAINT, false);
             return;
         }
         int ix = x;
@@ -731,14 +749,14 @@ public class ToastDesignerScreen extends Screen {
     }
 
     private int[] bgBox(int previewW) {
-        int bx = Math.round(cfg.bgX * previewW), by = Math.round(cfg.bgY * height);
+        int bx = Math.round(cfg.bgX * previewW), by = Math.round(cfg.bgY * vh);
         int hw = Math.round(cfg.bgPadX), hh = Math.round(cfg.bgPadY);
         return new int[] { bx - hw, by - hh, bx + hw, by + hh };
     }
 
     private int[] elementBox(Elem e, int previewW) {
         QuestToastConfig.Element el = elemOf(e);
-        int cx = Math.round(el.x * previewW), cy = Math.round(el.y * height);
+        int cx = Math.round(el.x * previewW), cy = Math.round(el.y * vh);
         int halfW, halfH;
         if (e == Elem.ICON) {
             halfW = halfH = Math.round(8 * el.scale) + 2;
@@ -753,17 +771,19 @@ public class ToastDesignerScreen extends Screen {
 
     private int[] iconEntryBox(int index, int previewW) {
         QuestToastConfig.IconEntry entry = cfg.icons.get(index);
-        int cx = Math.round(entry.x * previewW), cy = Math.round(entry.y * height);
+        int cx = Math.round(entry.x * previewW), cy = Math.round(entry.y * vh);
         int half = Math.round(8 * entry.scale) + 2;
         return new int[] { cx - half, cy - half, cx + half, cy + half };
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int btn) {
+    public boolean mouseClicked(double rawMx, double rawMy, int btn) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
         if (presetDropOpen) {
             if (btn == 0) {
                 List<String> names = QuestToastPresetRegistry.names();
-                int fx = width - PANEL_W + MARGIN;
+                int fx = vw - PANEL_W + MARGIN;
                 int fw = PANEL_W - MARGIN * 2;
                 int dw = (fw - 6) / 2;
                 int dx = fx + dw + 6;
@@ -798,8 +818,8 @@ public class ToastDesignerScreen extends Screen {
             rebuildFields();
             return true;
         }
-        if (btn == 0 && mx < width - PANEL_W) {
-            int previewW = width - PANEL_W;
+        if (btn == 0 && mx < vw - PANEL_W) {
+            int previewW = vw - PANEL_W;
 
             for (int[] hbox : bgResizeHandles(previewW)) {
                 if (mx >= hbox[0] && mx <= hbox[2] && my >= hbox[1] && my <= hbox[3]) {
@@ -842,8 +862,10 @@ public class ToastDesignerScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double delta) {
-        if (mx >= width - PANEL_W) {
+    public boolean mouseScrolled(double rawMx, double rawMy, double delta) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
+        if (mx >= vw - PANEL_W) {
             panelScrollY = Math.max(0, panelScrollY - (int) Math.round(delta * 12));
             rebuildFields();
             return true;
@@ -854,14 +876,18 @@ public class ToastDesignerScreen extends Screen {
     private static final int SNAP_PX = 4;
 
     @Override
-    public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
+    public boolean mouseDragged(double rawMx, double rawMy, int btn, double rawDx, double rawDy) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
+        double dx = rawDx / uiScale;
+        double dy = rawDy / uiScale;
         snapGuideX = null;
         snapGuideY = null;
-        int previewW = width - PANEL_W;
+        int previewW = vw - PANEL_W;
         if (dragging != null) {
             QuestToastConfig.Element el = elemOf(dragging);
             float px = Math.max(0.02f, Math.min(0.98f, (float) (mx / previewW)));
-            float py = Math.max(0.05f, Math.min(0.95f, (float) (my / height)));
+            float py = Math.max(0.05f, Math.min(0.95f, (float) (my / vh)));
 
             List<Float> snapXs = new ArrayList<>();
             List<Float> snapYs = new ArrayList<>();
@@ -882,9 +908,9 @@ public class ToastDesignerScreen extends Screen {
                     break;
                 }
             }
-            float pyPos = py * height;
+            float pyPos = py * vh;
             for (float sy : snapYs) {
-                float snapPyPos = sy * height;
+                float snapPyPos = sy * vh;
                 if (Math.abs(pyPos - snapPyPos) <= SNAP_PX) {
                     py = sy;
                     snapGuideY = snapPyPos;
@@ -898,7 +924,7 @@ public class ToastDesignerScreen extends Screen {
         if (draggingIconIndex >= 0 && draggingIconIndex < cfg.icons.size()) {
             QuestToastConfig.IconEntry entry = cfg.icons.get(draggingIconIndex);
             float px = Math.max(0.02f, Math.min(0.98f, (float) (mx / previewW)));
-            float py = Math.max(0.05f, Math.min(0.95f, (float) (my / height)));
+            float py = Math.max(0.05f, Math.min(0.95f, (float) (my / vh)));
 
             List<Float> snapXs = new ArrayList<>();
             List<Float> snapYs = new ArrayList<>();
@@ -918,9 +944,9 @@ public class ToastDesignerScreen extends Screen {
                     break;
                 }
             }
-            float pyPos = py * height;
+            float pyPos = py * vh;
             for (float sy : snapYs) {
-                float snapPyPos = sy * height;
+                float snapPyPos = sy * vh;
                 if (Math.abs(pyPos - snapPyPos) <= SNAP_PX) {
                     py = sy;
                     snapGuideY = snapPyPos;
@@ -933,12 +959,12 @@ public class ToastDesignerScreen extends Screen {
         }
         if (draggingBg) {
             cfg.bgX = Math.max(0.02f, Math.min(0.98f, (float) (mx / previewW)));
-            cfg.bgY = Math.max(0.05f, Math.min(0.95f, (float) (my / height)));
+            cfg.bgY = Math.max(0.05f, Math.min(0.95f, (float) (my / vh)));
             return true;
         }
         if (resizingBg) {
 
-            float bx = cfg.bgX * previewW, by = cfg.bgY * height;
+            float bx = cfg.bgX * previewW, by = cfg.bgY * vh;
             cfg.bgPadX = (float) Math.max(8.0, Math.abs(mx - bx));
             cfg.bgPadY = (float) Math.max(8.0, Math.abs(my - by));
             return true;
@@ -947,7 +973,9 @@ public class ToastDesignerScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(double mx, double my, int btn) {
+    public boolean mouseReleased(double rawMx, double rawMy, int btn) {
+        double mx = rawMx / uiScale;
+        double my = rawMy / uiScale;
         if (btn == 0 && resizingBg) {
             resizingBg = false;
             rebuildFields();

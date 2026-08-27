@@ -162,7 +162,7 @@ public class CategoryThemeScreen extends Screen {
         g.pose().scale(uiScale, uiScale, 1f);
 
         ChroniclesUIKit.drawModalChrome(g, font, vw, vh, panelLeft, panelTop, PANEL_W, PANEL_H, 22,
-                "§dCategory Theme — §7" + categoryId, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
+                "§dCategory Theme: §7" + categoryId, ChroniclesThemePalette.PANEL, ChroniclesThemePalette.HEADER,
                 ACCENT, ChroniclesThemePalette.TEXT);
 
         int fx = panelLeft + MARGIN;

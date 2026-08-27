@@ -6,6 +6,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.io.IOException;
@@ -111,7 +112,7 @@ public class TextureBrowserScreen extends Screen {
             }
 
             try {
-                g.blit(net.phoenixvine.chronicles.client.CustomTextureCache.resolve(rl),
+                g.blit(CustomTextureCache.resolve(rl),
                         tx, ty, 0, 0, THUMB, THUMB, THUMB, THUMB);
             } catch (Exception ignored) {
                 g.fill(tx, ty, tx + THUMB, ty + THUMB, 0xFF441144);

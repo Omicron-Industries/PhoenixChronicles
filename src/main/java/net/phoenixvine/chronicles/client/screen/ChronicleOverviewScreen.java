@@ -12,15 +12,22 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
-import net.phoenixvine.chronicles.client.*;
+import net.phoenixvine.chronicles.client.event.ChronicleKeyBindings;
+import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
+import net.phoenixvine.chronicles.client.registry.ChroniclesLangPack;
+import net.phoenixvine.chronicles.client.registry.SeenQuestTracker;
 import net.phoenixvine.chronicles.client.render.*;
+import net.phoenixvine.chronicles.client.screen.utils.*;
+import net.phoenixvine.chronicles.client.screen.widgets.*;
+import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
+import net.phoenixvine.chronicles.registry.CategoryRegistry;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tasks.ItemRequirementTask;
 import net.phoenixvine.wiki.client.screen.WikiTheme;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
@@ -38,39 +45,39 @@ import java.util.function.Function;
 
 public class ChronicleOverviewScreen extends Screen
                                      implements ScreenContext, NodeCtxMenuState, DragControllerState,
-                                     GraphLayoutState, QuestEditOpsState, ChapterActionsState,
+        GraphLayoutState, QuestEditOpsState, ChapterActionsState,
                                      NodeRendererState, BulkOpsPanelState, NodeContextMenuBuilderState {
 
-    static final int HEADER_H = 38;
-    static final int TOOLBAR_Y = 22;
-    static final int TOOLBAR_H = 16;
-    static final int NODE_SIZE = 32;
-    static final int C_NBORD_SEL = 0xFF6688FF;
+    public static final int HEADER_H = 38;
+    public static final int TOOLBAR_Y = 22;
+    public static final int TOOLBAR_H = 16;
+    public static final int NODE_SIZE = 32;
+    public static final int C_NBORD_SEL = 0xFF6688FF;
     private static final int C_LINE_ALMOST = 0xAAFFEE33;
 
-    static final int C_CTX_BG = 0xFF1A1A22;
-    static final int C_CTX_HOVER = 0xFF252532;
-    static final int C_CTX_BORDER = 0xFF8844AA;
-    static final int C_CTX_SEP = 0xFF2A2A38;
-    static final int C_CTX_TEXT = 0xFFCCCCD8;
-    static final int C_CTX_DANGER = 0xFFCC4444;
+    public static final int C_CTX_BG = 0xFF1A1A22;
+    public static final int C_CTX_HOVER = 0xFF252532;
+    public static final int C_CTX_BORDER = 0xFF8844AA;
+    public static final int C_CTX_SEP = 0xFF2A2A38;
+    public static final int C_CTX_TEXT = 0xFFCCCCD8;
+    public static final int C_CTX_DANGER = 0xFFCC4444;
     private static final int C_PROG_ACT = 0xFFBB8800;
     private static final float ZOOM_MIN = 0.12f;
     private static final float ZOOM_MAX = 2.5f;
     private static final float ZOOM_STEP = 0.12f;
     private static final long POST_MOVE_UNDO_WINDOW_MS = 1000;
     private static final float PIC_EDIT_MIN_SIZE = 4f, PIC_EDIT_MAX_SIZE = 4096f;
-    static final int CTX_ROW = 16;
-    static final int CTX_SEP = 5;
-    static final int CTX_W = 128;
+    public static final int CTX_ROW = 16;
+    public static final int CTX_SEP = 5;
+    public static final int CTX_W = 128;
     static final int CTX_MOVE_CAT_MAX_ROWS = 10;
-    static final Set<ResourceLocation> collapsedSubtreeRoots = new HashSet<>();
+    public static final Set<ResourceLocation> collapsedSubtreeRoots = new HashSet<>();
     private static final int[] GRID_SNAP_CYCLE = { 1, 4, 8, 16, 32, 64, 128 };
-    static final long OPEN_FADE_MS = 120;
+    public static final long OPEN_FADE_MS = 120;
     private static final long TOOLTIP_DELAY_MS = 0;
-    static final int MIN_NODE_PX = 12;
-    static final float MIN_NODE_FLOOR_FRACTION = 0.375f;
-    static final int GROUP_LABEL_BAR_H = 11;
+    public static final int MIN_NODE_PX = 12;
+    public static final float MIN_NODE_FLOOR_FRACTION = 0.375f;
+    public static final int GROUP_LABEL_BAR_H = 11;
     final Map<ResourceLocation, String> searchCache = new HashMap<>();
     private final SidebarPanel sidebarPanel = new SidebarPanel();
 
@@ -159,7 +166,7 @@ public class ChronicleOverviewScreen extends Screen
     private int pictureDragGrabX = 0, pictureDragGrabY = 0;
     private float pictureDragStartX, pictureDragStartY;
     private final PictureContextMenu pictureCtxMenu = new PictureContextMenu(this);
-    private final NodeContextMenu nodeCtxMenu = new NodeContextMenu(this);
+    private final TogglePanel.NodeContextMenu nodeCtxMenu = new TogglePanel.NodeContextMenu(this);
     private final GraphEditorState editorState = new GraphEditorState();
 
     GraphEditorState editorStateInstance() {
@@ -236,7 +243,7 @@ public class ChronicleOverviewScreen extends Screen
         this(null);
     }
 
-    static Path chaptersFile() {
+  public static Path chaptersFile() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("categories.txt");
     }
@@ -256,18 +263,18 @@ public class ChronicleOverviewScreen extends Screen
         }
     }
 
-    static int nodeBorderThickness(int sz) {
+    public static int nodeBorderThickness(int sz) {
         return Math.max(1, Math.min(4, sz / 28));
     }
 
-    static int blendColor(int base, int over, float a) {
+    public static int blendColor(int base, int over, float a) {
         int br = (base >> 16) & 0xFF, bg = (base >> 8) & 0xFF, bb = base & 0xFF;
         int or = (over >> 16) & 0xFF, og = (over >> 8) & 0xFF, ob = over & 0xFF;
         return 0xFF000000 | ((int) (br + (or - br) * a) << 16) | ((int) (bg + (og - bg) * a) << 8) |
                 (int) (bb + (ob - bb) * a);
     }
 
-    static float animPulse(float base, float amplitude, double periodDivisor) {
+    public static float animPulse(float base, float amplitude, double periodDivisor) {
         if (QuestChroniclesSettings.get().isReduceMotion()) return base;
         return base + amplitude * (float) Math.sin(System.currentTimeMillis() / periodDivisor);
     }
@@ -738,7 +745,7 @@ public class ChronicleOverviewScreen extends Screen
             FullQuestData fd = new FullQuestData(effTitle, effDesc, mdData.tasks(),
                     target.getEffectiveTasks(server), target.getEffectiveRewards(server));
             assert playerData != null;
-            net.phoenixvine.chronicles.client.SeenQuestTracker.markSeen(target.getId());
+            SeenQuestTracker.markSeen(target.getId());
             minecraft.setScreen(
                     new QuestTasksScreen(this, Objects.requireNonNull(target), fd, playerData, openFullscreen));
         }
@@ -1479,12 +1486,12 @@ public class ChronicleOverviewScreen extends Screen
                         return true;
                     }
                     if (row.isFolder()) {
-                        net.phoenixvine.chronicles.registry.CategoryRegistry.toggleCollapsed(row.id());
-                        net.phoenixvine.chronicles.registry.CategoryRegistry.save();
+                        CategoryRegistry.toggleCollapsed(row.id());
+                        CategoryRegistry.save();
                         rebuild();
                     } else if (row.locked()) {
 
-                        setFeedback("§7Locked — complete a quest in the parent chapter first");
+                        setFeedback("§7Locked. Complete a quest in the parent chapter first");
                     } else {
                         selectedChapter = row.id();
                         editorState.selectedNode = null;
@@ -1508,7 +1515,7 @@ public class ChronicleOverviewScreen extends Screen
                     .resolve("config").resolve("phoenix_chronicles");
             LangEditorScreen.writeEnUsJson(base);
 
-            net.phoenixvine.chronicles.client.ChroniclesLangPack.reload();
+            ChroniclesLangPack.reload();
             setFeedback("§aExported lang/en_us.json");
             return true;
         }
@@ -1739,9 +1746,8 @@ public class ChronicleOverviewScreen extends Screen
                 }
             }
 
-            if (hit == null && hitGrp == null && depLineRenderer.tryOpenContextMenuAt((int) mx, (int) my, 6)) {
-                ctxOpen = false;
-                return true;
+            if (hit == null && hitGrp == null) {
+                depLineRenderer.tryOpenContextMenuAt((int) mx, (int) my, 6);
             }
             openCtx((int) mx, (int) my, hit, hitGrp);
             return true;
@@ -2155,7 +2161,7 @@ public class ChronicleOverviewScreen extends Screen
                             rebuild();
                         });
                     } else if (target != null && src.getPrerequisites().contains(target)) {
-                        setFeedback("§cCan't link — would create a dependency cycle");
+                        setFeedback("§cCan't link. Would create a dependency cycle");
                     } else if (target != null && target.getPrerequisites().contains(src)) {
                         setFeedback("§eAlready a prerequisite");
                     }
@@ -2356,7 +2362,7 @@ public class ChronicleOverviewScreen extends Screen
         if (testMode) g.fill(cl, TOOLBAR_Y - 1, cr, TOOLBAR_Y, 0xFFCC2222);
         if (pictureEditMode != null) {
             g.fill(cl, TOOLBAR_Y - 1, cr, TOOLBAR_Y, 0xFFFFCC33);
-            String hint = "§e🖼 Editing picture — scroll to resize (shift = fine), drag to move, right-click/Esc to finish";
+            String hint = "§e🖼 Editing picture. Scroll to resize (shift = fine), drag to move, right-click/Esc to finish";
             g.drawCenteredString(font, hint, (cl + cr) / 2, 7, 0xFFFFEEAA);
         }
 
@@ -2600,7 +2606,7 @@ public class ChronicleOverviewScreen extends Screen
                 g.fill(ux + sz + 2, uy - 2, ux + sz + 3, uy + sz + 2, (ringAlpha << 24) | 0x0088FF);
             }
             g.disableScissor();
-            g.drawString(font, "§bUnlock path — §8Esc to clear", cl + 6, height - 10, 0xFF4488FF, false);
+            g.drawString(font, "§bUnlock path. §8Esc to clear", cl + 6, height - 10, 0xFF4488FF, false);
         }
 
         if (!renderingAsBackdrop) renderNonDevCtxMenu(g, (int) mx, (int) my);
@@ -3674,7 +3680,7 @@ public class ChronicleOverviewScreen extends Screen
         }
     }
 
-    enum GridDisplayMode {
+   public enum GridDisplayMode {
 
         ON_DRAG("On Move"),
         ALWAYS("Always"),
@@ -3692,17 +3698,20 @@ public class ChronicleOverviewScreen extends Screen
         }
     }
 
-    static final class NodeHitbox {
+    public static final class NodeHitbox {
 
-        int x, y, w, h;
-        boolean visible = true;
-        boolean active = true;
+        public int x;
+        public int y;
+        public int w;
+        public int h;
+        public boolean visible = true;
+        public boolean active = true;
 
         int getX() {
             return x;
         }
 
-        void setX(int nx) {
+        public void setX(int nx) {
             x = nx;
         }
 
@@ -3710,11 +3719,11 @@ public class ChronicleOverviewScreen extends Screen
             return y;
         }
 
-        void setY(int ny) {
+        public void setY(int ny) {
             y = ny;
         }
 
-        boolean isMouseOver(double mx, double my) {
+        public boolean isMouseOver(double mx, double my) {
             return visible && mx >= x && mx < x + w && my >= y && my < y + h;
         }
     }

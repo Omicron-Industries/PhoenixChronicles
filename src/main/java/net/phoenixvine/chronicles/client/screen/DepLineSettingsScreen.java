@@ -59,7 +59,7 @@ public class DepLineSettingsScreen extends Screen {
 
     public DepLineSettingsScreen(ChronicleOverviewScreen parent, String chapter, QuestNode focusNode) {
         super(Component.literal(
-                focusNode != null ? "Dependencies — " + focusNode.getTitle().getString() :
+                focusNode != null ? "Dependencies: " + focusNode.getTitle().getString() :
                         "Dependency Line Settings"));
         this.parent = parent;
         this.chapter = chapter;
@@ -136,7 +136,7 @@ public class DepLineSettingsScreen extends Screen {
         g.fill(0, HEADER_H - 1, width, HEADER_H, C_BORDER);
         QuestNode focusForHeader = focusNode();
         g.drawCenteredString(font,
-                focusForHeader != null ? "§fDependencies — " + focusForHeader.getTitle().getString() :
+                focusForHeader != null ? "§fDependencies: " + focusForHeader.getTitle().getString() :
                         "§fDependency Line Settings",
                 width / 2, 9, C_TEXT);
 
@@ -508,7 +508,7 @@ public class DepLineSettingsScreen extends Screen {
 
     private String rowShapeLabel(QuestNode row) {
         List<net.minecraft.resources.ResourceLocation> parents = edgeParentsFor(row);
-        if (parents.isEmpty()) return "—";
+        if (parents.isEmpty()) return ":";
         LineStyle first = row.getPrereqLineShape(parents.get(0));
         for (net.minecraft.resources.ResourceLocation p : parents)
             if (row.getPrereqLineShape(p) != first) return "Mixed";
@@ -517,7 +517,7 @@ public class DepLineSettingsScreen extends Screen {
 
     private String rowVisualLabel(QuestNode row) {
         List<net.minecraft.resources.ResourceLocation> parents = edgeParentsFor(row);
-        if (parents.isEmpty()) return "—";
+        if (parents.isEmpty()) return ":";
         LineVisualStyle first = row.getPrereqLineVisual(parents.get(0));
         for (net.minecraft.resources.ResourceLocation p : parents)
             if (row.getPrereqLineVisual(p) != first) return "Mixed";
@@ -526,7 +526,7 @@ public class DepLineSettingsScreen extends Screen {
 
     private String rowSpeedLabel(QuestNode row) {
         List<net.minecraft.resources.ResourceLocation> parents = edgeParentsFor(row);
-        if (parents.isEmpty()) return "—";
+        if (parents.isEmpty()) return ":";
         QuestChroniclesSettings.LineAnimSpeed first = row.getPrereqLineSpeed(parents.get(0));
         for (net.minecraft.resources.ResourceLocation p : parents)
             if (row.getPrereqLineSpeed(p) != first) return "Mixed";

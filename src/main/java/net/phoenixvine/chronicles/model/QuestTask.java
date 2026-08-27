@@ -11,6 +11,7 @@ import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 
 import lombok.Getter;
 import lombok.Setter;
+import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
 
 @Getter
 public abstract class QuestTask implements INBTSerializable<CompoundTag> {
@@ -34,7 +35,7 @@ public abstract class QuestTask implements INBTSerializable<CompoundTag> {
     public Component getDescription() {
         if (taskId != null &&
                 net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
-            String override = net.phoenixvine.chronicles.client.ClientTextOverrides.get(langKey());
+            String override = ClientTextOverrides.get(langKey());
             if (override != null) return Component.literal(override);
             Component d = ClientLangLookup.resolve(langKey());
             if (d != null) return d;
@@ -50,7 +51,7 @@ public abstract class QuestTask implements INBTSerializable<CompoundTag> {
         this.description = description != null ? description : Component.empty();
         if (taskId != null &&
                 net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
-            net.phoenixvine.chronicles.client.ClientTextOverrides.put(langKey(), this.description.getString());
+            ClientTextOverrides.put(langKey(), this.description.getString());
         }
     }
 

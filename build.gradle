@@ -198,7 +198,10 @@ dependencies {
     modCompileOnly('curse.maven:phoenix-guilds-1612085:8460956')
     modRuntimeOnly('curse.maven:phoenix-guilds-1612085:8460956')
 
-    jarJar(modImplementation("local:phoenix_wiki:0.1.0"))
+
+
+    modCompileOnly("curse.maven:phoenixwiki-1647798:8735977")
+    modRuntimeOnly("curse.maven:phoenixwiki-1647798:8735977")
 
     modCompileOnly("net.phoenix.core:PhoenixCore:${phoenixcore_version}:slim") { transitive = false }
 
