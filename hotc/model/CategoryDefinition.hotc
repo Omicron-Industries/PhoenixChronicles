@@ -1,0 +1,44 @@
+// Pilot port of net.phoenixvine.chronicles.model.CategoryDefinition (a real Java `record`, zero
+// Forge/Minecraft dependency -- pure String/int/List<String>) -- proving HotChocolate can express
+// this shape at all before touching anything Forge-specific. A Java record's auto-generated
+// accessors (`id()`, `displayName()`, ...) have no HC equivalent -- fields are public and read
+// directly (`.id`, not `.id()`); its SECOND constructor (defaulting color/icon/nameColor) becomes
+// a real static factory (`new3`) instead, since HC structs only ever have one real constructor
+// (the struct-literal form, every field required).
+struct CategoryDefinition {
+    id: String,
+    displayName: String,
+    chapters: [String],
+    color: Int,
+    icon: String,
+    nameColor: Int,
+}
+
+impl CategoryDefinition {
+    static fn new3(id: String, displayName: String, chapters: [String]) -> CategoryDefinition {
+        return CategoryDefinition { id: id, displayName: displayName, chapters: chapters, color: 0, icon: "", nameColor: 0 };
+    }
+
+    fn withTheme(&self, color: Int, icon: String, nameColor: Int) -> CategoryDefinition {
+        return CategoryDefinition { id: self.id, displayName: self.displayName, chapters: self.chapters, color: color, icon: icon, nameColor: nameColor };
+    }
+
+    fn effectiveNameColor(&self) -> Int {
+        if self.nameColor != 0 {
+            return self.nameColor;
+        }
+        return self.color;
+    }
+}
+
+fn main() {
+    let chapters = ["intro", "main_quest"];
+    let base = CategoryDefinition::new3("main", "Main Quests", chapters);
+    print(base.effectiveNameColor()); // 0 (nameColor unset, falls back to color 0)
+
+    let themed = base.withTheme(16711680, "quest_icon", 65280);
+    print(themed.effectiveNameColor()); // 65280 (nameColor set, wins over color)
+    print(themed.id);
+    print(themed.displayName);
+    print(themed.chapters[1]);
+}

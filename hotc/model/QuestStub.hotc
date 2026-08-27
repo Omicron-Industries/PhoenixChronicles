@@ -1,0 +1,34 @@
+// Pilot port of net.phoenixvine.chronicles.model.QuestStub (a real Java `record`) -- the FIRST
+// pilot to actually bind against a real Minecraft type (`net.minecraft.resources.ResourceLocation`,
+// Mojang-mapped, matching Phoenix Chronicles' own `mapping_channel=parchment` names), not just
+// java.util/java.lang. `filePath: Path` (the record's 7th field) is dropped for this pilot --
+// `java.nio.file.Path` has no plain public constructor (built via `Paths.get(...)`, a static
+// factory), a real but separate extern-binding shape not needed to prove the MC-interop point.
+extern class ResourceLocation = "net.minecraft.resources.ResourceLocation" {
+    fn new(namespace: String, path: String) -> Self;
+    fn getPath(&self) -> String;
+    fn getNamespace(&self) -> String;
+    fn toString(&self) -> String;
+}
+
+struct QuestStub {
+    id: ResourceLocation,
+    category: String,
+    parentId: ResourceLocation,
+    shape: String,
+    x: Int,
+    y: Int,
+}
+
+fn main() {
+    let questId = ResourceLocation::new("phoenix_chronicles", "main/intro_quest");
+    let parent = ResourceLocation::new("phoenix_chronicles", "main/root");
+    let stub = QuestStub { id: questId, category: "main", parentId: parent, shape: "circle", x: 10, y: 20 };
+
+    print(stub.id.getNamespace());
+    print(stub.id.getPath());
+    print(stub.parentId.toString());
+    print(stub.category);
+    print(stub.shape);
+    print(stub.x + stub.y);
+}
