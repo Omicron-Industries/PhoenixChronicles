@@ -1,7 +1,8 @@
 package net.phoenixvine.chronicles.client;
 
-import com.google.gson.JsonObject;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
+
+import com.google.gson.JsonObject;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

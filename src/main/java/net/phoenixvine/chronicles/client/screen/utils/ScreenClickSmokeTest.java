@@ -4,10 +4,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.event.ChronicleKeyBindings;
-
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.widgets.SidebarPanel;
 import net.phoenixvine.chronicles.client.screen.widgets.ToolbarPanel;
+
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;

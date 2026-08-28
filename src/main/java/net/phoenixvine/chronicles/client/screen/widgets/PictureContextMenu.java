@@ -6,8 +6,8 @@ import net.phoenixvine.chronicles.client.render.*;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
-
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
+
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;

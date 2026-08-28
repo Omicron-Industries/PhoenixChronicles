@@ -34,7 +34,7 @@ public class UndoRedoManager {
         redoStack.push(entry);
     }
 
-  public void redo() {
+    public void redo() {
         if (redoStack.isEmpty()) {
             feedback.accept("Nothing to redo");
             return;

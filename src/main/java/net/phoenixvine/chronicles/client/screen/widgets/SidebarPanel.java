@@ -7,12 +7,11 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.phoenixvine.chronicles.client.render.NodeRenderer;
-
-import net.phoenixvine.chronicles.client.screen.utils.SidebarRow;
-import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.render.NodeRenderer;
+import net.phoenixvine.chronicles.client.screen.utils.SidebarRow;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.model.CategoryDefinition;
 import net.phoenixvine.chronicles.registry.CategoryRegistry;

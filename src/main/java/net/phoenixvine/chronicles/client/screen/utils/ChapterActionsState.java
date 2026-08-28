@@ -4,7 +4,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.screen.widgets.SidebarPanel;
 
-
 import java.util.List;
 
 public interface ChapterActionsState {

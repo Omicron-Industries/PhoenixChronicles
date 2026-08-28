@@ -34,7 +34,7 @@ public class ChapterActions {
     private String armedDeleteCategoryId = null;
     private String armedDeleteChapterId = null;
 
-  public ChapterActions(ScreenContext ctx, ChapterActionsState state, GraphEditorState editorState) {
+    public ChapterActions(ScreenContext ctx, ChapterActionsState state, GraphEditorState editorState) {
         this.ctx = ctx;
         this.state = state;
         this.editorState = editorState;
@@ -236,7 +236,8 @@ public class ChapterActions {
                 Minecraft mc = Minecraft.getInstance();
                 mc.setScreen(new NewFolderScreen(parent, row.id(), currentLabel, id -> state.rebuild()));
             }));
-            actions.add(new SidebarPanel.MenuAction("Category Theme…", () -> Minecraft.getInstance().setScreen(new CategoryThemeScreen(parent, row.id()))));
+            actions.add(new SidebarPanel.MenuAction("Category Theme…",
+                    () -> Minecraft.getInstance().setScreen(new CategoryThemeScreen(parent, row.id()))));
             actions.add(new SidebarPanel.MenuAction("Force Complete Category",
                     () -> forceCompleteCategoryOnRightClick(row.id())));
             actions.add(new SidebarPanel.MenuAction("Reset Category",
@@ -245,7 +246,8 @@ public class ChapterActions {
                     row.id().equals(armedDeleteCategoryId) ? "§cConfirm Delete Category" : "Delete Category",
                     () -> deleteCategoryOnRightClick(row.id())));
         } else {
-            actions.add(new SidebarPanel.MenuAction("Chapter Settings…", () -> Minecraft.getInstance().setScreen(new ChapterThemeScreen(parent, row.id()))));
+            actions.add(new SidebarPanel.MenuAction("Chapter Settings…",
+                    () -> Minecraft.getInstance().setScreen(new ChapterThemeScreen(parent, row.id()))));
             actions.add(new SidebarPanel.MenuAction("Force Complete Chapter",
                     () -> forceCompleteChapterOnRightClick(row.id())));
             actions.add(new SidebarPanel.MenuAction("Reset Chapter",

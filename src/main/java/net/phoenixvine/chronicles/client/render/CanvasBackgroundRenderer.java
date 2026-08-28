@@ -2,8 +2,8 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 
 public final class CanvasBackgroundRenderer {

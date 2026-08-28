@@ -2,9 +2,9 @@ package net.phoenixvine.chronicles.client.screen;
 
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.client.screen.utils.BulkOpsPanel;
 import net.phoenixvine.chronicles.client.screen.utils.BulkOpsPanelState;
 import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
+import net.phoenixvine.chronicles.client.screen.widgets.BulkOpsPanel;
 import net.phoenixvine.chronicles.model.QuestNode;
 
 import org.junit.jupiter.api.Test;

@@ -10,8 +10,8 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-
 import net.phoenixvine.chronicles.client.rich.MultilineTextArea;
+
 import org.lwjgl.glfw.GLFW;
 
 import java.util.function.Consumer;

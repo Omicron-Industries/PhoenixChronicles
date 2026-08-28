@@ -2,7 +2,6 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
-
 import net.phoenixvine.chronicles.client.screen.utils.DragControllerState;
 import net.phoenixvine.chronicles.client.screen.utils.GraphLayoutState;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
@@ -150,8 +149,7 @@ public class GraphLayoutEngine {
         for (QuestNode n : nodes) newPositions.put(n.getId(), new int[] { n.getCustomX(), n.getCustomY() });
         ctx.undoRedo().push(
                 () -> applyPositions(nodes, oldPositions),
-                () -> applyPositions(nodes, newPositions)
-        );
+                () -> applyPositions(nodes, newPositions));
     }
 
     private void applyPositions(List<QuestNode> nodes, Map<ResourceLocation, int[]> positions) {

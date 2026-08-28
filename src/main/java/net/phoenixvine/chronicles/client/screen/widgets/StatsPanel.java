@@ -28,7 +28,7 @@ public class StatsPanel implements TogglePanel {
         return open;
     }
 
-   public void open() {
+    public void open() {
         open = true;
     }
 

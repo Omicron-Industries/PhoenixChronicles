@@ -1,11 +1,12 @@
 package net.phoenixvine.chronicles.client.screen.widgets;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.utils.NodeCtxMenuState;
 import net.phoenixvine.chronicles.client.screen.utils.OverlayComponent;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
+
+import com.mojang.blaze3d.systems.RenderSystem;
 
 import java.util.List;
 
@@ -34,7 +35,8 @@ public interface TogglePanel extends OverlayComponent {
         }
 
         @Override
-        public void render(ScreenContext ctx, GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+        public void render(ScreenContext ctx, GuiGraphics g, int mouseX, int mouseY, int contentLeft,
+                           int contentRight) {
             int mx = mouseX, my = mouseY;
             List<ChronicleOverviewScreen.CtxItem> items = state.buildCtxItems();
             int menuH = state.menuHeight(items);
@@ -61,7 +63,8 @@ public interface TogglePanel extends OverlayComponent {
                     (Math.min(0x55, ctxAlpha / 3)) << 24);
             g.fill(x, y, x + ChronicleOverviewScreen.CTX_W, y + menuH, fadedBg);
             g.fill(x, y, x + ChronicleOverviewScreen.CTX_W, y + 1, ChronicleOverviewScreen.C_CTX_BORDER);
-            g.fill(x, y + menuH - 1, x + ChronicleOverviewScreen.CTX_W, y + menuH, ChronicleOverviewScreen.C_CTX_BORDER);
+            g.fill(x, y + menuH - 1, x + ChronicleOverviewScreen.CTX_W, y + menuH,
+                    ChronicleOverviewScreen.C_CTX_BORDER);
             g.fill(x, y, x + 1, y + menuH, ChronicleOverviewScreen.C_CTX_BORDER);
             g.fill(x + ChronicleOverviewScreen.CTX_W - 1, y, x + ChronicleOverviewScreen.CTX_W, y + menuH,
                     ChronicleOverviewScreen.C_CTX_BORDER);
@@ -120,7 +123,8 @@ public interface TogglePanel extends OverlayComponent {
 
                 g.fill(subX + 2, subY + 2, subX + ChronicleOverviewScreen.CTX_W + 2, subY + subH + 2, 0x55000000);
                 g.fill(subX, subY, subX + ChronicleOverviewScreen.CTX_W, subY + subH, ChronicleOverviewScreen.C_CTX_BG);
-                g.fill(subX, subY, subX + ChronicleOverviewScreen.CTX_W, subY + 1, ChronicleOverviewScreen.C_CTX_BORDER);
+                g.fill(subX, subY, subX + ChronicleOverviewScreen.CTX_W, subY + 1,
+                        ChronicleOverviewScreen.C_CTX_BORDER);
                 g.fill(subX, subY + subH - 1, subX + ChronicleOverviewScreen.CTX_W, subY + subH,
                         ChronicleOverviewScreen.C_CTX_BORDER);
                 g.fill(subX, subY, subX + 1, subY + subH, ChronicleOverviewScreen.C_CTX_BORDER);

@@ -8,10 +8,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.util.INBTSerializable;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
+import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
 
 import lombok.Getter;
 import lombok.Setter;
-import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
 
 @Getter
 public abstract class QuestTask implements INBTSerializable<CompoundTag> {

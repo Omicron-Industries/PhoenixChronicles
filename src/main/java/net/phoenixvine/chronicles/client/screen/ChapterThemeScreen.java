@@ -8,9 +8,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
-import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.model.CategoryDefinition;
 import net.phoenixvine.chronicles.registry.CategoryRegistry;
 

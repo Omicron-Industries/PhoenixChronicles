@@ -2,9 +2,9 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
+import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
-import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 

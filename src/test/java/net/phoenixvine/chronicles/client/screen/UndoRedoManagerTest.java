@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.client.screen;
 
 import net.phoenixvine.chronicles.client.screen.utils.UndoRedoManager;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

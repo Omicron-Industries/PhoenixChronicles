@@ -54,7 +54,7 @@ import java.util.function.Function;
 
 public class ChronicleOverviewScreen extends Screen
                                      implements ScreenContext, NodeCtxMenuState, DragControllerState,
-        GraphLayoutState, QuestEditOpsState, ChapterActionsState,
+                                     GraphLayoutState, QuestEditOpsState, ChapterActionsState,
                                      NodeRendererState, BulkOpsPanelState, NodeContextMenuBuilderState {
 
     public static final int HEADER_H = 38;
@@ -252,7 +252,7 @@ public class ChronicleOverviewScreen extends Screen
         this(null);
     }
 
-  public static Path chaptersFile() {
+    public static Path chaptersFile() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("categories.txt");
     }
@@ -2871,7 +2871,7 @@ public class ChronicleOverviewScreen extends Screen
 
                     try {
                         ItemStack stack = new ItemStack(item);
-                       LocalPlayer localPlayer = Minecraft
+                        LocalPlayer localPlayer = Minecraft
                                 .getInstance().player;
                         var tooltipLines = stack.getTooltipLines(localPlayer,
                                 TooltipFlag.Default.NORMAL);
@@ -3689,7 +3689,7 @@ public class ChronicleOverviewScreen extends Screen
         }
     }
 
-   public enum GridDisplayMode {
+    public enum GridDisplayMode {
 
         ON_DRAG("On Move"),
         ALWAYS("Always"),
@@ -3701,7 +3701,7 @@ public class ChronicleOverviewScreen extends Screen
             this.label = label;
         }
 
-       public GridDisplayMode next() {
+        public GridDisplayMode next() {
             GridDisplayMode[] v = values();
             return v[(ordinal() + 1) % v.length];
         }
@@ -3737,7 +3737,7 @@ public class ChronicleOverviewScreen extends Screen
         }
     }
 
-   public record CtxItem(String label, String color, boolean isSep, boolean isDanger, Runnable action) {
+    public record CtxItem(String label, String color, boolean isSep, boolean isDanger, Runnable action) {
 
         public static CtxItem sep() {
             return new CtxItem("", "", true, false, () -> {});

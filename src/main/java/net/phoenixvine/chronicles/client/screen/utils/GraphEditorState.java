@@ -13,24 +13,24 @@ import java.util.Set;
 public class GraphEditorState {
 
     @Nullable
-   public QuestNode selectedNode = null;
+    public QuestNode selectedNode = null;
 
-  public   final Set<ResourceLocation> multiSelection = new LinkedHashSet<>();
-
-    @Nullable
-   public QuestNode draggedNode = null;
+    public final Set<ResourceLocation> multiSelection = new LinkedHashSet<>();
 
     @Nullable
-   public QuestGroup draggedGroup = null;
+    public QuestNode draggedNode = null;
 
     @Nullable
-  public   QuestNode lastMovedNode = null;
+    public QuestGroup draggedGroup = null;
 
     @Nullable
-   public Map<ResourceLocation, int[]> bulkDragOrigPositions = null;
+    public QuestNode lastMovedNode = null;
 
     @Nullable
-   public String questClipboard = null;
+    public Map<ResourceLocation, int[]> bulkDragOrigPositions = null;
 
-   public boolean subgraphMode = false;
+    @Nullable
+    public String questClipboard = null;
+
+    public boolean subgraphMode = false;
 }

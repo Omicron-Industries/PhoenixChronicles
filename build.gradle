@@ -195,10 +195,8 @@ dependencies {
     modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
 
 
-    modCompileOnly('curse.maven:phoenix-guilds-1612085:8460956')
-    modRuntimeOnly('curse.maven:phoenix-guilds-1612085:8460956')
-
-
+    modCompileOnly('curse.maven:phoenix-guilds-1612085:8743646')
+    modRuntimeOnly("curse.maven:phoenix-guilds-1612085:8743646")
 
     modCompileOnly("curse.maven:phoenixwiki-1647798:8735977")
     modRuntimeOnly("curse.maven:phoenixwiki-1647798:8735977")
