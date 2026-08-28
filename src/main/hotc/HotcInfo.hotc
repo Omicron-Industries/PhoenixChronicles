@@ -1,0 +1,22 @@
+// The first real, Gradle-COMPILED HotChocolate source in this mod -- as opposed to `hotc/model/`'s
+// own standalone pilot files (compiled/run by hand, one at a time, each with its own `fn main()`
+// for manual testing). No `main()` here on purpose: this is a LIBRARY unit meant to be referenced
+// from real Java code, not a standalone runnable program by itself.
+//
+// Lands in the default (unnamed) Java package for now -- the self-hosted compiler's own `module`
+// declaration is parsed and discarded (no real package-qualification support yet, a real,
+// disclosed follow-up), so Java code references this as a bare `HotcInfo`, not
+// `net.phoenixvine.chronicles.HotcInfo`, until that's ported.
+struct HotcInfo {
+    version: String,
+}
+
+impl HotcInfo {
+    static fn current() -> HotcInfo {
+        return HotcInfo { version: "0.1.0-hotc" };
+    }
+
+    fn describe(&self) -> String {
+        return "Phoenix Chronicles hotc layer v" + self.version;
+    }
+}

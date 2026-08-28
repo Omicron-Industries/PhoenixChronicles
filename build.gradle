@@ -20,6 +20,70 @@ sourceSets {
     }
 }
 
+// --- HotChocolate (.hotc) source compilation -----------------------------------------------
+//
+// `src/main/hotc/*.hotc` gets compiled by the self-hosted HotChocolate compiler (a separate
+// checkout, `hotcHome` below -- not a Gradle subproject of this build, just a filesystem
+// reference to its own `selfhost/bootstrap` seed and `CodegenShim` classes) into ordinary
+// `.class` files, added to this module's own compiled output alongside `src/main/java`'s.
+//
+// Real, disclosed limitation right now: the self-hosted compiler's own `module a.b.c;`
+// declaration is parsed and discarded (no real Java package-qualification yet), so every
+// compiled hotc class lands in the DEFAULT (unnamed) package regardless -- referenced from Java
+// as a bare `ClassName`, not `net.phoenixvine.chronicles.ClassName`, until that's ported.
+//
+// `hotcHome` points at the HotChocolate compiler's own checkout -- override via
+// `-PhotcHome=...` or `gradle.properties` on a machine where it lives somewhere else.
+def hotcHome = project.findProperty('hotcHome') ?: 'C:/Users/conno/Desktop/PhoenixVineDigital/HotChocolate'
+def hotcSrcDir = file('src/main/hotc')
+def hotcOutDir = layout.buildDirectory.dir('classes/hotc/main')
+
+configurations {
+    hotcCompiler
+}
+
+dependencies {
+    hotcCompiler 'org.ow2.asm:asm:9.7'
+    hotcCompiler 'org.ow2.asm:asm-analysis:9.7'
+    hotcCompiler 'org.ow2.asm:asm-tree:9.7'
+    hotcCompiler 'org.ow2.asm:asm-util:9.7'
+}
+
+tasks.register('compileHotc', JavaExec) {
+    group = 'hotc'
+    description = 'Compiles src/main/hotc/*.hotc via the self-hosted HotChocolate compiler (SelfhostCLI).'
+    onlyIf { hotcSrcDir.exists() }
+    doFirst {
+        hotcOutDir.get().asFile.mkdirs()
+    }
+    workingDir = hotcOutDir.get().asFile
+    // `selfhost/bootstrap` -- the checked-in, pre-compiled bootstrap seed of the self-hosted
+    // compiler itself (no Kotlin involved at all, see that directory's own README.md) --
+    // `build/classes/java/main` is where its `CodegenShim` (a tiny ASM-bytes-writing helper the
+    // compiler's own codegen needs) lives.
+    classpath = configurations.hotcCompiler + files("${hotcHome}/selfhost/bootstrap", "${hotcHome}/build/classes/java/main")
+    mainClass.set('SelfhostCLI')
+    // Build-only mode (`SelfhostCLI <dir>`, no `run` prefix) -- compiles every `.hotc` file
+    // under `hotcSrcDir` as ONE merged compilation unit (cross-file references between them
+    // resolve, matching how a real multi-file Java package works), writing every struct's own
+    // `.class` (plus a synthetic, never-directly-used "entry holder" class for top-level
+    // fns/statics) into `workingDir` above.
+    args = [hotcSrcDir.absolutePath]
+}
+
+sourceSets {
+    main {
+        // `output.dir(...)` alone only affects what DOWNSTREAM consumers of this sourceSet see
+        // (e.g. a project depending on this one) -- `src/main/java`'s OWN `compileJava` reads
+        // `compileClasspath` separately, so hotc's compiled classes need to be added there too
+        // (and to `runtimeClasspath`, for the actual running game) for real Java code in THIS
+        // module to reference them at all.
+        output.dir(hotcOutDir, builtBy: 'compileHotc')
+        compileClasspath += files(hotcOutDir).builtBy('compileHotc')
+        runtimeClasspath += files(hotcOutDir).builtBy('compileHotc')
+    }
+}
+
 repositories {
     mavenLocal()
     mavenCentral()

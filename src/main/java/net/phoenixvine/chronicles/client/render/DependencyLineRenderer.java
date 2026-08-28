@@ -435,17 +435,35 @@ public class DependencyLineRenderer {
                                          float cp2x, float cp2y, float xb, float yb,
                                          float startHalfSize, float endHalfSize) {
         float t0 = -1f, t1 = -1f;
+        float prevT = 0f, prevDistStart = 0f, prevDistEnd = Float.MAX_VALUE;
         for (int i = 0; i <= TRIM_SAMPLE_STEPS; i++) {
             float t = (float) i / TRIM_SAMPLE_STEPS;
             float mt = 1f - t;
             float px = mt * mt * mt * xa + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * xb;
             float py = mt * mt * mt * ya + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * yb;
-            if (t0 < 0f) {
-                float dxs = px - xa, dys = py - ya;
-                if (Math.sqrt(dxs * dxs + dys * dys) >= startHalfSize) t0 = t;
-            }
+            float dxs = px - xa, dys = py - ya;
+            float distStart = (float) Math.sqrt(dxs * dxs + dys * dys);
             float dxe = px - xb, dye = py - yb;
-            if (Math.sqrt(dxe * dxe + dye * dye) >= endHalfSize) t1 = t;
+            float distEnd = (float) Math.sqrt(dxe * dxe + dye * dye);
+
+            // The 48-sample grid is fixed regardless of the curve's on-screen length, so each
+            // step covers more pixels the more zoomed-in (and thus longer) the curve is - snapping
+            // straight to the sample that first crosses the threshold always overshoots outward,
+            // producing a visible gap between the line and the node that grows with zoom.
+            // Interpolating between the last sample below the threshold and the first sample at or
+            // past it finds the true crossing point regardless of how coarse the sample grid is.
+            if (t0 < 0f && distStart >= startHalfSize) {
+                t0 = i == 0 ? t : lerpCrossing(prevT, prevDistStart, t, distStart, startHalfSize);
+            }
+            if (distEnd >= endHalfSize) {
+                t1 = t;
+            } else if (t1 < 0f) {
+                t1 = i == 0 ? t : lerpCrossing(prevT, prevDistEnd, t, distEnd, endHalfSize);
+            }
+
+            prevT = t;
+            prevDistStart = distStart;
+            prevDistEnd = distEnd;
         }
         if (t0 < 0f || t1 < 0f || t0 >= t1) {
 
@@ -453,6 +471,12 @@ public class DependencyLineRenderer {
             return new float[] { Math.max(0f, 0.5f - half), Math.min(1f, 0.5f + half) };
         }
         return new float[] { t0, t1 };
+    }
+
+    private static float lerpCrossing(float t1, float dist1, float t2, float dist2, float target) {
+        if (Math.abs(dist2 - dist1) < 1e-5f) return t2;
+        float frac = (target - dist1) / (dist2 - dist1);
+        return t1 + (t2 - t1) * Math.max(0f, Math.min(1f, frac));
     }
 
     private static float[] bezierLeftHalf(float p0x, float p0y, float p1x, float p1y,
