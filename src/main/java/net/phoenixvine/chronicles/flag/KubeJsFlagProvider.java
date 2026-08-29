@@ -32,7 +32,8 @@ public class KubeJsFlagProvider implements QuestFlagProvider {
     @Override
     public boolean evaluate(String expression, @Nullable MinecraftServer server) {
         FlagExpression expr = FlagExpression.parse(expression);
-        return expr.test(getFlags(server).get(expr.key));
+        // test() returns int (1/0), not boolean -- see FlagExpression.hotc's own header.
+        return expr.test(getFlags(server).get(expr.key)) == 1;
     }
 
     public void invalidate() {

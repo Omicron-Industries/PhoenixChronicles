@@ -38,7 +38,8 @@ public class GameRuleFlagProvider implements QuestFlagProvider {
             actualStr = val.toString();
         }
 
-        return expr.test(actualStr);
+        // test() returns int (1/0), not boolean -- see FlagExpression.hotc's own header.
+        return expr.test(actualStr) == 1;
     }
 
     private static volatile Map<String, GameRules.Key<?>> ruleKeys = null;

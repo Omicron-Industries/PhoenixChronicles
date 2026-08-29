@@ -20,20 +20,7 @@ sourceSets {
     }
 }
 
-// --- HotChocolate (.hotc) source compilation -----------------------------------------------
-//
-// `src/main/hotc/*.hotc` gets compiled by the self-hosted HotChocolate compiler (a separate
-// checkout, `hotcHome` below -- not a Gradle subproject of this build, just a filesystem
-// reference to its own `selfhost/bootstrap` seed and `CodegenShim` classes) into ordinary
-// `.class` files, added to this module's own compiled output alongside `src/main/java`'s.
-//
-// Real, disclosed limitation right now: the self-hosted compiler's own `module a.b.c;`
-// declaration is parsed and discarded (no real Java package-qualification yet), so every
-// compiled hotc class lands in the DEFAULT (unnamed) package regardless -- referenced from Java
-// as a bare `ClassName`, not `net.phoenixvine.chronicles.ClassName`, until that's ported.
-//
-// `hotcHome` points at the HotChocolate compiler's own checkout -- override via
-// `-PhotcHome=...` or `gradle.properties` on a machine where it lives somewhere else.
+
 def hotcHome = project.findProperty('hotcHome') ?: 'C:/Users/conno/Desktop/PhoenixVineDigital/HotChocolate'
 def hotcSrcDir = file('src/main/hotc')
 def hotcOutDir = layout.buildDirectory.dir('classes/hotc/main')
@@ -57,27 +44,13 @@ tasks.register('compileHotc', JavaExec) {
         hotcOutDir.get().asFile.mkdirs()
     }
     workingDir = hotcOutDir.get().asFile
-    // `selfhost/bootstrap` -- the checked-in, pre-compiled bootstrap seed of the self-hosted
-    // compiler itself (no Kotlin involved at all, see that directory's own README.md) --
-    // `build/classes/java/main` is where its `CodegenShim` (a tiny ASM-bytes-writing helper the
-    // compiler's own codegen needs) lives.
     classpath = configurations.hotcCompiler + files("${hotcHome}/selfhost/bootstrap", "${hotcHome}/build/classes/java/main")
     mainClass.set('SelfhostCLI')
-    // Build-only mode (`SelfhostCLI <dir>`, no `run` prefix) -- compiles every `.hotc` file
-    // under `hotcSrcDir` as ONE merged compilation unit (cross-file references between them
-    // resolve, matching how a real multi-file Java package works), writing every struct's own
-    // `.class` (plus a synthetic, never-directly-used "entry holder" class for top-level
-    // fns/statics) into `workingDir` above.
     args = [hotcSrcDir.absolutePath]
 }
 
 sourceSets {
     main {
-        // `output.dir(...)` alone only affects what DOWNSTREAM consumers of this sourceSet see
-        // (e.g. a project depending on this one) -- `src/main/java`'s OWN `compileJava` reads
-        // `compileClasspath` separately, so hotc's compiled classes need to be added there too
-        // (and to `runtimeClasspath`, for the actual running game) for real Java code in THIS
-        // module to reference them at all.
         output.dir(hotcOutDir, builtBy: 'compileHotc')
         compileClasspath += files(hotcOutDir).builtBy('compileHotc')
         runtimeClasspath += files(hotcOutDir).builtBy('compileHotc')
@@ -167,16 +140,8 @@ legacyForge {
 
     runs {
         configureEach {
-            // Recommended logging data for a userdev environment
-            // The markers can be added/remove as needed separated by commas.
-            // "SCAN": For mods scan.
-            // "REGISTRIES": For firing of registry events.
-            // "REGISTRYDUMP": For getting the contents of all registries.
             systemProperty 'forge.logging.markers', 'REGISTRIES'
 
-            // Recommended logging level for the console
-            // You can set various levels here.
-            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
             logLevel = org.slf4j.event.Level.DEBUG
         }
         client {
@@ -194,14 +159,10 @@ legacyForge {
         data {
             data()
             sourceSet = sourceSets.main
-            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
             programArguments.addAll('--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath())
             programArguments.addAll('--existing-mod', 'gtceu')
         }
         gameTestServer {
-            // RunModel has no gameTestServer() convenience method (only client()/clientData()/
-            // data()/server()/serverData()) - the run type still exists in Forge's userdev
-            // template though, so it's set directly via the underlying `type` property.
             type = 'gameTestServer'
             sourceSet = sourceSets.main
             systemProperty('forge.enabledGameTestNamespaces', project.mod_id)
@@ -209,10 +170,6 @@ legacyForge {
     }
 
     mods {
-        // define mod <-> source bindings
-        // these are used to tell the game which sources are for which mod
-        // mostly optional in a single mod project
-        // but multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
         }
@@ -225,7 +182,6 @@ apply from: "$rootDir/gradle/scripts/spotless.gradle"
 dependencies {
     compileOnly("org.jetbrains:annotations:26.0.1")
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
 
     // JEI, EMI, Jade
     modCompileOnly("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
@@ -241,13 +197,11 @@ dependencies {
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
     modCompileOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}")
 
-
     modCompileOnly("dev.latvian.mods:kubejs-forge:${kubejs_version}")
     modRuntimeOnly("dev.latvian.mods:kubejs-forge:${kubejs_version}")
 
     modCompileOnly("dev.latvian.mods:rhino-forge:${rhino_version}")
     modRuntimeOnly("dev.latvian.mods:rhino-forge:${rhino_version}")
-
 
     modCompileOnly("appeng:appliedenergistics2-forge:${appeng_version}")
     modRuntimeOnly("appeng:appliedenergistics2-forge:${appeng_version}")
@@ -261,8 +215,6 @@ dependencies {
 
     modCompileOnly('curse.maven:phoenix-guilds-1612085:8460956')
     modRuntimeOnly('curse.maven:phoenix-guilds-1612085:8460956')
-
-
 
     modCompileOnly("curse.maven:phoenixwiki-1647798:8735977")
     modRuntimeOnly("curse.maven:phoenixwiki-1647798:8735977")
@@ -288,10 +240,6 @@ dependencies {
 
 sourceSets {
     test {
-        // Pulls in the same Minecraft/Forge classpath main compiles against, so pure-logic
-        // classes that merely reference simple data types (ResourceLocation, CompoundTag,
-        // Component.literal, Style) can be unit tested without a running game or registry
-        // bootstrap - anything that actually needs live registries/rendering stays untested.
         compileClasspath += sourceSets.main.compileClasspath
         runtimeClasspath += sourceSets.main.runtimeClasspath
     }

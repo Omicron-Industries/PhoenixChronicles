@@ -119,7 +119,7 @@ public class CategoryLoader {
             if (category.icon() != null && !category.icon().isEmpty())
                 sb.append("icon: \"").append(category.icon()).append("\"\n");
             sb.append("chapters:\n");
-            for (String chap : category.chapters()) sb.append("  - ").append(chap).append('\n');
+            for (String chap : (List<String>) category.chapters()) sb.append("  - ").append(chap).append('\n');
             Files.writeString(fileFor(categoriesFolder, category.id()), sb.toString(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             LOGGER.error("[Chronicles] Failed to write category file for '{}'", category.id(), e);

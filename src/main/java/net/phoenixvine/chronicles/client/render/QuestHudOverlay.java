@@ -265,17 +265,13 @@ public class QuestHudOverlay {
 
             g.fill(wx + 1, wy + 1, wx + WIDGET_W - 1, wy + PAD + ROW_H + 1, C_TITLE_BG);
 
-            String stateGlyph = switch (state) {
-                case COMPLETED -> "§a✔";
-                case ACTIVE -> "§6▶";
-                case LOCKED -> "§8✕";
-                default -> "§7○";
-            };
-            int titleColor = switch (state) {
-                case COMPLETED -> C_TEXT_DONE;
-                case ACTIVE -> C_TEXT_ACT;
-                default -> C_TEXT;
-            };
+            String stateGlyph = state == QuestState.COMPLETED ? "§a✔"
+                    : state == QuestState.ACTIVE ? "§6▶"
+                    : state == QuestState.LOCKED ? "§8✕"
+                    : "§7○";
+            int titleColor = state == QuestState.COMPLETED ? C_TEXT_DONE
+                    : state == QuestState.ACTIVE ? C_TEXT_ACT
+                    : C_TEXT;
 
             String counter = (showProgress && total > 0) ? done + "/" + total : null;
             int rightReserve = 14 + (counter != null ? font.width(counter) + 4 : 0);

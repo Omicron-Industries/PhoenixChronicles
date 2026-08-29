@@ -290,12 +290,10 @@ public class TerminalScreen extends Screen {
             if (!show) continue;
             QuestNode node = QuestTreeRegistry.getQuest(e.getKey());
             String title = node != null ? node.getTitle().getString() : e.getKey().getPath();
-            String stateTag = switch (s) {
-                case ACTIVE -> "§e[ACTIVE]";
-                case COMPLETED -> "§a[DONE]";
-                case LOCKED -> "§8[LOCKED]";
-                default -> "§7[" + s.name() + "]";
-            };
+            String stateTag = s == QuestState.ACTIVE ? "§e[ACTIVE]"
+                    : s == QuestState.COMPLETED ? "§a[DONE]"
+                    : s == QuestState.LOCKED ? "§8[LOCKED]"
+                    : "§7[" + s.name() + "]";
             consoleHistory.add(stateTag + " §f" + title + " §8" + e.getKey());
             any = true;
         }
@@ -323,12 +321,10 @@ public class TerminalScreen extends Screen {
 
         PlayerQuestData data = getPlayerData();
         QuestState state = data != null ? data.getQuestState(id, QuestState.LOCKED) : QuestState.LOCKED;
-        String stateStr = switch (state) {
-            case ACTIVE -> "§eACTIVE";
-            case COMPLETED -> "§aCOMPLETED";
-            case UNLOCKED -> "§7UNLOCKED";
-            default -> "§8LOCKED";
-        };
+        String stateStr = state == QuestState.ACTIVE ? "§eACTIVE"
+                : state == QuestState.COMPLETED ? "§aCOMPLETED"
+                : state == QuestState.UNLOCKED ? "§7UNLOCKED"
+                : "§8LOCKED";
         consoleHistory.add("§8  State: " + stateStr);
         consoleHistory.add("§8  Tasks: §f" + node.getTasks().size() + "  Rewards: §f" + node.getRewards().size());
         List<QuestNode> prereqs = node.getPrerequisites();

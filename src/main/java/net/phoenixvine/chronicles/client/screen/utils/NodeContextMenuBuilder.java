@@ -215,7 +215,7 @@ public class NodeContextMenuBuilder {
             items.add(new ChronicleOverviewScreen.CtxItem("Delete group", "§c", false, true,
                     () -> {
                         QuestGroupManager.remove(grp.getId());
-                        QuestGroupManager.save(state.groupsConfigPath());
+                        QuestGroupManager.save(state.groupsConfigPath().toString());
                         state.setCtxOpen(false);
                         state.setCtxGroup(null);
                         ctx.setFeedback("Group deleted");
@@ -320,11 +320,9 @@ public class NodeContextMenuBuilder {
                                 ctx.pushUndo("Undo: force-complete reverted", () -> {
                                     Minecraft mc2 = Minecraft.getInstance();
                                     if (mc2.player == null) return;
-                                    String cmd = switch (preState) {
-                                        case UNLOCKED -> "chronicles unlock " + target.getId().getPath();
-                                        case ACTIVE -> "chronicles active " + target.getId().getPath();
-                                        default -> "chronicles reset " + target.getId().getPath();
-                                    };
+                                    String cmd = preState == QuestState.UNLOCKED ? "chronicles unlock " + target.getId().getPath()
+                                            : preState == QuestState.ACTIVE ? "chronicles active " + target.getId().getPath()
+                                            : "chronicles reset " + target.getId().getPath();
                                     mc2.player.connection.sendCommand(cmd);
                                 }, () -> {
                                     Minecraft mc2 = Minecraft.getInstance();

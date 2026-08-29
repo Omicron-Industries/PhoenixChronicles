@@ -13,7 +13,8 @@ import net.phoenixvine.chronicles.client.registry.QuestToastPresetRegistry;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.model.QuestGroup;
+import net.phoenixvine.chronicles.model.GroupIcon;
+import net.phoenixvine.chronicles.model.IconKind;
 import net.phoenixvine.chronicles.model.QuestNode;
 
 import org.jetbrains.annotations.NotNull;
@@ -302,17 +303,17 @@ public class ToastDesignerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("§7+ Item"), b -> {
             if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                 ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
-                if (id != null) addIconEntry(QuestGroup.IconKind.ITEM, id.toString());
+                if (id != null) addIconEntry(IconKind.ITEM, id.toString());
             }));
         }).bounds(fx, y, iconBtnW, FIELD_H).build());
         addRenderableWidget(Button.builder(Component.literal("§3+ Fluid"), b -> {
             if (minecraft != null) minecraft.setScreen(new FluidPickerScreen(this,
-                    fluidId -> addIconEntry(QuestGroup.IconKind.FLUID, fluidId)));
+                    fluidId -> addIconEntry(IconKind.FLUID, fluidId)));
         }).bounds(fx + iconBtnW + 4, y, iconBtnW, FIELD_H).build());
 
         addRenderableWidget(Button.builder(Component.literal("§d+ Tex"), b -> {
             if (minecraft != null) minecraft.setScreen(new TextureBrowserScreen(this,
-                    texId -> addIconEntry(QuestGroup.IconKind.TEXTURE, texId)));
+                    texId -> addIconEntry(IconKind.TEXTURE, texId)));
         }).bounds(fx + (iconBtnW + 4) * 2, y, iconBtnW, FIELD_H).build());
         y += FIELD_H + 8;
         iconSetY = y;
@@ -341,7 +342,7 @@ public class ToastDesignerScreen extends Screen {
         }
     }
 
-    private void addIconEntry(QuestGroup.IconKind kind, String id) {
+    private void addIconEntry(IconKind kind, String id) {
         cfg.icons.add(new QuestToastConfig.IconEntry(kind, id, cfg.icon.x, cfg.icon.y, cfg.icon.scale));
         selectedIconIndex = cfg.icons.size() - 1;
         rebuildFields();
@@ -655,7 +656,7 @@ public class ToastDesignerScreen extends Screen {
             boolean hov = mx >= ix && mx < ix + sz && my >= y && my < y + sz;
             if (hov) hoveredIconIndex = i;
             QuestToastConfig.IconEntry entry = cfg.icons.get(i);
-            renderIcon(g, new QuestGroup.GroupIcon(entry.kind, entry.id), ix, y, sz);
+            renderIcon(g, new GroupIcon(entry.kind, entry.id), ix, y, sz);
             if (i == selectedIconIndex) ChroniclesUIKit.drawBorder(g, ix - 1, y - 1, sz + 2, sz + 2, 0xFFFFCC44);
             else if (hov) ChroniclesUIKit.drawBorder(g, ix - 1, y - 1, sz + 2, sz + 2, 0x88FFFFFF);
 
@@ -668,27 +669,25 @@ public class ToastDesignerScreen extends Screen {
         }
     }
 
-    private void renderIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
+    private void renderIcon(GuiGraphics g, GroupIcon icon, int x, int y, int size) {
         try {
-            switch (icon.kind) {
-                case ITEM -> {
-                    net.minecraft.world.item.Item item = ForgeRegistries.ITEMS
-                            .getValue(ResourceLocation.parse(icon.id));
-                    if (item == null || item == net.minecraft.world.item.Items.AIR) return;
-                    float scale = size / 16f;
-                    g.pose().pushPose();
-                    g.pose().translate(x + size / 2f, y + size / 2f, 0f);
-                    g.pose().scale(scale, scale, scale);
-                    g.renderItem(new net.minecraft.world.item.ItemStack(item), -8, -8);
-                    g.pose().popPose();
-                }
-                case FLUID -> {
-                    net.minecraft.world.level.material.Fluid fluid = ForgeRegistries.FLUIDS
-                            .getValue(ResourceLocation.parse(icon.id));
-                    ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
-                    ChroniclesUIKit.drawBorder(g, x, y, size, size, 0xFF444455);
-                }
-                case TEXTURE -> g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
+            if (icon.kind == IconKind.ITEM) {
+                net.minecraft.world.item.Item item = ForgeRegistries.ITEMS
+                        .getValue(ResourceLocation.parse(icon.id));
+                if (item == null || item == net.minecraft.world.item.Items.AIR) return;
+                float scale = size / 16f;
+                g.pose().pushPose();
+                g.pose().translate(x + size / 2f, y + size / 2f, 0f);
+                g.pose().scale(scale, scale, scale);
+                g.renderItem(new net.minecraft.world.item.ItemStack(item), -8, -8);
+                g.pose().popPose();
+            } else if (icon.kind == IconKind.FLUID) {
+                net.minecraft.world.level.material.Fluid fluid = ForgeRegistries.FLUIDS
+                        .getValue(ResourceLocation.parse(icon.id));
+                ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
+                ChroniclesUIKit.drawBorder(g, x, y, size, size, 0xFF444455);
+            } else if (icon.kind == IconKind.TEXTURE) {
+                g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
 

@@ -49,7 +49,8 @@ public class ConfigFileFlagProvider implements QuestFlagProvider {
 
         FlagExpression expr = FlagExpression.parse(rest);
         Map<String, String> flat = loadFlat(filename, server);
-        return expr.test(flat.get(expr.key));
+        // test() returns int (1/0), not boolean -- see FlagExpression.hotc's own header.
+        return expr.test(flat.get(expr.key)) == 1;
     }
 
     private Map<String, String> loadFlat(String filename, @Nullable MinecraftServer server) {

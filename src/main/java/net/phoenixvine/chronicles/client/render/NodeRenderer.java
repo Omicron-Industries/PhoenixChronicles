@@ -251,18 +251,14 @@ public class NodeRenderer {
         QuestState st = ctx.getState(displaySource);
 
         boolean showActiveAccent = st == QuestState.ACTIVE && hovered;
-        int fill = switch (st) {
-            case COMPLETED -> state.colorNodeDone();
-            case ACTIVE -> showActiveAccent ? state.colorNodeActive() : state.colorNodeUnlocked();
-            case LOCKED -> state.colorNodeLocked();
-            default -> state.colorNodeUnlocked();
-        };
-        int border = switch (st) {
-            case COMPLETED -> ctx.colorNodeBorderDone();
-            case ACTIVE -> showActiveAccent ? state.colorNodeBorderActive() : state.colorNodeBorderUnlocked();
-            case LOCKED -> ctx.isDevMode() ? state.colorNodeBorderDev() : state.colorNodeBorderLocked();
-            default -> state.colorNodeBorderUnlocked();
-        };
+        int fill = st == QuestState.COMPLETED ? state.colorNodeDone()
+                : st == QuestState.ACTIVE ? (showActiveAccent ? state.colorNodeActive() : state.colorNodeUnlocked())
+                : st == QuestState.LOCKED ? state.colorNodeLocked()
+                : state.colorNodeUnlocked();
+        int border = st == QuestState.COMPLETED ? ctx.colorNodeBorderDone()
+                : st == QuestState.ACTIVE ? (showActiveAccent ? state.colorNodeBorderActive() : state.colorNodeBorderUnlocked())
+                : st == QuestState.LOCKED ? (ctx.isDevMode() ? state.colorNodeBorderDev() : state.colorNodeBorderLocked())
+                : state.colorNodeBorderUnlocked();
         if (selected) border = ChronicleOverviewScreen.C_NBORD_SEL;
         if (hovered) fill = ChronicleOverviewScreen.blendColor(fill, 0xFFFFFFFF, 0.08f);
 
@@ -573,18 +569,14 @@ public class NodeRenderer {
                 FrameProfiler.end("node:icon:badge");
                 state.setDbgFull3DIconCount(state.dbgFull3DIconCount() + 1);
             } else if (sz >= 10) {
-                String glyph = switch (st) {
-                    case COMPLETED -> "✔";
-                    case ACTIVE -> "▶";
-                    case LOCKED -> "✕";
-                    default -> "○";
-                };
-                int gc = switch (st) {
-                    case COMPLETED -> ctx.colorNodeBorderDone();
-                    case ACTIVE -> state.colorNodeBorderActive();
-                    case LOCKED -> ctx.isDevMode() ? state.colorNodeBorderDev() : state.colorNodeBorderLocked();
-                    default -> state.colorNodeBorderUnlocked();
-                };
+                String glyph = st == QuestState.COMPLETED ? "✔"
+                        : st == QuestState.ACTIVE ? "▶"
+                        : st == QuestState.LOCKED ? "✕"
+                        : "○";
+                int gc = st == QuestState.COMPLETED ? ctx.colorNodeBorderDone()
+                        : st == QuestState.ACTIVE ? state.colorNodeBorderActive()
+                        : st == QuestState.LOCKED ? (ctx.isDevMode() ? state.colorNodeBorderDev() : state.colorNodeBorderLocked())
+                        : state.colorNodeBorderUnlocked();
                 g.drawCenteredString(ctx.font(), glyph, x + sz / 2, y + sz / 2 - 4, gc);
                 state.setDbgGlyphIconCount(state.dbgGlyphIconCount() + 1);
             }
@@ -660,7 +652,7 @@ public class NodeRenderer {
             g.drawString(ctx.font(), "§f" + label, sx + 4, sy + 2, 0xFFFFFFFF);
         }
 
-        List<QuestGroup.GroupIcon> icons = grp.getIcons();
+        List<GroupIcon> icons = grp.getIcons();
         if (!icons.isEmpty() && sw >= 24 && sh > ChronicleOverviewScreen.GROUP_LABEL_BAR_H + 14) {
             int iconSz = 10, gap = 2;
             int stripY = sy + ChronicleOverviewScreen.GROUP_LABEL_BAR_H + 2;
@@ -673,35 +665,33 @@ public class NodeRenderer {
         }
     }
 
-    public void renderGroupIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
+    public void renderGroupIcon(GuiGraphics g, GroupIcon icon, int x, int y, int size) {
         try {
-            switch (icon.kind) {
-                case ITEM -> {
-                    Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
-                            .getValue(ResourceLocation.parse(icon.id));
-                    if (item == null || item == Items.AIR) return;
-                    float scale = size / 16f;
-                    g.pose().pushPose();
-                    try {
-                        g.pose().translate(x + size / 2f, y + size / 2f, 100f);
-                        g.pose().scale(scale, scale, 1f);
-                        ItemStack groupIconStack = new ItemStack(item);
-                        withNoIconMipBleed(g, () -> g.renderItem(groupIconStack, -8, -8));
-                    } finally {
+            if (icon.kind == IconKind.ITEM) {
+                Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
+                        .getValue(ResourceLocation.parse(icon.id));
+                if (item == null || item == Items.AIR) return;
+                float scale = size / 16f;
+                g.pose().pushPose();
+                try {
+                    g.pose().translate(x + size / 2f, y + size / 2f, 100f);
+                    g.pose().scale(scale, scale, 1f);
+                    ItemStack groupIconStack = new ItemStack(item);
+                    withNoIconMipBleed(g, () -> g.renderItem(groupIconStack, -8, -8));
+                } finally {
 
-                        g.pose().popPose();
-                    }
+                    g.pose().popPose();
                 }
-                case FLUID -> {
-                    net.minecraft.world.level.material.Fluid fluid = net.minecraftforge.registries.ForgeRegistries.FLUIDS
-                            .getValue(ResourceLocation.parse(icon.id));
-                    ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
-                    g.fill(x, y, x + size, y + 1, 0xFF444455);
-                    g.fill(x, y + size - 1, x + size, y + size, 0xFF444455);
-                    g.fill(x, y, x + 1, y + size, 0xFF444455);
-                    g.fill(x + size - 1, y, x + size, y + size, 0xFF444455);
-                }
-                case TEXTURE -> g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
+            } else if (icon.kind == IconKind.FLUID) {
+                net.minecraft.world.level.material.Fluid fluid = net.minecraftforge.registries.ForgeRegistries.FLUIDS
+                        .getValue(ResourceLocation.parse(icon.id));
+                ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
+                g.fill(x, y, x + size, y + 1, 0xFF444455);
+                g.fill(x, y + size - 1, x + size, y + size, 0xFF444455);
+                g.fill(x, y, x + 1, y + size, 0xFF444455);
+                g.fill(x + size - 1, y, x + size, y + size, 0xFF444455);
+            } else if (icon.kind == IconKind.TEXTURE) {
+                g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
 
@@ -710,7 +700,7 @@ public class NodeRenderer {
 
     @Nullable
     public QuestGroup groupAtLabelBar(double mx, double my, int cl) {
-        for (QuestGroup grp : QuestGroupManager.forChapter(ctx.selectedChapter())) {
+        for (QuestGroup grp : (List<QuestGroup>) QuestGroupManager.forChapter(ctx.selectedChapter())) {
             int sx = (int) (grp.getX() * ctx.posZoom()) + state.viewOffX() + cl;
             int sy = (int) (grp.getY() * ctx.posZoom()) + state.viewOffY() + ChronicleOverviewScreen.HEADER_H;
             int sw = (int) (grp.getWidth() * ctx.posZoom());
@@ -763,12 +753,10 @@ public class NodeRenderer {
     public void renderStateBadge(GuiGraphics g, int nx, int ny, int sz, QuestState st) {
         int badgeSz = Math.min(8, Math.max(4, sz / 5));
         int bx = nx + sz - badgeSz - 1, by = ny + sz - badgeSz - 1;
-        int bc = switch (st) {
-            case COMPLETED -> ctx.colorNodeBorderDone();
-            case ACTIVE -> state.colorNodeBorderActive();
-            case LOCKED -> state.colorNodeBorderLocked();
-            default -> 0xFF4488FF;
-        };
+        int bc = st == QuestState.COMPLETED ? ctx.colorNodeBorderDone()
+                : st == QuestState.ACTIVE ? state.colorNodeBorderActive()
+                : st == QuestState.LOCKED ? state.colorNodeBorderLocked()
+                : 0xFF4488FF;
         NodeShapeRenderer.queueFillRect(g, bx - 1, by - 1, bx + badgeSz + 1, by + badgeSz + 1, 0xAA0B0B0F);
         NodeShapeRenderer.queueFillRect(g, bx, by, bx + badgeSz, by + badgeSz, bc);
     }
@@ -808,12 +796,10 @@ public class NodeRenderer {
                 }
             }
 
-            String stateLine = switch (st) {
-                case COMPLETED -> "§a✔ Complete";
-                case ACTIVE -> "§e▶ In progress " + taskDone + "/" + taskTotal;
-                case UNLOCKED -> "§b○ Ready to start";
-                case LOCKED -> "§8✕ Locked";
-            };
+            String stateLine = st == QuestState.COMPLETED ? "§a✔ Complete"
+                    : st == QuestState.ACTIVE ? "§e▶ In progress " + taskDone + "/" + taskTotal
+                    : st == QuestState.UNLOCKED ? "§b○ Ready to start"
+                    : "§8✕ Locked";
 
             List<String> prereqLines = new java.util.ArrayList<>();
             if (!node.getPrerequisites().isEmpty()) {

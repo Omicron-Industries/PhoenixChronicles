@@ -392,12 +392,10 @@ public class ChronicleEvents {
                                             QuestCapabilityProvider.PLAYER_QUESTS)
                                             .map(d -> d.getQuestState(questId, QuestState.LOCKED))
                                             .orElse(QuestState.LOCKED);
-                                    String stateLabel = switch (state) {
-                                        case COMPLETED -> "§aCompleted";
-                                        case ACTIVE -> "§eActive";
-                                        case UNLOCKED -> "§bAvailable";
-                                        default -> "§7Locked";
-                                    };
+                                    String stateLabel = state == QuestState.COMPLETED ? "§aCompleted"
+                                            : state == QuestState.ACTIVE ? "§eActive"
+                                            : state == QuestState.UNLOCKED ? "§bAvailable"
+                                            : "§7Locked";
                                     ctx.getSource().sendSuccess(() -> Component.literal(
                                             "Quest \"" + node.getTitle().getString() + "\": " + stateLabel), false);
                                     return 1;

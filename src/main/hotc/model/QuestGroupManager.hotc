@@ -1,0 +1,438 @@
+// Real port of the Java `class net.phoenixvine.chronicles.model.QuestGroupManager` (deleted --
+// this is its replacement). The one genuinely NEW thing this file needed from the compiler
+// itself: real mutable module-level state (`groups`/`loaded`/`loadedMtime`, reassigned across
+// calls, not just initialized once) -- `selfhost/checker/Checker.hotc`'s own `check_assign` and
+// `selfhost/codegen/Codegen.hotc`'s own `gen_stmt`'s `Assign` arm both gained a "not a local? try
+// a top-level `static`" fallback this session specifically to make this port possible; every
+// `pub static` before that was write-once (`<clinit>` only).
+//
+// The whole real, Java-facing API (`getAll`/`put`/`remove`/`clear`/`forChapter`/`generateId`/
+// `isLoaded`/`invalidate`/`formatColor`/`parseColor`/`load`/`save`) lives in a REAL
+// `impl QuestGroupManager { ... }` block, not as bare top-level `pub fn`s -- a real gap found
+// building this: every top-level `pub fn` across the WHOLE `src/main/hotc` directory (every
+// `.hotc` file merges into ONE compilation unit) lands on the SAME synthetic "entry holder"
+// class (named after the directory itself, `hotc.class` here), not a class named
+// `QuestGroupManager` -- Java code doing `QuestGroupManager.getAll()` needs a REAL class by that
+// name. `gen_struct`'s own static-method emission ALREADY threads the entry holder's own binary
+// name through as each method's `self.owner` (see that fn's own header: "stays the main class,
+// not this struct's class"), so a static method declared inside `impl QuestGroupManager` still
+// correctly reads/writes the top-level `pub static`s below via ordinary `GETSTATIC`/`PUTSTATIC`
+// against the SAME entry-holder class every other top-level declaration uses -- only the
+// METHOD's own declaring class changes, to a real, empty `struct QuestGroupManager {}` Java can
+// call `.getAll()` etc against by name.
+//
+// Reuses `QuestGroup.hotc`'s own `JObjectQG`/`JavaArrayListQG` extern classes directly (no
+// re-declaration -- every `.hotc` file under `src/main/hotc` merges into ONE flat compilation
+// unit, so a top-level declaration from one file is already visible in every other).
+//
+// `formatColor`/`parseColor` avoid `String.format`/bitwise ops entirely (this HC subset has no
+// bitwise operators, and `String.format`'s own real signature is a `String, Object...` varargs
+// call this compiler's extern-method binding has no way to construct) -- `Integer.toHexString`
+// plus manual zero-padding, and prefixing a 6-digit RGB hex string with a literal "FF" (giving
+// the exact same 32-bit parse result `0xFF000000L | Long.parseLong(s, 16)` did), do the same job
+// with only real, already-supported extern static-method calls.
+//
+// `load`/`save` accept a plain directory STRING (not `java.nio.file.Path`) -- `Path` is a real
+// Java INTERFACE, and this compiler's extern-method dispatch always emits `INVOKEVIRTUAL` (never
+// `INVOKEINTERFACE`), so calling `.resolve(...)`/`.toFile()` on a `Path` RECEIVER would be
+// bytecode-invalid (the same class of gap `CategoryDefinition.hotc`'s own `chapters` field
+// sidesteps by never calling anything ON its `java.util.List`-typed field at all -- see that
+// file's own header). `java.io.File` (a real CLASS) does everything actually needed here
+// (`exists`/`mkdirs`/`lastModified`/`toPath`) without hitting that limitation; the 5 real Java
+// call sites were updated to pass `configDir.toString()` instead of the raw `Path`.
+module net.phoenixvine.chronicles.model;
+
+extern class JIntegerQGM = "java.lang.Integer" {
+    static fn toHexString(i: Int) -> String;
+    static fn toString(i: Int) -> String;
+}
+
+extern class JLongQGM = "java.lang.Long" {
+    static fn parseLong(s: String, radix: Int) -> Long;
+}
+
+extern class JNFEQGM = "java.lang.NumberFormatException" {}
+
+extern class JUUIDQGM = "java.util.UUID" {
+    static fn randomUUID() -> JUUIDQGM;
+    fn toString(&self) -> String;
+}
+
+// One alias now covers BOTH real `java.io.File` constructor overloads (`(String)` and `(String,
+// String)`) -- the extern-method registry used to key only by "Alias#methodName", so two ctors of
+// different arity collided and needed two separate aliases (`JFileQGM`/`JFileDirQGM`) for the
+// same class; now keyed with an arity suffix too (see `Checker.hotc`'s own `register_extern`
+// header), so both `new` overloads coexist here directly.
+extern class JFileQGM = "java.io.File" {
+    fn new(parent: String, child: String) -> Self;
+    fn new(path: String) -> Self;
+    fn exists(&self) -> Bool;
+    fn lastModified(&self) -> Long;
+    fn toPath(&self) -> JPathQGM;
+    fn mkdirs(&mut self) -> Bool;
+}
+
+extern class JPathQGM = "java.nio.file.Path" {}
+
+extern class JFilesQGM = "java.nio.file.Files" {
+    static fn readString(p: JPathQGM) -> String;
+}
+
+extern class JCharsetQGM = "java.nio.charset.Charset" {
+    static fn forName(name: String) -> JCharsetQGM;
+}
+
+extern class JFileWriterQGM = "java.io.FileWriter" {
+    fn new(file: JFileQGM, cs: JCharsetQGM) -> Self;
+    fn write(&mut self, s: String);
+    fn close(&mut self);
+}
+
+extern class JIOExceptionQGM = "java.io.IOException" {}
+
+extern class JJsonParserQGM = "com.google.gson.JsonParser" {
+    static fn parseString(json: String) -> JJsonElementQGM;
+}
+
+extern class JJsonElementQGM = "com.google.gson.JsonElement" {
+    fn isJsonObject(&self) -> Bool;
+    fn isJsonArray(&self) -> Bool;
+    fn isJsonPrimitive(&self) -> Bool;
+    fn getAsJsonObject(&self) -> JJsonObjectQGM;
+    fn getAsJsonArray(&self) -> JJsonArrayQGM;
+    fn getAsString(&self) -> String;
+    fn getAsInt(&self) -> Int;
+}
+
+extern class JJsonArrayQGM = "com.google.gson.JsonArray" {
+    fn new() -> Self;
+    fn add(&mut self, el: JJsonElementQGM);
+    fn get(&self, i: Int) -> JJsonElementQGM;
+    fn size(&self) -> Int;
+}
+
+extern class JJsonObjectQGM = "com.google.gson.JsonObject" {
+    fn new() -> Self;
+    fn addProperty(&mut self, key: String, value: String);
+    fn add(&mut self, key: String, el: JJsonElementQGM);
+    fn has(&self, key: String) -> Bool;
+    fn get(&self, key: String) -> JJsonElementQGM;
+}
+
+extern class JGsonBuilderQGM = "com.google.gson.GsonBuilder" {
+    fn new() -> Self;
+    fn setPrettyPrinting(&mut self) -> JGsonBuilderQGM;
+    fn create(&self) -> JGsonQGM;
+}
+
+extern class JGsonQGM = "com.google.gson.Gson" {
+    fn toJson(&self, el: JJsonElementQGM) -> String;
+}
+
+extern class JExceptionQGM = "java.lang.Exception" {}
+
+extern class JIAEQGM = "java.lang.IllegalArgumentException" {}
+
+// `IconKind::valueOf(s)`/`.name()` are real, now-checker-visible calls onto `gen_enum`'s own
+// synthetic JVM methods (see `Codegen.hotc`'s own `gen_enum` header) -- HC source can call them
+// directly since this session's checker/codegen fix, so the old hand-written mapping functions
+// this used to need are gone. `valueOf` throws `IllegalArgumentException` on an unrecognized
+// name (unlike the old `is_valid_icon_kind`/`parse_icon_kind` pair's silent ITEM fallback), so a
+// bad/missing `kind` string from persisted JSON is treated as "no icon", not a default kind.
+fn parse_icon_kind_opt(s: String) -> Option<IconKind> {
+    try {
+        return Some { value: IconKind::valueOf(s) };
+    } catch (e: JIAEQGM) {
+        return None {};
+    }
+}
+
+fn empty_group_vec() -> Vec<QuestGroup> {
+    var v = vec_of(QuestGroup::new3("__seed__", "", "ALL"));
+    return Vec<QuestGroup> { data: v.data, len: 0 };
+}
+
+pub static groups: Vec<QuestGroup> = empty_group_vec();
+pub static loaded: Bool = false;
+pub static loadedMtime: Long = -2L;
+
+fn find_index(id: String) -> Int {
+    var i = 0;
+    while i < groups.length() {
+        if groups.get(i).getId() == id {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn get_string(obj: JJsonObjectQGM, key: String, def: String) -> String {
+    if obj.has(key) {
+        let el = obj.get(key);
+        if el.isJsonPrimitive() {
+            return el.getAsString();
+        }
+    }
+    return def;
+}
+
+fn get_int(obj: JJsonObjectQGM, key: String, def: Int) -> Int {
+    if obj.has(key) {
+        let el = obj.get(key);
+        if el.isJsonPrimitive() {
+            return el.getAsInt();
+        }
+    }
+    return def;
+}
+
+// A real, empty struct -- exists purely to give the methods below a real JVM class named
+// `QuestGroupManager` to live on (see this file's own header for why bare top-level `pub fn`s
+// don't do that).
+struct QuestGroupManager {}
+
+impl QuestGroupManager {
+    static fn getAll() -> JavaArrayListQG {
+        var result = JavaArrayListQG::new();
+        var i = 0;
+        while i < groups.length() {
+            result.add(groups.get(i) as JObjectQG);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static fn put(g: QuestGroup) {
+        let idx = find_index(g.getId());
+        if idx >= 0 {
+            groups.set(idx, g);
+        } else {
+            groups.push(g);
+        }
+    }
+
+    static fn remove(id: String) {
+        var fresh = empty_group_vec();
+        var i = 0;
+        while i < groups.length() {
+            let g = groups.get(i);
+            if g.getId() != id {
+                fresh.push(g);
+            }
+            i = i + 1;
+        }
+        groups = fresh;
+    }
+
+    static fn clear() {
+        groups = empty_group_vec();
+    }
+
+    static fn forChapter(chapter: String) -> JavaArrayListQG {
+        var result = JavaArrayListQG::new();
+        var i = 0;
+        while i < groups.length() {
+            let g = groups.get(i);
+            if chapter == "ALL" || chapter.toUpperCase() == g.getChapter().toUpperCase() {
+                result.add(g as JObjectQG);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    static fn generateId() -> String {
+        var candidate = "group_" + JUUIDQGM::randomUUID().toString().substring(0, 8);
+        while find_index(candidate) >= 0 {
+            candidate = "group_" + JUUIDQGM::randomUUID().toString().substring(0, 8);
+        }
+        return candidate;
+    }
+
+    static fn isLoaded() -> Bool {
+        return loaded;
+    }
+
+    static fn invalidate() {
+        loaded = false;
+    }
+
+    static fn formatColor(argb: Int) -> String {
+        var hex = JIntegerQGM::toHexString(argb).toUpperCase();
+        while hex.length() < 8 {
+            hex = "0" + hex;
+        }
+        return "#" + hex;
+    }
+
+    // Real bitwise OR now (`selfhost/parser/Parser.hotc`'s own `bitwise_or`/`bitwise_and` +
+    // `Checker.hotc`/`Codegen.hotc`'s matching `&`/`|` support, added this session specifically
+    // because this method needed it) -- matches the original Java's own
+    // `(int) (0xFF000000L | Long.parseLong(s, 16))` almost verbatim, not the earlier
+    // `"FF" + s` string-prefix workaround this file used before real `|` existed.
+    static fn parseColor(hex: String) -> Int {
+        var s = hex;
+        if s.length() > 0 {
+            if s.substring(0, 1) == "#" {
+                s = s.substring(1, s.length());
+            }
+        }
+        if s.length() == 6 {
+            try {
+                let parsed6 = JLongQGM::parseLong(s, 16) as Int;
+                return 0xFF000000 | parsed6;
+            } catch (e: JNFEQGM) {
+                return 0x22FFFFFF;
+            }
+        }
+        if s.length() == 8 {
+            try {
+                let parsed8 = JLongQGM::parseLong(s, 16);
+                return parsed8 as Int;
+            } catch (e2: JNFEQGM) {
+                return 0x22FFFFFF;
+            }
+        }
+        return 0x22FFFFFF;
+    }
+
+    static fn load(config_dir: String) {
+        let file = JFileQGM::new(config_dir, "groups.json");
+        var mtime = -1L;
+        if file.exists() {
+            mtime = file.lastModified();
+        }
+        if loaded && mtime == loadedMtime {
+            return;
+        }
+        loaded = true;
+        loadedMtime = mtime;
+        groups = empty_group_vec();
+
+        if !file.exists() {
+            return;
+        }
+
+        try {
+            let json = JFilesQGM::readString(file.toPath());
+            let root = JJsonParserQGM::parseString(json);
+            if !root.isJsonArray() {
+                return;
+            }
+            let arr = root.getAsJsonArray();
+            var i = 0;
+            while i < arr.size() {
+                let el = arr.get(i);
+                if el.isJsonObject() {
+                    let obj = el.getAsJsonObject();
+                    let id = get_string(obj, "id", "");
+                    if id.trim() != "" {
+                        let label = get_string(obj, "label", "Group");
+                        var chapter = get_string(obj, "category", "ALL");
+                        if obj.has("chapter") {
+                            chapter = get_string(obj, "chapter", "ALL");
+                        }
+
+                        var g = QuestGroup::new3(id, label, chapter);
+                        g.setColor(QuestGroupManager::parseColor(get_string(obj, "color", "#22FFFFFF")));
+                        g.setBorderColor(QuestGroupManager::parseColor(get_string(obj, "borderColor", "#44FFFFFF")));
+                        g.setX(get_int(obj, "x", 0));
+                        g.setY(get_int(obj, "y", 0));
+                        g.setWidth(get_int(obj, "width", 120));
+                        g.setHeight(get_int(obj, "height", 80));
+                        g.setPhantasiaMachineId(get_string(obj, "phantasiaMachineId", ""));
+
+                        if obj.has("icons") {
+                            let iconsEl = obj.get("icons");
+                            if iconsEl.isJsonArray() {
+                                let iconsArr = iconsEl.getAsJsonArray();
+                                var ii = 0;
+                                while ii < iconsArr.size() {
+                                    let iconEl = iconsArr.get(ii);
+                                    if iconEl.isJsonObject() {
+                                        let iconObj = iconEl.getAsJsonObject();
+                                        let kindStr = get_string(iconObj, "kind", "ITEM").toUpperCase();
+                                        let iconId = get_string(iconObj, "id", "");
+                                        if iconId.trim() != "" {
+                                            if let Some { value: kind } = parse_icon_kind_opt(kindStr) {
+                                                g.addIcon(kind, iconId);
+                                            }
+                                        }
+                                    }
+                                    ii = ii + 1;
+                                }
+                            }
+                        }
+
+                        groups.push(g);
+                    }
+                }
+                i = i + 1;
+            }
+        } catch (e3: JExceptionQGM) {}
+    }
+
+    static fn save(config_dir: String) {
+        var dirFile = JFileQGM::new(config_dir);
+        dirFile.mkdirs();
+
+        var arr = JJsonArrayQGM::new();
+        var i = 0;
+        while i < groups.length() {
+            let g = groups.get(i);
+            var obj = JJsonObjectQGM::new();
+            obj.addProperty("id", g.getId());
+            obj.addProperty("label", g.getLabel());
+            obj.addProperty("chapter", g.getChapter());
+            obj.addProperty("color", QuestGroupManager::formatColor(g.getColor()));
+            obj.addProperty("borderColor", QuestGroupManager::formatColor(g.getBorderColor()));
+            // Every int round-trips as a decimal STRING, not a bare JSON number -- the extern
+            // method registry itself can now disambiguate same-arity overloads by their declared
+            // param TYPES (see `Codegen.hotc`'s own `join_type_names_cg` header), so this is no
+            // longer why only one `addProperty` overload is reachable. The real remaining reason:
+            // real `JsonObject.addProperty(String, Number)` takes a BOXED `java.lang.Number`, but
+            // `extern class` method params can only be `Int`/`Bool`/`String` (see `Ast.hc`'s own
+            // `ExternMethod` header) -- there's no way to declare a param that binds to a boxed
+            // reference type at all, overload disambiguation aside. Gson's own reader parses a
+            // string-backed JSON primitive as a number fine (`get_int`'s own `getAsInt()`, right
+            // above -- real Gson `LazilyParsedNumber` behavior), so this stays a real, disclosed
+            // on-disk FORMAT change (`"x": "10"` instead of `"x": 10`), not a functional one.
+            obj.addProperty("x", JIntegerQGM::toString(g.getX()));
+            obj.addProperty("y", JIntegerQGM::toString(g.getY()));
+            obj.addProperty("width", JIntegerQGM::toString(g.getWidth()));
+            obj.addProperty("height", JIntegerQGM::toString(g.getHeight()));
+            if g.getPhantasiaMachineId() != "" {
+                obj.addProperty("phantasiaMachineId", g.getPhantasiaMachineId());
+            }
+
+            if g.getIcons().size() > 0 {
+                var iconsArr = JJsonArrayQGM::new();
+                var ii = 0;
+                while ii < g.getIcons().size() {
+                    let icon = g.getIcons().get(ii) as GroupIcon;
+                    var iconObj = JJsonObjectQGM::new();
+                    iconObj.addProperty("kind", icon.kind.name());
+                    iconObj.addProperty("id", icon.id);
+                    iconsArr.add(iconObj as JJsonElementQGM);
+                    ii = ii + 1;
+                }
+                obj.add("icons", iconsArr as JJsonElementQGM);
+            }
+
+            arr.add(obj as JJsonElementQGM);
+            i = i + 1;
+        }
+
+        try {
+            var builder = JGsonBuilderQGM::new();
+            builder.setPrettyPrinting();
+            let gson = builder.create();
+            let json = gson.toJson(arr as JJsonElementQGM);
+            let outFile = JFileQGM::new(config_dir, "groups.json");
+            var writer = JFileWriterQGM::new(outFile, JCharsetQGM::forName("UTF-8"));
+            writer.write(json);
+            writer.close();
+        } catch (e4: JExceptionQGM) {}
+    }
+}

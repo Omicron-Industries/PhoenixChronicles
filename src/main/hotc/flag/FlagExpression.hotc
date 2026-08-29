@@ -1,0 +1,214 @@
+// Real port of the Java `class net.phoenixvine.chronicles.flag.FlagExpression` (deleted -- this
+// is its replacement). Kept in the same package (via the `module` declaration below); every real
+// Java caller (`ConfigFileFlagProvider`, `GameRuleFlagProvider`, `KubeJsFlagProvider`) only ever
+// touches `expr.key` (bare public-field access, not a getter) and `expr.test(...)`, so `key` keeps
+// its exact Java name here too -- a real HC struct's fields are already emitted as real public JVM
+// fields (see `QuestGroupManager.hotc`'s own header for the mirror case, where a field WAS renamed
+// specifically to route Java through a getter method instead). `op`/`value` are never touched from
+// outside this class, so they keep plain names with no such constraint.
+//
+// The original's `@Nullable String value`/`@Nullable String actual` (both genuinely null in real
+// callers -- `Map.get(missingKey)` returns real Java `null`) can't be ported as written: this
+// compiler's `null` keyword is lexed but has no expression-level codegen yet (a real, disclosed
+// gap -- the one `ACONST_NULL` in `Codegen.hotc` is for an unrelated internal use, not a
+// source-level `null` literal). Two different real workarounds stand in for it:
+//   - `value` (only ever null for the EXISTS variant, which never reads it) uses "" as its
+//     not-present sentinel instead -- the same style `QuestGroupManager.hotc`'s own `-2L`
+//     `loadedMtime` sentinel already established for this codebase's other genuinely-optional
+//     fields.
+//   - `actual` (a real PARAMETER real call sites genuinely pass null into) can't use a sentinel --
+//     the caller controls the value -- so `test` instead relies on the fact that this compiler's
+//     `try`/`catch` already binds to any real JVM exception class (see `QuestGroupManager.hotc`'s
+//     own `JExceptionQGM`-catching `load`/`save`): every branch's first real read of `actual` is a
+//     method call (`.trim()`), which throws a real `NullPointerException` on a real null receiver
+//     exactly where the original's `actual == null` checks would already have shortcut to `false`
+//     -- wrapping each branch in a broad `Exception` catch reproduces the same "null actual ->
+//     false" behavior without ever needing to write a `null` literal.
+//
+// `switch (op) { case GT -> ...; ... }` (a real expression-form switch) has no HC equivalent (only
+// a statement-form `match`, and only for structural enum-variant patterns -- see `Codegen.hotc`'s
+// own `gen_enum` header) -- became a plain `if`/`return` chain instead, same fallthrough order.
+// Comparisons against a zero-field variant use the bare-identifier form (`self.op == EXISTS`, no
+// `{}`) -- real precedent from the compiler's own source self-compiling itself (`Parser.hotc`'s
+// `t.kind == LBRACE` / `Codegen.hotc`'s own `kind == RETURN`, see that file's own
+// `gen_variant_construct` header), while actually CONSTRUCTING a variant value still uses `{}`
+// (`return FLUID {};` in `QuestGroupManager.hotc`) -- both compile through the same codegen path,
+// this just matches each existing use-case's own established spelling.
+//
+// `String.equalsIgnoreCase`/`String.isBlank` aren't in this compiler's built-in String method
+// dispatch table (`Codegen.hotc`'s own `MethodCall` fallback -- see its header, only
+// `length`/`toUpperCase`/`toLowerCase`/`trim`/`contains`/`indexOf`/`codePointAt`/`substring(int,
+// int)` are real) -- `equalsIgnoreCase(x)` becomes `.toUpperCase() == x.toUpperCase()` (case-fold
+// then real `String.equals`, which is what `==` between two `String`s already compiles to -- see
+// `Codegen.hotc`'s own `Binary` `==` handling), and `isBlank()` becomes `.trim() == ""` (this
+// codebase's flag values are always short, ASCII-ish tokens, so the Unicode-whitespace distinction
+// `isBlank` draws over plain `trim` never actually matters here).
+//
+// The `OPS`/`OP_ENUMS` parallel-array loop became 6 sequential `indexOf` checks in the same
+// priority order (">=" / "<=" / "!=" / ">" / "<" / "=", checked in exactly that order so a
+// multi-char operator is always tried before the single-char operator it contains) -- this
+// compiler's array/`Vec` support exists (`QuestGroupManager.hotc`'s own `Vec<QuestGroup>`) but adds
+// nothing here for a fixed 6-entry table only ever walked once per `parse` call.
+//
+// `test` returns `Int` (1/0), not `Bool`, and the 3 real Java call sites (`ConfigFileFlagProvider`,
+// `GameRuleFlagProvider`, `KubeJsFlagProvider`, each `return expr.test(...) == 1;` now instead of
+// bare `return expr.test(...);`) were updated to match -- a real, disclosed compiler bug, not a
+// design choice: `Codegen.hotc`'s own `descriptor_of_type`/`resolve_descriptor` both already map
+// `"Bool" -> "Z"` correctly in SOURCE form (see that fn's own header, and its "DEBUG: re-applied
+// for instrumented investigation" comment marking an earlier fix), but the actual compiled
+// `selfhost/bootstrap` artifact this build runs predates that fix -- verified with `javap` on this
+// very file's own compiled output (`public int test(String)`, not `boolean`) AND on
+// `QuestGroupManager.hotc`'s already-merged `isLoaded()` (`public static int isLoaded()`, same
+// wrong descriptor, entirely pre-existing and unrelated to this port -- it just never mattered
+// before because no earlier ported `Bool`-returning method was ever called from real Java). `Bool`
+// stays correct and unaffected everywhere else in this file (`if`/`&&`/`||` conditions, the `eq`
+// local) -- the bug is isolated to a method's own externally-visible JVM return descriptor.
+module net.phoenixvine.chronicles.flag;
+
+extern class JDoubleFE = "java.lang.Double" {
+    static fn parseDouble(s: String) -> Double;
+}
+
+extern class JExceptionFE = "java.lang.Exception" {}
+
+enum Op {
+    EXISTS {},
+    EQ {},
+    NEQ {},
+    GT {},
+    GTE {},
+    LT {},
+    LTE {},
+}
+
+struct FlagExpression {
+    key: String,
+    op: Op,
+    value: String,
+}
+
+impl FlagExpression {
+    static fn parse(expr: String) -> FlagExpression {
+        try {
+            let idxGe = expr.indexOf(">=");
+            if idxGe > 0 {
+                return FlagExpression {
+                    key: expr.substring(0, idxGe).trim(),
+                    op: GTE {},
+                    value: expr.substring(idxGe + 2, expr.length()).trim(),
+                };
+            }
+            let idxLe = expr.indexOf("<=");
+            if idxLe > 0 {
+                return FlagExpression {
+                    key: expr.substring(0, idxLe).trim(),
+                    op: LTE {},
+                    value: expr.substring(idxLe + 2, expr.length()).trim(),
+                };
+            }
+            let idxNe = expr.indexOf("!=");
+            if idxNe > 0 {
+                return FlagExpression {
+                    key: expr.substring(0, idxNe).trim(),
+                    op: NEQ {},
+                    value: expr.substring(idxNe + 2, expr.length()).trim(),
+                };
+            }
+            let idxGt = expr.indexOf(">");
+            if idxGt > 0 {
+                return FlagExpression {
+                    key: expr.substring(0, idxGt).trim(),
+                    op: GT {},
+                    value: expr.substring(idxGt + 1, expr.length()).trim(),
+                };
+            }
+            let idxLt = expr.indexOf("<");
+            if idxLt > 0 {
+                return FlagExpression {
+                    key: expr.substring(0, idxLt).trim(),
+                    op: LT {},
+                    value: expr.substring(idxLt + 1, expr.length()).trim(),
+                };
+            }
+            let idxEq = expr.indexOf("=");
+            if idxEq > 0 {
+                return FlagExpression {
+                    key: expr.substring(0, idxEq).trim(),
+                    op: EQ {},
+                    value: expr.substring(idxEq + 1, expr.length()).trim(),
+                };
+            }
+            return FlagExpression { key: expr.trim(), op: EXISTS {}, value: "" };
+        } catch (e: JExceptionFE) {
+            return FlagExpression { key: "", op: EXISTS {}, value: "" };
+        }
+    }
+
+    fn test(&self, actual: String) -> Int {
+        if self.op == EXISTS {
+            try {
+                let a = actual.trim();
+                if a == "" {
+                    return 0;
+                }
+                let au = a.toUpperCase();
+                if au != "FALSE" && a != "0" && au != "NULL" {
+                    return 1;
+                }
+                return 0;
+            } catch (e: JExceptionFE) {
+                return 0;
+            }
+        }
+
+        if self.op != EQ && self.op != NEQ {
+            try {
+                let a = JDoubleFE::parseDouble(actual.trim());
+                let b = JDoubleFE::parseDouble(self.value);
+                if self.op == GT {
+                    if a > b {
+                        return 1;
+                    }
+                    return 0;
+                }
+                if self.op == GTE {
+                    if a >= b {
+                        return 1;
+                    }
+                    return 0;
+                }
+                if self.op == LT {
+                    if a < b {
+                        return 1;
+                    }
+                    return 0;
+                }
+                if self.op == LTE {
+                    if a <= b {
+                        return 1;
+                    }
+                    return 0;
+                }
+                return 0;
+            } catch (e2: JExceptionFE) {
+                return 0;
+            }
+        }
+
+        try {
+            let eq = actual.trim().toUpperCase() == self.value.trim().toUpperCase();
+            if self.op == EQ {
+                if eq {
+                    return 1;
+                }
+                return 0;
+            }
+            if eq {
+                return 0;
+            }
+            return 1;
+        } catch (e3: JExceptionFE) {
+            return 0;
+        }
+    }
+}

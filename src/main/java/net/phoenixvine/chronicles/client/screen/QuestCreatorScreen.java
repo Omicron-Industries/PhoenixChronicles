@@ -1515,7 +1515,7 @@ public class QuestCreatorScreen extends Screen {
 
         for (net.phoenixvine.chronicles.model.CategoryDefinition cd : net.phoenixvine.chronicles.registry.CategoryRegistry
                 .getCategories()) {
-            for (String chap : cd.chapters()) {
+            for (String chap : (java.util.List<String>) cd.chapters()) {
                 if (chap != null && !chap.isBlank() && !cats.contains(chap.toUpperCase())) cats.add(chap.toUpperCase());
             }
         }

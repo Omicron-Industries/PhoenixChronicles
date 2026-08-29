@@ -15,6 +15,8 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
+import net.phoenixvine.chronicles.model.GroupIcon;
+import net.phoenixvine.chronicles.model.IconKind;
 import net.phoenixvine.chronicles.model.QuestGroup;
 import net.phoenixvine.chronicles.model.QuestGroupManager;
 
@@ -53,7 +55,7 @@ public class QuestGroupEditorScreen extends Screen {
     private EditBox phantasiaIdBox;
     private String errorMsg = "";
 
-    private final List<QuestGroup.GroupIcon> icons = new ArrayList<>();
+    private final List<GroupIcon> icons = new ArrayList<>();
     private int hoveredIconIndex = -1;
     private int iconStripY;
 
@@ -123,17 +125,17 @@ public class QuestGroupEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("§7+ Item"), b -> {
             if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                 ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
-                if (id != null) icons.add(new QuestGroup.GroupIcon(QuestGroup.IconKind.ITEM, id.toString()));
+                if (id != null) icons.add(new GroupIcon(IconKind.ITEM, id.toString()));
             }));
         }).bounds(fieldX, row, iconBtnW, FIELD_H).build());
         addRenderableWidget(Button.builder(Component.literal("§3+ Fluid"), b -> {
             if (minecraft != null) minecraft.setScreen(
                     new FluidPickerScreen(this,
-                            fluidId -> icons.add(new QuestGroup.GroupIcon(QuestGroup.IconKind.FLUID, fluidId))));
+                            fluidId -> icons.add(new GroupIcon(IconKind.FLUID, fluidId))));
         }).bounds(fieldX + iconBtnW + 4, row, iconBtnW, FIELD_H).build());
         addRenderableWidget(Button.builder(Component.literal("§d+ Texture"), b -> {
             if (minecraft != null) minecraft.setScreen(new TextureBrowserScreen(this,
-                    texId -> icons.add(new QuestGroup.GroupIcon(QuestGroup.IconKind.TEXTURE, texId))));
+                    texId -> icons.add(new GroupIcon(IconKind.TEXTURE, texId))));
         }).bounds(fieldX + (iconBtnW + 4) * 2, row, iconBtnW, FIELD_H).build());
         row += FIELD_H + 6;
 
@@ -213,7 +215,7 @@ public class QuestGroupEditorScreen extends Screen {
         if (existing != null) {
             group = existing;
         } else {
-            group = new QuestGroup(QuestGroupManager.generateId(), label, chapter);
+            group = QuestGroup.new3(QuestGroupManager.generateId(), label, chapter);
             group.setX(canvasX);
             group.setY(canvasY);
         }
@@ -224,11 +226,11 @@ public class QuestGroupEditorScreen extends Screen {
         group.setChapter(chapter);
         group.setSize(w, h);
         group.clearIcons();
-        for (QuestGroup.GroupIcon icon : icons) group.addIcon(icon.kind, icon.id);
+        for (GroupIcon icon : icons) group.addIcon(icon.kind, icon.id);
         group.setPhantasiaMachineId(phantasiaIdBox != null ? phantasiaIdBox.getValue().trim() : "");
 
         QuestGroupManager.put(group);
-        QuestGroupManager.save(configPath());
+        QuestGroupManager.save(configPath().toString());
 
         close();
     }
@@ -244,7 +246,7 @@ public class QuestGroupEditorScreen extends Screen {
     private void onDelete() {
         if (existing != null) {
             QuestGroupManager.remove(existing.getId());
-            QuestGroupManager.save(configPath());
+            QuestGroupManager.save(configPath().toString());
         }
         close();
     }
@@ -347,25 +349,23 @@ public class QuestGroupEditorScreen extends Screen {
         }
     }
 
-    private void renderIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
+    private void renderIcon(GuiGraphics g, GroupIcon icon, int x, int y, int size) {
         try {
-            switch (icon.kind) {
-                case ITEM -> {
-                    Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(icon.id));
-                    if (item == null || item == Items.AIR) return;
-                    float scale = size / 16f;
-                    g.pose().pushPose();
-                    g.pose().translate(x + size / 2f, y + size / 2f, 0f);
-                    g.pose().scale(scale, scale, scale);
-                    g.renderItem(new ItemStack(item), -8, -8);
-                    g.pose().popPose();
-                }
-                case FLUID -> {
-                    Fluid fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(icon.id));
-                    ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
-                    ChroniclesUIKit.drawBorder(g, x, y, size, size, 0xFF444455);
-                }
-                case TEXTURE -> g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
+            if (icon.kind == IconKind.ITEM) {
+                Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(icon.id));
+                if (item == null || item == Items.AIR) return;
+                float scale = size / 16f;
+                g.pose().pushPose();
+                g.pose().translate(x + size / 2f, y + size / 2f, 0f);
+                g.pose().scale(scale, scale, scale);
+                g.renderItem(new ItemStack(item), -8, -8);
+                g.pose().popPose();
+            } else if (icon.kind == IconKind.FLUID) {
+                Fluid fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(icon.id));
+                ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
+                ChroniclesUIKit.drawBorder(g, x, y, size, size, 0xFF444455);
+            } else if (icon.kind == IconKind.TEXTURE) {
+                g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
             }
         } catch (Exception ignored) {
 

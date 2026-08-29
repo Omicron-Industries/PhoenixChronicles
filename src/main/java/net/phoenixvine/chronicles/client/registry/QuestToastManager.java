@@ -10,7 +10,8 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.model.QuestGroup;
+import net.phoenixvine.chronicles.model.GroupIcon;
+import net.phoenixvine.chronicles.model.IconKind;
 import net.phoenixvine.chronicles.model.QuestNode;
 
 import java.util.ArrayDeque;
@@ -253,7 +254,7 @@ public class QuestToastManager {
                 int iconPx = Math.round(16 * entry.scale);
                 int ex = Math.round(entry.x * screenW) - iconPx / 2;
                 int ey = Math.round(entry.y * screenH) - iconPx / 2;
-                renderToastIcon(g, new QuestGroup.GroupIcon(entry.kind, entry.id), ex, ey, iconPx, alpha);
+                renderToastIcon(g, new GroupIcon(entry.kind, entry.id), ex, ey, iconPx, alpha);
             }
         } else if (node.getIconItem() != null && node.getIconItem() != net.minecraft.world.item.Items.AIR) {
             g.pose().pushPose();
@@ -319,38 +320,34 @@ public class QuestToastManager {
                 "quickly from Phantasia's own UI but hangs here, that's worth reporting upstream.");
     }
 
-    private void renderToastIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size, float alpha) {
+    private void renderToastIcon(GuiGraphics g, GroupIcon icon, int x, int y, int size, float alpha) {
         try {
-            switch (icon.kind) {
-                case ITEM -> {
-                    Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(icon.id));
-                    if (item == null || item == net.minecraft.world.item.Items.AIR) return;
-                    float scale = size / 16f;
-                    g.pose().pushPose();
-                    try {
-                        g.pose().translate(x + size / 2f, y + size / 2f, 0f);
-                        g.pose().scale(scale, scale, scale);
-                        renderFadedItem(g, new ItemStack(item), -8, -8, alpha);
-                    } finally {
-                        g.pose().popPose();
-                    }
+            if (icon.kind == IconKind.ITEM) {
+                Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(icon.id));
+                if (item == null || item == net.minecraft.world.item.Items.AIR) return;
+                float scale = size / 16f;
+                g.pose().pushPose();
+                try {
+                    g.pose().translate(x + size / 2f, y + size / 2f, 0f);
+                    g.pose().scale(scale, scale, scale);
+                    renderFadedItem(g, new ItemStack(item), -8, -8, alpha);
+                } finally {
+                    g.pose().popPose();
                 }
-                case FLUID -> {
-                    Fluid fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(icon.id));
-                    com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
-                    try {
-                        net.phoenixvine.chronicles.client.render.ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
-                    } finally {
-                        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-                    }
+            } else if (icon.kind == IconKind.FLUID) {
+                Fluid fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(icon.id));
+                com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
+                try {
+                    net.phoenixvine.chronicles.client.render.ChroniclesUIKit.drawFluidIcon(g, fluid, x, y, size);
+                } finally {
+                    com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
                 }
-                case TEXTURE -> {
-                    com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
-                    try {
-                        g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
-                    } finally {
-                        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-                    }
+            } else if (icon.kind == IconKind.TEXTURE) {
+                com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, alpha);
+                try {
+                    g.blit(ResourceLocation.parse(icon.id), x, y, 0, 0, size, size, size, size);
+                } finally {
+                    com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
                 }
             }
         } catch (Exception ignored) {

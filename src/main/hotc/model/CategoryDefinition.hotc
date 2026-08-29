@@ -1,0 +1,72 @@
+// Real port of the Java `record net.phoenixvine.chronicles.model.CategoryDefinition` that used to
+// live at `src/main/java/net/phoenixvine/chronicles/model/CategoryDefinition.java` (deleted --
+// this is its replacement, not a parallel copy). Kept in the SAME package (via the `module`
+// declaration below) and the SAME public method-call shape (`cat.id()`, not bare-field `cat.id`)
+// specifically so none of this record's 9 real Java callers (screens, `CategoryLoader`,
+// `CategoryRegistry`) need to change AT ALL, except the two real `new CategoryDefinition(...)`
+// constructor call sites -- a real HC struct only ever gets ONE JVM constructor (taking every
+// field, in declared order, exactly matching the record's own canonical 6-arg constructor), never
+// a second overloaded one the way the original record's 3-arg convenience constructor was.
+//
+// `chapters` stays a real `java.util.List` (aliased via `extern class`, not converted to HC's own
+// `[String]` array) on purpose: every caller already does real `java.util.List` things with it
+// (`.stream()`, `.contains(...)`, `.indexOf(...)`, `new ArrayList<>(cat.chapters())`) that HC's own
+// array type has no equivalent for, and this struct never needs to inspect or mutate the list
+// itself -- it only stores and returns the exact same reference it was constructed with, so an
+// opaque passthrough alias is both correct and the smallest real change.
+module net.phoenixvine.chronicles.model;
+
+extern class JavaList = "java.util.List" {}
+
+struct CategoryDefinition {
+    idField: String,
+    displayNameField: String,
+    chaptersField: JavaList,
+    colorField: Int,
+    iconField: String,
+    nameColorField: Int,
+}
+
+impl CategoryDefinition {
+    fn id(&self) -> String {
+        return self.idField;
+    }
+
+    fn displayName(&self) -> String {
+        return self.displayNameField;
+    }
+
+    fn chapters(&self) -> JavaList {
+        return self.chaptersField;
+    }
+
+    fn color(&self) -> Int {
+        return self.colorField;
+    }
+
+    fn icon(&self) -> String {
+        return self.iconField;
+    }
+
+    fn nameColor(&self) -> Int {
+        return self.nameColorField;
+    }
+
+    fn withTheme(&self, color: Int, icon: String, nameColor: Int) -> CategoryDefinition {
+        return CategoryDefinition {
+            idField: self.idField,
+            displayNameField: self.displayNameField,
+            chaptersField: self.chaptersField,
+            colorField: color,
+            iconField: icon,
+            nameColorField: nameColor,
+        };
+    }
+
+    fn effectiveNameColor(&self) -> Int {
+        if self.nameColorField != 0 {
+            return self.nameColorField;
+        }
+        return self.colorField;
+    }
+}

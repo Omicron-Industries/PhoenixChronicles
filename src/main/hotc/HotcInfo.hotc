@@ -3,10 +3,12 @@
 // for manual testing). No `main()` here on purpose: this is a LIBRARY unit meant to be referenced
 // from real Java code, not a standalone runnable program by itself.
 //
-// Lands in the default (unnamed) Java package for now -- the self-hosted compiler's own `module`
-// declaration is parsed and discarded (no real package-qualification support yet, a real,
-// disclosed follow-up), so Java code references this as a bare `HotcInfo`, not
-// `net.phoenixvine.chronicles.HotcInfo`, until that's ported.
+// Real package-qualification now: HotChocolate's own module-porting feature (see its
+// `selfhost/codegen/Codegen.hotc`) turns this `module` declaration into a genuine
+// `net/phoenixvine/chronicles/HotcInfo.class`, so Java code in a NAMED package (not just a
+// default-package probe) can import and reference this normally.
+module net.phoenixvine.chronicles;
+
 struct HotcInfo {
     version: String,
 }

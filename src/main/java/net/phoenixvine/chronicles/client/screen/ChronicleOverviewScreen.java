@@ -460,7 +460,7 @@ public class ChronicleOverviewScreen extends Screen
         net.phoenixvine.chronicles.model.CategoryDefinition cat = net.phoenixvine.chronicles.registry.CategoryRegistry
                 .get(categoryId);
         if (cat == null) return ids;
-        for (String chapter : cat.chapters()) ids.addAll(questIdsInChapter(chapter));
+        for (String chapter : (List<String>) cat.chapters()) ids.addAll(questIdsInChapter(chapter));
         return ids;
     }
 
@@ -622,7 +622,7 @@ public class ChronicleOverviewScreen extends Screen
         ctxMoveCatOpen = false;
         ctxGroup = null;
 
-        QuestGroupManager.load(groupsConfigPath());
+        QuestGroupManager.load(groupsConfigPath().toString());
         recomputeHiddenByCollapse();
 
         if (minecraft != null && minecraft.player != null) {
@@ -2184,7 +2184,7 @@ public class ChronicleOverviewScreen extends Screen
 
     private boolean tryHandleLeftButtonDragRelease() {
         if (editorState.draggedGroup != null) {
-            QuestGroupManager.save(groupsConfigPath());
+            QuestGroupManager.save(groupsConfigPath().toString());
             editorState.draggedGroup = null;
             return true;
         }
@@ -2501,7 +2501,7 @@ public class ChronicleOverviewScreen extends Screen
         FrameProfiler.end("background");
 
         FrameProfiler.begin("groups");
-        for (QuestGroup grp : QuestGroupManager.forChapter(selectedChapter)) {
+        for (QuestGroup grp : (List<QuestGroup>) QuestGroupManager.forChapter(selectedChapter)) {
             renderQuestGroup(g, grp, cl, cr);
         }
         FrameProfiler.end("groups");
@@ -2761,7 +2761,7 @@ public class ChronicleOverviewScreen extends Screen
         nodeRenderer.renderQuestGroup(g, grp, cl, cr);
     }
 
-    private void renderGroupIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size) {
+    private void renderGroupIcon(GuiGraphics g, GroupIcon icon, int x, int y, int size) {
         nodeRenderer.renderGroupIcon(g, icon, x, y, size);
     }
 

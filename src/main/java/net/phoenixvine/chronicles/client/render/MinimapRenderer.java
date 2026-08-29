@@ -74,12 +74,10 @@ public class MinimapRenderer {
 
         for (QuestNode n : nodes) {
             QuestState st = stateLookup.apply(n);
-            int col = switch (st) {
-                case COMPLETED -> 0xFF00BB66;
-                case ACTIVE -> 0xFFBB8800;
-                case UNLOCKED -> 0xFF5566CC;
-                default -> 0xFF333344;
-            };
+            int col = st == QuestState.COMPLETED ? 0xFF00BB66
+                    : st == QuestState.ACTIVE ? 0xFFBB8800
+                    : st == QuestState.UNLOCKED ? 0xFF5566CC
+                    : 0xFF333344;
             int dx = offsetX + (int) ((n.getCustomX() - minX) * scale);
             int dy = offsetY + (int) ((n.getCustomY() - minY) * scale);
             int ds = Math.max(2, (int) (n.getNodePixelSize() * scale));

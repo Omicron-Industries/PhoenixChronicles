@@ -155,7 +155,7 @@ public final class CategoryRegistry {
 
     public static synchronized void addCategory(String id, String label) {
         if (CATEGORIES.containsKey(id)) return;
-        CategoryDefinition category = new CategoryDefinition(id, label, new ArrayList<>());
+        CategoryDefinition category = new CategoryDefinition(id, label, new ArrayList<>(), 0, "", 0);
         CATEGORIES.put(id, category);
         if (!categoryOrder.contains(id)) categoryOrder.add(id);
         writeCategory(category);

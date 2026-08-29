@@ -1,7 +1,7 @@
 package net.phoenixvine.chronicles.client.registry;
 
 import net.minecraft.client.Minecraft;
-import net.phoenixvine.chronicles.model.QuestGroup;
+import net.phoenixvine.chronicles.model.IconKind;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -52,7 +52,7 @@ public class QuestToastConfig {
 
     public static class IconEntry {
 
-        public QuestGroup.IconKind kind;
+        public IconKind kind;
         public String id;
 
         public float x = 0.5f, y = 0.42f;
@@ -60,7 +60,7 @@ public class QuestToastConfig {
 
         public IconEntry() {}
 
-        public IconEntry(QuestGroup.IconKind kind, String id, float x, float y, float scale) {
+        public IconEntry(IconKind kind, String id, float x, float y, float scale) {
             this.kind = kind;
             this.id = id;
             this.x = x;

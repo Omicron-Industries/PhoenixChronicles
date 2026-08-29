@@ -1,0 +1,110 @@
+
+module net.phoenixvine.chronicles.model;
+
+extern class JObjectQG = "java.lang.Object" {}
+
+extern class JavaArrayListQG = "java.util.ArrayList" {
+    static fn new() -> JavaArrayListQG;
+    fn add(&mut self, item: JObjectQG) -> Bool;
+    fn get(&self, index: Int) -> JObjectQG;
+    fn size(&self) -> Int;
+    fn remove(&mut self, index: Int) -> JObjectQG;
+    fn clear(&mut self);
+}
+
+enum IconKind {
+    ITEM {},
+    FLUID {},
+    TEXTURE {},
+}
+
+struct GroupIcon {
+    kind: IconKind,
+    id: String,
+}
+
+struct QuestGroup {
+    idField: String,
+    labelField: String,
+    colorField: Int,
+    borderColorField: Int,
+    xField: Int,
+    yField: Int,
+    widthField: Int,
+    heightField: Int,
+    chapterField: String,
+    iconsField: JavaArrayListQG,
+    phantasiaMachineIdField: String,
+}
+
+impl QuestGroup {
+    static fn new3(id: String, label: String, chapter: String) -> QuestGroup {
+        return QuestGroup {
+            idField: id,
+            labelField: label,
+            colorField: 0x22FFFFFF,
+            borderColorField: 0x44FFFFFF,
+            xField: 0,
+            yField: 0,
+            widthField: 120,
+            heightField: 80,
+            chapterField: chapter,
+            iconsField: JavaArrayListQG::new(),
+            phantasiaMachineIdField: "",
+        };
+    }
+
+    fn getId(&self) -> String { return self.idField; }
+    fn getLabel(&self) -> String { return self.labelField; }
+    fn getColor(&self) -> Int { return self.colorField; }
+    fn getBorderColor(&self) -> Int { return self.borderColorField; }
+    fn getX(&self) -> Int { return self.xField; }
+    fn getY(&self) -> Int { return self.yField; }
+    fn getWidth(&self) -> Int { return self.widthField; }
+    fn getHeight(&self) -> Int { return self.heightField; }
+    fn getChapter(&self) -> String { return self.chapterField; }
+    fn getIcons(&self) -> JavaArrayListQG { return self.iconsField; }
+    fn getPhantasiaMachineId(&self) -> String { return self.phantasiaMachineIdField; }
+
+    fn addIcon(&mut self, kind: IconKind, id: String) {
+
+        if id.trim() == "" {
+            return;
+        }
+        self.iconsField.add(GroupIcon { kind: kind, id: id } as JObjectQG);
+    }
+
+    fn removeIcon(&mut self, index: Int) {
+        if index >= 0 && index < self.iconsField.size() {
+            self.iconsField.remove(index);
+        }
+    }
+
+    fn clearIcons(&mut self) {
+        self.iconsField.clear();
+    }
+
+    fn setPhantasiaMachineId(&mut self, id: String) {
+        self.phantasiaMachineIdField = id;
+    }
+
+    fn setId(&mut self, id: String) { self.idField = id; }
+    fn setLabel(&mut self, label: String) { self.labelField = label; }
+    fn setColor(&mut self, color: Int) { self.colorField = color; }
+    fn setBorderColor(&mut self, borderColor: Int) { self.borderColorField = borderColor; }
+    fn setX(&mut self, x: Int) { self.xField = x; }
+    fn setY(&mut self, y: Int) { self.yField = y; }
+    fn setWidth(&mut self, width: Int) { self.widthField = width; }
+    fn setHeight(&mut self, height: Int) { self.heightField = height; }
+    fn setChapter(&mut self, chapter: String) { self.chapterField = chapter; }
+
+    fn setPosition(&mut self, x: Int, y: Int) {
+        self.xField = x;
+        self.yField = y;
+    }
+
+    fn setSize(&mut self, width: Int, height: Int) {
+        self.widthField = width;
+        self.heightField = height;
+    }
+}

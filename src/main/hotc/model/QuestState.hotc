@@ -1,0 +1,20 @@
+// Real port of the Java `enum net.phoenixvine.chronicles.model.QuestState` (deleted -- this is
+// its replacement). Every real caller (34 files: capability persistence, event dispatch, render,
+// screens) uses this purely as a Java-enum-style marker: static-constant access
+// (`QuestState.LOCKED`), reference equality (`state == QuestState.COMPLETED`), `HashMap` keys,
+// and `QuestState.valueOf(str)` for NBT deserialization -- exactly the shape HotChocolate's
+// real-Java-enum-interop feature (see `selfhost/codegen/Codegen.hotc`'s own `gen_enum` header)
+// exists for: every variant here is zero-field, so each gets a real
+// `public static final QuestState VARIANT;` singleton field, a real `valueOf(String)`, and `==`
+// works because every construction (from HC's own code or Java's `valueOf`) resolves to the same
+// singleton. `HashMap`/`equals`/`hashCode` need no special handling either -- `Object`'s default
+// identity-based versions are already correct once every instance is a stable singleton, the same
+// way a real `java.lang.Enum`'s own identity-based equality works out.
+module net.phoenixvine.chronicles.model;
+
+enum QuestState {
+    LOCKED {},
+    UNLOCKED {},
+    ACTIVE {},
+    COMPLETED {},
+}
