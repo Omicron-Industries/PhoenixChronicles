@@ -51,18 +51,18 @@
 // nothing here for a fixed 6-entry table only ever walked once per `parse` call.
 //
 // `test` returns `Int` (1/0), not `Bool`, and the 3 real Java call sites (`ConfigFileFlagProvider`,
-// `GameRuleFlagProvider`, `KubeJsFlagProvider`, each `return expr.test(...) == 1;` now instead of
-// bare `return expr.test(...);`) were updated to match -- a real, disclosed compiler bug, not a
-// design choice: `Codegen.hotc`'s own `descriptor_of_type`/`resolve_descriptor` both already map
-// `"Bool" -> "Z"` correctly in SOURCE form (see that fn's own header, and its "DEBUG: re-applied
-// for instrumented investigation" comment marking an earlier fix), but the actual compiled
-// `selfhost/bootstrap` artifact this build runs predates that fix -- verified with `javap` on this
-// very file's own compiled output (`public int test(String)`, not `boolean`) AND on
-// `QuestGroupManager.hotc`'s already-merged `isLoaded()` (`public static int isLoaded()`, same
-// wrong descriptor, entirely pre-existing and unrelated to this port -- it just never mattered
-// before because no earlier ported `Bool`-returning method was ever called from real Java). `Bool`
-// stays correct and unaffected everywhere else in this file (`if`/`&&`/`||` conditions, the `eq`
-// local) -- the bug is isolated to a method's own externally-visible JVM return descriptor.
+// `GameRuleFlagProvider`, `KubeJsFlagProvider`, each `return expr.test(...) == 1;` instead of bare
+// `return expr.test(...);`) were updated to match. Confirmed NOT a stale-build artifact: rebuilt
+// `selfhost/bootstrap` from its own current source (`hc run selfhost`'s stage2/stage3/cli-prep
+// self-compile pipeline) and the bug persisted even in a from-scratch isolated repro (a bare
+// `fn f() -> Bool { return true; }` still compiles to `public static int f()`). The CURRENT
+// `Codegen.hotc` source itself has `Bool -> "I"` hardcoded on both `descriptor_of_type` and
+// `resolve_descriptor`, DELIBERATELY, with its own header explaining why: mapping `Bool` to real
+// `"Z"` makes a struct's field declaration (`gen_struct`, via `descriptor_of_type`) and a
+// `StructLit` constructor call site (`gen_expr`, via `resolve_descriptor`) disagree on that same
+// field's descriptor even in a clean self-host build, producing a `VerifyError` -- root cause not
+// found upstream yet, reverted there on purpose. So this is presently a real, open HotChocolate
+// compiler limitation, not something a rebuild fixes -- revisit this file once that's resolved.
 module net.phoenixvine.chronicles.flag;
 
 extern class JDoubleFE = "java.lang.Double" {
