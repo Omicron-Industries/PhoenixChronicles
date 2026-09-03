@@ -79,8 +79,8 @@ public class ShaderPickerScreen extends Screen {
         g.fill(0, fy, width, height, C_PANEL);
         g.fill(0, fy, width, fy + 1, C_BORDER);
         g.drawString(font, "§8" + filtered.size() +
-                        " Shaders  ·  LMB to select  ·  RMB to copy id  ·  live preview, so a broken" +
-                        " shader shows §c⚠",
+                " Shaders  ·  LMB to select  ·  RMB to copy id  ·  live preview, so a broken" +
+                " shader shows §c⚠",
                 8, fy + 10, C_FAINT, false);
 
         g.enableScissor(0, HEADER_H, width, fy);

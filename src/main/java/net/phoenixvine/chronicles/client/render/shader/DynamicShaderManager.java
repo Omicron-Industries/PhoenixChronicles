@@ -1,6 +1,5 @@
 package net.phoenixvine.chronicles.client.render.shader;
 
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
@@ -8,6 +7,8 @@ import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import net.phoenixvine.chronicles.PhoenixChronicles;
+
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -23,9 +24,9 @@ public final class DynamicShaderManager {
     private static final Path SHADER_DIR = Minecraft.getInstance().gameDirectory.toPath()
             .resolve("config").resolve(PhoenixChronicles.MOD_ID).resolve("shaders");
 
-    private static final ResourceLocation ANCHOR_RESOURCE =
-            ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID,
-                    "shaders/core/quest_bg_sun.vsh");
+    private static final ResourceLocation ANCHOR_RESOURCE = ResourceLocation.fromNamespaceAndPath(
+            PhoenixChronicles.MOD_ID,
+            "shaders/core/quest_bg_sun.vsh");
 
     private static final String VERTEX_SOURCE = """
             #version 150
@@ -58,10 +59,10 @@ public final class DynamicShaderManager {
 
         try (var stream = Files.list(SHADER_DIR)) {
             return stream.filter(p -> p.getFileName().toString()
-                            .toLowerCase(Locale.ROOT).endsWith(".frag"))
+                    .toLowerCase(Locale.ROOT).endsWith(".frag"))
                     .map(p -> {
                         String name = p.getFileName().toString();
-                        return name.substring(0, name.length() - 5); 
+                        return name.substring(0, name.length() - 5);
                     })
                     .sorted()
                     .toList();
@@ -94,7 +95,7 @@ public final class DynamicShaderManager {
         }
 
         if (cached != null && cached.sourceMtime() == mtime) {
-            
+
             CACHE.put(id, new Compiled(mtime, currentTime, cached.instance()));
             return cached.instance();
         }
@@ -144,22 +145,21 @@ public final class DynamicShaderManager {
             anchorSource = Minecraft.getInstance().getResourceManager()
                     .getResourceOrThrow(ANCHOR_RESOURCE).source();
         } catch (IOException e) {
-            
+
             throw new IllegalStateException(
                     "[Phoenix Chronicles] Bundled shader resource '" + ANCHOR_RESOURCE +
-                            "' is missing. The mod jar is corrupted or incorrectly packaged.", e);
+                            "' is missing. The mod jar is corrupted or incorrectly packaged.",
+                    e);
         }
 
         Map<ResourceLocation, Resource> resources = Map.of(
                 jsonLoc, memResource(anchorSource, jsonSource),
                 vshLoc, memResource(anchorSource, VERTEX_SOURCE),
-                fshLoc, memResource(anchorSource, fragmentSource)
-        );
+                fshLoc, memResource(anchorSource, fragmentSource));
         ResourceProvider provider = ResourceProvider.fromMap(resources);
 
         try {
-            return new ShaderInstance(provider, ResourceLocation.fromNamespaceAndPath
-                    (PhoenixChronicles.MOD_ID, name),
+            return new ShaderInstance(provider, ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID, name),
                     DefaultVertexFormat.POSITION_TEX);
         } catch (Exception e) {
             PhoenixChronicles.LOGGER.error(
@@ -193,9 +193,9 @@ public final class DynamicShaderManager {
                 uniform vec4 iMouse;
                 in vec2 texCoord;
                 out vec4 outColor;
-                
+
                 %s
-                
+
                 void main() {
                     vec4 fragColor = vec4(0.0);
                     vec2 fragCoord = vec2(texCoord.x, 1.0 - texCoord.y) * iResolution.xy;
@@ -220,6 +220,7 @@ public final class DynamicShaderManager {
                     { "name": "iMouse", "type": "float", "count": 4, "values": [0.0, 0.0, 0.0, 0.0] }
                   ]
                 }
-                """.formatted(PhoenixChronicles.MOD_ID, name);
+                """
+                .formatted(PhoenixChronicles.MOD_ID, name);
     }
 }

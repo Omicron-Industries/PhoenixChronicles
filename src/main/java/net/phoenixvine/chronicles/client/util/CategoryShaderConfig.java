@@ -41,6 +41,7 @@ public final class CategoryShaderConfig {
     }
 
     private static final class Entry {
+
         String shaderId = "";
         final List<CategoryOverride> overrides = new ArrayList<>();
 
@@ -121,7 +122,7 @@ public final class CategoryShaderConfig {
                 JsonElement v = e.getValue();
                 Entry entry = new Entry();
                 if (v.isJsonPrimitive()) {
-                    
+
                     entry.shaderId = v.getAsString();
                 } else if (v.isJsonObject()) {
                     JsonObject eo = v.getAsJsonObject();

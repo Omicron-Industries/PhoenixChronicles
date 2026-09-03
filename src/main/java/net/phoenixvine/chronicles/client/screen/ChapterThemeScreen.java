@@ -211,12 +211,12 @@ public class ChapterThemeScreen extends Screen {
 
         int iconPreviewW = FIELD_H + 4;
         addRenderableWidget(Button.builder(Component.literal("§7Change Icon"),
-                        b -> {
-                            if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
-                                cachedIcon = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem())
-                                        .toString();
-                            }));
-                        })
+                b -> {
+                    if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                        cachedIcon = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem())
+                                .toString();
+                    }));
+                })
                 .bounds(fx + iconPreviewW + 4, rowTop(ROW_ICON), fw - iconPreviewW - 4, FIELD_H).build());
 
         nameColorBox = new EditBox(font, fx, rowTop(ROW_NAME_COLOR) + 11, fw, FIELD_H, Component.empty());
@@ -284,8 +284,8 @@ public class ChapterThemeScreen extends Screen {
 
                 overrideStyleButtonY.add(currentY);
                 addRenderableWidget(Button.builder(
-                                Component.literal("§8Style: §7" + ov.style.name() + " §8▾"),
-                                b -> openOverrideStyleDropdown = (openOverrideStyleDropdown == idx) ? -1 : idx)
+                        Component.literal("§8Style: §7" + ov.style.name() + " §8▾"),
+                        b -> openOverrideStyleDropdown = (openOverrideStyleDropdown == idx) ? -1 : idx)
                         .bounds(fx, currentY, fw, FIELD_H).build());
 
                 currentY += FIELD_H + 2;
@@ -351,9 +351,9 @@ public class ChapterThemeScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("§aSave"), b -> save())
                 .bounds(fx, currentY, half, 18).build());
         addRenderableWidget(Button.builder(Component.literal("§7Cancel"),
-                        b -> {
-                            if (minecraft != null) minecraft.setScreen(parent);
-                        })
+                b -> {
+                    if (minecraft != null) minecraft.setScreen(parent);
+                })
                 .bounds(fx + half + 6, currentY, half, 18).build());
     }
 
@@ -487,7 +487,8 @@ public class ChapterThemeScreen extends Screen {
                 BackgroundRenderUtil.drawDynamicShaderQuad(g, shader, fx, previewY, fw, PREVIEW_H, t);
             } else if (DynamicShaderManager.lastCompileFailed(cachedSidebarShaderId)) {
                 g.fill(fx, previewY, fx + fw, previewY + PREVIEW_H, 0xFF0B0B0F);
-                g.drawCenteredString(font, "§c⚠ compile error", fx + fw / 2, previewY + (PREVIEW_H - 8) / 2, 0xFFFF5555);
+                g.drawCenteredString(font, "§c⚠ compile error", fx + fw / 2, previewY + (PREVIEW_H - 8) / 2,
+                        0xFFFF5555);
             } else {
                 g.fill(fx, previewY, fx + fw, previewY + PREVIEW_H, 0xFF0B0B0F);
                 g.drawCenteredString(font, "§8not found", fx + fw / 2, previewY + (PREVIEW_H - 8) / 2, 0xFF555566);
