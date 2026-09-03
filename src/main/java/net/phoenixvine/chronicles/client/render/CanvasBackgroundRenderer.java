@@ -1,8 +1,11 @@
 package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
+import net.phoenixvine.chronicles.client.render.background.BackgroundRenderUtil;
+import net.phoenixvine.chronicles.client.render.shader.DynamicShaderManager;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 
@@ -36,13 +39,15 @@ public final class CanvasBackgroundRenderer {
         FrameProfiler.end("background:tint");
         FrameProfiler.begin("background:pattern");
 
-        switch (cfg.getStyle()) {
+        ChapterConfig.CanvasOverride eff = cfg.resolveCanvas();
+        switch (eff.style) {
             case DOT_GRID -> drawDotGrid(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY, gridSnap);
             case GRID_LINES -> drawGridLines(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY, gridSnap);
             case HEX_GRID -> drawHexGrid(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY, gridSnap);
             case DIAGONAL_LINES -> drawDiagonalLines(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY, gridSnap);
             case SOLID -> {}
-            case CUSTOM -> drawCustomBg(g, x1, y1, x2, y2, cfg.getTexture());
+            case CUSTOM -> drawCustomBg(g, x1, y1, x2, y2, eff.texture);
+            case SHADER -> drawShaderBg(g, x1, y1, x2, y2, eff.shaderId);
         }
 
         NodeShapeRenderer.flushFillQueue(g);
@@ -199,5 +204,13 @@ public final class CanvasBackgroundRenderer {
             int w = x2 - x1, h = y2 - y1;
             g.blit(loc, x1, y1, 0, 0, w, h, w, h);
         } catch (Exception ignored) {}
+    }
+
+    private static void drawShaderBg(GuiGraphics g, int x1, int y1, int x2, int y2, String shaderId) {
+        if (shaderId == null || shaderId.isBlank()) return;
+        ShaderInstance shader = DynamicShaderManager.get(shaderId);
+        if (shader == null) return;
+        float t = (System.currentTimeMillis() % 3_600_000L) / 1000f;
+        BackgroundRenderUtil.drawDynamicShaderQuad(g, shader, x1, y1, x2 - x1, y2 - y1, t);
     }
 }

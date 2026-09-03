@@ -2,9 +2,11 @@ package net.phoenixvine.chronicles.client.util;
 
 import net.minecraft.client.Minecraft;
 import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
+import net.phoenixvine.chronicles.flag.PhoenixQuestFlags;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -12,7 +14,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ChapterConfig {
@@ -23,7 +27,46 @@ public class ChapterConfig {
         HEX_GRID,
         DIAGONAL_LINES,
         SOLID,
-        CUSTOM
+        CUSTOM,
+        SHADER
+    }
+
+    public static final class CanvasOverride {
+
+        public String condition = "";
+        public BgStyle style = BgStyle.DOT_GRID;
+        public String texture = "";
+        public String shaderId = "";
+
+        public CanvasOverride() {}
+
+        public CanvasOverride(String condition, BgStyle style, String texture, String shaderId) {
+            this.condition = condition != null ? condition : "";
+            this.style = style != null ? style : BgStyle.DOT_GRID;
+            this.texture = texture != null ? texture : "";
+            this.shaderId = shaderId != null ? shaderId : "";
+        }
+
+        public CanvasOverride copy() {
+            return new CanvasOverride(condition, style, texture, shaderId);
+        }
+    }
+
+    public static final class SidebarOverride {
+
+        public String condition = "";
+        public String sidebarShaderId = "";
+
+        public SidebarOverride() {}
+
+        public SidebarOverride(String condition, String sidebarShaderId) {
+            this.condition = condition != null ? condition : "";
+            this.sidebarShaderId = sidebarShaderId != null ? sidebarShaderId : "";
+        }
+
+        public SidebarOverride copy() {
+            return new SidebarOverride(condition, sidebarShaderId);
+        }
     }
 
     private BgStyle style = BgStyle.DOT_GRID;
@@ -35,6 +78,13 @@ public class ChapterConfig {
     private int nameColor = 0;
 
     private String texture = "";
+
+    private String shaderId = "";
+
+    private String sidebarShaderId = "";
+
+    private final List<CanvasOverride> canvasOverrides = new ArrayList<>();
+    private final List<SidebarOverride> sidebarOverrides = new ArrayList<>();
 
     private String displayName = "";
 
@@ -68,6 +118,62 @@ public class ChapterConfig {
 
     public String getTexture() {
         return texture;
+    }
+
+    public String getShaderId() {
+        return shaderId;
+    }
+
+    public void setShaderId(String s) {
+        this.shaderId = s != null ? s : "";
+    }
+
+    public String getSidebarShaderId() {
+        return sidebarShaderId;
+    }
+
+    public void setSidebarShaderId(String s) {
+        this.sidebarShaderId = s != null ? s : "";
+    }
+
+    public List<CanvasOverride> getCanvasOverrides() {
+        return java.util.Collections.unmodifiableList(canvasOverrides);
+    }
+
+    public void setCanvasOverrides(List<CanvasOverride> overrides) {
+        canvasOverrides.clear();
+        if (overrides == null) return;
+        for (CanvasOverride o : overrides) {
+            if (o != null) canvasOverrides.add(o.copy());
+        }
+    }
+
+    public List<SidebarOverride> getSidebarOverrides() {
+        return java.util.Collections.unmodifiableList(sidebarOverrides);
+    }
+
+    public void setSidebarOverrides(List<SidebarOverride> overrides) {
+        sidebarOverrides.clear();
+        if (overrides == null) return;
+        for (SidebarOverride o : overrides) {
+            if (o != null) sidebarOverrides.add(o.copy());
+        }
+    }
+
+    public CanvasOverride resolveCanvas() {
+        for (CanvasOverride o : canvasOverrides) {
+            if (PhoenixQuestFlags.evaluate(o.condition, null, "chapter canvas theme override")) return o;
+        }
+        return new CanvasOverride("", style, texture, shaderId);
+    }
+
+    public String resolveSidebarShaderId() {
+        for (SidebarOverride o : sidebarOverrides) {
+            if (PhoenixQuestFlags.evaluate(o.condition, null, "chapter sidebar shader override")) {
+                return o.sidebarShaderId;
+            }
+        }
+        return sidebarShaderId;
     }
 
     public String getDisplayName() {
@@ -128,6 +234,30 @@ public class ChapterConfig {
         if (colorAlpha != 0xCC) o.addProperty("color_alpha", colorAlpha);
         if (nameColor != 0) o.addProperty("name_color", String.format("#%06X", nameColor & 0x00FFFFFF));
         if (!texture.isEmpty()) o.addProperty("texture", texture);
+        if (!shaderId.isEmpty()) o.addProperty("shader_id", shaderId);
+        if (!sidebarShaderId.isEmpty()) o.addProperty("sidebar_shader_id", sidebarShaderId);
+        if (!canvasOverrides.isEmpty()) {
+            JsonArray arr = new JsonArray();
+            for (CanvasOverride ov : canvasOverrides) {
+                JsonObject ovo = new JsonObject();
+                ovo.addProperty("condition", ov.condition);
+                ovo.addProperty("style", ov.style.name());
+                if (!ov.texture.isEmpty()) ovo.addProperty("texture", ov.texture);
+                if (!ov.shaderId.isEmpty()) ovo.addProperty("shader_id", ov.shaderId);
+                arr.add(ovo);
+            }
+            o.add("canvas_overrides", arr);
+        }
+        if (!sidebarOverrides.isEmpty()) {
+            JsonArray arr = new JsonArray();
+            for (SidebarOverride ov : sidebarOverrides) {
+                JsonObject ovo = new JsonObject();
+                ovo.addProperty("condition", ov.condition);
+                if (!ov.sidebarShaderId.isEmpty()) ovo.addProperty("sidebar_shader_id", ov.sidebarShaderId);
+                arr.add(ovo);
+            }
+            o.add("sidebar_overrides", arr);
+        }
         if (!displayName.isEmpty()) o.addProperty("display_name", displayName);
         if (!icon.isEmpty()) o.addProperty("icon", icon);
         if (!parentChapter.isEmpty()) o.addProperty("parent", parentChapter);
@@ -157,6 +287,33 @@ public class ChapterConfig {
             } catch (Exception ignored) {}
         }
         if (o.has("texture")) cfg.texture = o.get("texture").getAsString();
+        if (o.has("shader_id")) cfg.shaderId = o.get("shader_id").getAsString();
+        if (o.has("sidebar_shader_id")) cfg.sidebarShaderId = o.get("sidebar_shader_id").getAsString();
+        if (o.has("canvas_overrides") && o.get("canvas_overrides").isJsonArray()) {
+            for (JsonElement el : o.getAsJsonArray("canvas_overrides")) {
+                if (!el.isJsonObject()) continue;
+                JsonObject ovo = el.getAsJsonObject();
+                String cond = ovo.has("condition") ? ovo.get("condition").getAsString() : "";
+                BgStyle ovStyle = BgStyle.DOT_GRID;
+                if (ovo.has("style")) {
+                    try {
+                        ovStyle = BgStyle.valueOf(ovo.get("style").getAsString().toUpperCase());
+                    } catch (Exception ignored) {}
+                }
+                String tex = ovo.has("texture") ? ovo.get("texture").getAsString() : "";
+                String sid = ovo.has("shader_id") ? ovo.get("shader_id").getAsString() : "";
+                cfg.canvasOverrides.add(new CanvasOverride(cond, ovStyle, tex, sid));
+            }
+        }
+        if (o.has("sidebar_overrides") && o.get("sidebar_overrides").isJsonArray()) {
+            for (JsonElement el : o.getAsJsonArray("sidebar_overrides")) {
+                if (!el.isJsonObject()) continue;
+                JsonObject ovo = el.getAsJsonObject();
+                String cond = ovo.has("condition") ? ovo.get("condition").getAsString() : "";
+                String ssid = ovo.has("sidebar_shader_id") ? ovo.get("sidebar_shader_id").getAsString() : "";
+                cfg.sidebarOverrides.add(new SidebarOverride(cond, ssid));
+            }
+        }
         if (o.has("display_name")) cfg.displayName = o.get("display_name").getAsString();
         if (o.has("icon")) cfg.icon = o.get("icon").getAsString();
         if (o.has("parent")) cfg.parentChapter = o.get("parent").getAsString().toUpperCase();
@@ -179,7 +336,8 @@ public class ChapterConfig {
     private static ChapterConfig getEffective(String chapter, java.util.Set<String> visited) {
         ChapterConfig own = get(chapter);
         boolean hasOwnTheme = own.style != BgStyle.DOT_GRID || own.color != 0 || own.colorAlpha != 0xCC ||
-                !own.texture.isEmpty();
+                !own.texture.isEmpty() || !own.shaderId.isEmpty() || !own.sidebarShaderId.isEmpty() ||
+                !own.canvasOverrides.isEmpty() || !own.sidebarOverrides.isEmpty();
         if (hasOwnTheme || own.parentChapter.isEmpty() || !visited.add(chapter)) return own;
         return getEffective(own.parentChapter, visited);
     }

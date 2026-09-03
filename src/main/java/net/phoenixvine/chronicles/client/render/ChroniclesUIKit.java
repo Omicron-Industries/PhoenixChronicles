@@ -54,6 +54,30 @@ public final class ChroniclesUIKit {
                 ChroniclesThemePalette.BORDER, ChroniclesThemePalette.TEXT);
     }
 
+    private static final int SECTION_HEADER_BG = 0xFF1A1A26;
+    private static final int SECTION_HEADER_BG_HOV = 0xFF20202E;
+
+    public static void drawSectionHeader(GuiGraphics g, Font font, int x, int y, int w, int h, String label,
+                                         boolean collapsed, String summary, int mouseX, int mouseY,
+                                         int textColor, int textDimColor) {
+        boolean hov = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+        g.fill(x, y, x + w, y + h, hov ? SECTION_HEADER_BG_HOV : SECTION_HEADER_BG);
+        String chevron = collapsed ? "▶" : "▼";
+        g.drawString(font, "§f" + chevron + " §f" + label, x + 4, y + (h - 8) / 2, textColor, false);
+        if (collapsed && summary != null && !summary.isEmpty()) {
+            int sw = font.width(summary);
+            g.drawString(font, summary, x + w - 4 - sw, y + (h - 8) / 2, textDimColor, false);
+        }
+    }
+
+    public static void drawShaderWarning(GuiGraphics g, Font font, net.minecraft.client.gui.components.EditBox box,
+                                         boolean show) {
+        if (!show) return;
+        int wx = box.getX() + box.getWidth() - 10;
+        int wy = box.getY() + (box.getHeight() - 8) / 2;
+        g.drawString(font, "§c⚠", wx, wy, 0xFFFF5555, false);
+    }
+
     public static <T> int drawDropdown(GuiGraphics g, Font font, List<T> items, Function<T, String> labelFn,
                                        int selectedIndex, int x, int y, int w, int rowH,
                                        int mouseX, int mouseY) {

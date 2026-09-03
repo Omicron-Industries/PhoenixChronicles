@@ -325,12 +325,7 @@ public class ChronicleEvents {
 
         var dimension = event.getTo();
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
-            // The client recreates its local player entity - and with it, a brand-new default
-            // Chronicles capability (everything LOCKED) - on any dimension change, same as on
-            // respawn. Silently resync it in full (initialSync=true, no diff/toasts) before
-            // evaluating DimensionTask-driven changes below, or that follow-up diff sync would
-            // compare against the client's stale/reset baseline and misfire toasts + spurious
-            // unlock states for every already-unlocked/completed quest, not just the real change.
+
             if (player instanceof net.minecraft.server.level.ServerPlayer spInit) {
                 ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> spInit),
                         new S2CSyncPlayerProgressPacket(data, true));
@@ -934,11 +929,6 @@ public class ChronicleEvents {
         if (!(event.getEntity() instanceof net.minecraft.server.level.ServerPlayer serverPlayer)) return;
         if (serverPlayer.level().isClientSide) return;
 
-        // Same client-side entity-recreation issue as onPlayerChangedDimension above, but for
-        // death and returning from the End (both go through a real respawn, unlike an ordinary
-        // portal dimension change) - the client's local capability resets to defaults, so the
-        // next sync must be a full silent resync, not a diffed one that thinks every already-
-        // completed/unlocked quest just transitioned.
         serverPlayer.getCapability(QuestCapabilityProvider.PLAYER_QUESTS)
                 .ifPresent(data -> ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer),
                         new S2CSyncPlayerProgressPacket(data, true)));

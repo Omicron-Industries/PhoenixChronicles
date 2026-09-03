@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.screen.widgets;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -10,7 +11,10 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.render.NodeRenderer;
+import net.phoenixvine.chronicles.client.render.background.BackgroundRenderUtil;
+import net.phoenixvine.chronicles.client.render.shader.DynamicShaderManager;
 import net.phoenixvine.chronicles.client.screen.utils.SidebarRow;
+import net.phoenixvine.chronicles.client.util.CategoryShaderConfig;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.model.CategoryDefinition;
@@ -587,7 +591,11 @@ public class SidebarPanel {
     private void renderFolderRow(GuiGraphics g, Font font, SidebarRow row, int mx, int my, Colors colors) {
         int y = row.y(), h = row.height();
         boolean hov = mx >= 0 && mx < width() - 1 && my >= y && my < y + h;
-        g.fill(0, y, width() - 1, y + h, hov ? 0xFF1C1C24 : 0xFF15151B);
+        if (!drawRowShaderBg(g, CategoryShaderConfig.resolve(row.id()), y, h)) {
+            g.fill(0, y, width() - 1, y + h, hov ? 0xFF1C1C24 : 0xFF15151B);
+        } else if (hov) {
+            g.fill(0, y, width() - 1, y + h, 0x22FFFFFF);
+        }
         g.fill(0, y + h - 1, width() - 1, y + h, colors.border());
 
         int accent = categoryAccent(row.id());
@@ -626,6 +634,23 @@ public class SidebarPanel {
         int labelColor = hov ? blendColor(nameAccent, colors.textDim(), 0.4f) :
                 blendColor(nameAccent, colors.textFaint(), 0.6f);
         g.drawString(font, "§l" + label, textX, y + (h - 8) / 2, labelColor, false);
+    }
+
+    private static final Set<String> LOGGED_ROW_SHADER_CALLS = new HashSet<>();
+
+    private boolean drawRowShaderBg(GuiGraphics g, String shaderId, int y, int h) {
+        if (shaderId == null || shaderId.isBlank()) return false;
+        ShaderInstance shader = DynamicShaderManager.get(shaderId);
+        int w = width() - 1;
+        String logKey = shaderId + "@" + w + "x" + h;
+        if (LOGGED_ROW_SHADER_CALLS.add(logKey)) {
+            System.out.println("[Phoenix Chronicles] drawRowShaderBg: shaderId='" + shaderId + "' resolved=" +
+                    (shader != null) + " rect=" + w + "x" + h + " at y=" + y);
+        }
+        if (shader == null) return false;
+        float t = (System.currentTimeMillis() % 3_600_000L) / 1000f;
+        BackgroundRenderUtil.drawDynamicShaderQuad(g, shader, 0, y, w, h, t);
+        return true;
     }
 
     private static String stripColorCodes(String s) {
@@ -669,6 +694,8 @@ public class SidebarPanel {
         int accent = chapterAccent(cat);
         boolean isSel = cat.equals(selectedChapter);
         boolean hov = !locked && mx >= 0 && mx < width() - 1 && my >= y && my < y + h;
+
+        drawRowShaderBg(g, ChapterConfig.get(cat).resolveSidebarShaderId(), y, h);
 
         if (isSel) {
             g.fill(1, y + 1, width() - 2, y + h - 1, colors.selTab());

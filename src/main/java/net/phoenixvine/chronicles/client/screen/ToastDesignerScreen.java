@@ -42,11 +42,6 @@ public class ToastDesignerScreen extends Screen {
     private static final int STRIDE = FIELD_H + 7;
     private static final boolean PHANTASIA = PhantasiaCompat.isAvailable();
 
-    // No floor previously - the right-hand panel (fixed PANEL_W=184) plus the toast preview area
-    // both need real room: the preview needs to actually be visible next to the panel, and the
-    // panel's own tabs/fields need enough height even though panelScrollY already lets its
-    // content scroll (that covers overflow *within* the panel, not the panel/preview being
-    // squeezed into a too-small window overall).
     private static final int MIN_W = 520;
     private static final int MIN_H = 340;
     private float uiScale = 1f;

@@ -187,9 +187,6 @@ public class QuestEmiRecipe implements EmiRecipe {
         screen.navigateToNode(node);
     }
 
-    // A plain TextWidget has no click handling of its own (Widget#mouseClicked defaults to a
-    // no-op) - this makes the quest title double as a "jump back to this quest" link so players
-    // browsing recipes in EMI aren't stuck re-finding the quest by hand.
     private static final class JumpToQuestWidget extends TextWidget {
 
         private final Runnable onClick;

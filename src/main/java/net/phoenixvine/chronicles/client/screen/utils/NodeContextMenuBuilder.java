@@ -163,7 +163,7 @@ public class NodeContextMenuBuilder {
                     () -> {
                         state.setCtxOpen(false);
                         Minecraft.getInstance()
-                                .setScreen(new ChapterThemeScreen(state.thisScreen(), ctx.selectedChapter()));
+                                .setScreen(new CanvasThemeScreen(state.thisScreen(), ctx.selectedChapter()));
                     }));
             items.add(new ChronicleOverviewScreen.CtxItem("🖼 Add picture…", "§d", false, false,
                     () -> {

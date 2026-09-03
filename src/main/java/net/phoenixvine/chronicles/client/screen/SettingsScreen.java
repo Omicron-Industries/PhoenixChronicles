@@ -39,9 +39,6 @@ public class SettingsScreen extends Screen {
     private static final int ARROW_W = 18;
     private static final int ARROW_GAP = 2;
 
-    // Minimum usable real-estate for the sidebar + settings panel; below this we shrink the whole
-    // screen via a pose scale (same idea as the chapter/category theme popups and the lang editor)
-    // instead of letting the fixed-width sidebar/panel/footer overlap or run off-screen.
     private static final int MIN_CONTENT_W = SIDEBAR_W + MARGIN + PANEL_W + MARGIN;
     private static final int MIN_CONTENT_H = 260;
 
@@ -340,8 +337,6 @@ public class SettingsScreen extends Screen {
         return Math.max(0, (vw - totalW) / 2);
     }
 
-    // enableScissor operates in raw real screen pixels and ignores pose().scale(), so any scissor
-    // call made inside the uiScale transform below must have its bounds pre-multiplied by uiScale.
     private void enableScissorScaled(GuiGraphics g, int x1, int y1, int x2, int y2) {
         g.enableScissor(Math.round(x1 * uiScale), Math.round(y1 * uiScale), Math.round(x2 * uiScale),
                 Math.round(y2 * uiScale));

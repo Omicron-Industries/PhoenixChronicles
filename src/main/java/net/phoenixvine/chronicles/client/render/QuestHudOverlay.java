@@ -103,11 +103,6 @@ public class QuestHudOverlay {
         ItemLookup.performLookup();
     }
 
-    // Forge fires InputEvent.Key for every raw key press regardless of what's focused, unlike
-    // Screen.keyPressed which a focused text field intercepts before it reaches gameplay logic -
-    // so this listener has to check for text-input focus itself, or the keybind fires while the
-    // player is typing the same letter into chat, a sign, an anvil name field, or any of this
-    // mod's own EditBox/MultilineTextArea fields.
     private static boolean isTypingInTextField() {
         net.minecraft.client.gui.screens.Screen screen = Minecraft.getInstance().screen;
         if (screen == null) return false;

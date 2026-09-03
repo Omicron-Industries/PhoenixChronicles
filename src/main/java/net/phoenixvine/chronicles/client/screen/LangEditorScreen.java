@@ -44,9 +44,6 @@ public class LangEditorScreen extends Screen {
     private static final int FIELD_H = 13;
     private static final int FOOTER_H = 20;
 
-    // Minimum usable real-estate for the list column + sidebar; below this we shrink the whole
-    // screen via a pose scale (same idea as the chapter/category theme popups) instead of letting
-    // fixed-size rows and widgets overlap or run off-screen at small windows/high GUI scale.
     private static final int MIN_CONTENT_W = 420;
     private static final int MIN_CONTENT_H = 240;
 
@@ -336,8 +333,6 @@ public class LangEditorScreen extends Screen {
         g.fill(0, 0, width, height, ChroniclesThemePalette.BG);
     }
 
-    // enableScissor operates in raw real screen pixels and ignores pose().scale(), so any scissor
-    // call made inside the uiScale transform below must have its bounds pre-multiplied by uiScale.
     private void enableScissorScaled(GuiGraphics g, int x1, int y1, int x2, int y2) {
         g.enableScissor(Math.round(x1 * uiScale), Math.round(y1 * uiScale), Math.round(x2 * uiScale),
                 Math.round(y2 * uiScale));
