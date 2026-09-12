@@ -154,7 +154,7 @@ public class QuestProgressTracker {
 
                 if (node.isFlagDisabled(player.getServer())) continue;
 
-                if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
+                if (node.getEffectiveVisibility(player.getServer(), player) == QuestNode.Visibility.DISABLED) continue;
 
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
 
@@ -171,7 +171,7 @@ public class QuestProgressTracker {
                         MinecraftForge.EVENT_BUS.post(new QuestEvent.PlayerTick(player, node));
                 if (!cancelled) {
 
-                    List<QuestTask> tasks = node.getEffectiveTasks(player.getServer());
+                    List<QuestTask> tasks = node.getEffectiveTasks(player.getServer(), player);
                     boolean[] taskDone = new boolean[tasks.size()];
                     boolean[] taskSkipped = new boolean[tasks.size()];
                     for (int i = 0; i < tasks.size(); i++) {
@@ -209,9 +209,9 @@ public class QuestProgressTracker {
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
             if (node.isFlagDisabled(player.getServer())) continue;
             if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.LOCKED) continue;
-            if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
+            if (node.getEffectiveVisibility(player.getServer(), player) == QuestNode.Visibility.DISABLED) continue;
 
-            for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+            for (QuestTask task : node.getEffectiveTasks(player.getServer(), player)) {
                 if (task instanceof net.phoenixvine.chronicles.tasks.ItemRequirementTask t) {
                     if (t.isSticky()) task.isCompletedFor(player);
                 } else if (task instanceof net.phoenixvine.chronicles.tasks.FluidRequirementTask t) {
@@ -238,7 +238,7 @@ public class QuestProgressTracker {
     private static void checkAndTryComplete(Player player, QuestNode node, boolean invChanged,
                                             List<QuestTask> tasksOverride) {
         if (node.isFlagDisabled(player.getServer()) ||
-                node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
+                node.getEffectiveVisibility(player.getServer(), player) == QuestNode.Visibility.DISABLED)
             return;
         PlayerQuestData data = resolveData(player);
         if (data == null) return;
@@ -247,7 +247,7 @@ public class QuestProgressTracker {
         if (state == QuestState.COMPLETED) return;
 
         java.util.List<QuestTask> tasks = tasksOverride != null ? tasksOverride :
-                node.getEffectiveTasks(player.getServer());
+                node.getEffectiveTasks(player.getServer(), player);
         int minCount = node.getTaskMinCount();
 
         boolean complete;
@@ -293,7 +293,7 @@ public class QuestProgressTracker {
     private static void checkAndTryComplete(Player player, QuestNode node, List<QuestTask> tasks,
                                             boolean[] taskDone, boolean[] taskSkipped) {
         if (node.isFlagDisabled(player.getServer()) ||
-                node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED)
+                node.getEffectiveVisibility(player.getServer(), player) == QuestNode.Visibility.DISABLED)
             return;
         PlayerQuestData data = resolveData(player);
         if (data == null) return;
@@ -357,7 +357,7 @@ public class QuestProgressTracker {
                 propagateSharedCompletion(sp, node);
             if (node.isAutoClaimRewards() && player instanceof ServerPlayer sp)
                 grantRewards(sp, node);
-        } else if (newState == QuestState.UNLOCKED && !node.getEffectiveTasks(player.getServer()).isEmpty()) {
+        } else if (newState == QuestState.UNLOCKED && !node.getEffectiveTasks(player.getServer(), player).isEmpty()) {
 
             checkAndTryComplete(player, node);
         }
@@ -405,7 +405,7 @@ public class QuestProgressTracker {
             if (prereqsSatisfied(child, data, player.getServer())) {
                 changeQuestState(player, child, QuestState.UNLOCKED);
 
-                if (!child.getEffectiveTasks(player.getServer()).isEmpty()) {
+                if (!child.getEffectiveTasks(player.getServer(), player).isEmpty()) {
                     checkAndTryComplete(player, child);
                 }
             }
@@ -418,7 +418,7 @@ public class QuestProgressTracker {
 
         for (QuestNode node : net.phoenixvine.chronicles.registry.QuestTreeRegistry.getAllQuests().values()) {
             if (node.isFlagDisabled(player.getServer())) continue;
-            if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
+            if (node.getEffectiveVisibility(player.getServer(), player) == QuestNode.Visibility.DISABLED) continue;
             if (data.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.LOCKED) {
                 if (prereqsSatisfied(node, data, player.getServer())) {
                     changeQuestState(player, node, QuestState.UNLOCKED);
@@ -509,7 +509,7 @@ public class QuestProgressTracker {
     }
 
     private static void resetForRepeat(Player player, QuestNode node, PlayerQuestData data) {
-        for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+        for (QuestTask task : node.getEffectiveTasks(player.getServer(), player)) {
             net.phoenixvine.chronicles.capability.TaskProgressAccess.clear(player, task.getTaskId());
         }
 
@@ -526,7 +526,7 @@ public class QuestProgressTracker {
         if (data.hasClaimedRewards(node.getId())) return;
         if (MinecraftForge.EVENT_BUS.post(new QuestEvent.RewardClaimed(player, node))) return;
 
-        List<QuestReward> rewards = node.getEffectiveRewards(player.getServer());
+        List<QuestReward> rewards = node.getEffectiveRewards(player.getServer(), player);
         for (int i = 0; i < rewards.size(); i++) {
             QuestReward reward = rewards.get(i);
             if (reward instanceof QuestReward.ChoiceBoxReward box) {
@@ -545,7 +545,7 @@ public class QuestProgressTracker {
     }
 
     private static void consumeTaskProgress(ServerPlayer player, QuestNode node) {
-        for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+        for (QuestTask task : node.getEffectiveTasks(player.getServer(), player)) {
             task.tryConsume(player);
         }
     }
@@ -570,7 +570,7 @@ public class QuestProgressTracker {
         PlayerQuestData data = resolveData(player);
         if (data == null) return;
         if (data.hasClaimedRewards(node.getId())) return;
-        List<QuestReward> effectiveRewards = node.getEffectiveRewards(player.getServer());
+        List<QuestReward> effectiveRewards = node.getEffectiveRewards(player.getServer(), player);
         if (choiceIndex < 0 || choiceIndex >= effectiveRewards.size()) return;
         if (data.hasChosenRewardIndex(node.getId(), choiceIndex)) return;
 
@@ -593,7 +593,7 @@ public class QuestProgressTracker {
         QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
         if (state != QuestState.COMPLETED) return;
 
-        List<QuestReward> rewards = node.getEffectiveRewards(player.getServer());
+        List<QuestReward> rewards = node.getEffectiveRewards(player.getServer(), player);
         if (boxIndex < 0 || boxIndex >= rewards.size()) return;
         if (!(rewards.get(boxIndex) instanceof QuestReward.ChoiceBoxReward box)) return;
         if (data.isChoiceBoxResolved(node.getId(), boxIndex)) return;

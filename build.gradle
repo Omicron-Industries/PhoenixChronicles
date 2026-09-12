@@ -170,8 +170,12 @@ dependencies {
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modRuntimeOnly("curse.maven:jade-324717:5390389")
     modCompileOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
-    modCompileOnly("curse.maven:phantasia-1589286:8604345")
-    modRuntimeOnly("curse.maven:phantasia-1589286:8604345")
+    // Resolved via mavenLocal() (see repositories{} above), same pattern as phoenix_archive below --
+    // the pinned curse.maven build this used to point at froze at an old Phantasia release without
+    // SuiteHudBar.PRIORITY_PHANTASIA, so its HUD button was silently missing. After changing
+    // Phantasia, run `./gradlew publishToMavenLocal` there to refresh this.
+    modCompileOnly("net.phoenix.core:Phantasia:${phantasia_version}")
+    modRuntimeOnly("net.phoenix.core:Phantasia:${phantasia_version}")
 
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
     modCompileOnly("dev.ftb.mods:ftb-library-forge:${ftblibrary_version}")
@@ -198,8 +202,16 @@ dependencies {
     modCompileOnly('curse.maven:phoenix-guilds-1612085:8743646')
     modRuntimeOnly("curse.maven:phoenix-guilds-1612085:8743646")
 
-    modCompileOnly("curse.maven:phoenixwiki-1647798:8735977")
-    modRuntimeOnly("curse.maven:phoenixwiki-1647798:8735977")
+    modCompileOnly("curse.maven:phoenixwiki-1647798:8806638")
+    modRuntimeOnly("curse.maven:phoenixwiki-1647798:8806638")
+
+
+    // Resolved via mavenLocal() (see repositories{} above) -- run `publishToMavenLocal` in
+    // Phoenix-Archive after changing it there. A flatDir/named local jar dependency here previously
+    // bypassed NeoGradle's SRG<->mapped remap transform (the same class of bug that crashed Archive's
+    // own runClient over its phoenix_wiki dependency, fixed the same way).
+    modCompileOnly("net.phoenix.phoenix_archive:phoenix_archive:${phoenix_archive_version}")
+    modRuntimeOnly("net.phoenix.phoenix_archive:phoenix_archive:${phoenix_archive_version}")
 
     modCompileOnly("net.phoenix.core:PhoenixCore:${phoenixcore_version}:slim") { transitive = false }
 

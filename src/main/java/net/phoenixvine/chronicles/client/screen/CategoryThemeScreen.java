@@ -24,7 +24,9 @@ import net.phoenixvine.chronicles.registry.CategoryRegistry;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CategoryThemeScreen extends Screen {
 
@@ -41,6 +43,8 @@ public class CategoryThemeScreen extends Screen {
     private static final int ADV_ROW_GAP = 4;
     private static final int ADV_BLOCK_H = FIELD_H * 2 + 2 + ADV_ROW_GAP;
     private static final int ADV_BOTTOM_PAD = 6;
+    private static final int ADV_VISIBLE_ROWS = 2;
+    private static final int ADV_SCROLLBAR_W = 3;
 
     private static final int[] ROW_H_TABLE = { STRIDE + 10, STRIDE, STRIDE + 10, STRIDE + 10, STRIDE + 10 };
     private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_COLOR = 2, ROW_NAME_COLOR = 3, ROW_SHADER = 4;
@@ -71,10 +75,11 @@ public class CategoryThemeScreen extends Screen {
     private EditBox shaderBox;
 
     private boolean advancedOpen = false;
+    private int advScrollRow = 0;
 
     private final List<CategoryShaderConfig.CategoryOverride> overrides = new ArrayList<>();
     private final List<EditBox> overrideConditionBoxes = new ArrayList<>();
-    private final List<EditBox> overrideShaderBoxes = new ArrayList<>();
+    private final Map<Integer, EditBox> overrideShaderBoxes = new HashMap<>();
 
     private int panelLeft, panelTop;
 
@@ -99,7 +104,20 @@ public class CategoryThemeScreen extends Screen {
 
     private int advancedContentH() {
         if (!advancedOpen) return 0;
-        return ADV_TOGGLE_GAP + overrides.size() * ADV_BLOCK_H + FIELD_H + ADV_BOTTOM_PAD;
+        int visibleRows = Math.min(overrides.size(), ADV_VISIBLE_ROWS);
+        return ADV_TOGGLE_GAP + visibleRows * ADV_BLOCK_H + FIELD_H + ADV_BOTTOM_PAD;
+    }
+
+    private int maxAdvScrollRow() {
+        return Math.max(0, overrides.size() - ADV_VISIBLE_ROWS);
+    }
+
+    private int advViewportTop() {
+        return advancedToggleY() + SEC_HEADER_H + ADV_TOGGLE_GAP;
+    }
+
+    private int advViewportH() {
+        return Math.min(overrides.size(), ADV_VISIBLE_ROWS) * ADV_BLOCK_H;
     }
 
     private int previewY() {
@@ -190,7 +208,9 @@ public class CategoryThemeScreen extends Screen {
         if (advancedOpen) {
             int oy = advY + SEC_HEADER_H + ADV_TOGGLE_GAP;
             int removeW = 14;
-            for (int i = 0; i < overrides.size(); i++) {
+            advScrollRow = Mth.clamp(advScrollRow, 0, maxAdvScrollRow());
+            int visEnd = Math.min(overrides.size(), advScrollRow + ADV_VISIBLE_ROWS);
+            for (int i = advScrollRow; i < visEnd; i++) {
                 CategoryShaderConfig.CategoryOverride ov = overrides.get(i);
                 int idx = i;
 
@@ -216,13 +236,14 @@ public class CategoryThemeScreen extends Screen {
                 shBox.setValue(ov.shaderId);
                 shBox.setResponder(v -> overrides.get(idx).shaderId = v.trim());
                 addRenderableWidget(shBox);
-                overrideShaderBoxes.add(shBox);
+                overrideShaderBoxes.put(idx, shBox);
 
                 oy += FIELD_H + ADV_ROW_GAP;
             }
 
             addRenderableWidget(Button.builder(Component.literal("§7+ Add Override"), b -> {
                 overrides.add(new CategoryShaderConfig.CategoryOverride());
+                advScrollRow = maxAdvScrollRow();
                 clearWidgets();
                 init();
             }).bounds(fx, oy, fw, FIELD_H).build());
@@ -334,6 +355,16 @@ public class CategoryThemeScreen extends Screen {
                 overrides.isEmpty() ? "" : overrides.size() + " override(s)", mx, my,
                 ChroniclesThemePalette.TEXT, ChroniclesThemePalette.TEXT_DIM);
 
+        if (advancedOpen && overrides.size() > ADV_VISIBLE_ROWS) {
+            int vpTop = advViewportTop();
+            int vpH = advViewportH();
+            int sbX = fx + fw + 2;
+            g.fill(sbX, vpTop, sbX + ADV_SCROLLBAR_W, vpTop + vpH, 0x33FFFFFF);
+            int thumbH = Math.max(6, vpH * ADV_VISIBLE_ROWS / overrides.size());
+            int thumbY = vpTop + (vpH - thumbH) * advScrollRow / Math.max(1, maxAdvScrollRow());
+            g.fill(sbX, thumbY, sbX + ADV_SCROLLBAR_W, thumbY + thumbH, 0xFF8866CC);
+        }
+
         for (EditBox condBox : overrideConditionBoxes) {
             if (condBox.isMouseOver(mx, my)) {
                 g.renderComponentTooltip(font, List.of(
@@ -347,14 +378,14 @@ public class CategoryThemeScreen extends Screen {
                 break;
             }
         }
-        for (int i = 0; i < overrideShaderBoxes.size(); i++) {
-            EditBox shBox = overrideShaderBoxes.get(i);
-            ChroniclesUIKit.drawShaderWarning(g, font, shBox,
-                    DynamicShaderManager.lastCompileFailed(overrides.get(i).shaderId));
+        for (Map.Entry<Integer, EditBox> entry : overrideShaderBoxes.entrySet()) {
+            EditBox shBox = entry.getValue();
+            String shaderId = overrides.get(entry.getKey()).shaderId;
+            ChroniclesUIKit.drawShaderWarning(g, font, shBox, DynamicShaderManager.lastCompileFailed(shaderId));
             if (shBox.isMouseOver(mx, my)) {
                 List<Component> tip = new ArrayList<>();
                 tip.add(Component.literal("§7A .frag file's name from config/phoenix_chronicles/shaders/"));
-                if (DynamicShaderManager.lastCompileFailed(overrides.get(i).shaderId)) {
+                if (DynamicShaderManager.lastCompileFailed(shaderId)) {
                     tip.add(Component.literal("§c⚠ failed to compile -- check the log for the real error"));
                 }
                 g.renderComponentTooltip(font, tip, mx, my);
@@ -397,6 +428,25 @@ public class CategoryThemeScreen extends Screen {
     @Override
     public boolean mouseReleased(double rmx, double rmy, int btn) {
         return super.mouseReleased(rmx / uiScale, rmy / uiScale, btn);
+    }
+
+    @Override
+    public boolean mouseScrolled(double rmx, double rmy, double delta) {
+        double mx = rmx / uiScale;
+        double my = rmy / uiScale;
+        if (advancedOpen && overrides.size() > ADV_VISIBLE_ROWS) {
+            int fx = panelLeft + MARGIN;
+            int fw = PANEL_W - MARGIN * 2;
+            int vpTop = advViewportTop();
+            int vpH = advViewportH();
+            if (mx >= fx && mx < fx + fw && my >= vpTop && my < vpTop + vpH) {
+                advScrollRow = Mth.clamp(advScrollRow - (int) Math.signum(delta), 0, maxAdvScrollRow());
+                clearWidgets();
+                init();
+                return true;
+            }
+        }
+        return super.mouseScrolled(mx, my, delta);
     }
 
     @Override

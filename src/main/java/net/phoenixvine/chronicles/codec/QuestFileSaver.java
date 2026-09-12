@@ -745,7 +745,7 @@ public class QuestFileSaver {
                 }
                 builder.append(indent).append("]");
             } else {
-                builder.append(nbt.toString());
+                builder.append(nbt);
             }
         }
     }

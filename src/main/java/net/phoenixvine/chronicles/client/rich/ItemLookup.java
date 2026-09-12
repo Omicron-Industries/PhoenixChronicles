@@ -84,7 +84,7 @@ public final class ItemLookup {
         }
         if (node.getIconItem() != null) {
             ResourceLocation id = ForgeRegistries.ITEMS.getKey(node.getIconItem());
-            if (id != null && id.equals(itemId)) return true;
+            return id != null && id.equals(itemId);
         }
         return false;
     }

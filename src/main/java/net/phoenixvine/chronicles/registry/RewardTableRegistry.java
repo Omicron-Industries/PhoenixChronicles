@@ -49,7 +49,7 @@ public class RewardTableRegistry {
                             }
                             RewardTable table = RewardTable.deserialize(tag);
                             if (table != null) {
-                                TABLES.put(table.getId(), table);
+                                TABLES.put(table.id(), table);
                             }
                         } catch (Exception e) {
                             System.err.println("[Phoenix Chronicles] Failed to load reward table '" +

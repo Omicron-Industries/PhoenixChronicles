@@ -148,5 +148,12 @@ public class ChronicleNetwork {
                 S2CSyncPooledProgressPacket::new,
                 S2CSyncPooledProgressPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+
+        CHANNEL.registerMessage(id++,
+                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket.class,
+                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket::encode,
+                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket::new,
+                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

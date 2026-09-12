@@ -24,9 +24,19 @@ public final class ChronicleMarkdownParser {
     private static final Pattern QUOTE = Pattern.compile("^>\\s?(.*)$");
     private static final Pattern CONTAINER_OPEN = Pattern.compile("^:::(\\S+)\\s*(.*)$");
     private static final Pattern CONTAINER_CLOSE = Pattern.compile("^:::\\s*$");
+    private static final Pattern CONTAINER_ELSE = Pattern.compile("^:::else\\s*$");
+    private static final Pattern COLLAPSE_MARKER = Pattern.compile("(?i)\\s*\\{collapse}\\s*$");
     private static final Pattern TABLE_ROW = Pattern.compile("^\\|?.*\\|.*\\|?$");
     private static final Pattern TABLE_SEP = Pattern.compile("^\\|?[\\s:-]*-[\\s:-]*\\|[\\s:|-]*$");
-    private static final Pattern FOOTNOTE_DEF = Pattern.compile("^\\[\\^([^\\]]+)]:\\s*(.*)$");
+    /**
+     * {@code [^id]: text} as before, plus an optional {@code ?<expr>} condition guard right before the
+     * closing bracket -- {@code [^id?flag:qa_mode]: text} -- letting the same {@code id} carry several
+     * candidate bodies gated by different conditions (see the {@code flag:}/{@code quest:}/etc. syntax
+     * ChronicleRichTextRenderer's {@code :::if} blocks already accept, reused verbatim here through the
+     * same ConditionExprParser). Group 1 = id, group 2 = condition expression (optional), group 3 = body.
+     */
+    private static final Pattern FOOTNOTE_DEF = Pattern.compile("^\\[\\^([^\\]?]+)(?:\\?([^\\]]+))?]:\\s*(.*)$");
+    private static final Pattern SCALE_DIRECTIVE = Pattern.compile("^\\{scale:(\\d+(?:\\.\\d+)?)}$");
 
     private static final int KBD_COLOR = 0xFFD0D0D8;
     private static final int HIGHLIGHT_BG = 0x66E0C24A;
@@ -38,21 +48,87 @@ public final class ChronicleMarkdownParser {
 
         String[] rawLines = input.replace("\r\n", "\n").replace("\r", "\n").split("\n", -1);
 
-        Map<String, String> footnotes = new LinkedHashMap<>();
+        Map<String, List<RichSpan.TipCandidate>> footnotes = new LinkedHashMap<>();
         List<String> filtered = new ArrayList<>(rawLines.length);
         for (String line : rawLines) {
             Matcher fn = FOOTNOTE_DEF.matcher(line.trim());
             if (fn.matches()) {
-                footnotes.put(fn.group(1), fn.group(2));
+                String condExpr = fn.group(2);
+                net.phoenixvine.chronicles.condition.ConditionNode condition = null;
+                if (condExpr != null && !condExpr.isBlank()) {
+                    try {
+                        condition = net.phoenixvine.chronicles.condition.ConditionExprParser.parse(condExpr);
+                    } catch (net.phoenixvine.chronicles.condition.ConditionSyntaxException ignored) {
+                        // Bad guard expression -- fall back to an always-shown candidate rather than
+                        // silently dropping the whole footnote over a typo.
+                    }
+                }
+                footnotes.computeIfAbsent(fn.group(1), k -> new ArrayList<>())
+                        .add(new RichSpan.TipCandidate(condition, fn.group(3)));
             } else {
                 filtered.add(line);
             }
         }
 
-        return parseLines(filtered.toArray(String[]::new), footnotes);
+        return groupCollapsibleHeadings(parseLines(filtered.toArray(String[]::new), footnotes));
     }
 
-    private static List<RichBlock> parseLines(String[] lines, Map<String, String> footnotes) {
+    /**
+     * Wraps every heading marked collapsible (see {@code {collapse}} above) into a
+     * {@link RichBlock.CollapsibleSection}, swallowing every following block up to (not including) the
+     * next heading of the same or shallower level -- exactly the section boundary an ordinary heading
+     * already implies, just made collapsible. A heading WITHOUT the marker is left as a plain
+     * {@code RichBlock.Heading}, completely unaffected, and does not swallow anything -- it's not a
+     * section boundary for this pass at all, only for reading order. Recurses into Callout/Details/
+     * ConditionalSection children so a collapsible heading can appear nested inside those too. Ported
+     * from Phoenix Archive's groupHeadingsIntoSections.
+     */
+    private static List<RichBlock> groupCollapsibleHeadings(List<RichBlock> blocks) {
+        List<RichBlock> out = new ArrayList<>();
+        int i = 0;
+        while (i < blocks.size()) {
+            RichBlock b = blocks.get(i);
+            if (b instanceof RichBlock.Heading h && h.collapsible()) {
+                int j = i + 1;
+                while (j < blocks.size()) {
+                    RichBlock next = blocks.get(j);
+                    if (next instanceof RichBlock.Heading nh && nh.level() <= h.level()) break;
+                    j++;
+                }
+                List<RichBlock> children = groupCollapsibleHeadings(new ArrayList<>(blocks.subList(i + 1, j)));
+                String key = plainTextOf(h.spans()) + "#" + i;
+                out.add(new RichBlock.CollapsibleSection(h.level(), h.spans(), key, children));
+                i = j;
+            } else if (b instanceof RichBlock.Callout c) {
+                out.add(new RichBlock.Callout(c.type(), c.title(), groupCollapsibleHeadings(c.children())));
+                i++;
+            } else if (b instanceof RichBlock.Details d) {
+                out.add(new RichBlock.Details(d.expandKey(), d.title(), groupCollapsibleHeadings(d.children())));
+                i++;
+            } else if (b instanceof RichBlock.ConditionalSection cs) {
+                out.add(new RichBlock.ConditionalSection(cs.condition(),
+                        groupCollapsibleHeadings(cs.thenChildren()), groupCollapsibleHeadings(cs.elseChildren())));
+                i++;
+            } else {
+                out.add(b);
+                i++;
+            }
+        }
+        return out;
+    }
+
+    private static String plainTextOf(List<RichSpan> spans) {
+        StringBuilder sb = new StringBuilder();
+        for (RichSpan s : spans) {
+            if (s instanceof RichSpan.Text t) sb.append(t.text());
+            else if (s instanceof RichSpan.Link l) sb.append(l.label());
+            else if (s instanceof RichSpan.Tip t) sb.append(t.label());
+            else if (s instanceof RichSpan.ConditionalTip t) sb.append(t.label());
+        }
+        return sb.toString();
+    }
+
+    private static List<RichBlock> parseLines(String[] lines, Map<String, List<RichSpan.TipCandidate>> footnotes) {
         List<RichBlock> blocks = new ArrayList<>();
         int i = 0;
         boolean lastWasBlank = true;
@@ -68,10 +144,26 @@ public final class ChronicleMarkdownParser {
                 continue;
             }
 
+            Matcher sd = SCALE_DIRECTIVE.matcher(trimmed);
+            if (sd.matches()) {
+                try {
+                    blocks.add(new RichBlock.ScaleDirective(Float.parseFloat(sd.group(1))));
+                } catch (NumberFormatException ignored) {}
+                lastWasBlank = false;
+                i++;
+                continue;
+            }
+
             Matcher hm = HEADING.matcher(trimmed);
             if (hm.matches()) {
                 int level = hm.group(1).length();
-                blocks.add(new RichBlock.Heading(level, parseInline(hm.group(2), footnotes)));
+                String headingText = hm.group(2);
+                // Opt-in: a heading only becomes collapsible with a trailing {collapse} marker --
+                // ordinary headings are completely unaffected, same as before this existed.
+                Matcher cm = COLLAPSE_MARKER.matcher(headingText);
+                boolean collapsible = cm.find();
+                if (collapsible) headingText = cm.replaceFirst("");
+                blocks.add(new RichBlock.Heading(level, parseInline(headingText, footnotes), collapsible));
                 lastWasBlank = false;
                 i++;
                 continue;
@@ -84,17 +176,48 @@ public final class ChronicleMarkdownParser {
                 int depth = 1;
                 int start = i + 1;
                 int j = start;
+                // For "if" blocks, elseIdx records the first :::else seen at this block's own depth
+                // (1) -- a nested :::if's own :::else lives deeper and isn't captured here; it gets
+                // handled when that inner block is parsed by its own recursive parseLines call below.
+                int elseIdx = -1;
                 while (j < lines.length && depth > 0) {
                     String t = lines[j].trim();
                     if (CONTAINER_CLOSE.matcher(t).matches()) {
                         depth--;
                         if (depth == 0) break;
-                    } else if (CONTAINER_OPEN.matcher(t).matches()) {
-                        depth++;
-                    }
+                    } else if (type.equals("if") && depth == 1 && elseIdx < 0 &&
+                            CONTAINER_ELSE.matcher(t).matches()) {
+                                elseIdx = j;
+                            } else
+                        if (CONTAINER_OPEN.matcher(t).matches()) {
+                            depth++;
+                        }
                     j++;
                 }
                 String[] inner = java.util.Arrays.copyOfRange(lines, start, Math.min(j, lines.length));
+                if (type.equals("if")) {
+                    String[] thenLines, elseLines;
+                    if (elseIdx >= 0) {
+                        thenLines = java.util.Arrays.copyOfRange(lines, start, elseIdx);
+                        elseLines = java.util.Arrays.copyOfRange(lines, elseIdx + 1, Math.min(j, lines.length));
+                    } else {
+                        thenLines = inner;
+                        elseLines = new String[0];
+                    }
+                    try {
+                        net.phoenixvine.chronicles.condition.ConditionNode condition = net.phoenixvine.chronicles.condition.ConditionExprParser
+                                .parse(title);
+                        blocks.add(new RichBlock.ConditionalSection(condition,
+                                parseLines(thenLines, footnotes), parseLines(elseLines, footnotes)));
+                    } catch (net.phoenixvine.chronicles.condition.ConditionSyntaxException ex) {
+                        blocks.add(new RichBlock.Callout("warning", "Bad :::if condition", List.of(
+                                new RichBlock.Paragraph(List.of(new RichSpan.Text("§c" + ex.getMessage(),
+                                        Style.EMPTY))))));
+                    }
+                    lastWasBlank = false;
+                    i = j + 1;
+                    continue;
+                }
                 List<RichBlock> children = parseLines(inner, footnotes);
                 if (type.equals("spoiler") || type.equals("details")) {
                     String key = (title.isEmpty() ? "section" : title) + "#" + start;
@@ -206,7 +329,7 @@ public final class ChronicleMarkdownParser {
         return row.contains("|") && TABLE_ROW.matcher(row).matches() && TABLE_SEP.matcher(sep).matches();
     }
 
-    private static int parseTable(String[] lines, int i, List<RichBlock> blocks, Map<String, String> footnotes) {
+    private static int parseTable(String[] lines, int i, List<RichBlock> blocks, Map<String, List<RichSpan.TipCandidate>> footnotes) {
         List<List<RichSpan>> header = new ArrayList<>();
         for (String cell : splitRow(lines[i])) header.add(parseInline(cell.trim(), footnotes));
         i += 2;
@@ -236,7 +359,7 @@ public final class ChronicleMarkdownParser {
         return 6 * marker.length() + 6;
     }
 
-    private static List<RichSpan> parseInline(String input, Map<String, String> footnotes) {
+    private static List<RichSpan> parseInline(String input, Map<String, List<RichSpan.TipCandidate>> footnotes) {
         List<RichSpan> out = new ArrayList<>();
         if (input == null || input.isEmpty()) return out;
 
@@ -246,6 +369,7 @@ public final class ChronicleMarkdownParser {
         StringBuilder buf = new StringBuilder();
         Style currentStyle = Style.EMPTY;
         int currentBackground = 0;
+        float currentScale = 1f;
 
         while (i < len) {
             char c = input.charAt(i);
@@ -255,16 +379,25 @@ public final class ChronicleMarkdownParser {
                 if (end > i) {
                     String token = input.substring(i + 1, end);
                     if (token.startsWith("#") && token.length() == 7 && isHex6(token, 1)) {
-                        flush(buf, currentStyle, currentBackground, out);
+                        flush(buf, currentStyle, currentBackground, currentScale, out);
                         currentStyle = currentStyle.withColor(
                                 TextColor.fromRgb((int) Long.parseLong(token.substring(1), 16)));
                         i = end + 1;
                         continue;
                     } else if (token.equalsIgnoreCase("reset")) {
-                        flush(buf, currentStyle, currentBackground, out);
+                        flush(buf, currentStyle, currentBackground, currentScale, out);
                         currentStyle = Style.EMPTY;
+                        currentScale = 1f;
                         i = end + 1;
                         continue;
+                    } else if (token.toLowerCase(java.util.Locale.ROOT).startsWith("scale:")) {
+                        try {
+                            float parsed = Float.parseFloat(token.substring(6));
+                            flush(buf, currentStyle, currentBackground, currentScale, out);
+                            currentScale = parsed;
+                            i = end + 1;
+                            continue;
+                        } catch (NumberFormatException ignored) {}
                     }
                 }
             }
@@ -273,13 +406,17 @@ public final class ChronicleMarkdownParser {
                 int end = input.indexOf(']', i + 2);
                 if (end > i) {
                     String id = input.substring(i + 2, end);
-                    String def = footnotes.get(id);
-                    flush(buf, currentStyle, currentBackground, out);
-                    if (def != null) {
-                        out.add(new RichSpan.Tip("[" + id + "]",
-                                currentStyle.withColor(TextColor.fromRgb(0xFFAAFFAA)), def));
-                    } else {
+                    List<RichSpan.TipCandidate> candidates = footnotes.get(id);
+                    flush(buf, currentStyle, currentBackground, currentScale, out);
+                    Style tipStyle = currentStyle.withColor(TextColor.fromRgb(0xFFAAFFAA));
+                    if (candidates == null) {
                         out.add(new RichSpan.Text("[^" + id + "]", currentStyle));
+                    } else if (candidates.size() == 1 && candidates.get(0).condition() == null) {
+                        // The common case (a single, unconditioned definition) stays a plain Tip --
+                        // no per-render resolution needed, identical to before this feature existed.
+                        out.add(new RichSpan.Tip("[" + id + "]", tipStyle, candidates.get(0).tooltip()));
+                    } else {
+                        out.add(new RichSpan.ConditionalTip("[" + id + "]", tipStyle, candidates));
                     }
                     i = end + 1;
                     continue;
@@ -295,20 +432,20 @@ public final class ChronicleMarkdownParser {
                         String target = input.substring(labelEnd + 2, targetEnd);
 
                         if (label.startsWith("img:")) {
-                            flush(buf, currentStyle, currentBackground, out);
+                            flush(buf, currentStyle, currentBackground, currentScale, out);
                             addImage(out, label.substring(4));
                             i = targetEnd + 1;
                             continue;
                         }
                         if (target.startsWith("http://") || target.startsWith("https://") ||
                                 target.startsWith("wiki:")) {
-                            flush(buf, currentStyle, currentBackground, out);
+                            flush(buf, currentStyle, currentBackground, currentScale, out);
                             out.add(new RichSpan.Link(label, currentStyle, target));
                             i = targetEnd + 1;
                             continue;
                         }
                         if (target.startsWith("tip:")) {
-                            flush(buf, currentStyle, currentBackground, out);
+                            flush(buf, currentStyle, currentBackground, currentScale, out);
                             out.add(new RichSpan.Tip(label, currentStyle, target.substring(4)));
                             i = targetEnd + 1;
                             continue;
@@ -320,15 +457,20 @@ public final class ChronicleMarkdownParser {
                 if (bracketEnd > i) {
                     String inner = input.substring(i + 1, bracketEnd);
                     if (inner.startsWith("img:")) {
-                        flush(buf, currentStyle, currentBackground, out);
+                        flush(buf, currentStyle, currentBackground, currentScale, out);
                         addImage(out, inner.substring(4));
                         i = bracketEnd + 1;
                         continue;
                     }
                     if (inner.startsWith("item:")) {
-                        flush(buf, currentStyle, currentBackground, out);
+                        flush(buf, currentStyle, currentBackground, currentScale, out);
+                        String itemPart = inner.substring(5);
+                        int bar = itemPart.indexOf('|');
+                        String idPart = bar >= 0 ? itemPart.substring(0, bar) : itemPart;
+                        String tooltip = bar >= 0 ? itemPart.substring(bar + 1).trim() : null;
+                        if (tooltip != null && tooltip.isEmpty()) tooltip = null;
                         try {
-                            out.add(new RichSpan.ItemIcon(ResourceLocation.parse(inner.substring(5).trim())));
+                            out.add(new RichSpan.ItemIcon(ResourceLocation.parse(idPart.trim()), tooltip));
                         } catch (Exception ignored) {}
                         i = bracketEnd + 1;
                         continue;
@@ -339,7 +481,7 @@ public final class ChronicleMarkdownParser {
             if (c == '`') {
                 int end = input.indexOf('`', i + 1);
                 if (end > i) {
-                    flush(buf, currentStyle, currentBackground, out);
+                    flush(buf, currentStyle, currentBackground, currentScale, out);
                     String codeText = input.substring(i + 1, end);
                     out.add(new RichSpan.Text(codeText,
                             currentStyle.withColor(TextColor.fromRgb(0xFFD37A)), CODE_BG, codeText));
@@ -351,7 +493,7 @@ public final class ChronicleMarkdownParser {
             if (input.startsWith("<kbd>", i)) {
                 int end = input.indexOf("</kbd>", i + 5);
                 if (end > i) {
-                    flush(buf, currentStyle, currentBackground, out);
+                    flush(buf, currentStyle, currentBackground, currentScale, out);
                     out.add(new RichSpan.Text(" " + input.substring(i + 5, end) + " ",
                             currentStyle.withColor(TextColor.fromRgb(KBD_COLOR)).withBold(true), KBD_BG));
                     i = end + 6;
@@ -360,28 +502,28 @@ public final class ChronicleMarkdownParser {
             }
 
             if (c == '~' && i + 1 < len && input.charAt(i + 1) == '~') {
-                flush(buf, currentStyle, currentBackground, out);
+                flush(buf, currentStyle, currentBackground, currentScale, out);
                 currentStyle = currentStyle.withStrikethrough(!currentStyle.isStrikethrough());
                 i += 2;
                 continue;
             }
 
             if (c == '=' && i + 1 < len && input.charAt(i + 1) == '=') {
-                flush(buf, currentStyle, currentBackground, out);
+                flush(buf, currentStyle, currentBackground, currentScale, out);
                 currentBackground = currentBackground == HIGHLIGHT_BG ? 0 : HIGHLIGHT_BG;
                 i += 2;
                 continue;
             }
 
             if (c == '*' && i + 1 < len && input.charAt(i + 1) == '*') {
-                flush(buf, currentStyle, currentBackground, out);
+                flush(buf, currentStyle, currentBackground, currentScale, out);
                 currentStyle = currentStyle.withBold(!currentStyle.isBold());
                 i += 2;
                 continue;
             }
 
             if (c == '*') {
-                flush(buf, currentStyle, currentBackground, out);
+                flush(buf, currentStyle, currentBackground, currentScale, out);
                 currentStyle = currentStyle.withItalic(!currentStyle.isItalic());
                 i += 1;
                 continue;
@@ -391,7 +533,7 @@ public final class ChronicleMarkdownParser {
             i++;
         }
 
-        flush(buf, currentStyle, currentBackground, out);
+        flush(buf, currentStyle, currentBackground, currentScale, out);
         return out;
     }
 
@@ -432,9 +574,9 @@ public final class ChronicleMarkdownParser {
         } catch (Exception ignored) {}
     }
 
-    private static void flush(StringBuilder buf, Style style, int background, List<RichSpan> out) {
+    private static void flush(StringBuilder buf, Style style, int background, float scale, List<RichSpan> out) {
         if (buf.isEmpty()) return;
-        out.add(new RichSpan.Text(buf.toString(), style, background));
+        out.add(new RichSpan.Text(buf.toString(), style, background, null, scale));
         buf.setLength(0);
     }
 

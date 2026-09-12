@@ -42,7 +42,7 @@ final class ShapeMask {
         float midY = 1f / 3f;
         if (ny < midY) return Math.abs(nx) <= 1f;
         float t = (ny - midY) / (1f - midY);
-        float half = (1f - t) * 1f;
+        float half = (1f - t);
         return half > 0f && Math.abs(nx) <= half;
     }
 

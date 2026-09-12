@@ -33,7 +33,7 @@ public class C2SClaimAllRewardsPacket {
                 if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED) continue;
                 if (data.hasClaimedRewards(node.getId())) continue;
                 if (node.isRewardChoice()) continue;
-                if (node.getEffectiveRewards(player.getServer()).isEmpty()) continue;
+                if (node.getEffectiveRewards(player.getServer(), player).isEmpty()) continue;
 
                 QuestProgressTracker.grantRewards(player, node);
             }

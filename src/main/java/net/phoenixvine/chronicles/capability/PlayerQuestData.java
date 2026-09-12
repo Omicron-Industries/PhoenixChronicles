@@ -6,26 +6,16 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.model.QuestState;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class PlayerQuestData {
 
     private final Map<ResourceLocation, QuestState> questStates = new HashMap<>();
-
     private final Map<ResourceLocation, CompoundTag> taskProgress = new HashMap<>();
-
     private final Map<ResourceLocation, Long> lastCompleted = new HashMap<>();
-
     private final Set<ResourceLocation> claimedRewards = new HashSet<>();
-
     private final Map<ResourceLocation, Set<Integer>> chosenRewardIndices = new HashMap<>();
-
     private final Map<ResourceLocation, Map<Integer, Integer>> resolvedChoiceBoxes = new HashMap<>();
-
     private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
 
     public QuestState getQuestState(ResourceLocation questId, QuestState defaultState) {
@@ -33,7 +23,7 @@ public class PlayerQuestData {
     }
 
     public Map<ResourceLocation, QuestState> getAllStates() {
-        return java.util.Collections.unmodifiableMap(questStates);
+        return Collections.unmodifiableMap(questStates);
     }
 
     public void setQuestState(ResourceLocation questId, QuestState state) {
@@ -65,7 +55,7 @@ public class PlayerQuestData {
     }
 
     public Set<Integer> getChosenRewardIndices(ResourceLocation questId) {
-        return java.util.Collections.unmodifiableSet(chosenRewardIndices.getOrDefault(questId, Set.of()));
+        return Collections.unmodifiableSet(chosenRewardIndices.getOrDefault(questId, Set.of()));
     }
 
     public boolean hasChosenRewardIndex(ResourceLocation questId, int index) {
@@ -86,8 +76,9 @@ public class PlayerQuestData {
     }
 
     public int getResolvedChoiceBoxOption(ResourceLocation questId, int boxIndex) {
-        Map<Integer, Integer> boxes = resolvedChoiceBoxes.get(questId);
-        return boxes == null ? -1 : boxes.getOrDefault(boxIndex, -1);
+        return Optional.ofNullable(resolvedChoiceBoxes.get(questId))
+                .map(boxes -> boxes.getOrDefault(boxIndex, -1))
+                .orElse(-1);
     }
 
     public void resolveChoiceBox(ResourceLocation questId, int boxIndex, int optionIndex) {
@@ -102,9 +93,9 @@ public class PlayerQuestData {
         taskProgress.remove(taskId);
     }
 
-    public void resetQuestProgress(ResourceLocation questId, java.util.Collection<ResourceLocation> taskIds) {
+    public void resetQuestProgress(ResourceLocation questId, Collection<ResourceLocation> taskIds) {
         questStates.remove(questId);
-        for (ResourceLocation taskId : taskIds) taskProgress.remove(taskId);
+        taskIds.forEach(taskProgress::remove);
         lastCompleted.remove(questId);
         claimedRewards.remove(questId);
         chosenRewardIndices.remove(questId);
@@ -112,7 +103,7 @@ public class PlayerQuestData {
     }
 
     public Set<ResourceLocation> getPinnedQuestIds() {
-        return java.util.Collections.unmodifiableSet(pinnedQuestIds);
+        return Collections.unmodifiableSet(pinnedQuestIds);
     }
 
     public void togglePin(ResourceLocation id) {
@@ -132,59 +123,59 @@ public class PlayerQuestData {
     }
 
     public CompoundTag serializeNBT() {
-        CompoundTag root = new CompoundTag();
+        var root = new CompoundTag();
 
-        ListTag questsList = new ListTag();
+        var questsList = new ListTag();
         questStates.forEach((id, state) -> {
-            CompoundTag e = new CompoundTag();
+            var e = new CompoundTag();
             e.putString("id", id.toString());
             e.putString("state", state.name());
             questsList.add(e);
         });
         root.put("Quests", questsList);
 
-        ListTag tasksList = new ListTag();
+        var tasksList = new ListTag();
         taskProgress.forEach((id, tag) -> {
-            CompoundTag e = new CompoundTag();
+            var e = new CompoundTag();
             e.putString("id", id.toString());
             e.put("progress", tag);
             tasksList.add(e);
         });
         root.put("Tasks", tasksList);
 
-        ListTag completedList = new ListTag();
+        var completedList = new ListTag();
         lastCompleted.forEach((id, time) -> {
-            CompoundTag e = new CompoundTag();
+            var e = new CompoundTag();
             e.putString("id", id.toString());
             e.putLong("time", time);
             completedList.add(e);
         });
         root.put("LastCompleted", completedList);
 
-        ListTag claimedList = new ListTag();
-        for (ResourceLocation id : claimedRewards) {
-            CompoundTag e = new CompoundTag();
+        var claimedList = new ListTag();
+        for (var id : claimedRewards) {
+            var e = new CompoundTag();
             e.putString("id", id.toString());
             claimedList.add(e);
         }
         root.put("ClaimedRewards", claimedList);
 
-        ListTag chosenList = new ListTag();
+        var chosenList = new ListTag();
         chosenRewardIndices.forEach((id, indices) -> {
-            CompoundTag e = new CompoundTag();
+            var e = new CompoundTag();
             e.putString("id", id.toString());
             e.putIntArray("indices", indices.stream().mapToInt(Integer::intValue).toArray());
             chosenList.add(e);
         });
         root.put("ChosenRewards", chosenList);
 
-        ListTag boxesList = new ListTag();
+        var boxesList = new ListTag();
         resolvedChoiceBoxes.forEach((id, boxes) -> {
-            CompoundTag e = new CompoundTag();
+            var e = new CompoundTag();
             e.putString("id", id.toString());
-            ListTag entries = new ListTag();
+            var entries = new ListTag();
             boxes.forEach((boxIndex, optionIndex) -> {
-                CompoundTag entry = new CompoundTag();
+                var entry = new CompoundTag();
                 entry.putInt("box", boxIndex);
                 entry.putInt("option", optionIndex);
                 entries.add(entry);
@@ -194,9 +185,9 @@ public class PlayerQuestData {
         });
         root.put("ResolvedChoiceBoxes", boxesList);
 
-        ListTag pinnedList = new ListTag();
-        for (ResourceLocation id : pinnedQuestIds) {
-            CompoundTag e = new CompoundTag();
+        var pinnedList = new ListTag();
+        for (var id : pinnedQuestIds) {
+            var e = new CompoundTag();
             e.putString("id", id.toString());
             pinnedList.add(e);
         }
@@ -214,63 +205,78 @@ public class PlayerQuestData {
         resolvedChoiceBoxes.clear();
         pinnedQuestIds.clear();
 
-        for (int i = 0; i < root.getList("Quests", Tag.TAG_COMPOUND).size(); i++) {
-            CompoundTag e = root.getList("Quests", Tag.TAG_COMPOUND).getCompound(i);
-            try {
-                questStates.put(ResourceLocation.parse(e.getString("id")),
-                        QuestState.valueOf(e.getString("state")));
-            } catch (Exception ignored) {}
-        }
-
-        for (int i = 0; i < root.getList("Tasks", Tag.TAG_COMPOUND).size(); i++) {
-            CompoundTag e = root.getList("Tasks", Tag.TAG_COMPOUND).getCompound(i);
-            taskProgress.put(ResourceLocation.parse(e.getString("id")), e.getCompound("progress"));
-        }
-
-        for (int i = 0; i < root.getList("LastCompleted", Tag.TAG_COMPOUND).size(); i++) {
-            CompoundTag e = root.getList("LastCompleted", Tag.TAG_COMPOUND).getCompound(i);
-            lastCompleted.put(ResourceLocation.parse(e.getString("id")), e.getLong("time"));
-        }
-
-        for (int i = 0; i < root.getList("ClaimedRewards", Tag.TAG_COMPOUND).size(); i++) {
-            CompoundTag e = root.getList("ClaimedRewards", Tag.TAG_COMPOUND).getCompound(i);
-            claimedRewards.add(ResourceLocation.parse(e.getString("id")));
-        }
-
-        for (int i = 0; i < root.getList("ChosenRewards", Tag.TAG_COMPOUND).size(); i++) {
-            CompoundTag e = root.getList("ChosenRewards", Tag.TAG_COMPOUND).getCompound(i);
-            Set<Integer> indices = new HashSet<>();
-            if (e.contains("indices")) {
-                for (int idx : e.getIntArray("indices")) indices.add(idx);
-            } else if (e.contains("index")) {
-
-                indices.add(e.getInt("index"));
+        readCompoundList(root, "Quests", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                try {
+                    questStates.put(id, QuestState.valueOf(tag.getString("state")));
+                } catch (IllegalArgumentException ignored) {}
             }
-            if (!indices.isEmpty()) chosenRewardIndices.put(ResourceLocation.parse(e.getString("id")), indices);
-        }
+        });
 
-        for (int i = 0; i < root.getList("ResolvedChoiceBoxes", Tag.TAG_COMPOUND).size(); i++) {
-            CompoundTag e = root.getList("ResolvedChoiceBoxes", Tag.TAG_COMPOUND).getCompound(i);
-            Map<Integer, Integer> boxes = new HashMap<>();
-            ListTag entries = e.getList("boxes", Tag.TAG_COMPOUND);
-            for (int j = 0; j < entries.size(); j++) {
-                CompoundTag entry = entries.getCompound(j);
-                boxes.put(entry.getInt("box"), entry.getInt("option"));
+        readCompoundList(root, "Tasks", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                taskProgress.put(id, tag.getCompound("progress"));
             }
-            if (!boxes.isEmpty()) resolvedChoiceBoxes.put(ResourceLocation.parse(e.getString("id")), boxes);
-        }
+        });
 
-        for (int i = 0; i < root.getList("PinnedQuests", Tag.TAG_COMPOUND).size(); i++) {
-            CompoundTag e = root.getList("PinnedQuests", Tag.TAG_COMPOUND).getCompound(i);
-            try {
-                pinnedQuestIds.add(ResourceLocation.parse(e.getString("id")));
-            } catch (Exception ignored) {}
-        }
+        readCompoundList(root, "LastCompleted", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                lastCompleted.put(id, tag.getLong("time"));
+            }
+        });
+
+        readCompoundList(root, "ClaimedRewards", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                claimedRewards.add(id);
+            }
+        });
+
+        readCompoundList(root, "ChosenRewards", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                Set<Integer> indices = new HashSet<>();
+                if (tag.contains("indices")) {
+                    for (int idx : tag.getIntArray("indices")) indices.add(idx);
+                } else if (tag.contains("index")) {
+                    indices.add(tag.getInt("index"));
+                }
+                if (!indices.isEmpty()) chosenRewardIndices.put(id, indices);
+            }
+        });
+
+        readCompoundList(root, "ResolvedChoiceBoxes", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                Map<Integer, Integer> boxes = new HashMap<>();
+                readCompoundList(tag, "boxes", entry -> boxes.put(entry.getInt("box"), entry.getInt("option")));
+                if (!boxes.isEmpty()) resolvedChoiceBoxes.put(id, boxes);
+            }
+        });
+
+        readCompoundList(root, "PinnedQuests", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                pinnedQuestIds.add(id);
+            }
+        });
 
         if (root.contains("PinnedQuest")) {
-            try {
-                pinnedQuestIds.add(ResourceLocation.parse(root.getString("PinnedQuest")));
-            } catch (Exception ignored) {}
+            ResourceLocation id = ResourceLocation.tryParse(root.getString("PinnedQuest"));
+            if (id != null) {
+                pinnedQuestIds.add(id);
+            }
+        }
+    }
+
+    private static void readCompoundList(CompoundTag root, String key, java.util.function.Consumer<CompoundTag> consumer) {
+        for (Tag rawTag : root.getList(key, Tag.TAG_COMPOUND)) {
+            if (rawTag instanceof CompoundTag compound) {
+                consumer.accept(compound);
+            }
         }
     }
 }

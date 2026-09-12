@@ -830,7 +830,7 @@ public class DependencyLineRenderer {
             }
             if (geo.showArrow) arrowCountExpected += geo.arrowCount;
 
-            boolean isHoverEdge = hoveredNodeId != null && i < lineCacheNodes.size() &&
+            boolean isHoverEdge = i < lineCacheNodes.size() &&
                     (lineCacheNodes.get(i)[0].equals(hoveredNodeId) || lineCacheNodes.get(i)[1].equals(hoveredNodeId));
 
             if (!isHoverEdge && renderWithPluggableStyle(g, i, animTick)) {
@@ -1504,19 +1504,8 @@ public class DependencyLineRenderer {
         g.fill(bx - 2, by - 2, bx + 3, by + 3, 0x44FFCC44);
     }
 
-    private static final class ArrowInstance {
+    private record ArrowInstance(float tipX, float tipY, float dirX, float dirY, float halfSize, int color) {
 
-        final float tipX, tipY, dirX, dirY, halfSize;
-        final int color;
-
-        ArrowInstance(float tipX, float tipY, float dirX, float dirY, float halfSize, int color) {
-            this.tipX = tipX;
-            this.tipY = tipY;
-            this.dirX = dirX;
-            this.dirY = dirY;
-            this.halfSize = halfSize;
-            this.color = color;
-        }
     }
 
     private void drawArrowSprite(GuiGraphics g, float tipX, float tipY, float dirX, float dirY,
@@ -1524,22 +1513,9 @@ public class DependencyLineRenderer {
         arrowQueue.add(new ArrowInstance(tipX, tipY, dirX, dirY, halfSize, color));
     }
 
-    private static final class RibbonQuad {
+    private record RibbonQuad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
+                              int color) {
 
-        final float x0, y0, x1, y1, x2, y2, x3, y3;
-        final int color;
-
-        RibbonQuad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, int color) {
-            this.x0 = x0;
-            this.y0 = y0;
-            this.x1 = x1;
-            this.y1 = y1;
-            this.x2 = x2;
-            this.y2 = y2;
-            this.x3 = x3;
-            this.y3 = y3;
-            this.color = color;
-        }
     }
 
     private void queueRibbonQuad(float x0, float y0, float x1, float y1,

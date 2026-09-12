@@ -12,12 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class RewardTable {
-
-    private final String id;
-    private final String displayName;
-    private final List<WeightedReward> entries;
-    private final int pickCount;
+public record RewardTable(String id, String displayName, List<WeightedReward> entries, int pickCount) {
 
     public RewardTable(String id, String displayName, List<WeightedReward> entries, int pickCount) {
         this.id = id != null ? id : "";
@@ -26,16 +21,9 @@ public class RewardTable {
         this.pickCount = Math.max(0, pickCount);
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public String getDisplayName() {
+    @Override
+    public String displayName() {
         return displayName.isEmpty() ? id : displayName;
-    }
-
-    public int getPickCount() {
-        return pickCount;
     }
 
     public List<QuestReward> getRewards() {
@@ -43,7 +31,8 @@ public class RewardTable {
                 entries.stream().map(WeightedReward::reward).filter(r -> r != null).toList());
     }
 
-    public List<WeightedReward> getEntries() {
+    @Override
+    public List<WeightedReward> entries() {
         return Collections.unmodifiableList(entries);
     }
 
@@ -66,7 +55,7 @@ public class RewardTable {
     }
 
     public Component getSummary() {
-        String name = getDisplayName();
+        String name = displayName();
         if (pickCount > 0) {
             return Component.literal("Table: " + name + " (" + pickCount + "/" + entries.size() + " weighted random)");
         }

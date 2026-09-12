@@ -124,6 +124,8 @@ class NodeContextMenuBuilderTest {
         boolean gridSnapEnabled = true;
         ChronicleOverviewScreen.GridDisplayMode gridDisplayMode = ChronicleOverviewScreen.GridDisplayMode.ON_DRAG;
         boolean statsPanelOpen = false;
+        @Nullable
+        private PlayerQuestData playerData = new PlayerQuestData();
 
         @Override
         public void setCtxOpen(boolean open) {}
@@ -173,7 +175,9 @@ class NodeContextMenuBuilderTest {
         }
 
         @Override
-        public void setTestModeData(PlayerQuestData data) {}
+        public void setTestModeData(PlayerQuestData data) {
+            this.playerData = data;
+        }
 
         @Override
         public boolean gridSnapEnabled() {
@@ -262,7 +266,7 @@ class NodeContextMenuBuilderTest {
 
         @Override
         public @Nullable PlayerQuestData playerData() {
-            return null;
+            return playerData;
         }
 
         @Override

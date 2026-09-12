@@ -32,3 +32,4 @@ run/
 run-data/
 /src/generated/resources/.cache/*
 /CONFIG.md
+/CHRONICLES_PACKDEV_GUIDE.md

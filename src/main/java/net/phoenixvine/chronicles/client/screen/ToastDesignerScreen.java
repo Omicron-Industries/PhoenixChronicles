@@ -622,7 +622,7 @@ public class ToastDesignerScreen extends Screen {
                 g.drawString(font, "§8(no presets saved yet)", dx + 4, dy + 4, ChroniclesThemePalette.TEXT_FAINT,
                         false);
             } else {
-                ChroniclesUIKit.drawDropdown(g, font, names, s -> (String) s, -1, dx, presetY + FIELD_H, dw, ROW_H,
+                ChroniclesUIKit.drawDropdown(g, font, names, s -> s, -1, dx, presetY + FIELD_H, dw, ROW_H,
                         mx, my);
             }
         }

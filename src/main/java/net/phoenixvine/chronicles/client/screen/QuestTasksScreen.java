@@ -98,7 +98,13 @@ public class QuestTasksScreen extends Screen {
     }
 
     private final QuestNode node;
-    private final FullQuestData content;
+    /**
+     * Not final -- {@link #refreshEffectiveContent()} reassigns the task/reward lists fresh every
+     * render (singleplayer only, see there) so a variant swap gated by a flag flipping while this
+     * popup is already open (a teammate finishing a prerequisite, an admin's {@code /chronicles flag},
+     * a KubeJS event) is reflected without the player needing to close and reopen the node.
+     */
+    private FullQuestData content;
     private final PlayerQuestData playerData;
     private final Player player;
 
@@ -111,6 +117,15 @@ public class QuestTasksScreen extends Screen {
             .compile("(?m)^[ \\t]*-{3,}[ \\t]*$");
     private int descPage = 0;
     private int richSpansPage = -1;
+    /**
+     * The raw description text {@link #descBlocks} was last parsed from. Cache invalidation used to
+     * key only on {@link #descPage}, so a description whose text changes mid-session (a {@code
+     * :::if flag:...} variant flipping via {@code /chronicles flag}, a KubeJS event, a teammate
+     * unlocking something) kept showing the stale parse until the player flipped pages or reopened
+     * the screen -- {@link #resolveConditionals} was already re-checked every render, but it had
+     * nothing new to re-check since the underlying blocks never got re-parsed from the updated text.
+     */
+    private String descBlocksSourceText = null;
     private int descPagerX, descPagerY, descPagerW, descPagerH, descPagerPageCount;
 
     private String liveDescOverride = null;
@@ -181,6 +196,8 @@ public class QuestTasksScreen extends Screen {
     public void render(GuiGraphics g, int mx, int my, float partial) {
         com.mojang.blaze3d.systems.RenderSystem.disableScissor();
         hoveredHeaderTooltip = null;
+
+        refreshEffectiveContent();
 
         if (isFullscreen) {
             renderFullscreen(g, mx, my, partial);
@@ -370,15 +387,30 @@ public class QuestTasksScreen extends Screen {
         int compactDescPageCount = splitDescPages(currentDisplayDescriptionText()).size();
         String descText = currentDescriptionPageText(currentDisplayDescriptionText());
 
-        List<net.phoenixvine.chronicles.client.rich.RichSpan> spans = net.phoenixvine.chronicles.client.rich.ChronicleTextParser
-                .parse(descText);
+        // Same block parser/cache/conditional-resolution as the fullscreen view (see renderFullscreenDesc)
+        // -- compact used to render descText through the older, inline-only ChronicleTextParser, so
+        // headings/tables/callouts/spoilers showed up as literal markup instead of being styled. Sharing
+        // richSpansPage/descBlocks/descExpandedKeys with fullscreen keeps expand/collapse state (and the
+        // parsed-blocks cache) consistent between the two views of the same screen. Keyed on the
+        // text itself (not just the page index) so a variant flip mid-session gets re-parsed instead
+        // of silently keeping the stale blocks -- see descBlocksSourceText.
+        if (richSpansPage != descPage || !descText.equals(descBlocksSourceText)) {
+            descBlocks = descText.isEmpty() ? java.util.List.of() :
+                    net.phoenixvine.chronicles.client.rich.ChronicleMarkdownParser.parse(descText);
+            richSpansPage = descPage;
+            descBlocksSourceText = descText;
+        }
+        java.util.List<net.phoenixvine.chronicles.client.rich.RichBlock> resolvedDescBlocks = resolveConditionals(
+                descBlocks);
+
         float compactTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
                 .getTextScaleMultiplier();
         int compactLineH = Math.max(1, Math.round(10 * compactTextScale));
 
-        int questDescLineCount = spans.isEmpty() ? 0 :
-                (net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureHeight(
-                        font, spans, cardW() - CARD_PAD * 2, compactTextScale) + compactLineH - 1) / compactLineH;
+        int questDescLineCount = resolvedDescBlocks.isEmpty() ? 0 :
+                (net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureBlocksHeight(
+                        font, resolvedDescBlocks, cardW() - CARD_PAD * 2, compactTextScale, descExpandedKeys) +
+                        compactLineH - 1) / compactLineH;
 
         java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines = java.util.Collections
                 .nCopies(questDescLineCount, net.minecraft.util.FormattedCharSequence.EMPTY);
@@ -494,14 +526,23 @@ public class QuestTasksScreen extends Screen {
                 g.drawString(font, "§8Click to add a description", cardX + CARD_PAD, dy, C_TEXT_FAINT, false);
             }
 
-            net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.render(
-                    g, font, spans,
+            // Narrower scissor just for the description viewport -- the outer scissor covers the whole
+            // card (header included), so without this a block whose background/box only partially
+            // overlaps [cy+1, cy+descH-1] (e.g. a callout scrolled halfway off) bleeds its full box into
+            // the header instead of being cut off at the description's own top/bottom edge. Several block
+            // renderers (callout, table, details) only logically check "does this box overlap the visible
+            // range" before filling the whole box, rather than clamping the fill itself, so a real scissor
+            // here is what actually stops the bleed.
+            g.enableScissor(cardX, cy + 1, cardX + cardW(), cy + descH - 1);
+
+            richRegions = net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.renderBlocks(
+                    g, font, resolvedDescBlocks,
                     cardX + CARD_PAD, cy + 4, cardW() - CARD_PAD * 2,
 
                     compactDescScrollLine * Math.round(10 * compactTextScale),
                     cy + 1, cy + descH - 1,
 
-                    compactTextScale);
+                    compactTextScale, C_ACTIVE, descExpandedKeys);
 
             if (descLines.size() > questDescLines.size()) {
                 for (int i = questDescLines.size(); i < descLines.size(); i++) {
@@ -511,6 +552,13 @@ public class QuestTasksScreen extends Screen {
                     }
                 }
             }
+
+            // Pop back to the outer card-wide scissor from before -- enableScissor pushes onto a stack
+            // (intersecting with whatever's already active), it doesn't replace it, so calling it again
+            // here would just push a second, redundant scissor on top of the still-active narrow one
+            // instead of actually widening it back out. disableScissor is the correct way to undo the
+            // enableScissor two calls up.
+            g.disableScissor();
 
             if (maxScrollLine > 0) {
                 String hint = compactDescScrollLine < maxScrollLine ? "§7▼ scroll for more" : "§7▲ scroll up";
@@ -1049,11 +1097,16 @@ public class QuestTasksScreen extends Screen {
 
         g.enableScissor(x - 8, y - 8, x + w + 8, textBottom + 8);
 
-        if (richSpansPage != descPage) {
+        if (richSpansPage != descPage || !descRaw.equals(descBlocksSourceText)) {
             descBlocks = descRaw.isEmpty() ? java.util.List.of() :
                     net.phoenixvine.chronicles.client.rich.ChronicleMarkdownParser.parse(descRaw);
             richSpansPage = descPage;
+            descBlocksSourceText = descRaw;
         }
+        // Only the raw parse is cached above (keyed on page) -- :::if/:::else has to be resolved fresh
+        // every call so it tracks live quest state, the same way the Chronicles Archive port does it.
+        java.util.List<net.phoenixvine.chronicles.client.rich.RichBlock> resolvedDescBlocks = resolveConditionals(
+                descBlocks);
         if (isEditMode && descRaw.isEmpty() && descBlocks.isEmpty()) {
             g.drawString(font, "§8Click to add a description", x, y, C_TEXT_FAINT, false);
         }
@@ -1061,12 +1114,13 @@ public class QuestTasksScreen extends Screen {
         float textScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
 
         int descContentH = net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureBlocksHeight(font,
-                descBlocks, w, textScale, descExpandedKeys);
+                resolvedDescBlocks, w, textScale, descExpandedKeys);
         fsDescMaxScrollY = Math.max(0, descContentH - (textBottom - y));
         if (descScrollY > fsDescMaxScrollY) descScrollY = fsDescMaxScrollY;
 
         richRegions = net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.renderBlocks(
-                g, font, descBlocks, x, y, w, descScrollY, y, textBottom, textScale, C_ACTIVE, descExpandedKeys);
+                g, font, resolvedDescBlocks, x, y, w, descScrollY, y, textBottom, textScale, C_ACTIVE,
+                descExpandedKeys);
 
         int ly = y + descContentH - descScrollY;
 
@@ -1090,6 +1144,165 @@ public class QuestTasksScreen extends Screen {
         g.disableScissor();
 
         if (pagerH > 0) renderDescPager(g, x, textBottom, w, pagerH, mx, my, descPages.size());
+    }
+
+    /**
+     * Resolves every {@code RichBlock.ConditionalSection} in a parsed block list into whichever branch
+     * is currently true, recursing into every other block type that can itself hold children (Callout,
+     * Details) so a {@code :::if} can appear nested inside those too. Ported from the Chronicles
+     * Archive port's ArchiveScreen#resolveConditionals -- called fresh every render (see renderContent)
+     * rather than cached alongside the raw parse, so it tracks quest state changing live.
+     */
+    private java.util.List<net.phoenixvine.chronicles.client.rich.RichBlock> resolveConditionals(
+                                                                                                 java.util.List<net.phoenixvine.chronicles.client.rich.RichBlock> blocks) {
+        java.util.List<net.phoenixvine.chronicles.client.rich.RichBlock> out = new java.util.ArrayList<>(blocks.size());
+        for (net.phoenixvine.chronicles.client.rich.RichBlock b : blocks) {
+            if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.ConditionalSection cs) {
+                boolean met = net.phoenixvine.chronicles.condition.ConditionEvaluator.evaluate(cs.condition(),
+                        this::isConditionMet);
+                out.addAll(resolveConditionals(met ? cs.thenChildren() : cs.elseChildren()));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Callout c) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.Callout(c.type(), c.title(),
+                        resolveConditionals(c.children())));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Details d) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.Details(d.expandKey(), d.title(),
+                        resolveConditionals(d.children())));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.CollapsibleSection s) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.CollapsibleSection(s.level(),
+                        resolveSpans(s.headingSpans()), s.collapseKey(), resolveConditionals(s.children())));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Heading h) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.Heading(h.level(),
+                        resolveSpans(h.spans()), h.collapsible()));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Paragraph p) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.Paragraph(resolveSpans(p.spans())));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.ListItem li) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.ListItem(li.marker(), li.indent(),
+                        resolveSpans(li.spans())));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Checklist cl) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.Checklist(cl.checkKey(),
+                        cl.checkedDefault(), cl.indent(), resolveSpans(cl.spans())));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Quote q) {
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.Quote(resolveSpans(q.spans())));
+            } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Table t) {
+                java.util.List<java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan>> header =
+                        new java.util.ArrayList<>();
+                for (var cell : t.header()) header.add(resolveSpans(cell));
+                java.util.List<java.util.List<java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan>>> rows =
+                        new java.util.ArrayList<>();
+                for (var row : t.rows()) {
+                    java.util.List<java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan>> newRow =
+                            new java.util.ArrayList<>();
+                    for (var cell : row) newRow.add(resolveSpans(cell));
+                    rows.add(newRow);
+                }
+                out.add(new net.phoenixvine.chronicles.client.rich.RichBlock.Table(header, rows));
+            } else {
+                out.add(b);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Rewrites any {@link net.phoenixvine.chronicles.client.rich.RichSpan.ConditionalTip} in {@code
+     * spans} into whichever candidate tooltip currently matches (see {@link #resolveConditionals}) --
+     * the inline-span counterpart to that method's block-level {@code :::if} resolution, both re-run
+     * fresh every render so a {@code flag:}-guarded footnote variant tracks live flag state exactly
+     * like a guarded paragraph does. Returns {@code spans} itself, unmodified, when nothing in it needs
+     * resolving -- the common case, since most spans lists have no footnote references at all.
+     */
+    private java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan> resolveSpans(
+                                                                                          java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan> spans) {
+        boolean anyConditional = false;
+        for (net.phoenixvine.chronicles.client.rich.RichSpan s : spans) {
+            if (s instanceof net.phoenixvine.chronicles.client.rich.RichSpan.ConditionalTip) {
+                anyConditional = true;
+                break;
+            }
+        }
+        if (!anyConditional) return spans;
+
+        java.util.List<net.phoenixvine.chronicles.client.rich.RichSpan> out = new java.util.ArrayList<>(spans.size());
+        for (net.phoenixvine.chronicles.client.rich.RichSpan s : spans) {
+            out.add(s instanceof net.phoenixvine.chronicles.client.rich.RichSpan.ConditionalTip ct ?
+                    resolveConditionalTip(ct) : s);
+        }
+        return out;
+    }
+
+    /** Picks the first matching candidate (a {@code null} condition always matches), see {@link #resolveSpans}. */
+    private net.phoenixvine.chronicles.client.rich.RichSpan resolveConditionalTip(
+                                                                                   net.phoenixvine.chronicles.client.rich.RichSpan.ConditionalTip ct) {
+        for (net.phoenixvine.chronicles.client.rich.RichSpan.TipCandidate candidate : ct.candidates()) {
+            if (candidate.condition() == null || net.phoenixvine.chronicles.condition.ConditionEvaluator
+                    .evaluate(candidate.condition(), this::isConditionMet)) {
+                return new net.phoenixvine.chronicles.client.rich.RichSpan.Tip(ct.label(), ct.style(),
+                        candidate.tooltip());
+            }
+        }
+        // Every candidate was conditioned and none currently holds -- same fallback as an undefined
+        // [^id] reference: show the bare marker with no tooltip rather than nothing at all.
+        return new net.phoenixvine.chronicles.client.rich.RichSpan.Text(ct.label(), ct.style());
+    }
+
+    /**
+     * Leaf checker for {@code :::if} conditions -- {@code quest:<id>} (completed), {@code
+     * quest_unlocked:<id>} (unlocked or active), {@code quest_progress:<id><op><percent>} (task
+     * completion percentage compared against a threshold, see ThresholdCondition), or {@code flag:<expr>}
+     * -- a pack-defined flag, evaluated through the same {@link net.phoenixvine.chronicles.flag.PhoenixQuestFlags}
+     * expression engine that already gates quest {@code enableIf}/variants/chapter themes, so the exact
+     * same {@code config:<file>#<key>=<value>}, {@code kjs:}, {@code mod:}, {@code rule:} and plain
+     * static-flag syntax packs already use elsewhere works verbatim inside quest description text too.
+     * Unknown types default to unmet rather than throwing, so a typo redacts content instead of crashing
+     * the screen.
+     */
+    private boolean isConditionMet(String type, String value) {
+        if (value == null || value.isEmpty() || this.minecraft.player == null) return false;
+        if (type.equalsIgnoreCase("quest")) {
+            return net.phoenixvine.chronicles.QuestAPI.isCompleted(this.minecraft.player, value);
+        }
+        if (type.equalsIgnoreCase("quest_unlocked")) {
+            return net.phoenixvine.chronicles.QuestAPI.isUnlocked(this.minecraft.player, value);
+        }
+        if (type.equalsIgnoreCase("quest_progress")) {
+            net.phoenixvine.chronicles.condition.ThresholdCondition.Parsed p = net.phoenixvine.chronicles.condition.ThresholdCondition
+                    .parse(value);
+            long percent = Math.round(net.phoenixvine.chronicles.QuestAPI.getProgress(this.minecraft.player,
+                    p.id()) * 100f);
+            return net.phoenixvine.chronicles.condition.ThresholdCondition.test(percent, p.op(), p.threshold());
+        }
+        if (type.equalsIgnoreCase("flag")) {
+            return net.phoenixvine.chronicles.flag.PhoenixQuestFlags.evaluate(value, null, this.minecraft.player,
+                    "quest text :::if");
+        }
+        return false;
+    }
+
+    /**
+     * If {@code task} is an ArchiveEntryTask pointing at an entry Archive actually has, opens the
+     * Archive on it (returning here on close) and -- same as PhantasiaCompat's view-task handling --
+     * optimistically marks it complete on the client and syncs that to the server. Mirrors
+     * PhantasiaCompat.canOpenForTask/openForTask's role for Phantasia's own view tasks.
+     */
+    private boolean tryOpenArchiveEntry(QuestTask task) {
+        if (!(task instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask aet)) return false;
+        if (!net.phoenixvine.chronicles.integration.archive.ArchiveLoreCompat.hasEntry(aet.getArchiveEntryId())) {
+            return false;
+        }
+
+        net.phoenixvine.chronicles.integration.archive.ArchiveLoreCompat.openEntry(this, aet.getArchiveEntryId());
+
+        Player player = this.minecraft.player;
+        if (player != null && !aet.isCompletedFor(player)) {
+            aet.markCompletedClient(player);
+            net.phoenixvine.chronicles.model.QuestNode owner = QuestTreeRegistry.getTaskOwner(aet.getTaskId());
+            if (owner != null) {
+                net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.sendToServer(
+                        new net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket(owner.getId(),
+                                aet.getTaskId()));
+            }
+        }
+        return true;
     }
 
     private static java.util.List<String> splitDescPages(String raw) {
@@ -1277,8 +1490,8 @@ public class QuestTasksScreen extends Screen {
             int rowEndY = renderRichTaskRow(g, x + m, cy, w - m * 2, task, mx, my);
             if (mx >= x + m && mx < x + w - m && my >= cy && my < rowEndY - 5) {
                 hoveredTaskFs = task;
-                hoveredFsX = (int) mx;
-                hoveredFsY = (int) my;
+                hoveredFsX = mx;
+                hoveredFsY = my;
             }
             cy = rowEndY;
         }
@@ -1439,8 +1652,8 @@ public class QuestTasksScreen extends Screen {
             if (rowHov) {
                 hoveredRewardFs = reward;
                 hoveredRewardFsIndex = ri;
-                hoveredFsX = (int) mx;
-                hoveredFsY = (int) my;
+                hoveredFsX = mx;
+                hoveredFsY = my;
             }
 
             String label;
@@ -1578,6 +1791,7 @@ public class QuestTasksScreen extends Screen {
         if (task instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "§b⬡";
         if (task instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "§b⬢";
         if (task instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask) return "§b📖";
+        if (task instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask) return "§b📖";
         return "§8◇";
     }
 
@@ -1644,6 +1858,9 @@ public class QuestTasksScreen extends Screen {
         }
         if (task instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask t) {
             return "Phantasia guide: " + t.getGuideId();
+        }
+        if (task instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask t) {
+            return "Archive entry: " + t.getArchiveEntryId();
         }
         return null;
     }
@@ -1850,6 +2067,35 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
 
+        for (net.phoenixvine.chronicles.client.rich.RichSpan.Region r : richRegions) {
+            if (r.contains(mx, my)) {
+                if (r.span() instanceof net.phoenixvine.chronicles.client.rich.RichSpan.Link l) {
+                    if (!l.url().startsWith("wiki:")) {
+                        try {
+                            java.awt.Desktop.getDesktop().browse(java.net.URI.create(l.url()));
+                        } catch (Exception ignored) {}
+                    }
+                    return true;
+                }
+                if (r.span() instanceof net.phoenixvine.chronicles.client.rich.RichSpan.CodeCopy cc) {
+                    if (minecraft != null) minecraft.keyboardHandler.setClipboard(cc.code());
+                    return true;
+                }
+                if (r.span() instanceof net.phoenixvine.chronicles.client.rich.RichSpan.DetailsToggle dt) {
+                    if (!descExpandedKeys.remove(dt.key())) descExpandedKeys.add(dt.key());
+                    return true;
+                }
+                if (r.span() instanceof net.phoenixvine.chronicles.client.rich.RichSpan.ChecklistToggle ct) {
+                    boolean current = descExpandedKeys.contains("CL1:" + ct.key()) || !descExpandedKeys.contains("CL0:" + ct.key()) && ct.checkedDefault();
+                    boolean next = !current;
+                    descExpandedKeys.remove("CL1:" + ct.key());
+                    descExpandedKeys.remove("CL0:" + ct.key());
+                    descExpandedKeys.add((next ? "CL1:" : "CL0:") + ct.key());
+                    return true;
+                }
+            }
+        }
+
         if (hoveredDescBox && isEditMode && minecraft != null) {
             minecraft.setScreen(new QuestTextInputScreen(this, "Description",
                     currentFullDescriptionRaw(), 8192,
@@ -1869,6 +2115,7 @@ public class QuestTasksScreen extends Screen {
                 net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.openForTask(hoveredTask, this);
                 return true;
             }
+            if (tryOpenArchiveEntry(hoveredTask)) return true;
             ItemStack icon = getTaskIcon(hoveredTask);
             if (!icon.isEmpty()) tryOpenInRecipeViewer(icon);
             else isFullscreen = true;
@@ -2027,6 +2274,7 @@ public class QuestTasksScreen extends Screen {
                 net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.openForTask(hoveredTaskFs, this);
                 return true;
             }
+            if (tryOpenArchiveEntry(hoveredTaskFs)) return true;
             ItemStack icon = getTaskIcon(hoveredTaskFs);
             if (!icon.isEmpty()) tryOpenInRecipeViewer(icon);
             return true;
@@ -2069,8 +2317,7 @@ public class QuestTasksScreen extends Screen {
                     return true;
                 }
                 if (r.span() instanceof net.phoenixvine.chronicles.client.rich.RichSpan.ChecklistToggle ct) {
-                    boolean current = descExpandedKeys.contains("CL1:" + ct.key()) ? true :
-                            !descExpandedKeys.contains("CL0:" + ct.key()) && ct.checkedDefault();
+                    boolean current = descExpandedKeys.contains("CL1:" + ct.key()) || !descExpandedKeys.contains("CL0:" + ct.key()) && ct.checkedDefault();
                     boolean next = !current;
                     descExpandedKeys.remove("CL1:" + ct.key());
                     descExpandedKeys.remove("CL0:" + ct.key());
@@ -2093,6 +2340,33 @@ public class QuestTasksScreen extends Screen {
             return true;
         }
         return super.mouseClicked(mx, my, btn);
+    }
+
+    /**
+     * Re-resolves the flag-dependent parts of {@link #content} -- effective tasks and rewards --
+     * fresh from {@code node} every render, instead of trusting the snapshot taken when this screen
+     * was opened. Title/description are left alone: those may carry a per-quest markdown-file
+     * override merged in at construction time (see ChronicleOverviewScreen#openQuestPopup), and
+     * that merge can't be safely redone here without re-reading the file every frame -- the
+     * {@code :::if flag:...} conditional sections already used inside a description's own text stay
+     * live regardless (see resolveConditionals), so this only covers the piece that couldn't be.
+     *
+     * <p>
+     * Only runs in singleplayer, where {@code getSingleplayerServer()} gives direct access to the
+     * real flag/team state. On a dedicated server the client has no such access, so the popup keeps
+     * showing what was synced at open time, same as before this existed -- no regression, just no new
+     * live behavior there.
+     */
+    private void refreshEffectiveContent() {
+        if (minecraft == null || minecraft.player == null || node == null) return;
+        net.minecraft.server.MinecraftServer server = minecraft.getSingleplayerServer();
+        if (server == null) return;
+
+        List<QuestTask> liveTasks = node.getEffectiveTasks(server, minecraft.player);
+        List<QuestReward> liveRewards = node.getEffectiveRewards(server, minecraft.player);
+        if (liveTasks.equals(content.effectiveTasks()) && liveRewards.equals(content.effectiveRewards())) return;
+
+        content = new FullQuestData(content.title(), content.description(), content.tasks(), liveTasks, liveRewards);
     }
 
     private String currentFullDescriptionRaw() {

@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -146,6 +147,8 @@ public final class ChronicleRichTextRenderer {
             first = false;
             if (block instanceof RichBlock.Heading h) {
                 out.add(new HeadingInfo(h.level(), plainText(h.spans()), y));
+            } else if (block instanceof RichBlock.CollapsibleSection s) {
+                out.add(new HeadingInfo(s.level(), plainText(s.headingSpans()), y));
             }
             y = measureOneBlock(font, block, maxW, y, 1.0f, Set.of());
         }
@@ -158,6 +161,7 @@ public final class ChronicleRichTextRenderer {
             if (s instanceof RichSpan.Text t) sb.append(t.text());
             else if (s instanceof RichSpan.Link l) sb.append(l.label());
             else if (s instanceof RichSpan.Tip t) sb.append(t.label());
+            else if (s instanceof RichSpan.ConditionalTip t) sb.append(t.label());
         }
         return sb.toString();
     }
@@ -167,7 +171,12 @@ public final class ChronicleRichTextRenderer {
                                        int accentColor, Set<String> expandedKeys) {
         int[] curY = { y };
         boolean first = true;
+        float pendingScaleMult = 1f;
         for (RichBlock block : blocks) {
+            if (block instanceof RichBlock.ScaleDirective sd) {
+                pendingScaleMult = sd.multiplier();
+                continue;
+            }
             if (block instanceof RichBlock.Blank) {
                 curY[0] += GAP_BLANK;
                 first = false;
@@ -175,8 +184,9 @@ public final class ChronicleRichTextRenderer {
             }
             if (!first) curY[0] += gapBefore(block);
             first = false;
-            renderOneBlock(g, font, block, x, curY, maxW, clipTop, clipBot, regions, scale, accentColor,
-                    expandedKeys);
+            renderOneBlock(g, font, block, x, curY, maxW, clipTop, clipBot, regions, scale * pendingScaleMult,
+                    accentColor, expandedKeys);
+            pendingScaleMult = 1f;
         }
         return curY[0];
     }
@@ -196,6 +206,9 @@ public final class ChronicleRichTextRenderer {
                 g.fill(x, headY + 13, x + maxW, headY + 14, accentColor);
             }
             curY[0] += GAP_HEADING_AFTER;
+        } else if (block instanceof RichBlock.CollapsibleSection s) {
+            curY[0] = renderCollapsibleSection(g, font, s, x, curY[0], maxW, clipTop, clipBot, regions, scale,
+                    accentColor, expandedKeys);
         } else if (block instanceof RichBlock.ListItem li) {
             if (curY[0] >= clipTop && curY[0] + 8 <= clipBot) {
                 g.drawString(font, li.marker(), x, curY[0], 0xFFAAAAAA, false);
@@ -255,13 +268,62 @@ public final class ChronicleRichTextRenderer {
         int boxH = (bodyY - y) + 6;
 
         if (y + boxH >= clipTop && y <= clipBot) {
-            g.fill(x, y, x + maxW, y + boxH, (color & 0xFFFFFF) | 0x18000000);
-            g.fill(x, y, x + 3, y + boxH, color);
-            g.drawString(font, icon + " §l" + title, innerX, headY, color, false);
+            int fillTop = Math.max(y, clipTop);
+            int fillBot = Math.min(y + boxH, clipBot);
+            g.fill(x, fillTop, x + maxW, fillBot, (color & 0xFFFFFF) | 0x18000000);
+            g.fill(x, fillTop, x + 3, fillBot, color);
+            if (headY >= clipTop && headY <= clipBot)
+                g.drawString(font, icon + " §l" + title, innerX, headY, color, false);
         }
         renderBlockList(g, font, c.children(), innerX, headY + 12, innerMaxW, clipTop, clipBot, regions, scale,
                 color, expandedKeys);
         return y + boxH;
+    }
+
+    private static String collapseTrackingKey(String collapseKey) {
+        return "HCOL:" + collapseKey;
+    }
+
+    /**
+     * Renders a heading with a click-to-toggle arrow prefix, then its children if expanded. Uses the
+     * exact same {@code RichSpan.DetailsToggle} region mechanism Details already relies on, just with
+     * an "HCOL:"-prefixed key so the two don't collide sharing the same expandedKeys Set -- meaning
+     * whatever already toggles Details on click already handles this too, with no screen-side changes.
+     * Sections start expanded by default (collapsed only once its key has been added to the set),
+     * unlike Details which starts collapsed -- matching how a normal heading-delimited section reads
+     * open until you choose to fold it away. Ported from Phoenix Archive.
+     */
+    private static int renderCollapsibleSection(GuiGraphics g, Font font, RichBlock.CollapsibleSection s, int x,
+                                                int y, int maxW, int clipTop, int clipBot,
+                                                List<RichSpan.Region> regions, float scale, int accentColor,
+                                                Set<String> expandedKeys) {
+        boolean collapsed = expandedKeys.contains(collapseTrackingKey(s.collapseKey()));
+        int headY = y;
+        int[] curY = { y };
+
+        List<RichSpan> arrowSpans = new ArrayList<>(s.headingSpans().size() + 1);
+        arrowSpans.add(new RichSpan.Text(collapsed ? "▸ " : "▾ ", Style.EMPTY));
+        arrowSpans.addAll(s.headingSpans());
+
+        List<RichSpan> styled = switch (Math.min(s.level(), 3)) {
+            case 1 -> withHeadingStyle(arrowSpans);
+            case 2 -> withSubheadingStyle(arrowSpans);
+            default -> withH3Style(arrowSpans);
+        };
+        renderSpanList(g, font, styled, x, curY, x, maxW, clipTop, clipBot, regions, scale);
+        if (s.level() <= 1 && headY + 14 >= clipTop && headY <= clipBot) {
+            g.fill(x, headY + 13, x + maxW, headY + 14, accentColor);
+        }
+        curY[0] += GAP_HEADING_AFTER;
+
+        regions.add(new RichSpan.Region(x, headY, x + maxW, curY[0],
+                new RichSpan.DetailsToggle(collapseTrackingKey(s.collapseKey()))));
+
+        if (!collapsed) {
+            curY[0] = renderBlockList(g, font, s.children(), x, curY[0], maxW, clipTop, clipBot, regions, scale,
+                    accentColor, expandedKeys);
+        }
+        return curY[0];
     }
 
     private static int renderDetails(GuiGraphics g, Font font, RichBlock.Details d, int x, int y, int maxW,
@@ -270,9 +332,11 @@ public final class ChronicleRichTextRenderer {
         boolean expanded = expandedKeys.contains(d.expandKey());
         int headH = 14;
 
-        if (y >= clipTop && y - headH <= clipBot) {
-            g.fill(x, y, x + maxW, y + headH, 0xFF16121C);
-            g.drawString(font, (expanded ? "§f▾ " : "§7▸ ") + "§l" + d.title(), x + 4, y + 3, 0xFFE0D8F0, false);
+        if (y + headH >= clipTop && y <= clipBot) {
+            g.fill(x, Math.max(y, clipTop), x + maxW, Math.min(y + headH, clipBot), 0xFF16121C);
+            if (y + 3 >= clipTop && y + 3 <= clipBot) {
+                g.drawString(font, (expanded ? "§f▾ " : "§7▸ ") + "§l" + d.title(), x + 4, y + 3, 0xFFE0D8F0, false);
+            }
         }
         regions.add(new RichSpan.Region(x, y, x + maxW, y + headH, new RichSpan.DetailsToggle(d.expandKey())));
         int curY = y + headH + (expanded ? 3 : 0);
@@ -293,8 +357,8 @@ public final class ChronicleRichTextRenderer {
         int colW = maxW / cols;
 
         int headerH = tableRowHeight(font, t.header(), colW, scale);
-        if (y >= clipTop && y + headerH <= clipBot) {
-            g.fill(x, y, x + maxW, y + headerH, 0xFF1E1830);
+        if (y + headerH >= clipTop && y <= clipBot) {
+            g.fill(x, Math.max(y, clipTop), x + maxW, Math.min(y + headerH, clipBot), 0xFF1E1830);
         }
         for (int c = 0; c < t.header().size(); c++) {
             int[] cellY = { y + 3 };
@@ -310,8 +374,8 @@ public final class ChronicleRichTextRenderer {
         for (int r = 0; r < t.rows().size(); r++) {
             List<List<RichSpan>> row = t.rows().get(r);
             int rowH = tableRowHeight(font, row, colW, scale);
-            if (r % 2 == 1 && rowY >= clipTop && rowY + rowH <= clipBot) {
-                g.fill(x, rowY, x + maxW, rowY + rowH, 0x14FFFFFF);
+            if (r % 2 == 1 && rowY + rowH >= clipTop && rowY <= clipBot) {
+                g.fill(x, Math.max(rowY, clipTop), x + maxW, Math.min(rowY + rowH, clipBot), 0x14FFFFFF);
             }
             for (int c = 0; c < row.size(); c++) {
                 int[] cellY = { rowY + 3 };
@@ -571,7 +635,12 @@ public final class ChronicleRichTextRenderer {
     private static int measureBlockList(Font font, List<RichBlock> blocks, int maxW, int y, float scale,
                                         Set<String> expandedKeys) {
         boolean first = true;
+        float pendingScaleMult = 1f;
         for (RichBlock block : blocks) {
+            if (block instanceof RichBlock.ScaleDirective sd) {
+                pendingScaleMult = sd.multiplier();
+                continue;
+            }
             if (block instanceof RichBlock.Blank) {
                 y += GAP_BLANK;
                 first = false;
@@ -579,7 +648,8 @@ public final class ChronicleRichTextRenderer {
             }
             if (!first) y += gapBefore(block);
             first = false;
-            y = measureOneBlock(font, block, maxW, y, scale, expandedKeys);
+            y = measureOneBlock(font, block, maxW, y, scale * pendingScaleMult, expandedKeys);
+            pendingScaleMult = 1f;
         }
         return y;
     }
@@ -594,6 +664,20 @@ public final class ChronicleRichTextRenderer {
             };
             y = measureSpanListFrom(font, styled, maxW, y, scale);
             y += GAP_HEADING_AFTER;
+        } else if (block instanceof RichBlock.CollapsibleSection s) {
+            List<RichSpan> arrowSpans = new ArrayList<>(s.headingSpans().size() + 1);
+            arrowSpans.add(new RichSpan.Text("▸ ", Style.EMPTY));
+            arrowSpans.addAll(s.headingSpans());
+            List<RichSpan> styledHead = switch (Math.min(s.level(), 3)) {
+                case 1 -> withHeadingStyle(arrowSpans);
+                case 2 -> withSubheadingStyle(arrowSpans);
+                default -> withH3Style(arrowSpans);
+            };
+            y = measureSpanListFrom(font, styledHead, maxW, y, scale);
+            y += GAP_HEADING_AFTER;
+            if (!expandedKeys.contains(collapseTrackingKey(s.collapseKey()))) {
+                y = measureBlockList(font, s.children(), maxW, y, scale, expandedKeys);
+            }
         } else if (block instanceof RichBlock.ListItem li) {
             y = measureSpanListFrom(font, li.spans(), maxW - li.indent(), y, scale);
         } else if (block instanceof RichBlock.Checklist cl) {
@@ -630,8 +714,12 @@ public final class ChronicleRichTextRenderer {
 
     private static int gapBefore(RichBlock block) {
         if (block instanceof RichBlock.Heading h) return h.level() <= 2 ? GAP_HEADING_BEFORE : GAP_HEADING_BEFORE - 3;
+        if (block instanceof RichBlock.CollapsibleSection s) {
+            return s.level() <= 2 ? GAP_HEADING_BEFORE : GAP_HEADING_BEFORE - 3;
+        }
         if (block instanceof RichBlock.ListItem) return GAP_LIST_ITEM;
         if (block instanceof RichBlock.Rule) return 0;
+        if (block instanceof RichBlock.ScaleDirective) return 0;
         return GAP_PARAGRAPH;
     }
 
@@ -716,6 +804,12 @@ public final class ChronicleRichTextRenderer {
                         try {
                             g.renderItem(new ItemStack(item), curX, iconY);
                         } catch (Exception ignored) {}
+                    } else {
+                        // Referenced item doesn't exist (uninstalled/incompatible mod) -- render as a
+                        // clearly-marked missing slot instead of leaving a blank gap.
+                        g.fill(curX, iconY, curX + 16, iconY + 16, 0x33FF4444);
+                        g.renderOutline(curX, iconY, 16, 16, 0xFFFF4444);
+                        g.drawCenteredString(font, "?", curX + 8, iconY + 4, 0xFFFF4444);
                     }
                 }
                 regions.add(new RichSpan.Region(curX, iconY, curX + 16, iconY + 16, icon));
@@ -735,6 +829,14 @@ public final class ChronicleRichTextRenderer {
                 Style ts = t.style().withColor(TIP_COLOR).withUnderlined(true);
                 int[] pos = renderWords(g, font, t.label(), ts, TIP_COLOR,
                         curX, curY[0], originX, maxW, clipTop, clipBot, regions, t, scale);
+                curX = pos[0];
+                curY[0] = pos[1];
+            } else if (span instanceof RichSpan.ConditionalTip t) {
+                // Should already be resolved into a plain Tip/Text by QuestTasksScreen#resolveConditionals
+                // before this is called -- rendered as inert, non-tooltip text if one somehow slips through.
+                Style ts = t.style().withColor(TIP_COLOR);
+                int[] pos = renderWords(g, font, t.label(), ts, TIP_COLOR,
+                        curX, curY[0], originX, maxW, clipTop, clipBot, regions, null, scale);
                 curX = pos[0];
                 curY[0] = pos[1];
             }
@@ -761,7 +863,7 @@ public final class ChronicleRichTextRenderer {
                 }
                 curX += 18;
             } else if (span instanceof RichSpan.Text t) {
-                int[] p = measureWords(font, t.text(), t.style(), curX, curY, 0, maxW, scale);
+                int[] p = measureWords(font, t.text(), t.style(), curX, curY, 0, maxW, scale * t.scale());
                 curX = p[0];
                 curY = p[1];
             } else if (span instanceof RichSpan.Link l) {
@@ -772,10 +874,22 @@ public final class ChronicleRichTextRenderer {
                 int[] p = measureWords(font, t.label(), t.style(), curX, curY, 0, maxW, scale);
                 curX = p[0];
                 curY = p[1];
+            } else if (span instanceof RichSpan.ConditionalTip t) {
+                int[] p = measureWords(font, t.label(), t.style(), curX, curY, 0, maxW, scale);
+                curX = p[0];
+                curY = p[1];
             }
         }
         return curY + (curX > 0 ? lineH : 0);
     }
+
+    /**
+     * Style plus whether the run is under the {@code &t} code -- tracked outside the vanilla
+     * {@link Style} object (which has no room for a "resolve me at draw time" marker) so
+     * {@link #flushRun} can look up the *current* {@link ChroniclesThemePalette#SEL_ACCENT} every call
+     * instead of a color baked in when the text was parsed. Ported from Phoenix Archive.
+     */
+    private record LegacyStyle(Style style, boolean themed) {}
 
     private static int[] renderWords(
                                      GuiGraphics g, Font font,
@@ -786,6 +900,8 @@ public final class ChronicleRichTextRenderer {
                                      List<RichSpan.Region> regions, RichSpan source, float scale) {
         if (text == null || text.isEmpty()) return new int[] { curX, curY };
 
+        if (source instanceof RichSpan.Text t) scale *= t.scale();
+
         int lineH = Math.round(LINE_H * scale);
         String inlineCodeText = source instanceof RichSpan.Text t ? t.copyText() : null;
         boolean interactive = source instanceof RichSpan.Link || source instanceof RichSpan.Tip ||
@@ -794,7 +910,7 @@ public final class ChronicleRichTextRenderer {
         int background = source instanceof RichSpan.Text t ? t.background() : 0;
 
         String[] lines = text.split("\n", -1);
-        Style running = style;
+        LegacyStyle running = new LegacyStyle(style, false);
         for (int li = 0; li < lines.length; li++) {
             if (li > 0) {
                 curX = originX;
@@ -804,13 +920,13 @@ public final class ChronicleRichTextRenderer {
             String[] tokens = tokenize(line);
 
             StringBuilder run = new StringBuilder();
-            Style runStyle = running;
+            LegacyStyle runStyle = running;
             int runStartX = curX;
 
             for (String token : tokens) {
                 if (token.isBlank() && curX == originX) continue;
-                Style newStyle = applyLegacyCodes(running, token);
-                int tokW = Math.round(font.width(Component.literal(token).withStyle(newStyle)) * scale);
+                LegacyStyle newStyle = applyLegacyCodes(running, token);
+                int tokW = Math.round(font.width(Component.literal(token).withStyle(newStyle.style())) * scale);
                 if (curX + tokW > originX + maxW && curX > originX) {
                     flushRun(g, font, run, runStyle, fallbackColor, runStartX, curY, clipTop, clipBot, scale,
                             background);
@@ -838,12 +954,22 @@ public final class ChronicleRichTextRenderer {
         return new int[] { curX, curY };
     }
 
-    private static void flushRun(GuiGraphics g, Font font, StringBuilder run, Style runStyle, int fallbackColor,
-                                 int runStartX, int curY, int clipTop, int clipBot, float scale, int background) {
+    private static void flushRun(GuiGraphics g, Font font, StringBuilder run, LegacyStyle runStyle,
+                                 int fallbackColor, int runStartX, int curY, int clipTop, int clipBot, float scale,
+                                 int background) {
         if (run.isEmpty()) return;
         if (curY >= clipTop && curY + 8 <= clipBot) {
-            MutableComponent comp = Component.literal(run.toString()).withStyle(runStyle);
-            int color = runStyle.getColor() != null ? (0xFF000000 | runStyle.getColor().getValue()) : fallbackColor;
+            MutableComponent comp = Component.literal(run.toString()).withStyle(runStyle.style());
+            int color;
+            if (runStyle.style().getColor() != null) {
+                color = 0xFF000000 | runStyle.style().getColor().getValue();
+            } else if (runStyle.themed()) {
+                // Resolved fresh every draw call, not cached -- an animated or swapped theme shows up
+                // on the very next frame with no need to re-save the quest description.
+                color = 0xFF000000 | (ChroniclesThemePalette.SEL_ACCENT & 0xFFFFFF);
+            } else {
+                color = fallbackColor;
+            }
             int w = Math.round(font.width(comp) * scale);
             if (background != 0) {
                 g.fill(runStartX - 1, curY - 1, runStartX + w + 1, curY + 9, background);
@@ -866,7 +992,7 @@ public final class ChronicleRichTextRenderer {
         if (text == null || text.isEmpty()) return new int[] { curX, curY };
         int lineH = Math.round(LINE_H * scale);
         String[] lines = text.split("\n", -1);
-        Style running = style;
+        LegacyStyle running = new LegacyStyle(style, false);
         for (int li = 0; li < lines.length; li++) {
             if (li > 0) {
                 curX = originX;
@@ -875,7 +1001,7 @@ public final class ChronicleRichTextRenderer {
             for (String token : tokenize(lines[li])) {
                 if (token.isBlank() && curX == originX) continue;
                 running = applyLegacyCodes(running, token);
-                int tokW = Math.round(font.width(Component.literal(token).withStyle(running)) * scale);
+                int tokW = Math.round(font.width(Component.literal(token).withStyle(running.style())) * scale);
                 if (curX + tokW > originX + maxW && curX > originX) {
                     curX = originX;
                     curY += lineH;
@@ -886,24 +1012,46 @@ public final class ChronicleRichTextRenderer {
         return new int[] { curX, curY };
     }
 
-    private static Style applyLegacyCodes(Style base, String token) {
-        Style style = base;
+    /**
+     * {@code &t} (i.e. {@code §t} once the raw text reaches this point) is a Chronicles-only code, not
+     * part of vanilla's own set -- it behaves like every other color code for scope/reset purposes
+     * (stays active until the next color code or a reset), but instead of a fixed color it marks the
+     * run as "themed" for flushRun to resolve against the live {@link ChroniclesThemePalette#SEL_ACCENT}
+     * every draw call. Deliberately never written into the {@link Style} itself via {@code withColor} --
+     * Style's color, once set, always wins over whatever flushRun would otherwise choose, so there'd be
+     * no way to override it later with the live value. Ported from Phoenix Archive.
+     */
+    private static LegacyStyle applyLegacyCodes(LegacyStyle base, String token) {
+        Style style = base.style();
+        boolean themed = base.themed();
         int len = token.length();
         for (int i = 0; i < len - 1; i++) {
             if (token.charAt(i) != '§') continue;
+            char code = Character.toLowerCase(token.charAt(i + 1));
+            if (code == 't') {
+                themed = true;
+                continue;
+            }
             net.minecraft.ChatFormatting fmt = net.minecraft.ChatFormatting.getByCode(token.charAt(i + 1));
             if (fmt == null) continue;
-            style = switch (fmt) {
-                case RESET -> Style.EMPTY;
-                case BOLD -> style.withBold(true);
-                case ITALIC -> style.withItalic(true);
-                case UNDERLINE -> style.withUnderlined(true);
-                case STRIKETHROUGH -> style.withStrikethrough(true);
-                case OBFUSCATED -> style.withObfuscated(true);
-                default -> style.withColor(fmt);
-            };
+            if (fmt == net.minecraft.ChatFormatting.RESET) {
+                style = Style.EMPTY;
+                themed = false;
+            } else if (fmt.isColor()) {
+                style = style.withColor(fmt);
+                themed = false;
+            } else {
+                style = switch (fmt) {
+                    case BOLD -> style.withBold(true);
+                    case ITALIC -> style.withItalic(true);
+                    case UNDERLINE -> style.withUnderlined(true);
+                    case STRIKETHROUGH -> style.withStrikethrough(true);
+                    case OBFUSCATED -> style.withObfuscated(true);
+                    default -> style;
+                };
+            }
         }
-        return style;
+        return new LegacyStyle(style, themed);
     }
 
     private static String[] tokenize(String s) {

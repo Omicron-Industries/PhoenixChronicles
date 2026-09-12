@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.tracker;
 
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.guilds.data.GuildManager;
 
 import dev.ftb.mods.ftbteams.api.FTBTeamsAPI;
@@ -10,6 +11,20 @@ import java.util.Optional;
 public final class TeamKeyResolver {
 
     private TeamKeyResolver() {}
+
+    /**
+     * Works from either side: on the server, resolves the team key live (see {@link #resolve}); on the
+     * client, {@code player} can't be a {@link ServerPlayer} (Guilds' GuildManager and FTB Teams' own
+     * manager are both server-side SavedData with no client mirror), so this reads the value the server
+     * already synced down via S2CSyncTeamKeyPacket instead. Used by flag/condition evaluation, which
+     * runs on both sides (quest description {@code :::if} text is client-only; enableIf/variants can run
+     * on either).
+     */
+    public static Optional<String> resolveAny(Player player) {
+        if (player instanceof ServerPlayer sp) return resolve(sp);
+        String clientKey = net.phoenixvine.chronicles.client.util.ClientTeamCache.get();
+        return Optional.ofNullable(clientKey);
+    }
 
     public static boolean anyTeamModLoaded() {
         var modList = net.minecraftforge.fml.ModList.get();

@@ -323,6 +323,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "view_machine" -> "§8Machine id  (Phantasia multiblock definition id)";
                 case "view_scene" -> "§8Scene id  (Phantasia scene definition id)";
                 case "view_guide" -> "§8Guide id  (Phantasia guide definition id)";
+                case "archive_entry" -> "§8Archive entry id  (e.g. phoenix_archive:log_001)";
                 default -> {
                     PhoenixTaskRegistry.TaskEntry re = PhoenixTaskRegistry.get(taskType);
                     if (re != null) {
@@ -883,6 +884,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "view_scene" -> new net.phoenixvine.chronicles.tasks.ViewSceneTask(taskId, descComp, target,
                         (float) count);
                 case "view_guide" -> new net.phoenixvine.chronicles.tasks.ViewGuideTask(taskId, descComp, target);
+                case "archive_entry" -> new net.phoenixvine.chronicles.tasks.ArchiveEntryTask(taskId, descComp, target);
                 case "energy_check" -> {
                     var eType = EnergyStorageTask.EnergyType.FE;
                     if (!target.isBlank()) {
@@ -896,7 +898,7 @@ public class TaskRewardEditorScreen extends Screen {
                             eSrc = EnergyStorageTask.Source.valueOf(second.trim().toUpperCase());
                         } catch (Exception ignored2) {}
                     }
-                    yield new EnergyStorageTask(taskId, descComp, (long) count, eType, eSrc);
+                    yield new EnergyStorageTask(taskId, descComp, count, eType, eSrc);
                 }
                 default -> {
                     PhoenixTaskRegistry.TaskEntry re = PhoenixTaskRegistry.get(taskType);
@@ -1023,6 +1025,8 @@ public class TaskRewardEditorScreen extends Screen {
             pendingTaskCount = String.valueOf((int) vst.getMinSeconds());
         } else if (t instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask vgt) {
             pendingTaskTarget = vgt.getGuideId();
+        } else if (t instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask aet) {
+            pendingTaskTarget = aet.getArchiveEntryId();
         } else if (t instanceof EnergyStorageTask est) {
             pendingTaskTarget = est.getEnergyType().name();
             pendingTaskSecondary = est.getSource().name();
@@ -1110,6 +1114,7 @@ public class TaskRewardEditorScreen extends Screen {
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "view_machine";
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "view_scene";
         if (t instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask) return "view_guide";
+        if (t instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask) return "archive_entry";
         if (t instanceof EnergyStorageTask) return "energy_check";
         if (t instanceof FilterItemTask) return "filter_item";
         if (t instanceof FilterFluidTask) return "filter_fluid";

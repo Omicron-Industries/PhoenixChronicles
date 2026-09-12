@@ -8,6 +8,7 @@ import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 import net.phoenixvine.chronicles.codec.QuestFileLoader;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.integration.archive.ArchiveLoreCompat;
 import net.phoenixvine.chronicles.model.QuestGroup;
 import net.phoenixvine.chronicles.model.QuestGroupManager;
 import net.phoenixvine.chronicles.model.QuestNode;
@@ -224,6 +225,17 @@ public class NodeContextMenuBuilder {
 
         if (hasNode) {
             items.add(ChronicleOverviewScreen.CtxItem.sep());
+
+            String archiveQuestId = ctxNode.getId().toString();
+            if (ArchiveLoreCompat.hasLoreFor(archiveQuestId)) {
+                items.add(new ChronicleOverviewScreen.CtxItem("📖 View Lore", "§d", false, false,
+                        () -> {
+                            state.setCtxOpen(false);
+                            ArchiveLoreCompat.openLoreFor(state.thisScreen(), archiveQuestId);
+                        }));
+                items.add(ChronicleOverviewScreen.CtxItem.sep());
+            }
+
             QuestNode ctxLinkTarget = state.resolveLinkTarget(ctxNode);
             if (ctxNode.isLinkStub() && ctxLinkTarget != null) {
                 final QuestNode jumpTarget = ctxLinkTarget;

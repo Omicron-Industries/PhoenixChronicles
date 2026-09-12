@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.filter;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fluids.FluidStack;
 
 public interface IFluidFilter {
@@ -9,7 +10,7 @@ public interface IFluidFilter {
 
     String describe();
 
-    default net.minecraft.world.level.material.Fluid getDisplayFluid() {
+    default Fluid getDisplayFluid() {
         return null;
     }
 

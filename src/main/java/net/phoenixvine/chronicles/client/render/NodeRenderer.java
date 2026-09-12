@@ -196,7 +196,8 @@ public class NodeRenderer {
                 g.drawString(ctx.font(), "NEW", badgeX + 2, badgeY + 1, 0xFFAADDFF, false);
             }
             if (st == QuestState.COMPLETED && nodeSz >= 12 &&
-                    !node.getEffectiveRewards(Minecraft.getInstance().getSingleplayerServer()).isEmpty()) {
+                    !node.getEffectiveRewards(Minecraft.getInstance().getSingleplayerServer(),
+                            Minecraft.getInstance().player).isEmpty()) {
                 net.phoenixvine.chronicles.capability.PlayerQuestData pd = state.testMode() ? state.testModeData() :
                         state.playerData();
                 if (pd != null) {
@@ -417,7 +418,7 @@ public class NodeRenderer {
 
         MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
 
-        if (node.getEffectiveVisibility(server) == QuestNode.Visibility.DISABLED) {
+        if (node.getEffectiveVisibility(server, Minecraft.getInstance().player) == QuestNode.Visibility.DISABLED) {
             g.fill(x + 1, y + 1, x + sz - 1, y + sz - 1, 0xBB0B0B0F);
             g.drawCenteredString(ctx.font(), "§8✕", x + sz / 2, y + sz / 2 - 4, 0xFF444444);
         }
@@ -448,7 +449,7 @@ public class NodeRenderer {
 
         FrameProfiler.begin("node:progress");
 
-        List<QuestTask> tasks = node.getEffectiveTasks(server);
+        List<QuestTask> tasks = node.getEffectiveTasks(server, Minecraft.getInstance().player);
         if (QuestChroniclesSettings.get().isShowProgressArc() && !tasks.isEmpty() && sz >= 14) {
             int total = 0, done = 0;
             if (net.minecraft.client.Minecraft.getInstance().player != null) {
@@ -779,7 +780,7 @@ public class NodeRenderer {
 
         QuestState st = ctx.getState(node);
         MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
-        String title = node.getEffectiveTitleRaw(server).getString();
+        String title = node.getEffectiveTitleRaw(server, Minecraft.getInstance().player).getString();
         String sub = node.getSubtitle() != null && !node.getSubtitle().isBlank() ? node.getSubtitle() : null;
 
         boolean showFull = net.minecraft.client.gui.screens.Screen.hasShiftDown();
@@ -791,7 +792,7 @@ public class NodeRenderer {
 
         if (showFull) {
 
-            List<QuestTask> tasks = node.getEffectiveTasks(server);
+            List<QuestTask> tasks = node.getEffectiveTasks(server, Minecraft.getInstance().player);
             int taskDone = 0, taskTotal = 0;
             List<String> taskLines = new java.util.ArrayList<>();
             net.minecraft.client.player.LocalPlayer player = net.minecraft.client.Minecraft.getInstance().player;
@@ -820,7 +821,8 @@ public class NodeRenderer {
                 for (QuestNode req : node.getPrerequisites()) {
                     QuestState rs = ctx.getState(req);
                     String mark = rs == QuestState.COMPLETED ? "§a✔" : "§8○";
-                    prereqLines.add("  " + mark + " §8" + req.getEffectiveTitleRaw(server).getString());
+                    prereqLines.add("  " + mark + " §8" +
+                            req.getEffectiveTitleRaw(server, Minecraft.getInstance().player).getString());
                 }
             }
 

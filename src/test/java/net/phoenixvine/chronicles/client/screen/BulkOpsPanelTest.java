@@ -119,7 +119,7 @@ class BulkOpsPanelTest {
         RecordingState state = new RecordingState();
         BulkOpsPanel panel = new BulkOpsPanel(ctx, state, twoSelectedEditorState());
 
-        int sx = START_X + 1 * (SLOT_W + 2) + 5;
+        int sx = START_X + (SLOT_W + 2) + 5;
         boolean handled = panel.mouseClicked(sx, SLOT_Y + 5, 0, CL);
 
         assertTrue(handled);

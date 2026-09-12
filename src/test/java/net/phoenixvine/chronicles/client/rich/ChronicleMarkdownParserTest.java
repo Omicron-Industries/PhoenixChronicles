@@ -4,11 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ChronicleMarkdownParserTest {
 
@@ -16,6 +12,7 @@ class ChronicleMarkdownParserTest {
         if (span instanceof RichSpan.Text t) return t.text();
         if (span instanceof RichSpan.Link l) return l.label();
         if (span instanceof RichSpan.Tip t) return t.label();
+        if (span instanceof RichSpan.ConditionalTip t) return t.label();
         return "";
     }
 
@@ -200,6 +197,31 @@ class ChronicleMarkdownParserTest {
         List<RichBlock> blocks = ChronicleMarkdownParser.parse("Dangling[^missing].");
         RichBlock.Paragraph p = assertInstanceOf(RichBlock.Paragraph.class, blocks.get(0));
         assertEquals("Dangling[^missing].", plain(p.spans()));
+    }
+
+    @Test
+    void guardedFootnoteVariantProducesConditionalTipWithBothCandidates() {
+        List<RichBlock> blocks = ChronicleMarkdownParser.parse(
+                "See note[^1].\n\n[^1?flag:qa_mode]: QA-only detail.\n[^1]: Public detail.");
+
+        RichBlock.Paragraph p = assertInstanceOf(RichBlock.Paragraph.class, blocks.get(0));
+        RichSpan.ConditionalTip tip = assertInstanceOf(RichSpan.ConditionalTip.class, p.spans().get(1));
+        assertEquals("[1]", tip.label());
+        assertEquals(2, tip.candidates().size());
+        assertEquals("QA-only detail.", tip.candidates().get(0).tooltip());
+        assertNotNull(tip.candidates().get(0).condition(), "first candidate should carry the flag:qa_mode condition");
+        assertEquals("Public detail.", tip.candidates().get(1).tooltip());
+        assertNull(tip.candidates().get(1).condition(), "second, unguarded candidate should have no condition");
+    }
+
+    @Test
+    void singleUnconditionedFootnoteVariantStaysAPlainTip() {
+        // A footnote with only one, unconditioned definition must keep resolving to a plain Tip --
+        // ConditionalTip is only used once there's an actual condition or multiple candidates to pick
+        // between, so ordinary quests written before this feature existed render identically.
+        List<RichBlock> blocks = ChronicleMarkdownParser.parse("See note[^1].\n\n[^1]: Just the detail.");
+        RichBlock.Paragraph p = assertInstanceOf(RichBlock.Paragraph.class, blocks.get(0));
+        assertInstanceOf(RichSpan.Tip.class, p.spans().get(1));
     }
 
     @Test

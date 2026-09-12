@@ -72,7 +72,13 @@ public class QuestNode {
     private String enableIf = null;
 
     public boolean isFlagEnabled(MinecraftServer server) {
-        if (enableIf != null && !PhoenixQuestFlags.evaluate(enableIf, server, "quest " + id + " enableIf"))
+        return isFlagEnabled(server, null);
+    }
+
+    /** Player-aware -- see {@link #resolveVariant(MinecraftServer, net.minecraft.world.entity.player.Player)}. */
+    public boolean isFlagEnabled(MinecraftServer server,
+                                 @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        if (enableIf != null && !PhoenixQuestFlags.evaluate(enableIf, server, player, "quest " + id + " enableIf"))
             return false;
         return ChapterFlagRegistry.isChapterEnabled(chapter);
     }
@@ -83,6 +89,11 @@ public class QuestNode {
 
     public boolean isFlagDisabled(MinecraftServer server) {
         return !isFlagEnabled(server);
+    }
+
+    public boolean isFlagDisabled(MinecraftServer server,
+                                  @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        return !isFlagEnabled(server, player);
     }
 
     private boolean hideDepLine = false;
@@ -763,40 +774,82 @@ public class QuestNode {
     }
 
     public QuestVariant resolveVariant(net.minecraft.server.MinecraftServer server) {
+        return resolveVariant(server, null);
+    }
+
+    /**
+     * Player-aware variant resolution -- lets a variant condition use a team-scoped {@code flag:} (or
+     * {@code conflux:}, which is inherently per-team) instead of only global flags. Every {@code
+     * getEffective*} getter below has a matching overload; the player-less ones above are unchanged and
+     * still evaluate variant conditions without team context, same as before this existed.
+     */
+    public QuestVariant resolveVariant(net.minecraft.server.MinecraftServer server,
+                                       @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
         for (QuestVariant v : variants) {
-            if (PhoenixQuestFlags.evaluate(v.condition, server, "quest " + id + " variant condition")) return v;
+            if (PhoenixQuestFlags.evaluate(v.condition, server, player, "quest " + id + " variant condition"))
+                return v;
         }
         return null;
     }
 
     public Component getEffectiveTitleRaw(net.minecraft.server.MinecraftServer server) {
-        QuestVariant v = resolveVariant(server);
+        return getEffectiveTitleRaw(server, null);
+    }
+
+    public Component getEffectiveTitleRaw(net.minecraft.server.MinecraftServer server,
+                                          @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        QuestVariant v = resolveVariant(server, player);
         return (v != null && v.title != null && !v.title.isBlank()) ? Component.literal(v.title) : getTitleRaw();
     }
 
     public Component getEffectiveDescriptionRaw(net.minecraft.server.MinecraftServer server) {
-        QuestVariant v = resolveVariant(server);
+        return getEffectiveDescriptionRaw(server, null);
+    }
+
+    public Component getEffectiveDescriptionRaw(net.minecraft.server.MinecraftServer server,
+                                                @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        QuestVariant v = resolveVariant(server, player);
         return (v != null && v.description != null && !v.description.isBlank()) ? Component.literal(v.description) :
                 getDescriptionRaw();
     }
 
     public Visibility getEffectiveVisibility(net.minecraft.server.MinecraftServer server) {
-        QuestVariant v = resolveVariant(server);
+        return getEffectiveVisibility(server, null);
+    }
+
+    public Visibility getEffectiveVisibility(net.minecraft.server.MinecraftServer server,
+                                             @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        QuestVariant v = resolveVariant(server, player);
         return (v != null && v.visibility != null) ? v.visibility : visibility;
     }
 
     public List<QuestTask> getEffectiveTasks(net.minecraft.server.MinecraftServer server) {
-        QuestVariant v = resolveVariant(server);
+        return getEffectiveTasks(server, null);
+    }
+
+    public List<QuestTask> getEffectiveTasks(net.minecraft.server.MinecraftServer server,
+                                             @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        QuestVariant v = resolveVariant(server, player);
         return (v != null && v.tasks != null) ? Collections.unmodifiableList(v.tasks) : getTasks();
     }
 
     public List<QuestReward> getEffectiveRewards(net.minecraft.server.MinecraftServer server) {
-        QuestVariant v = resolveVariant(server);
+        return getEffectiveRewards(server, null);
+    }
+
+    public List<QuestReward> getEffectiveRewards(net.minecraft.server.MinecraftServer server,
+                                                 @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        QuestVariant v = resolveVariant(server, player);
         return (v != null && v.rewards != null) ? Collections.unmodifiableList(v.rewards) : getRewards();
     }
 
     public String getEffectiveSubtitle(net.minecraft.server.MinecraftServer server) {
-        QuestVariant v = resolveVariant(server);
+        return getEffectiveSubtitle(server, null);
+    }
+
+    public String getEffectiveSubtitle(net.minecraft.server.MinecraftServer server,
+                                       @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
+        QuestVariant v = resolveVariant(server, player);
         return (v != null && v.subtitle != null && !v.subtitle.isBlank()) ? v.subtitle : getSubtitle();
     }
 

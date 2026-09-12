@@ -87,12 +87,12 @@ public final class QuestAPI {
         player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(questData -> {
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 if (node.isFlagDisabled(Objects.requireNonNull(player.getServer()))) continue;
-                if (node.getEffectiveVisibility(player.getServer()) == QuestNode.Visibility.DISABLED) continue;
+                if (node.getEffectiveVisibility(player.getServer(), player) == QuestNode.Visibility.DISABLED) continue;
 
                 QuestState state = questData.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state != QuestState.ACTIVE && state != QuestState.UNLOCKED) continue;
 
-                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                     if (!(task instanceof ExternalTriggerTask ext)) continue;
                     if (!triggerId.equals(ext.getTriggerId())) continue;
                     if (ext.isCompletedFor(player)) continue;
@@ -172,7 +172,7 @@ public final class QuestAPI {
         if (QuestProgressTracker.getQuestState(player, node) == QuestState.COMPLETED) return 1f;
 
         int total = 0, done = 0;
-        for (QuestTask task : node.getEffectiveTasks(player.getServer())) {
+        for (QuestTask task : node.getEffectiveTasks(player.getServer(), player)) {
             if (task.isOptional()) continue;
             total++;
             if (task.isCompletedFor(player)) done++;

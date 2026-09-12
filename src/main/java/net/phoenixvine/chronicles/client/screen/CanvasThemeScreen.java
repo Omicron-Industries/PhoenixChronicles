@@ -16,7 +16,9 @@ import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CanvasThemeScreen extends Screen {
 
@@ -34,6 +36,11 @@ public class CanvasThemeScreen extends Screen {
     private static final int ADV_ROW_GAP = 4;
     private static final int ADV_BLOCK_H = FIELD_H * 4 + 2 * 3 + ADV_ROW_GAP;
     private static final int ADV_BOTTOM_PAD = 6;
+    // Up to this many overrides, the panel just grows to fit (same as before) -- beyond it, the
+    // viewport caps at this many rows and scrolls instead, so adding/removing an override no
+    // longer resizes (and re-centers) the whole panel once the list is already long.
+    private static final int ADV_VISIBLE_ROWS = 2;
+    private static final int ADV_SCROLLBAR_W = 3;
 
     private static final int[] ROW_H_TABLE = { STRIDE, STRIDE + 10, STRIDE + 10, STRIDE + 10, STRIDE + 10 };
     private static final int ROW_STYLE = 0, ROW_COLOR = 1, ROW_OPACITY = 2, ROW_TEXTURE = 3, ROW_SHADER = 4;
@@ -66,12 +73,13 @@ public class CanvasThemeScreen extends Screen {
     private boolean styleDropOpen = false;
     private boolean advancedOpen = false;
     private int openOverrideStyleDropdown = -1;
+    private int advScrollRow = 0;
 
     private final List<ChapterConfig.CanvasOverride> overrides = new ArrayList<>();
     private final List<EditBox> overrideConditionBoxes = new ArrayList<>();
     private final List<EditBox> overrideTextureBoxes = new ArrayList<>();
-    private final List<EditBox> overrideShaderBoxes = new ArrayList<>();
-    private final List<Integer> overrideStyleButtonY = new ArrayList<>();
+    private final Map<Integer, EditBox> overrideShaderBoxes = new HashMap<>();
+    private final Map<Integer, Integer> overrideStyleButtonY = new HashMap<>();
 
     private int panelLeft, panelTop;
 
@@ -96,7 +104,20 @@ public class CanvasThemeScreen extends Screen {
 
     private int advancedContentH() {
         if (!advancedOpen) return 0;
-        return ADV_TOGGLE_GAP + overrides.size() * ADV_BLOCK_H + FIELD_H + ADV_BOTTOM_PAD;
+        int visibleRows = Math.min(overrides.size(), ADV_VISIBLE_ROWS);
+        return ADV_TOGGLE_GAP + visibleRows * ADV_BLOCK_H + FIELD_H + ADV_BOTTOM_PAD;
+    }
+
+    private int maxAdvScrollRow() {
+        return Math.max(0, overrides.size() - ADV_VISIBLE_ROWS);
+    }
+
+    private int advViewportTop() {
+        return advancedToggleY() + SEC_HEADER_H + ADV_TOGGLE_GAP;
+    }
+
+    private int advViewportH() {
+        return Math.min(overrides.size(), ADV_VISIBLE_ROWS) * ADV_BLOCK_H;
     }
 
     private int previewY() {
@@ -208,9 +229,11 @@ public class CanvasThemeScreen extends Screen {
         int advY = advancedToggleY();
 
         if (advancedOpen) {
+            advScrollRow = Mth.clamp(advScrollRow, 0, maxAdvScrollRow());
             int oy = advY + SEC_HEADER_H + ADV_TOGGLE_GAP;
             int removeW = 14;
-            for (int i = 0; i < overrides.size(); i++) {
+            int visEnd = Math.min(overrides.size(), advScrollRow + ADV_VISIBLE_ROWS);
+            for (int i = advScrollRow; i < visEnd; i++) {
                 ChapterConfig.CanvasOverride ov = overrides.get(i);
                 int idx = i;
 
@@ -231,7 +254,7 @@ public class CanvasThemeScreen extends Screen {
 
                 oy += FIELD_H + 2;
 
-                overrideStyleButtonY.add(oy);
+                overrideStyleButtonY.put(idx, oy);
                 addRenderableWidget(Button.builder(
                         Component.literal("§8Style: §7" + ov.style.name() + " §8▾"),
                         b -> openOverrideStyleDropdown = (openOverrideStyleDropdown == idx) ? -1 : idx)
@@ -255,13 +278,14 @@ public class CanvasThemeScreen extends Screen {
                 shBox.setValue(ov.shaderId);
                 shBox.setResponder(v -> overrides.get(idx).shaderId = v.trim());
                 addRenderableWidget(shBox);
-                overrideShaderBoxes.add(shBox);
+                overrideShaderBoxes.put(idx, shBox);
 
                 oy += FIELD_H + ADV_ROW_GAP;
             }
 
             addRenderableWidget(Button.builder(Component.literal("§7+ Add Override"), b -> {
                 overrides.add(new ChapterConfig.CanvasOverride());
+                advScrollRow = maxAdvScrollRow();
                 clearWidgets();
                 init();
             }).bounds(fx, oy, fw, FIELD_H).build());
@@ -368,6 +392,16 @@ public class CanvasThemeScreen extends Screen {
                 overrides.isEmpty() ? "" : overrides.size() + " override(s)", mx, my,
                 ChroniclesThemePalette.TEXT, ChroniclesThemePalette.TEXT_DIM);
 
+        if (advancedOpen && overrides.size() > ADV_VISIBLE_ROWS) {
+            int vpTop = advViewportTop();
+            int vpH = advViewportH();
+            int sbX = fx + fw + 2;
+            g.fill(sbX, vpTop, sbX + ADV_SCROLLBAR_W, vpTop + vpH, 0x33FFFFFF);
+            int thumbH = Math.max(6, vpH * ADV_VISIBLE_ROWS / overrides.size());
+            int thumbY = vpTop + (vpH - thumbH) * advScrollRow / Math.max(1, maxAdvScrollRow());
+            g.fill(sbX, thumbY, sbX + ADV_SCROLLBAR_W, thumbY + thumbH, 0xFF8866CC);
+        }
+
         for (EditBox condBox : overrideConditionBoxes) {
             if (condBox.isMouseOver(mx, my)) {
                 g.renderComponentTooltip(font, java.util.List.of(
@@ -389,15 +423,15 @@ public class CanvasThemeScreen extends Screen {
                 break;
             }
         }
-        for (int i = 0; i < overrideShaderBoxes.size(); i++) {
-            EditBox shBox = overrideShaderBoxes.get(i);
-            ChroniclesUIKit.drawShaderWarning(g, font, shBox,
-                    DynamicShaderManager.lastCompileFailed(overrides.get(i).shaderId));
+        for (Map.Entry<Integer, EditBox> entry : overrideShaderBoxes.entrySet()) {
+            EditBox shBox = entry.getValue();
+            String shaderId = overrides.get(entry.getKey()).shaderId;
+            ChroniclesUIKit.drawShaderWarning(g, font, shBox, DynamicShaderManager.lastCompileFailed(shaderId));
             if (shBox.isMouseOver(mx, my)) {
                 List<Component> tip = new ArrayList<>();
                 tip.add(Component.literal("§7A .frag file's name from config/phoenix_chronicles/shaders/"));
                 tip.add(Component.literal("§8(this override's own Style must be SHADER)"));
-                if (DynamicShaderManager.lastCompileFailed(overrides.get(i).shaderId)) {
+                if (DynamicShaderManager.lastCompileFailed(shaderId)) {
                     tip.add(Component.literal("§c⚠ failed to compile -- check the log for the real error"));
                 }
                 g.renderComponentTooltip(font, tip, mx, my);
@@ -414,7 +448,7 @@ public class CanvasThemeScreen extends Screen {
             ChroniclesUIKit.drawDropdown(g, font, java.util.List.of(STYLES), s -> ((ChapterConfig.BgStyle) s).name(),
                     java.util.List.of(STYLES).indexOf(selectedStyle), fx, dy, fw, ROW_H, mx, my);
         }
-        if (openOverrideStyleDropdown >= 0 && openOverrideStyleDropdown < overrideStyleButtonY.size()) {
+        if (overrideStyleButtonY.containsKey(openOverrideStyleDropdown)) {
             g.flush();
             int dy = overrideStyleButtonY.get(openOverrideStyleDropdown) + FIELD_H + 1;
             ChapterConfig.BgStyle cur = overrides.get(openOverrideStyleDropdown).style;
@@ -509,7 +543,7 @@ public class CanvasThemeScreen extends Screen {
             styleDropOpen = false;
             return true;
         }
-        if (btn == 0 && openOverrideStyleDropdown >= 0 && openOverrideStyleDropdown < overrideStyleButtonY.size()) {
+        if (btn == 0 && overrideStyleButtonY.containsKey(openOverrideStyleDropdown)) {
             int fx = panelLeft + MARGIN;
             int fw = PANEL_W - MARGIN * 2;
             int dy = overrideStyleButtonY.get(openOverrideStyleDropdown) + FIELD_H + 1;
@@ -542,6 +576,25 @@ public class CanvasThemeScreen extends Screen {
     @Override
     public boolean mouseReleased(double rmx, double rmy, int btn) {
         return super.mouseReleased(rmx / uiScale, rmy / uiScale, btn);
+    }
+
+    @Override
+    public boolean mouseScrolled(double rmx, double rmy, double delta) {
+        double mx = rmx / uiScale;
+        double my = rmy / uiScale;
+        if (advancedOpen && overrides.size() > ADV_VISIBLE_ROWS) {
+            int fx = panelLeft + MARGIN;
+            int fw = PANEL_W - MARGIN * 2;
+            int vpTop = advViewportTop();
+            int vpH = advViewportH();
+            if (mx >= fx && mx < fx + fw && my >= vpTop && my < vpTop + vpH) {
+                advScrollRow = Mth.clamp(advScrollRow - (int) Math.signum(delta), 0, maxAdvScrollRow());
+                clearWidgets();
+                init();
+                return true;
+            }
+        }
+        return super.mouseScrolled(mx, my, delta);
     }
 
     @Override

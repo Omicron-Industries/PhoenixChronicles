@@ -9,6 +9,7 @@ import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.model.QuestTask;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.tasks.ArchiveEntryTask;
 import net.phoenixvine.chronicles.tasks.ViewGuideTask;
 import net.phoenixvine.chronicles.tasks.ViewMachineTask;
 import net.phoenixvine.chronicles.tasks.ViewSceneTask;
@@ -51,7 +52,7 @@ public class C2SPhantasiaTaskCompletePacket {
                 if (!taskId.equals(task.getTaskId())) continue;
 
                 if (!(task instanceof ViewMachineTask) && !(task instanceof ViewSceneTask) &&
-                        !(task instanceof ViewGuideTask))
+                        !(task instanceof ViewGuideTask) && !(task instanceof ArchiveEntryTask))
                     break;
                 if (task.isCompletedFor(player)) break;
 

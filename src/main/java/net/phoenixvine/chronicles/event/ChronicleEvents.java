@@ -123,10 +123,11 @@ public class ChronicleEvents {
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
                 boolean changed = false;
-                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                     if (task instanceof ItemRequirementTask ||
                             task instanceof net.phoenixvine.chronicles.tasks.TagItemTask) {
                         changed = true;
+                        break;
                     }
                 }
 
@@ -157,7 +158,7 @@ public class ChronicleEvents {
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
                 boolean changed = false;
-                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                     if (task instanceof CraftItemTask craftTask) {
                         craftTask.onItemCrafted(player, itemId, amount);
                         changed = true;
@@ -194,7 +195,7 @@ public class ChronicleEvents {
                     if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
                     boolean changed = false;
-                    for (Object task : node.getEffectiveTasks(player.getServer())) {
+                    for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                         if (task instanceof KillEntityTask killTask) {
                             killTask.onEntityKilled(player, entityId);
                             changed = true;
@@ -227,7 +228,7 @@ public class ChronicleEvents {
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
 
                 boolean changed = false;
-                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                     if (task instanceof AdvancementTask advTask) {
                         advTask.onAdvancementEarned(player, advancementId);
                         changed = true;
@@ -256,7 +257,7 @@ public class ChronicleEvents {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
                 boolean changed = false;
-                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                     if (task instanceof BlockBreakTask breakTask) {
                         breakTask.onBlockBroken(player, broken);
                         changed = true;
@@ -300,7 +301,7 @@ public class ChronicleEvents {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
                 boolean changed = false;
-                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                     if (task instanceof BlockInteractTask blockTask) {
                         blockTask.onBlockEvent(player, block, action);
                         changed = true;
@@ -336,7 +337,7 @@ public class ChronicleEvents {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
                 if (state == QuestState.COMPLETED || state == QuestState.LOCKED) continue;
                 boolean changed = false;
-                for (Object task : node.getEffectiveTasks(player.getServer())) {
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                     if (task instanceof DimensionTask dimTask) {
                         dimTask.onChangedDimension(player, dimension);
                         changed = true;
@@ -604,7 +605,23 @@ public class ChronicleEvents {
                                                 "§7◦ '" + id + "' has no tasks: will auto-complete on unlock."),
                                                 false);
                             return 1;
-                        })));
+                        }))
+
+                .then(Commands.literal("flag")
+                        .then(Commands.argument("name", com.mojang.brigadier.arguments.StringArgumentType.string())
+                                .executes(ctx -> {
+                                    if (!(ctx.getSource()
+                                            .getEntity() instanceof net.minecraft.server.level.ServerPlayer sp)) {
+                                        ctx.getSource().sendFailure(Component.literal("Must be run by a player."));
+                                        return 0;
+                                    }
+                                    String name = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx,
+                                            "name");
+                                    ctx.getSource().sendSuccess(
+                                            () -> Component.literal("§7" + PhoenixQuestFlags.describeFlag(sp, name)),
+                                            false);
+                                    return 1;
+                                }))));
     }
 
     private static int devSetState(com.mojang.brigadier.context.CommandContext<net.minecraft.commands.CommandSourceStack> ctx,
@@ -963,6 +980,10 @@ public class ChronicleEvents {
             QuestProgressTracker.autoUnlockSatisfiedQuests(serverPlayer);
             QuestProgressTracker.sendProgressSync(serverPlayer);
             sendInitialPooledSync(serverPlayer);
+
+            ChronicleNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer),
+                    new net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket(
+                            TeamKeyResolver.resolve(serverPlayer).orElse("")));
         }
     }
 
@@ -972,7 +993,8 @@ public class ChronicleEvents {
             Map<ResourceLocation, net.minecraft.nbt.CompoundTag> bulk = new HashMap<>();
             for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                 if (!node.isPooledProgress()) continue;
-                for (net.phoenixvine.chronicles.model.QuestTask task : node.getEffectiveTasks(player.getServer())) {
+                for (net.phoenixvine.chronicles.model.QuestTask task : node.getEffectiveTasks(player.getServer(),
+                        player)) {
                     bulk.put(task.getTaskId(), pooled.getOrCreate(teamKey, task.getTaskId()));
                 }
             }

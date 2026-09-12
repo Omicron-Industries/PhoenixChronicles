@@ -722,7 +722,8 @@ public class ChronicleOverviewScreen extends Screen
                         .open(externalScreenId,
                                 target);
                 if (external != null) {
-                    for (QuestTask task : target.getEffectiveTasks(minecraft.getSingleplayerServer())) {
+                    for (QuestTask task : target.getEffectiveTasks(minecraft.getSingleplayerServer(),
+                            minecraft.player)) {
                         if (task instanceof ScreenOpenedTask &&
                                 minecraft.player != null && !task.isCompletedFor(minecraft.player)) {
                             ChronicleNetwork.CHANNEL.sendToServer(
@@ -748,11 +749,12 @@ public class ChronicleOverviewScreen extends Screen
             net.minecraft.server.MinecraftServer server = minecraft.getSingleplayerServer();
 
             Component effTitle = mdData.title() != null && !mdData.title().getString().isBlank() ? mdData.title() :
-                    target.getEffectiveTitleRaw(server);
+                    target.getEffectiveTitleRaw(server, minecraft.player);
             Component effDesc = mdData.description() != null && !mdData.description().getString().isBlank() ?
-                    mdData.description() : target.getEffectiveDescriptionRaw(server);
+                    mdData.description() : target.getEffectiveDescriptionRaw(server, minecraft.player);
             FullQuestData fd = new FullQuestData(effTitle, effDesc, mdData.tasks(),
-                    target.getEffectiveTasks(server), target.getEffectiveRewards(server));
+                    target.getEffectiveTasks(server, minecraft.player),
+                    target.getEffectiveRewards(server, minecraft.player));
             assert playerData != null;
             SeenQuestTracker.markSeen(target.getId());
             minecraft.setScreen(
@@ -986,7 +988,8 @@ public class ChronicleOverviewScreen extends Screen
                 String pinPrefix = nowPinned ? "§dPinned" : "§7Unpinned";
                 if (hovered != null) {
                     setFeedback("%s: %s", pinPrefix,
-                            hovered.getEffectiveTitleRaw(minecraft.getSingleplayerServer()).getString());
+                            hovered.getEffectiveTitleRaw(minecraft.getSingleplayerServer(), minecraft.player)
+                                    .getString());
                 } else {
                     setFeedback(pinPrefix);
                 }
@@ -2806,7 +2809,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public boolean catMatches(QuestNode n) {
         MinecraftServer server = minecraft != null ? minecraft.getSingleplayerServer() : null;
-        QuestNode.Visibility vis = n.getEffectiveVisibility(server);
+        QuestNode.Visibility vis = n.getEffectiveVisibility(server, minecraft.player);
 
         if (n.isFlagDisabled(server)) return isDevMode && QuestChroniclesSettings.get().isShowFlagDisabledQuests();
 
@@ -2835,15 +2838,15 @@ public class ChronicleOverviewScreen extends Screen
         StringBuilder sb = new StringBuilder();
         MinecraftServer server = minecraft != null ? minecraft.getSingleplayerServer() : null;
 
-        sb.append(n.getEffectiveTitleRaw(server).getString().toLowerCase()).append(' ');
+        sb.append(n.getEffectiveTitleRaw(server, minecraft.player).getString().toLowerCase()).append(' ');
         sb.append(n.getId().getPath().replace('_', ' ').toLowerCase()).append(' ');
         sb.append(n.getId().toString().toLowerCase()).append(' ');
-        if (!n.getEffectiveDescriptionRaw(server).getString().isEmpty())
-            sb.append(n.getEffectiveDescriptionRaw(server).getString().toLowerCase()).append(' ');
+        if (!n.getEffectiveDescriptionRaw(server, minecraft.player).getString().isEmpty())
+            sb.append(n.getEffectiveDescriptionRaw(server, minecraft.player).getString().toLowerCase()).append(' ');
         if (n.getSubtitle() != null && !n.getSubtitle().isEmpty()) sb.append(n.getSubtitle().toLowerCase()).append(' ');
         sb.append(n.getChapter().toLowerCase()).append(' ');
 
-        for (QuestTask task : n.getEffectiveTasks(server)) {
+        for (QuestTask task : n.getEffectiveTasks(server, minecraft.player)) {
             sb.append(task.getDescription().getString().toLowerCase()).append(' ');
 
             ResourceLocation displayId = task.getDisplayItemId();
@@ -2885,7 +2888,7 @@ public class ChronicleOverviewScreen extends Screen
             }
         }
 
-        for (QuestReward reward : n.getEffectiveRewards(server)) {
+        for (QuestReward reward : n.getEffectiveRewards(server, minecraft.player)) {
             sb.append(reward.getSummary().getString()).append(' ');
             if (reward instanceof QuestReward.ItemReward ir) {
                 ResourceLocation rid = ForgeRegistries.ITEMS.getKey(ir.getItem());
@@ -3428,7 +3431,8 @@ public class ChronicleOverviewScreen extends Screen
             if (playerData.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.COMPLETED) continue;
             if (playerData.hasClaimedRewards(node.getId())) continue;
             if (node.isRewardChoice()) continue;
-            if (node.getEffectiveRewards(minecraft != null ? minecraft.getSingleplayerServer() : null).isEmpty())
+            if (node.getEffectiveRewards(minecraft != null ? minecraft.getSingleplayerServer() : null,
+                    minecraft != null ? minecraft.player : null).isEmpty())
                 continue;
             count++;
         }
@@ -3454,7 +3458,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public String shortLabel(QuestNode node) {
         MinecraftServer server = minecraft != null ? minecraft.getSingleplayerServer() : null;
-        String t = node.getEffectiveTitleRaw(server).getString();
+        String t = node.getEffectiveTitleRaw(server, minecraft.player).getString();
 
         int maxW = (int) (scaledNodeSize(node) * 1.6f) + 40;
         return font.width(t) > maxW ? font.plainSubstrByWidth(t, maxW - 4) + "…" : t;
@@ -3463,7 +3467,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public String shortName(QuestNode node, int maxW) {
         MinecraftServer server = minecraft != null ? minecraft.getSingleplayerServer() : null;
-        String t = node.getEffectiveTitleRaw(server).getString();
+        String t = node.getEffectiveTitleRaw(server, minecraft.player).getString();
         return font.width(t) > maxW ? font.plainSubstrByWidth(t, maxW - 4) + "…" : t;
     }
 
@@ -3530,7 +3534,9 @@ public class ChronicleOverviewScreen extends Screen
             if (playerData.getQuestState(n.getId(), QuestState.LOCKED) != QuestState.COMPLETED) continue;
             if (playerData.hasClaimedRewards(n.getId())) continue;
             if (n.isRewardChoice()) continue;
-            if (n.getEffectiveRewards(minecraft != null ? minecraft.getSingleplayerServer() : null).isEmpty()) continue;
+            if (n.getEffectiveRewards(minecraft != null ? minecraft.getSingleplayerServer() : null,
+                    minecraft != null ? minecraft.player : null).isEmpty())
+                continue;
             return true;
         }
         return false;

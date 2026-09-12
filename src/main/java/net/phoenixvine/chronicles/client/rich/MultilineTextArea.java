@@ -234,7 +234,7 @@ public class MultilineTextArea extends AbstractWidget {
         hoverWordStart = -1;
         hoverWordEnd = -1;
         if (mx < getX() || mx >= getX() + width || my < getY() || my >= getY() + height) return;
-        int lineIdx = Math.max(0, Math.min((int) ((my - textY) / 9) + scrollLines, lines.size() - 1));
+        int lineIdx = Math.max(0, Math.min(((my - textY) / 9) + scrollLines, lines.size() - 1));
         if (lineIdx < 0 || lineIdx >= lines.size()) return;
         LinePos line = lines.get(lineIdx);
         int localX = mx - textX;
@@ -343,15 +343,7 @@ public class MultilineTextArea extends AbstractWidget {
     @Override
     protected void updateWidgetNarration(NarrationElementOutput out) {}
 
-    private static class LinePos {
+    private record LinePos(int start, int end, String text) {
 
-        final int start, end;
-        final String text;
-
-        LinePos(int start, int end, String text) {
-            this.start = start;
-            this.end = end;
-            this.text = text;
-        }
     }
 }

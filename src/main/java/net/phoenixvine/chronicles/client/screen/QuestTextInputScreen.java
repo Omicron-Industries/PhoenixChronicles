@@ -48,6 +48,25 @@ public class QuestTextInputScreen extends Screen {
             "Page Break (---) - splits into pages in-game instead of scrolling"
     };
 
+    // Second row: the block-level markdown ChronicleMarkdownParser gained since MD_LABELS above was
+    // written (table, checklist, callouts, spoiler, code) -- see ChronicleMarkdownParserTest for the
+    // full syntax these produce.
+    private static final String[] MD2_LABELS = { "1.", "[x]", ">", "`c`", "```", "Tbl", "!", ":::" };
+    private static final String[] MD2_INSERTS = {
+            "1. ", "- [ ] ", "> ", "`code`", "\n```\n\ncode\n```\n",
+            "\n| A | B |\n|---|---|\n| a | b |\n", ":::warning Title\n\n:::\n", ":::spoiler Title\n\n:::\n"
+    };
+    private static final String[] MD2_TIPS = {
+            "Numbered list (1. text)",
+            "Checklist item (- [ ] text, click in-game to toggle)",
+            "Blockquote (> text)",
+            "Inline code (`code`, click in-game to copy)",
+            "Code block (```)",
+            "Table",
+            "Warning callout (:::warning Title ... :::)",
+            "Spoiler / details, collapsed until clicked (:::spoiler Title ... :::)"
+    };
+
     private final Screen parent;
     private final String fieldLabel;
     private final int maxLength;
@@ -81,7 +100,7 @@ public class QuestTextInputScreen extends Screen {
         this.py = (height - ph) / 2;
         this.btnY = py + ph - 24;
 
-        inputBox = addRenderableWidget(new MultilineTextArea(font, px + 8, py + 26, pw - 16, ph - 86, maxLength));
+        inputBox = addRenderableWidget(new MultilineTextArea(font, px + 8, py + 26, pw - 16, ph - 100, maxLength));
         inputBox.setValue(initial);
         setInitialFocus(inputBox);
 
@@ -113,6 +132,7 @@ public class QuestTextInputScreen extends Screen {
         renderHexRow(g, mx, my);
         renderColorPicker(g, mx, my);
         renderFormatButtons(g, mx, my);
+        renderFormatButtons2(g, mx, my);
 
         int half = pw / 2 - 6;
         drawBtn(g, mx, my, px + 6, btnY, half, 16, "§a✓ Confirm", C_GREEN);
@@ -159,6 +179,33 @@ public class QuestTextInputScreen extends Screen {
 
             g.drawCenteredString(font, displayLabel, bx + btnW / 2, rowY + 2, hov ? 0xFFFFFFFF : 0xFFAAAAAA);
         }
+    }
+
+    private void renderFormatButtons2(GuiGraphics g, int mx, int my) {
+        int rowY = btnY - 50;
+        for (int i = 0; i < MD2_LABELS.length; i++) {
+            int bx = md2ButtonX(i);
+            int bw = md2ButtonW(i);
+            boolean hov = mx >= bx && mx < bx + bw && my >= rowY && my < rowY + 12;
+            g.fill(bx, rowY, bx + bw, rowY + 12, hov ? C_BTN_HOV : C_BTN);
+            if (hov) {
+                g.fill(bx, rowY, bx + bw, rowY + 1, C_ACCENT);
+                g.renderTooltip(font, Component.literal(MD2_TIPS[i]), mx, my);
+            }
+            g.drawCenteredString(font, MD2_LABELS[i], bx + bw / 2, rowY + 2, hov ? 0xFFFFFFFF : 0xFFAAAAAA);
+        }
+    }
+
+    /** Button widths vary with label length (Tbl/[x]/``` are wider than a single glyph). */
+    private int md2ButtonW(int index) {
+        return Math.max(16, font.width(MD2_LABELS[index]) + 6);
+    }
+
+    private int md2ButtonX(int index) {
+        int gap = 2;
+        int x = px + 8;
+        for (int i = 0; i < index; i++) x += md2ButtonW(i) + gap;
+        return x;
     }
 
     private void renderColorPicker(GuiGraphics g, int mx, int my) {
@@ -245,6 +292,17 @@ public class QuestTextInputScreen extends Screen {
             if (mx >= bx && mx < bx + fBtnW && my >= fRowY && my < fRowY + 12) {
                 setInitialFocus(inputBox);
                 inputBox.forceInsert(MD_INSERTS[i]);
+                return true;
+            }
+        }
+
+        int md2RowY = btnY - 50;
+        for (int i = 0; i < MD2_LABELS.length; i++) {
+            int bx = md2ButtonX(i);
+            int bw = md2ButtonW(i);
+            if (mx >= bx && mx < bx + bw && my >= md2RowY && my < md2RowY + 12) {
+                setInitialFocus(inputBox);
+                inputBox.forceInsert(MD2_INSERTS[i]);
                 return true;
             }
         }

@@ -541,6 +541,18 @@ public final class PhoenixTaskRegistry {
                 .requiresMod("phantasia")
                 .register();
 
+        register("archive_entry", tag -> {
+            net.phoenixvine.chronicles.tasks.ArchiveEntryTask t = new net.phoenixvine.chronicles.tasks.ArchiveEntryTask(
+                    taskId(tag), desc(tag), "");
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b📖").label("View Archive Entry")
+                .tooltip(
+                        "Completes when the player views a Phoenix Archive lore entry.\nTarget: entry id (e.g. phoenix_archive:log_001) - the id shown/set in Archive's own editor. No minimum time.")
+                .field(FieldDef.text("archive_entry_id", "Archive Entry ID"))
+                .requiresMod("phoenix_archive")
+                .register();
+
         register("external_trigger", tag -> {
             ExternalTriggerTask t = new ExternalTriggerTask(taskId(tag), desc(tag), "", 1);
             t.deserializeNBT(tag);
