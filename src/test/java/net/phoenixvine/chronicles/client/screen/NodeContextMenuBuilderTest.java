@@ -10,6 +10,7 @@ import net.phoenixvine.chronicles.client.screen.utils.NodeCtxMenuState;
 import net.phoenixvine.chronicles.model.QuestGroup;
 import net.phoenixvine.chronicles.model.QuestNode;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -113,7 +114,7 @@ class NodeContextMenuBuilderTest {
         }
 
         @Override
-        public String shortName(QuestNode node, int maxWidth) {
+        public @NotNull String shortName(@NotNull QuestNode node, int maxWidth) {
             return node.getId().getPath();
         }
     }
@@ -225,7 +226,7 @@ class NodeContextMenuBuilderTest {
         public void rebuild() {}
 
         @Override
-        public Path groupsConfigPath() {
+        public @NotNull Path groupsConfigPath() {
             return Path.of(".");
         }
 
@@ -280,21 +281,21 @@ class NodeContextMenuBuilderTest {
         }
 
         @Override
-        public ChronicleOverviewScreen thisScreen() {
+        public @Nullable ChronicleOverviewScreen thisScreen() {
             return null;
         }
     }
 
-    private static QuestNode node(String path) {
+    private static @NotNull QuestNode node(@NotNull String path) {
         return new QuestNode(new ResourceLocation("phoenix_chronicles", path),
                 Component.literal(path), Component.literal(""));
     }
 
-    private List<String> labels(List<ChronicleOverviewScreen.CtxItem> items) {
+    private @NotNull List<String> labels(@NotNull List<ChronicleOverviewScreen.CtxItem> items) {
         return items.stream().map(ChronicleOverviewScreen.CtxItem::label).toList();
     }
 
-    private boolean anyLabelContains(List<ChronicleOverviewScreen.CtxItem> items, String needle) {
+    private boolean anyLabelContains(@NotNull List<ChronicleOverviewScreen.CtxItem> items, @NotNull String needle) {
         return items.stream().anyMatch(i -> i.label().contains(needle));
     }
 

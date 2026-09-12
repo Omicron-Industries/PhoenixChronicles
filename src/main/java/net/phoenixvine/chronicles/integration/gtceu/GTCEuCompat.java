@@ -7,6 +7,7 @@ import com.gregtechceu.gtceu.api.registry.registrate.GTRegistrate;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.phoenixvine.chronicles.PhoenixChronicles;
+import org.jetbrains.annotations.NotNull;
 
 public final class GTCEuCompat {
 
@@ -18,7 +19,7 @@ public final class GTCEuCompat {
         return ModList.get().isLoaded(GTCEU_MOD_ID);
     }
 
-    public static void init(IEventBus modEventBus) {
+    public static void init(@NotNull IEventBus modEventBus) {
         PhoenixChronicles.CHRONICLES_REGISTRATE = GTRegistrate.create(PhoenixChronicles.MOD_ID);
         PhoenixChronicles.CHRONICLES_REGISTRATE.registerRegistrate();
         modEventBus.addListener(GTCEuCompat::addMaterialRegistries);

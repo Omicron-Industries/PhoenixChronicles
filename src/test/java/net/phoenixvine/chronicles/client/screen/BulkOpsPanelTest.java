@@ -7,6 +7,8 @@ import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
 import net.phoenixvine.chronicles.client.screen.widgets.BulkOpsPanel;
 import net.phoenixvine.chronicles.model.QuestNode;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -69,12 +71,12 @@ class BulkOpsPanelTest {
         }
 
         @Override
-        public Screen thisScreen() {
+        public @Nullable Screen thisScreen() {
             return null;
         }
     }
 
-    private GraphEditorState twoSelectedEditorState() {
+    private @NotNull GraphEditorState twoSelectedEditorState() {
         GraphEditorState editorState = new GraphEditorState();
         editorState.multiSelection.add(new ResourceLocation("phoenix_chronicles", "unregistered_a"));
         editorState.multiSelection.add(new ResourceLocation("phoenix_chronicles", "unregistered_b"));

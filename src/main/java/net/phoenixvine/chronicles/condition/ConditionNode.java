@@ -1,5 +1,7 @@
 package net.phoenixvine.chronicles.condition;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -51,7 +53,7 @@ public sealed interface ConditionNode permits ConditionNode.Leaf, ConditionNode.
      * Depth-first search for the first {@link Leaf} of the given type, ignoring boolean structure and
      * skipping anything under a {@link Not}.
      */
-    default Optional<String> findLeafValue(String type) {
+    default @NotNull Optional<String> findLeafValue(@NotNull String type) {
         if (this instanceof Leaf l) return type.equals(l.type()) ? Optional.of(l.value()) : Optional.empty();
         if (this instanceof And a) {
             return a.children().stream().map(c -> c.findLeafValue(type))
@@ -72,13 +74,13 @@ public sealed interface ConditionNode permits ConditionNode.Leaf, ConditionNode.
      * AND/OR grouping -- built for simple "list every condition and mark whether it's currently met"
      * displays, not for anything that needs to reconstruct the boolean structure.
      */
-    default List<NegatableLeaf> collectLeaves() {
+    default @NotNull List<NegatableLeaf> collectLeaves() {
         List<NegatableLeaf> out = new ArrayList<>();
         collectLeavesInto(this, false, out);
         return out;
     }
 
-    private static void collectLeavesInto(ConditionNode node, boolean negated, List<NegatableLeaf> out) {
+    private static void collectLeavesInto(ConditionNode node, boolean negated, @NotNull List<NegatableLeaf> out) {
         if (node instanceof Leaf l) {
             out.add(new NegatableLeaf(l, negated));
         } else if (node instanceof And a) {

@@ -14,6 +14,8 @@ import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SBulkQuestActionPacket;
 import net.phoenixvine.chronicles.registry.CategoryRegistry;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,8 +33,8 @@ public class ChapterActions {
     private final ChapterActionsState state;
     private final GraphEditorState editorState;
 
-    private String armedDeleteCategoryId = null;
-    private String armedDeleteChapterId = null;
+    private @Nullable String armedDeleteCategoryId = null;
+    private @Nullable String armedDeleteChapterId = null;
 
     public ChapterActions(ScreenContext ctx, ChapterActionsState state, GraphEditorState editorState) {
         this.ctx = ctx;
@@ -62,7 +64,7 @@ public class ChapterActions {
         ctx.setFeedback("§7Reset %d quest(s) in %s", ids.size(), ctx.friendly(chapter));
     }
 
-    public void forceCompleteCategoryOnRightClick(String categoryId) {
+    public void forceCompleteCategoryOnRightClick(@NotNull String categoryId) {
         List<ResourceLocation> ids = state.questIdsInCategory(categoryId);
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         String label = cat != null ? cat.displayName() : categoryId;
@@ -75,7 +77,7 @@ public class ChapterActions {
         ctx.setFeedback("§aForce-completed %d quest(s) in %s", ids.size(), label);
     }
 
-    public void resetCategoryOnRightClick(String categoryId) {
+    public void resetCategoryOnRightClick(@NotNull String categoryId) {
         List<ResourceLocation> ids = state.questIdsInCategory(categoryId);
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         String label = cat != null ? cat.displayName() : categoryId;
@@ -88,7 +90,7 @@ public class ChapterActions {
         ctx.setFeedback("§7Reset %d quest(s) in %s", ids.size(), label);
     }
 
-    public void deleteChapter(String chapter) {
+    public void deleteChapter(@NotNull String chapter) {
         String upper = chapter.toUpperCase(Locale.ROOT);
 
         List<QuestNode> questsInChapter = new ArrayList<>();
@@ -191,7 +193,7 @@ public class ChapterActions {
         ctx.setFeedbackDone("Chapter deleted: %s%s", chapter, countSuffix);
     }
 
-    public void deleteCategoryOnRightClick(String categoryId) {
+    public void deleteCategoryOnRightClick(@NotNull String categoryId) {
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         if (cat == null) return;
 
@@ -212,7 +214,7 @@ public class ChapterActions {
         ctx.setFeedback("§aCategory deleted: %s%s", cat.displayName(), uncatSuffix);
     }
 
-    public void deleteChapterOnRightClick(String chapter) {
+    public void deleteChapterOnRightClick(@NotNull String chapter) {
         int questCount = state.chapterQuestCount(chapter);
         if (questCount > 0 && !chapter.equals(armedDeleteChapterId)) {
             armedDeleteChapterId = chapter;
@@ -226,7 +228,7 @@ public class ChapterActions {
         ctx.setFeedback("§aChapter deleted: %s", ctx.friendly(chapter));
     }
 
-    public void openSidebarContextMenu(SidebarRow row, int mx, int my) {
+    public void openSidebarContextMenu(@NotNull SidebarRow row, int mx, int my) {
         List<SidebarPanel.MenuAction> actions = new ArrayList<>();
         Screen parent = state.thisScreen();
         if (row.isFolder()) {

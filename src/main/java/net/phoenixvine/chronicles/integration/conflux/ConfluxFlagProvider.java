@@ -5,6 +5,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.flag.PhoenixQuestFlags;
 import net.phoenixvine.chronicles.flag.QuestFlagProvider;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
 
@@ -26,7 +27,7 @@ import javax.annotation.Nullable;
 public class ConfluxFlagProvider implements QuestFlagProvider {
 
     @Override
-    public String prefix() {
+    public @NotNull String prefix() {
         return "conflux";
     }
 

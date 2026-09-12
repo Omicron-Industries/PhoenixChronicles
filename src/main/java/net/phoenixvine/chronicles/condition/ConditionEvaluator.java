@@ -1,5 +1,7 @@
 package net.phoenixvine.chronicles.condition;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Walks a {@link ConditionNode} tree, resolving each {@link ConditionNode.Leaf} through a caller-
  * supplied {@link LeafChecker}. Ported from Phoenix Archive's condition engine -- same evaluation
@@ -19,7 +21,7 @@ public final class ConditionEvaluator {
      * An empty AND (no conditions at all) evaluates to {@code true}; an empty OR evaluates to
      * {@code false}, as is standard.
      */
-    public static boolean evaluate(ConditionNode node, LeafChecker checker) {
+    public static boolean evaluate(ConditionNode node, @NotNull LeafChecker checker) {
         if (node instanceof ConditionNode.Leaf l) {
             if (l.value() == null || l.value().isEmpty()) return true;
             return checker.isMet(l.type(), l.value());

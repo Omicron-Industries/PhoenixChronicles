@@ -1,5 +1,6 @@
 package net.phoenixvine.chronicles.registry;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,14 +21,14 @@ class ChapterPrereqDefaultsTest {
     }
 
     @Test
-    void missingFileLeavesRegistryEmpty(@TempDir Path dir) {
+    void missingFileLeavesRegistryEmpty(@TempDir @NotNull Path dir) {
         ChapterPrereqDefaults.load(dir);
         assertNull(ChapterPrereqDefaults.getRequireAll("ANYTHING"));
         assertNull(ChapterPrereqDefaults.getOptionalMinCount("ANYTHING"));
     }
 
     @Test
-    void loadsRequireAllAndOptionalMinCountKeyedByUppercaseChapter(@TempDir Path dir) throws IOException {
+    void loadsRequireAllAndOptionalMinCountKeyedByUppercaseChapter(@TempDir @NotNull Path dir) throws IOException {
         Files.writeString(dir.resolve("chapter_prereq_defaults.snbt"), """
                 {
                   groundwork: {
@@ -50,7 +51,7 @@ class ChapterPrereqDefaultsTest {
     }
 
     @Test
-    void malformedFileIsSwallowedAndLeavesRegistryEmpty(@TempDir Path dir) throws IOException {
+    void malformedFileIsSwallowedAndLeavesRegistryEmpty(@TempDir @NotNull Path dir) throws IOException {
         Files.writeString(dir.resolve("chapter_prereq_defaults.snbt"), "{ not valid snbt !!", StandardCharsets.UTF_8);
 
         ChapterPrereqDefaults.load(dir);
@@ -59,7 +60,7 @@ class ChapterPrereqDefaultsTest {
     }
 
     @Test
-    void reloadReplacesPreviouslyLoadedEntries(@TempDir Path dir) throws IOException {
+    void reloadReplacesPreviouslyLoadedEntries(@TempDir @NotNull Path dir) throws IOException {
         Path file = dir.resolve("chapter_prereq_defaults.snbt");
         Files.writeString(file, "{ a: { require_all: 0b } }", StandardCharsets.UTF_8);
         ChapterPrereqDefaults.load(dir);

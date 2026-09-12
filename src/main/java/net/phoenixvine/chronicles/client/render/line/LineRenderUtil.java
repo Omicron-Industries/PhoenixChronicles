@@ -10,12 +10,13 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import org.jetbrains.annotations.NotNull;
 
 final class LineRenderUtil {
 
     private LineRenderUtil() {}
 
-    static void drawThickLine(GuiGraphics g, float x1, float y1, float x2, float y2, float width, int argb) {
+    static void drawThickLine(@NotNull GuiGraphics g, float x1, float y1, float x2, float y2, float width, int argb) {
         float dx = x2 - x1;
         float dy = y2 - y1;
         float len = (float) Math.sqrt(dx * dx + dy * dy);
@@ -48,7 +49,7 @@ final class LineRenderUtil {
         RenderSystem.disableBlend();
     }
 
-    static void drawDot(GuiGraphics g, float cx, float cy, float radius, int argb) {
+    static void drawDot(@NotNull GuiGraphics g, float cx, float cy, float radius, int argb) {
         drawThickLine(g, cx - 0.01f, cy, cx + 0.01f, cy, radius * 2f, argb);
     }
 }

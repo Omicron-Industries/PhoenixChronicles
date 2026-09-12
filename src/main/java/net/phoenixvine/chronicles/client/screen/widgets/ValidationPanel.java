@@ -8,6 +8,7 @@ import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.tasks.ItemRequirementTask;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,11 +44,11 @@ public class ValidationPanel implements TogglePanel {
     }
 
     @Override
-    public boolean isVisible(ScreenContext ctx) {
+    public boolean isVisible(@NotNull ScreenContext ctx) {
         return ctx.isDevMode() && isOpen();
     }
 
-    public List<String> issuesFor(QuestNode node) {
+    public @NotNull List<String> issuesFor(@NotNull QuestNode node) {
         return cache.computeIfAbsent(node.getId(), id -> compute(node));
     }
 
@@ -59,15 +60,15 @@ public class ValidationPanel implements TogglePanel {
         cache.clear();
     }
 
-    public Map<ResourceLocation, List<String>> snapshot() {
+    public @NotNull Map<ResourceLocation, List<String>> snapshot() {
         return new HashMap<>(cache);
     }
 
-    public void restore(Map<ResourceLocation, List<String>> saved) {
+    public void restore(@NotNull Map<ResourceLocation, List<String>> saved) {
         cache.putAll(saved);
     }
 
-    private List<String> compute(QuestNode node) {
+    private @NotNull List<String> compute(@NotNull QuestNode node) {
         List<String> issues = new ArrayList<>();
 
         if (node.isLinkStub()) return issues;
@@ -95,7 +96,7 @@ public class ValidationPanel implements TogglePanel {
     }
 
     @Override
-    public void render(ScreenContext ctx, GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+    public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
         g.flush();

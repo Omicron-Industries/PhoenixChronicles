@@ -7,6 +7,7 @@ import net.phoenixvine.chronicles.client.screen.utils.OverlayComponent;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
@@ -30,12 +31,12 @@ public interface TogglePanel extends OverlayComponent {
         }
 
         @Override
-        public boolean isVisible(ScreenContext ctx) {
+        public boolean isVisible(@NotNull ScreenContext ctx) {
             return ctx.isDevMode() && state.ctxOpen();
         }
 
         @Override
-        public void render(ScreenContext ctx, GuiGraphics g, int mouseX, int mouseY, int contentLeft,
+        public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft,
                            int contentRight) {
             int mx = mouseX, my = mouseY;
             List<ChronicleOverviewScreen.CtxItem> items = state.buildCtxItems();

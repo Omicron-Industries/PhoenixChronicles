@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.client.event;
 
 import net.minecraft.client.Minecraft;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,7 +14,7 @@ public class ClientTextOverrides {
         overrides.put(key, value);
     }
 
-    public static String get(String key) {
+    public static @Nullable String get(String key) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.options != null && !"en_us".equalsIgnoreCase(mc.options.languageCode)) return null;
         return overrides.get(key);

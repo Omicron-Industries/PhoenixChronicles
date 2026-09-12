@@ -21,6 +21,8 @@ import net.phoenixvine.chronicles.model.CategoryDefinition;
 import net.phoenixvine.chronicles.registry.CategoryRegistry;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -67,11 +69,11 @@ public class SidebarPanel {
     private long lastAnimNanos = 0L;
     private int nodeLayoutAnimBaseX = SIDEBAR_W_COLLAPSED;
 
-    private SidebarRow dragRow = null;
+    private @Nullable SidebarRow dragRow = null;
     private int dragStartX, dragStartY;
     private boolean dragMoved = false;
 
-    private List<MenuAction> ctxActions = null;
+    private @Nullable List<MenuAction> ctxActions = null;
     private int ctxX, ctxY;
 
     public boolean collapsed() {
@@ -127,7 +129,7 @@ public class SidebarPanel {
         return ctxActions != null;
     }
 
-    public void openContextMenu(int mx, int my, List<MenuAction> actions, int screenW, int screenH) {
+    public void openContextMenu(int mx, int my, @NotNull List<MenuAction> actions, int screenW, int screenH) {
         ctxActions = actions;
 
         int h = actions.size() * CTX_ROW_H + 4;
@@ -149,7 +151,7 @@ public class SidebarPanel {
         closeContextMenu();
     }
 
-    public void renderContextMenu(GuiGraphics g, Font font, int mx, int my, int screenW, int screenH, Colors colors) {
+    public void renderContextMenu(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int screenW, int screenH, @NotNull Colors colors) {
         if (ctxActions == null) return;
         int h = ctxActions.size() * CTX_ROW_H + 4;
         int x = Math.min(ctxX, screenW - CTX_MENU_W - 2);
@@ -191,7 +193,7 @@ public class SidebarPanel {
         return isHoverSidebar() ? Math.round(animW) : width();
     }
 
-    public void updateHoverPeek(int mx, int my, BiConsumer<Integer, Integer> panCanvas) {
+    public void updateHoverPeek(int mx, int my, @NotNull BiConsumer<Integer, Integer> panCanvas) {
         if (!isHoverSidebar()) {
             hoverPeek = false;
             animW = SIDEBAR_W_COLLAPSED;
@@ -254,8 +256,8 @@ public class SidebarPanel {
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
-    public List<SidebarRow> buildRows(Function<String, String> friendly, Function<String, int[]> progressLookup,
-                                      List<String> cats) {
+    public @NotNull List<SidebarRow> buildRows(@NotNull Function<String, String> friendly, @NotNull Function<String, int[]> progressLookup,
+                                               @NotNull List<String> cats) {
         List<SidebarRow> rows = new ArrayList<>();
         int y = HEADER_H + 16 - scrollY;
         Set<String> drawnInFolder = new HashSet<>();
@@ -304,9 +306,9 @@ public class SidebarPanel {
         return rows;
     }
 
-    private int emitSubChapters(List<SidebarRow> rows, String parent, Map<String, List<String>> childrenOf,
-                                int y, boolean inFolder, Function<String, String> friendly,
-                                Function<String, int[]> progressLookup) {
+    private int emitSubChapters(@NotNull List<SidebarRow> rows, String parent, @NotNull Map<String, List<String>> childrenOf,
+                                int y, boolean inFolder, @NotNull Function<String, String> friendly,
+                                @NotNull Function<String, int[]> progressLookup) {
         List<String> children = childrenOf.get(parent);
         if (children == null) return y;
         int[] parentProgress = progressLookup.apply(parent);
@@ -320,7 +322,7 @@ public class SidebarPanel {
         return y;
     }
 
-    private List<String> applyStandaloneOrder(List<String> standalone) {
+    private List<String> applyStandaloneOrder(@NotNull List<String> standalone) {
         List<String> order = CategoryRegistry.getStandaloneOrder();
         if (order.isEmpty()) return standalone;
         List<String> result = new ArrayList<>();
@@ -333,8 +335,8 @@ public class SidebarPanel {
         return Math.max(0, (newCatBtnY(height) - 6) - (HEADER_H + 1 + SIDEBAR_COLLAPSE_TOGGLE_H));
     }
 
-    public int contentHeight(int height, Function<String, String> friendly, Function<String, int[]> progressLookup,
-                             List<String> cats) {
+    public int contentHeight(int height, @NotNull Function<String, String> friendly, @NotNull Function<String, int[]> progressLookup,
+                             @NotNull List<String> cats) {
         int saved = scrollY;
         scrollY = 0;
         List<SidebarRow> rows = buildRows(friendly, progressLookup, cats);
@@ -349,7 +351,7 @@ public class SidebarPanel {
         scrollY = Math.max(0, Math.min(maxScroll, scrollY - (int) (delta * SIDEBAR_CAT_ROW_H)));
     }
 
-    public SidebarRow rowAt(List<SidebarRow> rows, int mx, int my) {
+    public @Nullable SidebarRow rowAt(@NotNull List<SidebarRow> rows, int mx, int my) {
         if (mx < 0 || mx >= width() - 1 || my < HEADER_H) return null;
         for (SidebarRow row : rows) {
             if (my >= row.y() && my < row.y() + row.height()) return row;
@@ -357,9 +359,9 @@ public class SidebarPanel {
         return null;
     }
 
-    public void handleDrop(SidebarRow source, int mx, int my, Function<String, String> friendly,
-                           Function<String, int[]> progressLookup, Supplier<List<String>> buildChapterList,
-                           Consumer<String> setFeedback, Runnable rebuild, List<String> cats) {
+    public void handleDrop(@NotNull SidebarRow source, int mx, int my, @NotNull Function<String, String> friendly,
+                           @NotNull Function<String, int[]> progressLookup, @NotNull Supplier<List<String>> buildChapterList,
+                           @NotNull Consumer<String> setFeedback, @NotNull Runnable rebuild, @NotNull List<String> cats) {
         List<SidebarRow> rows = buildRows(friendly, progressLookup, cats);
         SidebarRow target = rowAt(rows, mx, my);
 
@@ -461,7 +463,7 @@ public class SidebarPanel {
         rebuild.run();
     }
 
-    private int chapterAccent(String cat) {
+    private int chapterAccent(@NotNull String cat) {
         int configured = ChapterConfig.get(cat).getEffectiveNameColor();
         if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
         return CAT_ACCENTS[Math.abs(cat.hashCode()) % CAT_ACCENTS.length];
@@ -474,10 +476,10 @@ public class SidebarPanel {
                 (int) (bb + (ob - bb) * a);
     }
 
-    public void renderPanel(GuiGraphics g, Font font, int mx, int my, int width, int height, Colors colors,
-                            boolean devMode, String selectedChapter, Function<String, String> friendly,
-                            Function<String, int[]> progressLookup, Function<String, Boolean> attentionLookup,
-                            Function<String, Boolean> rewardsLookup, Consumer<Runnable> deferDraw, List<String> cats) {
+    public void renderPanel(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int height, @NotNull Colors colors,
+                            boolean devMode, String selectedChapter, @NotNull Function<String, String> friendly,
+                            @NotNull Function<String, int[]> progressLookup, @NotNull Function<String, Boolean> attentionLookup,
+                            @NotNull Function<String, Boolean> rewardsLookup, @NotNull Consumer<Runnable> deferDraw, @NotNull List<String> cats) {
         g.fill(0, HEADER_H, visualWidth() - 1, HEADER_H + 1, colors.border());
 
         int toggleY = HEADER_H + 1;
@@ -561,8 +563,8 @@ public class SidebarPanel {
         }
     }
 
-    private void renderTooltip(GuiGraphics g, Font font, int width, int height, SidebarRow row, int mx, int my,
-                               Colors colors, Function<String, int[]> progressLookup) {
+    private void renderTooltip(@NotNull GuiGraphics g, @NotNull Font font, int width, int height, @NotNull SidebarRow row, int mx, int my,
+                               @NotNull Colors colors, @NotNull Function<String, int[]> progressLookup) {
         String line1 = row.label();
         String line2 = null;
         if (!row.isFolder()) {
@@ -588,7 +590,7 @@ public class SidebarPanel {
         g.pose().popPose();
     }
 
-    private void renderFolderRow(GuiGraphics g, Font font, SidebarRow row, int mx, int my, Colors colors) {
+    private void renderFolderRow(@NotNull GuiGraphics g, @NotNull Font font, @NotNull SidebarRow row, int mx, int my, @NotNull Colors colors) {
         int y = row.y(), h = row.height();
         boolean hov = mx >= 0 && mx < width() - 1 && my >= y && my < y + h;
         if (!drawRowShaderBg(g, CategoryShaderConfig.resolve(row.id()), y, h)) {
@@ -638,7 +640,7 @@ public class SidebarPanel {
 
     private static final Set<String> LOGGED_ROW_SHADER_CALLS = new HashSet<>();
 
-    private boolean drawRowShaderBg(GuiGraphics g, String shaderId, int y, int h) {
+    private boolean drawRowShaderBg(@NotNull GuiGraphics g, @Nullable String shaderId, int y, int h) {
         if (shaderId == null || shaderId.isBlank()) return false;
         ShaderInstance shader = DynamicShaderManager.get(shaderId);
         int w = width() - 1;
@@ -653,25 +655,25 @@ public class SidebarPanel {
         return true;
     }
 
-    private static String stripColorCodes(String s) {
+    private static @NotNull String stripColorCodes(@NotNull String s) {
         return s.replaceAll("(?i)§[0-9a-f]", "");
     }
 
-    private int categoryAccent(String categoryId) {
+    private int categoryAccent(@NotNull String categoryId) {
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         int configured = cat != null ? cat.color() : 0;
         if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
         return CAT_ACCENTS[Math.abs(categoryId.hashCode()) % CAT_ACCENTS.length];
     }
 
-    private int categoryNameAccent(String categoryId) {
+    private int categoryNameAccent(@NotNull String categoryId) {
         CategoryDefinition cat = CategoryRegistry.get(categoryId);
         int configured = cat != null ? cat.effectiveNameColor() : 0;
         if (configured != 0) return 0xFF000000 | (configured & 0x00FFFFFF);
         return CAT_ACCENTS[Math.abs(categoryId.hashCode()) % CAT_ACCENTS.length];
     }
 
-    private Item resolveCategoryIcon(String iconId) {
+    private @Nullable Item resolveCategoryIcon(@NotNull String iconId) {
         try {
             Item item = ForgeRegistries.ITEMS
                     .getValue(ResourceLocation.parse(iconId));
@@ -681,9 +683,9 @@ public class SidebarPanel {
         }
     }
 
-    private void renderCatRow(GuiGraphics g, Font font, SidebarRow row, int mx, int my, Colors colors,
-                              boolean devMode, String selectedChapter, Function<String, int[]> progressLookup,
-                              Function<String, Boolean> attentionLookup, Function<String, Boolean> rewardsLookup) {
+    private void renderCatRow(@NotNull GuiGraphics g, @NotNull Font font, @NotNull SidebarRow row, int mx, int my, @NotNull Colors colors,
+                              boolean devMode, String selectedChapter, @NotNull Function<String, int[]> progressLookup,
+                              @NotNull Function<String, Boolean> attentionLookup, @NotNull Function<String, Boolean> rewardsLookup) {
         String cat = row.id();
         int y = row.y(), h = row.height();
 
@@ -749,8 +751,8 @@ public class SidebarPanel {
         }
     }
 
-    public void renderNewChapterButton(GuiGraphics g, Font font, int mx, int my, int height, boolean devMode,
-                                       Colors colors) {
+    public void renderNewChapterButton(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int height, boolean devMode,
+                                       @NotNull Colors colors) {
         if (!devMode) return;
         int x = 4, y = newCatBtnY(height), w = width() - 9, h = 14;
         boolean hov = mx >= x && mx < x + w && my >= y && my < y + h;
@@ -767,8 +769,8 @@ public class SidebarPanel {
         }
     }
 
-    public void renderGear(GuiGraphics g, Font font, int mx, int my, int width, int height, boolean devMode,
-                           Colors colors, Consumer<Runnable> deferDraw) {
+    public void renderGear(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int height, boolean devMode,
+                           @NotNull Colors colors, @NotNull Consumer<Runnable> deferDraw) {
         int gx = width() - GEAR_SIZE - 4;
         int gy = gearY(height);
         boolean hov = gearHovered(mx, my, height);

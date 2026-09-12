@@ -9,6 +9,8 @@ import net.phoenixvine.chronicles.codec.QuestFileLoader;
 import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,7 +32,7 @@ public class QuestEditOps {
         this.editorState = editorState;
     }
 
-    public void questCopy(QuestNode node) {
+    public void questCopy(@NotNull QuestNode node) {
         String content = QuestFileSaver.readRawSnbt(node);
         if (content == null || content.isBlank()) {
             ctx.setFeedback("§cCopy failed. Quest file not found on disk");
@@ -201,7 +203,7 @@ public class QuestEditOps {
         worker.start();
     }
 
-    private void finishFtbImport(FtbQuestsImporter.ImportResult r, Exception error) {
+    private void finishFtbImport(FtbQuestsImporter.@NotNull ImportResult r, @Nullable Exception error) {
         ftbImportInProgress = false;
         if (error != null) {
             ctx.setFeedback("§cFTB import error: %s", error.getMessage());
@@ -223,7 +225,7 @@ public class QuestEditOps {
         }
     }
 
-    public void duplicateQuest(QuestNode source) {
+    public void duplicateQuest(@NotNull QuestNode source) {
         if (!QuestFileSaver.doesQuestFileExist(source)) {
             ctx.setFeedback("Cannot duplicate. Source file not found on disk");
             return;
@@ -254,7 +256,7 @@ public class QuestEditOps {
         }
     }
 
-    public void createLinkStubAt(int canvasX, int canvasY, QuestNode target) {
+    public void createLinkStubAt(int canvasX, int canvasY, @Nullable QuestNode target) {
         if (target == null) return;
 
         String base = ("link_" + target.getId().getPath())

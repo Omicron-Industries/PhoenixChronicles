@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.util;
 
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.model.FullQuestData;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -15,7 +16,7 @@ public final class MarkdownUtils {
 
     private MarkdownUtils() {}
 
-    public static FullQuestData loadMarkdownContent(Path mdPath) {
+    public static @NotNull FullQuestData loadMarkdownContent(@NotNull Path mdPath) {
         Component title = Component.empty();
         StringBuilder desc = new StringBuilder();
 

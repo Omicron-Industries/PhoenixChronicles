@@ -5,6 +5,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.ChronicleShaders;
 import net.phoenixvine.chronicles.client.render.IQuestBackground;
 import net.phoenixvine.chronicles.model.QuestNode;
+import org.jetbrains.annotations.NotNull;
 
 public class SunBackground implements IQuestBackground {
 
@@ -21,7 +22,7 @@ public class SunBackground implements IQuestBackground {
     }
 
     @Override
-    public void render(GuiGraphics g, QuestNode node, int x, int y, int size, long animTick) {
+    public void render(GuiGraphics g, @NotNull QuestNode node, int x, int y, int size, long animTick) {
         ResourceLocation mask = BackgroundRenderUtil.maskTextureFor(node.getShapeType());
         int drawnSize = Math.round(size * scale);
         int offset = (drawnSize - size) / 2;

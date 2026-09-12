@@ -22,11 +22,12 @@ import dev.latvian.mods.kubejs.KubeJSPlugin;
 import dev.latvian.mods.kubejs.script.BindingsEvent;
 import dev.latvian.mods.kubejs.script.ScriptType;
 import dev.latvian.mods.kubejs.util.ClassFilter;
+import org.jetbrains.annotations.NotNull;
 
 public class PhoenixChroniclesKubeJSPlugin extends KubeJSPlugin {
 
     @Override
-    public void registerClasses(ScriptType type, ClassFilter filter) {
+    public void registerClasses(ScriptType type, @NotNull ClassFilter filter) {
         filter.allow(QuestAPI.class);
         filter.allow(QuestState.class);
         filter.allow(QuestNode.class);
@@ -54,7 +55,7 @@ public class PhoenixChroniclesKubeJSPlugin extends KubeJSPlugin {
     }
 
     @Override
-    public void registerBindings(BindingsEvent event) {
+    public void registerBindings(@NotNull BindingsEvent event) {
         event.add("QuestAPI", QuestAPI.class);
         event.add("PhoenixTaskRegistry", PhoenixTaskRegistry.class);
         event.add("PhoenixQuestFlags", PhoenixQuestFlags.class);

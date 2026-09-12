@@ -1,5 +1,7 @@
 package net.phoenixvine.chronicles.client.render.background;
 
+import org.jetbrains.annotations.NotNull;
+
 public final class BackgroundEffects {
 
     private BackgroundEffects() {}
@@ -12,11 +14,11 @@ public final class BackgroundEffects {
         return (ca << 24) | (cr << 16) | (cg << 8) | cb;
     }
 
-    public static BackgroundEffect solid(int argb) {
+    public static @NotNull BackgroundEffect solid(int argb) {
         return (nx, ny, dist, angle, animTick) -> argb;
     }
 
-    public static BackgroundEffect solid(int argb, float pulseSpeedHz) {
+    public static @NotNull BackgroundEffect solid(int argb, float pulseSpeedHz) {
         if (pulseSpeedHz == 0f) return solid(argb);
         return (nx, ny, dist, angle, animTick) -> {
             float phase = animTick / 1000f * pulseSpeedHz * (float) (2 * Math.PI);
@@ -24,11 +26,11 @@ public final class BackgroundEffects {
         };
     }
 
-    public static BackgroundEffect radialGradient(int innerColor, int outerColor) {
+    public static @NotNull BackgroundEffect radialGradient(int innerColor, int outerColor) {
         return radialGradient(innerColor, outerColor, 0f);
     }
 
-    public static BackgroundEffect radialGradient(int innerColor, int outerColor, float pulseSpeedHz) {
+    public static @NotNull BackgroundEffect radialGradient(int innerColor, int outerColor, float pulseSpeedHz) {
         if (pulseSpeedHz == 0f) {
             return (nx, ny, dist, angle, animTick) -> mix(innerColor, outerColor, clamp01(dist));
         }
@@ -39,11 +41,11 @@ public final class BackgroundEffects {
         };
     }
 
-    public static BackgroundEffect ring(int color, float radius, float thickness) {
+    public static @NotNull BackgroundEffect ring(int color, float radius, float thickness) {
         return ring(color, radius, thickness, 0f);
     }
 
-    public static BackgroundEffect ring(int color, float radius, float thickness, float rotationSpeedHz) {
+    public static @NotNull BackgroundEffect ring(int color, float radius, float thickness, float rotationSpeedHz) {
         float half = thickness / 2f;
         return (nx, ny, dist, angle, animTick) -> {
             float d = Math.abs(dist - radius);
@@ -57,7 +59,7 @@ public final class BackgroundEffects {
         };
     }
 
-    public static BackgroundEffect pulse(int innerColor, int outerColor, float speedHz) {
+    public static @NotNull BackgroundEffect pulse(int innerColor, int outerColor, float speedHz) {
         return (nx, ny, dist, angle, animTick) -> {
             float phase = animTick / 1000f * speedHz * (float) (2 * Math.PI);
             float pulseAmt = 0.5f + 0.5f * (float) Math.sin(phase);
@@ -67,7 +69,7 @@ public final class BackgroundEffects {
         };
     }
 
-    public static BackgroundEffect rotatingRays(int color, int rayCount, float speedHz, float sharpness) {
+    public static @NotNull BackgroundEffect rotatingRays(int color, int rayCount, float speedHz, float sharpness) {
         return (nx, ny, dist, angle, animTick) -> {
             float t = animTick / 1000f * speedHz * (float) (2 * Math.PI);
             float raw = (float) Math.cos((angle + t) * rayCount);
@@ -78,7 +80,7 @@ public final class BackgroundEffects {
         };
     }
 
-    public static BackgroundEffect colorCycle(float speedHz, int... colors) {
+    public static @NotNull BackgroundEffect colorCycle(float speedHz, int @NotNull ... colors) {
         if (colors.length == 0) return solid(0);
         if (colors.length == 1) return solid(colors[0]);
         return (nx, ny, dist, angle, animTick) -> {
@@ -91,7 +93,7 @@ public final class BackgroundEffects {
         };
     }
 
-    public static BackgroundEffect glitchShear(int colorA, int colorB, float speedHz, float intensity) {
+    public static @NotNull BackgroundEffect glitchShear(int colorA, int colorB, float speedHz, float intensity) {
         return (nx, ny, dist, angle, animTick) -> {
             float t = animTick / 1000f * speedHz;
             float half = ny >= 0f ? 1f : 0f;
@@ -106,7 +108,7 @@ public final class BackgroundEffects {
         };
     }
 
-    public static BackgroundEffect sparkle(int color, float density, float speedHz) {
+    public static @NotNull BackgroundEffect sparkle(int color, float density, float speedHz) {
         float cells = Math.max(2f, 12f * clamp01(density));
         return (nx, ny, dist, angle, animTick) -> {
             float step = (float) Math.floor(animTick / 1000f * speedHz);

@@ -8,6 +8,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -25,17 +27,17 @@ public final class CategoryShaderConfig {
 
     public static final class CategoryOverride {
 
-        public String condition = "";
-        public String shaderId = "";
+        public @NotNull String condition = "";
+        public @NotNull String shaderId = "";
 
         public CategoryOverride() {}
 
-        public CategoryOverride(String condition, String shaderId) {
+        public CategoryOverride(@Nullable String condition, @Nullable String shaderId) {
             this.condition = condition != null ? condition : "";
             this.shaderId = shaderId != null ? shaderId : "";
         }
 
-        public CategoryOverride copy() {
+        public @NotNull CategoryOverride copy() {
             return new CategoryOverride(condition, shaderId);
         }
     }
@@ -59,12 +61,12 @@ public final class CategoryShaderConfig {
         return CACHE.get(categoryId);
     }
 
-    private static Entry entryOrCreate(String categoryId) {
+    private static @NotNull Entry entryOrCreate(String categoryId) {
         if (!loaded) load();
         return CACHE.computeIfAbsent(categoryId, k -> new Entry());
     }
 
-    private static void pruneIfEmpty(String categoryId, Entry e) {
+    private static void pruneIfEmpty(String categoryId, @NotNull Entry e) {
         if (e.isEmpty()) CACHE.remove(categoryId);
     }
 
@@ -73,18 +75,18 @@ public final class CategoryShaderConfig {
         return e != null ? e.shaderId : "";
     }
 
-    public static void set(String categoryId, String shaderId) {
+    public static void set(String categoryId, @Nullable String shaderId) {
         Entry e = entryOrCreate(categoryId);
         e.shaderId = shaderId == null ? "" : shaderId.trim();
         pruneIfEmpty(categoryId, e);
     }
 
-    public static List<CategoryOverride> getOverrides(String categoryId) {
+    public static @NotNull List<CategoryOverride> getOverrides(String categoryId) {
         Entry e = entryOrNull(categoryId);
         return e != null ? Collections.unmodifiableList(e.overrides) : List.of();
     }
 
-    public static void setOverrides(String categoryId, List<CategoryOverride> overrides) {
+    public static void setOverrides(String categoryId, @Nullable List<CategoryOverride> overrides) {
         Entry e = entryOrCreate(categoryId);
         e.overrides.clear();
         if (overrides != null) {
@@ -173,7 +175,7 @@ public final class CategoryShaderConfig {
         }
     }
 
-    private static Path configPath() {
+    private static @NotNull Path configPath() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("category_shaders.json");
     }

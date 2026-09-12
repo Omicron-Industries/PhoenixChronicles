@@ -8,12 +8,13 @@ import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
 import net.minecraftforge.event.AddPackFindersEvent;
 import net.phoenixvine.chronicles.registry.QuestLangRegistry;
+import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
 
 public class ChroniclesLangPack {
 
-    public static void register(AddPackFindersEvent event) {
+    public static void register(@NotNull AddPackFindersEvent event) {
         Path root = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
         QuestLangRegistry.ensurePackStructure(root);
 

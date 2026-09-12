@@ -14,6 +14,7 @@ import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public class BulkOpsPanel {
         moveCatOpen = false;
     }
 
-    public void render(GuiGraphics g, int mx, int my, int cl) {
+    public void render(@NotNull GuiGraphics g, int mx, int my, int cl) {
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 400f);
         g.flush();

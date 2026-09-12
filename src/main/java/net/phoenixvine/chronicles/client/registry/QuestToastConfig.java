@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +28,7 @@ public class QuestToastConfig {
         public int color = 0xFFFFFFFF;
         public boolean bold = false;
 
-        public Element copy() {
+        public @NotNull Element copy() {
             Element e = new Element();
             e.x = x;
             e.y = y;
@@ -38,9 +39,9 @@ public class QuestToastConfig {
         }
     }
 
-    public Element icon = defaultIcon();
-    public Element title = defaultTitle();
-    public Element label = defaultLabel();
+    public @NotNull Element icon = defaultIcon();
+    public @NotNull Element title = defaultTitle();
+    public @NotNull Element label = defaultLabel();
     public int bgColor = 0xB2170D00;
     public int accentColor = 0xFFFFAA00;
 
@@ -68,7 +69,7 @@ public class QuestToastConfig {
             this.scale = scale;
         }
 
-        public IconEntry copy() {
+        public @NotNull IconEntry copy() {
             return new IconEntry(kind, id, x, y, scale);
         }
     }
@@ -77,7 +78,7 @@ public class QuestToastConfig {
 
     public String phantasiaMachineId = "";
 
-    public static Element defaultIcon() {
+    public static @NotNull Element defaultIcon() {
         Element e = new Element();
         e.x = 0.5f;
         e.y = 0.42f;
@@ -85,7 +86,7 @@ public class QuestToastConfig {
         return e;
     }
 
-    public static Element defaultTitle() {
+    public static @NotNull Element defaultTitle() {
         Element e = new Element();
         e.x = 0.5f;
         e.y = 0.53f;
@@ -95,7 +96,7 @@ public class QuestToastConfig {
         return e;
     }
 
-    public static Element defaultLabel() {
+    public static @NotNull Element defaultLabel() {
         Element e = new Element();
         e.x = 0.5f;
         e.y = 0.47f;
@@ -104,7 +105,7 @@ public class QuestToastConfig {
         return e;
     }
 
-    public QuestToastConfig copy() {
+    public @NotNull QuestToastConfig copy() {
         QuestToastConfig c = new QuestToastConfig();
         c.icon = icon.copy();
         c.title = title.copy();
@@ -175,7 +176,7 @@ public class QuestToastConfig {
         }
     }
 
-    private static Path configPath() {
+    private static @NotNull Path configPath() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("quest_toasts.json");
     }

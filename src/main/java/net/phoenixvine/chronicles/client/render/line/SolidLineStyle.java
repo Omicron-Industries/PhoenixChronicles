@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.client.render.line;
 
 import net.minecraft.client.gui.GuiGraphics;
+import org.jetbrains.annotations.NotNull;
 
 public class SolidLineStyle implements IDependencyLineStyle {
 
@@ -15,7 +16,7 @@ public class SolidLineStyle implements IDependencyLineStyle {
     }
 
     @Override
-    public void render(GuiGraphics g, int px, int py, int cx, int cy, int color, long animTick) {
+    public void render(@NotNull GuiGraphics g, int px, int py, int cx, int cy, int color, long animTick) {
         LineRenderUtil.drawThickLine(g, px, py, cx, cy, width, color);
     }
 }

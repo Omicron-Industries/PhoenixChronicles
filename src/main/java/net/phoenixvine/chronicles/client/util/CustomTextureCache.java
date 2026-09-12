@@ -5,6 +5,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +26,7 @@ public final class CustomTextureCache {
 
     private CustomTextureCache() {}
 
-    public static ResourceLocation resolve(ResourceLocation rl) {
+    public static @NotNull ResourceLocation resolve(@NotNull ResourceLocation rl) {
         String key = rl.toString();
         if (RESOLVED.containsKey(key)) return rl;
         if (MISSING.contains(key)) return rl;
@@ -55,12 +56,12 @@ public final class CustomTextureCache {
         return rl;
     }
 
-    public static int[] nativeSize(ResourceLocation rl) {
+    public static int[] nativeSize(@NotNull ResourceLocation rl) {
         int[] size = NATIVE_SIZE.get(rl.toString());
         return size == null ? null : new int[] { size[0], size[1] };
     }
 
-    public static void invalidate(ResourceLocation rl) {
+    public static void invalidate(@NotNull ResourceLocation rl) {
         String key = rl.toString();
         if (RESOLVED.remove(key) != null) Minecraft.getInstance().getTextureManager().release(rl);
         MISSING.remove(key);

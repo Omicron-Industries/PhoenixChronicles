@@ -6,6 +6,8 @@ import net.phoenixvine.chronicles.client.render.*;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,8 +21,8 @@ public class DragController {
     private int lastMoveOrigX = 0, lastMoveOrigY = 0;
     private long lastMoveTimeMs = 0;
 
-    private Map<ResourceLocation, int[]> dragUndoOrigBulk;
-    private QuestNode dragUndoSingleNode;
+    private @Nullable Map<ResourceLocation, int[]> dragUndoOrigBulk;
+    private @Nullable QuestNode dragUndoSingleNode;
     private int dragUndoSinglePreX, dragUndoSinglePreY;
 
     public DragController(ScreenContext ctx, DragControllerState state, GraphEditorState editorState) {
@@ -83,7 +85,7 @@ public class DragController {
         }
     }
 
-    public void beginDragUndo(QuestNode capturedNode, int preX, int preY) {
+    public void beginDragUndo(@NotNull QuestNode capturedNode, int preX, int preY) {
         if (editorState.multiSelection.contains(capturedNode.getId()) && editorState.multiSelection.size() >= 2) {
             Map<ResourceLocation, int[]> orig = new LinkedHashMap<>();
             for (ResourceLocation id : editorState.multiSelection) {
@@ -152,7 +154,7 @@ public class DragController {
         }
     }
 
-    private void applyBulkPositions(Map<ResourceLocation, int[]> positions) {
+    private void applyBulkPositions(@NotNull Map<ResourceLocation, int[]> positions) {
         for (Map.Entry<ResourceLocation, int[]> e : positions.entrySet()) {
             QuestNode n = QuestTreeRegistry.getQuest(e.getKey());
             if (n != null) {
@@ -163,7 +165,7 @@ public class DragController {
         state.rebuild();
     }
 
-    public void renderDragSnapPosBox(GuiGraphics g, int mx, int my) {
+    public void renderDragSnapPosBox(@NotNull GuiGraphics g, int mx, int my) {
         if (editorState.draggedNode == null) return;
         int[] logPos = computeDraggedNodeSnapLogicalPos(mx, my, currentDragSnap());
         String label = "X: " + logPos[0] + ", Y: " + logPos[1];
@@ -174,7 +176,7 @@ public class DragController {
         g.drawString(ctx.font(), "§f" + label, bx, by, ctx.colorText(), false);
     }
 
-    public void refreshNodeScreenPos(QuestNode node) {
+    public void refreshNodeScreenPos(@NotNull QuestNode node) {
         int cl = ctx.sidebarW();
         int sx = (int) (node.getCustomX() * ctx.posZoom()) + state.viewOffX() + cl;
         int sy = (int) (node.getCustomY() * ctx.posZoom()) + state.viewOffY() + ChronicleOverviewScreen.HEADER_H;
@@ -189,7 +191,7 @@ public class DragController {
         }
     }
 
-    public void renderSnapGridOverlay(GuiGraphics g, int cl, int cr) {
+    public void renderSnapGridOverlay(@NotNull GuiGraphics g, int cl, int cr) {
         if (state.gridSnap() <= 1) return;
         int step = Math.round(state.gridSnap() * ctx.posZoom());
         if (step < 6) return;
@@ -207,7 +209,7 @@ public class DragController {
         NodeShapeRenderer.flushFillQueue(g);
     }
 
-    public void renderSnapCursorBox(GuiGraphics g, int mx, int my, int cl, int cr) {
+    public void renderSnapCursorBox(@NotNull GuiGraphics g, int mx, int my, int cl, int cr) {
         if (state.gridSnap() <= 1) return;
         if (mx < cl || mx > cr || my < ChronicleOverviewScreen.HEADER_H || my > ctx.height()) return;
 

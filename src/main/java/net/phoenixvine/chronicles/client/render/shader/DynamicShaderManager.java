@@ -9,6 +9,8 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -48,13 +50,13 @@ public final class DynamicShaderManager {
 
     private static final Map<String, Boolean> COMPILE_OK = new HashMap<>();
 
-    public static boolean lastCompileFailed(String id) {
+    public static boolean lastCompileFailed(@Nullable String id) {
         if (id == null || id.isBlank()) return false;
         Boolean ok = COMPILE_OK.get(id);
         return ok != null && !ok;
     }
 
-    public static List<String> listAvailable() {
+    public static @NotNull List<String> listAvailable() {
         if (!Files.isDirectory(SHADER_DIR)) return List.of();
 
         try (var stream = Files.list(SHADER_DIR)) {
@@ -73,7 +75,7 @@ public final class DynamicShaderManager {
         }
     }
 
-    public static ShaderInstance get(String id) {
+    public static ShaderInstance get(@Nullable String id) {
         if (id == null || id.isBlank()) return null;
         Path file = SHADER_DIR.resolve(id + ".frag");
         if (!Files.isRegularFile(file)) return null;
@@ -130,7 +132,7 @@ public final class DynamicShaderManager {
         return newInstance;
     }
 
-    private static ShaderInstance compile(String id, String userSource) {
+    private static @Nullable ShaderInstance compile(@NotNull String id, @NotNull String userSource) {
         String fragmentSource = buildFragmentSource(userSource);
         String name = "dyn_" + sanitize(id) + "_" + Integer.toHexString(fragmentSource.hashCode());
         String jsonSource = buildJsonSource(name);
@@ -168,21 +170,21 @@ public final class DynamicShaderManager {
         }
     }
 
-    private static ResourceLocation coreResLoc(String name, String ext) {
+    private static @NotNull ResourceLocation coreResLoc(String name, String ext) {
         return ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID,
                 "shaders/core/" + name + ext);
     }
 
-    private static Resource memResource(PackResources source, String text) {
+    private static @NotNull Resource memResource(@NotNull PackResources source, @NotNull String text) {
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         return new Resource(source, () -> new ByteArrayInputStream(bytes));
     }
 
-    private static String sanitize(String id) {
+    private static @NotNull String sanitize(@NotNull String id) {
         return id.replaceAll("[^a-zA-Z0-9_]", "_");
     }
 
-    private static String buildFragmentSource(String userSource) {
+    private static @NotNull String buildFragmentSource(@NotNull String userSource) {
         if (!userSource.contains("mainImage")) {
             return userSource;
         }
@@ -205,7 +207,7 @@ public final class DynamicShaderManager {
                 """.formatted(userSource);
     }
 
-    private static String buildJsonSource(String name) {
+    private static @NotNull String buildJsonSource(String name) {
         return """
                 {
                   "blend": { "func": "add", "srcrgb": "srcalpha", "dstrgb": "one_minus_srcalpha" },

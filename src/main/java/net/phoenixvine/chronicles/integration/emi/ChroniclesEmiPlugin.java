@@ -8,6 +8,7 @@ import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.EmiPlugin;
 import dev.emi.emi.api.EmiRegistry;
 import dev.emi.emi.api.widget.Bounds;
+import org.jetbrains.annotations.NotNull;
 
 @EmiEntrypoint
 public class ChroniclesEmiPlugin implements EmiPlugin {
@@ -15,7 +16,7 @@ public class ChroniclesEmiPlugin implements EmiPlugin {
     public static EmiRegistry currentRegistry;
 
     @Override
-    public void register(EmiRegistry registry) {
+    public void register(@NotNull EmiRegistry registry) {
         currentRegistry = registry;
 
         registry.addCategory(QuestEmiCategory.CATEGORY);
@@ -32,7 +33,7 @@ public class ChroniclesEmiPlugin implements EmiPlugin {
         });
     }
 
-    public static void loadQuestsIntoEmi(EmiRegistry registry) {
+    public static void loadQuestsIntoEmi(@NotNull EmiRegistry registry) {
         for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
 
             if (node.isFlagDisabled(null)) {

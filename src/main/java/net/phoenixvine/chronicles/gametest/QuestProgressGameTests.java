@@ -21,6 +21,7 @@ import net.phoenixvine.guilds.data.Guild;
 import net.phoenixvine.guilds.data.GuildManager;
 
 import com.mojang.authlib.GameProfile;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
 
@@ -28,14 +29,14 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public class QuestProgressGameTests {
 
-    private static QuestNode node(String path) {
+    private static @NotNull QuestNode node(@NotNull String path) {
         return new QuestNode(ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID, path),
                 Component.literal(path),
                 Component.literal(""));
     }
 
     @GameTest(template = "gametest_empty", timeoutTicks = 200)
-    public static void completingAQuestUnlocksItsDependent(GameTestHelper helper) {
+    public static void completingAQuestUnlocksItsDependent(@NotNull GameTestHelper helper) {
         QuestTreeRegistry.clear();
         try {
             QuestNode gate = node("gametest_gate");
@@ -67,7 +68,7 @@ public class QuestProgressGameTests {
     }
 
     @GameTest(template = "gametest_empty", timeoutTicks = 200)
-    public static void questWithUnmetPrerequisiteStaysLocked(GameTestHelper helper) {
+    public static void questWithUnmetPrerequisiteStaysLocked(@NotNull GameTestHelper helper) {
         QuestTreeRegistry.clear();
         try {
             QuestNode gate = node("gametest_gate2");
@@ -100,7 +101,7 @@ public class QuestProgressGameTests {
      * player's evaluate() also checks.
      */
     @GameTest(template = "gametest_empty", timeoutTicks = 200)
-    public static void flagSetForOnePlayerDoesNotLeakToAnother(GameTestHelper helper) {
+    public static void flagSetForOnePlayerDoesNotLeakToAnother(@NotNull GameTestHelper helper) {
         Player alice = helper.makeMockPlayer();
         Player bob = helper.makeMockPlayer();
         String flagName = "gametest_has_nether_star";
@@ -135,7 +136,7 @@ public class QuestProgressGameTests {
      * session to verify.
      */
     @GameTest(template = "gametest_empty", timeoutTicks = 200)
-    public static void guildMembersShareAScopedFlagButOutsidersDont(GameTestHelper helper) {
+    public static void guildMembersShareAScopedFlagButOutsidersDont(@NotNull GameTestHelper helper) {
         if (!ModList.get().isLoaded("phoenix_guilds")) {
             helper.succeed();
             return;

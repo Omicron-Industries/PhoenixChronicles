@@ -4,6 +4,8 @@ import net.phoenixvine.chronicles.capability.PlayerQuestData;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Stack;
 
@@ -26,10 +28,10 @@ public class QuestEditSession {
     private static boolean validationOpen = false;
 
     @Getter
-    private static PlayerQuestData testModeData = new PlayerQuestData();
+    private static @NotNull PlayerQuestData testModeData = new PlayerQuestData();
     @Setter
     @Getter
-    private static String questClipboard = null;
+    private static @Nullable String questClipboard = null;
 
     public static void pushUndo(Runnable undoAction) {
         undoStack.push(undoAction);

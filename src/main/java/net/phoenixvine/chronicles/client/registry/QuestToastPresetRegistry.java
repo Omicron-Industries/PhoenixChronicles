@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -41,7 +42,7 @@ public final class QuestToastPresetRegistry {
         save();
     }
 
-    public static List<String> names() {
+    public static @NotNull List<String> names() {
         if (!loaded) load();
         return new ArrayList<>(CACHE.keySet());
     }
@@ -78,7 +79,7 @@ public final class QuestToastPresetRegistry {
         }
     }
 
-    private static Path configPath() {
+    private static @NotNull Path configPath() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("toast_presets.json");
     }

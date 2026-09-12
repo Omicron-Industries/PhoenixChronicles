@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.screen.utils;
 
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
+import org.jetbrains.annotations.NotNull;
 
 public class PaletteState {
 
@@ -31,7 +32,7 @@ public class PaletteState {
     public int textAct = 0xFFFFBB33;
     public int progFill = 0xFF00AA55;
 
-    public void refresh(PhoenixTheme t) {
+    public void refresh(@NotNull PhoenixTheme t) {
         bg = t.bg.getColor();
         panelDark = t.header.getColor();
         header = t.header.getColor();

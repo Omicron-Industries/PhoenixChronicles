@@ -7,6 +7,7 @@ import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,12 +39,12 @@ public class StatsPanel implements TogglePanel {
     }
 
     @Override
-    public boolean isVisible(ScreenContext ctx) {
+    public boolean isVisible(@NotNull ScreenContext ctx) {
         return ctx.isDevMode() && isOpen();
     }
 
     @Override
-    public void render(ScreenContext ctx, GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+    public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
         g.flush();

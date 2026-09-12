@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.render.line;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.NotNull;
 
 public class TexturedLineStyle implements IDependencyLineStyle {
 
@@ -22,7 +23,7 @@ public class TexturedLineStyle implements IDependencyLineStyle {
     }
 
     @Override
-    public void render(GuiGraphics g, int px, int py, int cx, int cy, int color, long animTick) {
+    public void render(@NotNull GuiGraphics g, int px, int py, int cx, int cy, int color, long animTick) {
         float dx = cx - px;
         float dy = cy - py;
         float len = (float) Math.sqrt(dx * dx + dy * dy);

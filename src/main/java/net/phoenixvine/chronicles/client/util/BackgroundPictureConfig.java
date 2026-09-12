@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -20,7 +21,7 @@ public final class BackgroundPictureConfig {
 
     public static class Picture {
 
-        public String texture = "";
+        public @NotNull String texture = "";
         public float x, y;
         public float w = 64f, h = 64f;
         public float opacity = 1.0f;
@@ -33,7 +34,7 @@ public final class BackgroundPictureConfig {
 
     private BackgroundPictureConfig() {}
 
-    public static List<Picture> get(String chapter) {
+    public static @NotNull List<Picture> get(String chapter) {
         if (!loaded) load();
         return CACHE.computeIfAbsent(chapter, c -> new ArrayList<>());
     }
@@ -73,7 +74,7 @@ public final class BackgroundPictureConfig {
         }
     }
 
-    private static Path configPath() {
+    private static @NotNull Path configPath() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("background_pictures.json");
     }

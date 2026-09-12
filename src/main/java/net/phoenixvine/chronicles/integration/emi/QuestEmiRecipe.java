@@ -27,6 +27,7 @@ import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.widget.SlotWidget;
 import dev.emi.emi.api.widget.TextWidget;
 import dev.emi.emi.api.widget.WidgetHolder;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,15 +35,15 @@ import java.util.List;
 public class QuestEmiRecipe implements EmiRecipe {
 
     private final QuestNode node;
-    private final ResourceLocation id;
+    private final @NotNull ResourceLocation id;
 
-    public QuestEmiRecipe(QuestNode node) {
+    public QuestEmiRecipe(@NotNull QuestNode node) {
         this.node = node;
         this.id = ResourceLocation.fromNamespaceAndPath(node.getId().getNamespace(), "quest/" + node.getId().getPath());
     }
 
     @Override
-    public EmiRecipeCategory getCategory() {
+    public @NotNull EmiRecipeCategory getCategory() {
         return QuestEmiCategory.CATEGORY;
     }
 
@@ -52,7 +53,7 @@ public class QuestEmiRecipe implements EmiRecipe {
     }
 
     @Override
-    public List<EmiIngredient> getInputs() {
+    public @NotNull List<EmiIngredient> getInputs() {
         List<EmiIngredient> dynamicInputs = new ArrayList<>();
         if (node.getTasks() == null) return dynamicInputs;
 
@@ -79,7 +80,7 @@ public class QuestEmiRecipe implements EmiRecipe {
     }
 
     @Override
-    public List<EmiStack> getOutputs() {
+    public @NotNull List<EmiStack> getOutputs() {
         List<EmiStack> dynamicOutputs = new ArrayList<>();
         if (node.getRewards() == null || node.getRewards().isEmpty()) {
             dynamicOutputs.add(EmiStack.of(Items.BOOK));
@@ -128,7 +129,7 @@ public class QuestEmiRecipe implements EmiRecipe {
     }
 
     @Override
-    public void addWidgets(WidgetHolder widgets) {
+    public void addWidgets(@NotNull WidgetHolder widgets) {
         Font font = Minecraft.getInstance().font;
 
         widgets.add(new JumpToQuestWidget(node.getTitle().getVisualOrderText(), 4, 4, this::jumpToQuest));

@@ -1,6 +1,8 @@
 package net.phoenixvine.chronicles.client.profiler;
 
 import net.phoenixvine.chronicles.PhoenixChronicles;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -20,12 +22,12 @@ public final class ProfilerSession {
     private static final long DETAIL_INTERVAL_MS = 1000L;
     private static final long FLUSH_INTERVAL_MS = 1000L;
 
-    private static volatile ProfilerSession active = null;
+    private static volatile @Nullable ProfilerSession active = null;
 
     private final long startNanos = System.nanoTime();
     private final long startMs = System.currentTimeMillis();
     private final Path logFile;
-    private BufferedWriter writer;
+    private @Nullable BufferedWriter writer;
     private final boolean priorFrameProfilerEnabled;
 
     private long frameCount = 0;
@@ -54,14 +56,14 @@ public final class ProfilerSession {
         return active != null;
     }
 
-    public static String toggle() {
+    public static @NotNull String toggle() {
         if (active != null) {
             return stop("manual toggle");
         }
         return start();
     }
 
-    private static String start() {
+    private static @NotNull String start() {
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         Path dir = Paths.get("config", "phoenix_chronicles", "profiler_sessions", stamp);
         try {
@@ -86,7 +88,7 @@ public final class ProfilerSession {
         return "§aProfiler session started -> " + file;
     }
 
-    private static String stop(String reason) {
+    private static @NotNull String stop(String reason) {
         ProfilerSession session = active;
         if (session == null) return "§7No active profiler session";
         active = null;
@@ -172,7 +174,7 @@ public final class ProfilerSession {
                 now - session.startMs, key, mods, screenName));
     }
 
-    private void writeLine(String line) {
+    private void writeLine(@NotNull String line) {
         if (writer == null) return;
         try {
             writer.write(line);

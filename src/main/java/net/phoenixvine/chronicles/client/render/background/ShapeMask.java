@@ -1,10 +1,13 @@
 package net.phoenixvine.chronicles.client.render.background;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 final class ShapeMask {
 
     private ShapeMask() {}
 
-    static boolean inside(String shape, float nx, float ny) {
+    static boolean inside(@Nullable String shape, float nx, float ny) {
         return switch (shape == null ? "SQUARE" : shape.toUpperCase(java.util.Locale.ROOT)) {
             case "CIRCLE" -> nx * nx + ny * ny <= 1f;
             case "DIAMOND" -> Math.abs(nx) <= 1f - Math.abs(ny);
@@ -76,7 +79,7 @@ final class ShapeMask {
         return verts;
     }
 
-    private static boolean insidePolygon(float x, float y, float[][] verts) {
+    private static boolean insidePolygon(float x, float y, float[] @NotNull [] verts) {
         int n = verts.length;
         boolean inside = false;
         for (int i = 0, j = n - 1; i < n; j = i++) {

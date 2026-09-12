@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.util;
 
 import net.phoenixvine.chronicles.model.FullQuestData;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,14 +16,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MarkdownUtilsTest {
 
-    private static Path write(Path dir, String name, String content) throws IOException {
+    private static @NotNull Path write(@NotNull Path dir, @NotNull String name, @NotNull String content) throws IOException {
         Path file = dir.resolve(name);
         Files.writeString(file, content, StandardCharsets.UTF_8);
         return file;
     }
 
     @Test
-    void firstH1LineBecomesTitleAndIsExcludedFromDescription(@TempDir Path dir) throws IOException {
+    void firstH1LineBecomesTitleAndIsExcludedFromDescription(@TempDir @NotNull Path dir) throws IOException {
         Path file = write(dir, "q.md", "# My Quest Title\nBody text here.");
 
         FullQuestData data = MarkdownUtils.loadMarkdownContent(file);
@@ -32,7 +33,7 @@ class MarkdownUtilsTest {
     }
 
     @Test
-    void secondHeadingLineIsNotTreatedAsANewTitle(@TempDir Path dir) throws IOException {
+    void secondHeadingLineIsNotTreatedAsANewTitle(@TempDir @NotNull Path dir) throws IOException {
         Path file = write(dir, "q.md", "# First Title\n# Second Looks Like A Title Too\nBody.");
 
         FullQuestData data = MarkdownUtils.loadMarkdownContent(file);
@@ -41,7 +42,7 @@ class MarkdownUtilsTest {
     }
 
     @Test
-    void blankLinesInsertParagraphBreaksInDescription(@TempDir Path dir) throws IOException {
+    void blankLinesInsertParagraphBreaksInDescription(@TempDir @NotNull Path dir) throws IOException {
         Path file = write(dir, "q.md", "# T\nFirst paragraph.\n\nSecond paragraph.");
 
         FullQuestData data = MarkdownUtils.loadMarkdownContent(file);
@@ -50,7 +51,7 @@ class MarkdownUtilsTest {
     }
 
     @Test
-    void consecutiveNonBlankLinesJoinWithASpace(@TempDir Path dir) throws IOException {
+    void consecutiveNonBlankLinesJoinWithASpace(@TempDir @NotNull Path dir) throws IOException {
         Path file = write(dir, "q.md", "# T\nLine one\nLine two");
 
         FullQuestData data = MarkdownUtils.loadMarkdownContent(file);
@@ -59,7 +60,7 @@ class MarkdownUtilsTest {
     }
 
     @Test
-    void ruleLineIsKeptVerbatimAndForcesAParagraphBreakAfterIt(@TempDir Path dir) throws IOException {
+    void ruleLineIsKeptVerbatimAndForcesAParagraphBreakAfterIt(@TempDir @NotNull Path dir) throws IOException {
         Path file = write(dir, "q.md", "# T\nBefore.\n---\nAfter.");
 
         FullQuestData data = MarkdownUtils.loadMarkdownContent(file);
@@ -80,7 +81,7 @@ class MarkdownUtilsTest {
     }
 
     @Test
-    void fileWithNoH1LineHasEmptyTitleButKeepsBody(@TempDir Path dir) throws IOException {
+    void fileWithNoH1LineHasEmptyTitleButKeepsBody(@TempDir @NotNull Path dir) throws IOException {
         Path file = write(dir, "q.md", "Just a paragraph, no heading.");
 
         FullQuestData data = MarkdownUtils.loadMarkdownContent(file);

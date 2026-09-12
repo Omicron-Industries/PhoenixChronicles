@@ -19,6 +19,7 @@ import appeng.api.stacks.AEKey;
 import appeng.api.storage.MEStorage;
 import appeng.items.tools.powered.WirelessTerminalItem;
 import appeng.menu.me.common.MEStorageMenu;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ final class AE2CompatImpl {
     private AE2CompatImpl() {}
 
     @Nullable
-    private static IGrid getLinkedGrid(Player player) {
+    private static IGrid getLinkedGrid(@NotNull Player player) {
         IGrid grid = getLinkedGrid(player, player.getMainHandItem());
         if (grid != null) return grid;
         grid = getLinkedGrid(player, player.getOffhandItem());
@@ -56,35 +57,35 @@ final class AE2CompatImpl {
     }
 
     @Nullable
-    private static IGrid getLinkedGrid(Player player, ItemStack stack) {
+    private static IGrid getLinkedGrid(@NotNull Player player, @NotNull ItemStack stack) {
         if (!(stack.getItem() instanceof WirelessTerminalItem term)) return null;
         return term.getLinkedGrid(stack, player.level(), player);
     }
 
-    static long getStoredAmount(Player player, Item item) {
+    static long getStoredAmount(@NotNull Player player, @NotNull Item item) {
         return getStoredAmount(player, AEItemKey.of(item));
     }
 
-    static long getStoredAmount(Player player, Fluid fluid) {
+    static long getStoredAmount(@NotNull Player player, Fluid fluid) {
         return getStoredAmount(player, AEFluidKey.of(fluid));
     }
 
-    private static long getStoredAmount(Player player, @Nullable AEKey key) {
+    private static long getStoredAmount(@NotNull Player player, @Nullable AEKey key) {
         if (key == null) return 0;
         IGrid grid = getLinkedGrid(player);
         if (grid == null) return 0;
         return grid.getStorageService().getCachedInventory().get(key);
     }
 
-    static boolean tryConsume(Player player, Item item, long amount) {
+    static boolean tryConsume(@NotNull Player player, @NotNull Item item, long amount) {
         return tryConsume(player, AEItemKey.of(item), amount);
     }
 
-    static boolean tryConsume(Player player, Fluid fluid, long amount) {
+    static boolean tryConsume(@NotNull Player player, Fluid fluid, long amount) {
         return tryConsume(player, AEFluidKey.of(fluid), amount);
     }
 
-    private static boolean tryConsume(Player player, @Nullable AEKey key, long amount) {
+    private static boolean tryConsume(@NotNull Player player, @Nullable AEKey key, long amount) {
         if (key == null || amount <= 0) return false;
         IGrid grid = getLinkedGrid(player);
         if (grid == null) return false;
@@ -96,7 +97,7 @@ final class AE2CompatImpl {
         return true;
     }
 
-    static long getStoredAmount(Player player, IItemFilter filter) {
+    static long getStoredAmount(@NotNull Player player, @NotNull IItemFilter filter) {
         IGrid grid = getLinkedGrid(player);
         if (grid == null) return 0;
         long total = 0;
@@ -108,7 +109,7 @@ final class AE2CompatImpl {
         return total;
     }
 
-    static long getStoredAmount(Player player, IFluidFilter filter) {
+    static long getStoredAmount(@NotNull Player player, @NotNull IFluidFilter filter) {
         IGrid grid = getLinkedGrid(player);
         if (grid == null) return 0;
         long total = 0;
@@ -121,17 +122,17 @@ final class AE2CompatImpl {
         return total;
     }
 
-    static long tryConsume(Player player, IItemFilter filter, long amount) {
+    static long tryConsume(@NotNull Player player, @NotNull IItemFilter filter, long amount) {
         return tryConsumeMatching(player, key -> key instanceof AEItemKey itemKey && filter.test(itemKey.toStack(1)),
                 amount);
     }
 
-    static long tryConsume(Player player, IFluidFilter filter, long amount) {
+    static long tryConsume(@NotNull Player player, @NotNull IFluidFilter filter, long amount) {
         return tryConsumeMatching(player,
                 key -> key instanceof AEFluidKey fluidKey && filter.test(fluidKey.toStack(1)), amount);
     }
 
-    private static long tryConsumeMatching(Player player, java.util.function.Predicate<AEKey> matcher, long amount) {
+    private static long tryConsumeMatching(@NotNull Player player, java.util.function.@NotNull Predicate<AEKey> matcher, long amount) {
         if (amount <= 0) return 0;
         IGrid grid = getLinkedGrid(player);
         if (grid == null) return 0;

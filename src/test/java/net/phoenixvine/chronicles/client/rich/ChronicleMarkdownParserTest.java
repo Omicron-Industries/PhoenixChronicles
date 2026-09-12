@@ -1,5 +1,6 @@
 package net.phoenixvine.chronicles.client.rich;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -8,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ChronicleMarkdownParserTest {
 
-    private static String text(RichSpan span) {
+    private static @NotNull String text(RichSpan span) {
         if (span instanceof RichSpan.Text t) return t.text();
         if (span instanceof RichSpan.Link l) return l.label();
         if (span instanceof RichSpan.Tip t) return t.label();
@@ -16,7 +17,7 @@ class ChronicleMarkdownParserTest {
         return "";
     }
 
-    private static String plain(List<RichSpan> spans) {
+    private static @NotNull String plain(@NotNull List<RichSpan> spans) {
         StringBuilder sb = new StringBuilder();
         for (RichSpan s : spans) sb.append(text(s));
         return sb.toString();

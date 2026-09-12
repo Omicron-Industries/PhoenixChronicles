@@ -4,6 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -23,12 +24,12 @@ class QuestRewardPickWeightedTest {
         }
 
         @Override
-        public RewardType getType() {
+        public @NotNull RewardType getType() {
             return RewardType.SCRIPT_EVENT;
         }
 
         @Override
-        public Component getSummary() {
+        public @NotNull Component getSummary() {
             return Component.literal(name);
         }
 
@@ -36,7 +37,7 @@ class QuestRewardPickWeightedTest {
         public void grant(ServerPlayer player) {}
 
         @Override
-        public CompoundTag serializeNBT() {
+        public @NotNull CompoundTag serializeNBT() {
             return new CompoundTag();
         }
 

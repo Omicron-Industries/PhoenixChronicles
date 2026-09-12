@@ -12,6 +12,7 @@ import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.model.QuestGroup;
 import net.phoenixvine.chronicles.model.QuestNode;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -66,7 +67,7 @@ public class QuestToastManager {
         for (ActiveToast t : active) t.ticksAlive++;
     }
 
-    public void render(GuiGraphics g, int screenW, int screenH) {
+    public void render(@NotNull GuiGraphics g, int screenW, int screenH) {
         if (active.isEmpty()) return;
         Font font = Minecraft.getInstance().font;
         QuestChroniclesSettings.ToastStyle defaultStyle = QuestChroniclesSettings.get().getToastStyle();
@@ -89,7 +90,7 @@ public class QuestToastManager {
         }
     }
 
-    private void renderCompact(GuiGraphics g, Font font, int screenW, int screenH, List<ActiveToast> toasts) {
+    private void renderCompact(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull List<ActiveToast> toasts) {
         QuestChroniclesSettings.HUDPosition pos = QuestChroniclesSettings.get().getToastPosition();
         boolean top = pos == QuestChroniclesSettings.HUDPosition.TOP_LEFT ||
                 pos == QuestChroniclesSettings.HUDPosition.TOP_CENTER ||
@@ -147,7 +148,7 @@ public class QuestToastManager {
     private static final int BANNER_W = 200;
     private static final int BANNER_H = 26;
 
-    private void renderAboveHotbar(GuiGraphics g, Font font, int screenW, int screenH, List<ActiveToast> toasts) {
+    private void renderAboveHotbar(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull List<ActiveToast> toasts) {
         int x = (screenW - BANNER_W) / 2;
 
         int slotY = screenH - 62 - (toasts.size() - 1) * (BANNER_H + GAP);
@@ -182,7 +183,7 @@ public class QuestToastManager {
         }
     }
 
-    private void renderBigCenter(GuiGraphics g, Font font, int screenW, int screenH, List<ActiveToast> toasts) {
+    private void renderBigCenter(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull List<ActiveToast> toasts) {
         int cy = screenH / 2 - 40;
         for (ActiveToast t : toasts) {
             float alpha = computeAlpha(t);
@@ -214,8 +215,8 @@ public class QuestToastManager {
         }
     }
 
-    public void renderCustom(GuiGraphics g, Font font, int screenW, int screenH, ActiveToast t,
-                             QuestToastConfig cfg) {
+    public void renderCustom(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull ActiveToast t,
+                             @NotNull QuestToastConfig cfg) {
         float alpha = computeAlpha(t);
         int a = (int) (alpha * 0xFF) << 24;
         QuestNode node = t.entry.node;
@@ -277,7 +278,7 @@ public class QuestToastManager {
         }
     }
 
-    public static float[] computeAutoFitCenter(QuestToastConfig cfg) {
+    public static float[] computeAutoFitCenter(@NotNull QuestToastConfig cfg) {
         float tx = cfg.title.x, ty = cfg.title.y;
         float lx = cfg.label.x, ly = cfg.label.y;
         float ix = cfg.icon.x, iy = cfg.icon.y;
@@ -293,7 +294,7 @@ public class QuestToastManager {
 
     private static final java.util.Set<String> PHANTASIA_LOGGED_STUCK = new java.util.HashSet<>();
 
-    private static Object getOrCreatePhantasiaPreview(String machineId) {
+    private static @NotNull Object getOrCreatePhantasiaPreview(@NotNull String machineId) {
         Object cached = PHANTASIA_PREVIEW_CACHE.get(machineId);
         if (cached != null) return cached;
         Object created = PhantasiaCompat.createPreview(machineId);
@@ -304,7 +305,7 @@ public class QuestToastManager {
         return created;
     }
 
-    private static void logIfStuck(String machineId, Object preview) {
+    private static void logIfStuck(String machineId, @NotNull Object preview) {
         if (PHANTASIA_LOGGED_STUCK.contains(machineId)) return;
         if (PhantasiaCompat.isPreviewReady(preview)) return;
         Long createdAt = PHANTASIA_PREVIEW_CREATED_AT.get(machineId);
@@ -319,7 +320,7 @@ public class QuestToastManager {
                 "quickly from Phantasia's own UI but hangs here, that's worth reporting upstream.");
     }
 
-    private void renderToastIcon(GuiGraphics g, QuestGroup.GroupIcon icon, int x, int y, int size, float alpha) {
+    private void renderToastIcon(@NotNull GuiGraphics g, QuestGroup.@NotNull GroupIcon icon, int x, int y, int size, float alpha) {
         try {
             switch (icon.kind) {
                 case ITEM -> {
@@ -358,7 +359,7 @@ public class QuestToastManager {
         }
     }
 
-    private static void renderFadedItem(GuiGraphics g, ItemStack stack, int x, int y, float alpha) {
+    private static void renderFadedItem(@NotNull GuiGraphics g, @NotNull ItemStack stack, int x, int y, float alpha) {
         if (alpha >= 0.999f) {
             g.renderItem(stack, x, y);
             return;
@@ -371,7 +372,7 @@ public class QuestToastManager {
         }
     }
 
-    private void drawCustomElement(GuiGraphics g, Font font, QuestToastConfig.Element el, String text,
+    private void drawCustomElement(@NotNull GuiGraphics g, @NotNull Font font, QuestToastConfig.@NotNull Element el, String text,
                                    int screenW, int screenH, int alpha, float bgHalfWidth) {
         String display = (el.bold ? "§l" : "") + text;
         float x = el.x * screenW, y = el.y * screenH;
@@ -398,14 +399,14 @@ public class QuestToastManager {
         g.pose().popPose();
     }
 
-    private float computeX(ActiveToast t) {
+    private float computeX(@NotNull ActiveToast t) {
         if (t.ticksAlive < SLIDE_TICKS) {
             return t.ticksAlive / (float) SLIDE_TICKS;
         }
         return 1.0f;
     }
 
-    private float computeAlpha(ActiveToast t) {
+    private float computeAlpha(@NotNull ActiveToast t) {
         int fadeStart = SLIDE_TICKS + STAY_TICKS;
         if (t.ticksAlive >= fadeStart) {
             int fadeAge = t.ticksAlive - fadeStart;
@@ -417,7 +418,7 @@ public class QuestToastManager {
         return 1.0f;
     }
 
-    public static ActiveToast makePreviewToast(QuestNode node, ToastType type) {
+    public static @NotNull ActiveToast makePreviewToast(QuestNode node, ToastType type) {
         ActiveToast t = new ActiveToast(new ToastEntry(node, type));
         t.ticksAlive = SLIDE_TICKS + 1;
         return t;

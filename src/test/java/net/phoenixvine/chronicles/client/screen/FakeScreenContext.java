@@ -8,6 +8,7 @@ import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -22,15 +23,15 @@ class FakeScreenContext implements ScreenContext {
     int height = 600;
     int sidebarW = 120;
     float posZoom = 1.0f;
-    String selectedChapter = "chapterA";
-    List<String> chapterList = new ArrayList<>(List.of("ALL", "chapterA", "chapterB"));
+    @NotNull String selectedChapter = "chapterA";
+    @NotNull List<String> chapterList = new ArrayList<>(List.of("ALL", "chapterA", "chapterB"));
     final List<String> feedback = new ArrayList<>();
     final List<Runnable> pushedUndoActions = new ArrayList<>();
     final List<Runnable> pushedRedoActions = new ArrayList<>();
     final List<String> pushedUndoMessages = new ArrayList<>();
 
     @Override
-    public Font font() {
+    public @Nullable Font font() {
         return null;
     }
 
@@ -75,12 +76,12 @@ class FakeScreenContext implements ScreenContext {
     }
 
     @Override
-    public Map<ResourceLocation, int[]> nodeScreenPos() {
+    public @NotNull Map<ResourceLocation, int[]> nodeScreenPos() {
         return new HashMap<>();
     }
 
     @Override
-    public QuestState getState(QuestNode node) {
+    public @NotNull QuestState getState(QuestNode node) {
         return QuestState.UNLOCKED;
     }
 
@@ -90,7 +91,7 @@ class FakeScreenContext implements ScreenContext {
     }
 
     @Override
-    public List<String> buildChapterList() {
+    public @NotNull List<String> buildChapterList() {
         return new ArrayList<>(chapterList);
     }
 
@@ -100,7 +101,7 @@ class FakeScreenContext implements ScreenContext {
     }
 
     @Override
-    public void setFeedback(String message, Object... args) {
+    public void setFeedback(@NotNull String message, Object... args) {
         feedback.add(message.formatted(args));
     }
 
@@ -117,12 +118,12 @@ class FakeScreenContext implements ScreenContext {
     }
 
     @Override
-    public UndoRedoManager undoRedo() {
+    public @NotNull UndoRedoManager undoRedo() {
         return new UndoRedoManager(feedback::add);
     }
 
     @Override
-    public List<String> validationIssues(QuestNode node) {
+    public @NotNull List<String> validationIssues(QuestNode node) {
         return List.of();
     }
 

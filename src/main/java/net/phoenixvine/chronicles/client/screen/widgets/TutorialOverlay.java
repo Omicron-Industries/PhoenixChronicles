@@ -5,18 +5,19 @@ import net.phoenixvine.chronicles.client.render.TutorialOverlayRenderer;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.utils.OverlayComponent;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
+import org.jetbrains.annotations.NotNull;
 
 public class TutorialOverlay implements OverlayComponent {
 
     private final TutorialOverlayRenderer renderer = new TutorialOverlayRenderer();
 
     @Override
-    public boolean isVisible(ScreenContext ctx) {
+    public boolean isVisible(@NotNull ScreenContext ctx) {
         return !ctx.isRenderingAsBackdrop();
     }
 
     @Override
-    public void render(ScreenContext ctx, GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+    public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
         renderer.render(g, mouseX, mouseY, ctx.font(),
                 new TutorialOverlayRenderer.Layout(ctx.width(), ctx.height(), ctx.sidebarW(),
                         ChronicleOverviewScreen.HEADER_H, ChronicleOverviewScreen.TOOLBAR_Y,
@@ -27,7 +28,7 @@ public class TutorialOverlay implements OverlayComponent {
     }
 
     @Override
-    public boolean mouseClicked(ScreenContext ctx, double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(@NotNull ScreenContext ctx, double mouseX, double mouseY, int button) {
         return renderer.handleClick(mouseX, mouseY, ctx::getState);
     }
 }

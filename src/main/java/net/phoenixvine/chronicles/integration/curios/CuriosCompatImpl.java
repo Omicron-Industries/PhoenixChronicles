@@ -4,6 +4,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandlerModifiable;
 
+import org.jetbrains.annotations.NotNull;
 import top.theillusivec4.curios.api.CuriosApi;
 
 import java.util.ArrayList;
@@ -13,7 +14,7 @@ final class CuriosCompatImpl {
 
     private CuriosCompatImpl() {}
 
-    static List<ItemStack> getEquippedCurios(Player player) {
+    static @NotNull List<ItemStack> getEquippedCurios(Player player) {
         List<ItemStack> result = new ArrayList<>();
         CuriosApi.getCuriosInventory(player).ifPresent(handler -> {
             IItemHandlerModifiable inv = handler.getEquippedCurios();

@@ -4,6 +4,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.phoenixvine.chronicles.client.render.IQuestBackground;
 import net.phoenixvine.chronicles.client.render.NodeShapeRenderer;
 import net.phoenixvine.chronicles.model.QuestNode;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,34 +28,34 @@ public final class QuestBackgroundBuilder {
 
     private QuestBackgroundBuilder() {}
 
-    public static QuestBackgroundBuilder create() {
+    public static @NotNull QuestBackgroundBuilder create() {
         return new QuestBackgroundBuilder();
     }
 
-    public QuestBackgroundBuilder layer(BackgroundEffect effect) {
+    public @NotNull QuestBackgroundBuilder layer(BackgroundEffect effect) {
         return layer(effect, 1f, BlendMode.NORMAL);
     }
 
-    public QuestBackgroundBuilder layer(BackgroundEffect effect, float opacity) {
+    public @NotNull QuestBackgroundBuilder layer(BackgroundEffect effect, float opacity) {
         return layer(effect, opacity, BlendMode.NORMAL);
     }
 
-    public QuestBackgroundBuilder layer(BackgroundEffect effect, float opacity, BlendMode mode) {
+    public @NotNull QuestBackgroundBuilder layer(BackgroundEffect effect, float opacity, BlendMode mode) {
         layers.add(new Layer(effect, opacity, mode));
         return this;
     }
 
-    public QuestBackgroundBuilder resolution(int cellsAcross) {
+    public @NotNull QuestBackgroundBuilder resolution(int cellsAcross) {
         this.resolution = Math.max(2, cellsAcross);
         return this;
     }
 
-    public QuestBackgroundBuilder speed(float multiplier) {
+    public @NotNull QuestBackgroundBuilder speed(float multiplier) {
         this.speedMultiplier = multiplier;
         return this;
     }
 
-    public IQuestBackground build() {
+    public @NotNull IQuestBackground build() {
         List<Layer> builtLayers = List.copyOf(layers);
         int cells = resolution;
         float speed = speedMultiplier;
@@ -66,8 +67,8 @@ public final class QuestBackgroundBuilder {
         };
     }
 
-    private static void render(GuiGraphics g, QuestNode node, int x, int y, int size, long animTick,
-                               List<Layer> layers, int cells) {
+    private static void render(@NotNull GuiGraphics g, @NotNull QuestNode node, int x, int y, int size, long animTick,
+                               @NotNull List<Layer> layers, int cells) {
         if (layers.isEmpty() || size <= 0) return;
         String shape = node.getShapeType();
         float cellSize = (float) size / cells;
@@ -114,7 +115,7 @@ public final class QuestBackgroundBuilder {
         }
     }
 
-    private static int composite(int dst, int src, BlendMode mode) {
+    private static int composite(int dst, int src, @NotNull BlendMode mode) {
         int dstA = (dst >>> 24) & 0xFF, srcA = (src >>> 24) & 0xFF;
         if (dstA == 0) return src;
         if (srcA == 0) return dst;

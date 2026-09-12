@@ -15,6 +15,7 @@ import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
@@ -36,7 +37,7 @@ public class NodeContextMenuBuilder {
         this.editorState = editorState;
     }
 
-    public List<ChronicleOverviewScreen.CtxItem> buildCtxItems() {
+    public @NotNull List<ChronicleOverviewScreen.CtxItem> buildCtxItems() {
         List<ChronicleOverviewScreen.CtxItem> items = new ArrayList<>();
         QuestNode ctxNode = ctxState.ctxNode();
         QuestGroup ctxGroup = ctxState.ctxGroup();
@@ -425,7 +426,7 @@ public class NodeContextMenuBuilder {
         state.setCtxY(cy);
     }
 
-    public int menuHeight(List<ChronicleOverviewScreen.CtxItem> items) {
+    public int menuHeight(@NotNull List<ChronicleOverviewScreen.CtxItem> items) {
         int h = 4;
         if (ctxState.ctxNode() != null) h += ChronicleOverviewScreen.CTX_ROW;
         for (ChronicleOverviewScreen.CtxItem i : items) h += i.isSep() ? ChronicleOverviewScreen.CTX_SEP :
@@ -433,7 +434,7 @@ public class NodeContextMenuBuilder {
         return h;
     }
 
-    private int ctxMoveCatY(List<ChronicleOverviewScreen.CtxItem> items) {
+    private int ctxMoveCatY(@NotNull List<ChronicleOverviewScreen.CtxItem> items) {
         int y = ctxState.ctxY() + 2;
         if (ctxState.ctxNode() != null) y += ChronicleOverviewScreen.CTX_ROW;
         for (ChronicleOverviewScreen.CtxItem item : items) {
@@ -451,7 +452,7 @@ public class NodeContextMenuBuilder {
         return Math.max(4, x);
     }
 
-    public int ctxMoveCatYClamped(List<ChronicleOverviewScreen.CtxItem> items, int catCount) {
+    public int ctxMoveCatYClamped(@NotNull List<ChronicleOverviewScreen.CtxItem> items, int catCount) {
         int y = ctxMoveCatY(items);
         int visibleRows = Math.min(catCount, ChronicleOverviewScreen.CTX_MOVE_CAT_MAX_ROWS);
         int subH = visibleRows * ChronicleOverviewScreen.CTX_ROW + 4;

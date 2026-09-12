@@ -11,17 +11,19 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public final class BackgroundRenderUtil {
 
     private BackgroundRenderUtil() {}
 
-    public static void drawShaderQuad(GuiGraphics g, ShaderInstance shader, ResourceLocation baseTexture,
+    public static void drawShaderQuad(@NotNull GuiGraphics g, ShaderInstance shader, @NotNull ResourceLocation baseTexture,
                                       int x, int y, int size, float timeSeconds) {
         drawShaderQuad(g, shader, baseTexture, x, y, size, timeSeconds, 1f);
     }
 
-    public static void drawShaderQuad(GuiGraphics g, ShaderInstance shader, ResourceLocation baseTexture,
+    public static void drawShaderQuad(@NotNull GuiGraphics g, @Nullable ShaderInstance shader, @NotNull ResourceLocation baseTexture,
                                       int x, int y, int size, float timeSeconds, float scale) {
         if (shader == null) return;
 
@@ -52,7 +54,7 @@ public final class BackgroundRenderUtil {
         RenderSystem.disableBlend();
     }
 
-    public static void drawDynamicShaderQuad(GuiGraphics g, ShaderInstance shader, int x, int y, int w, int h,
+    public static void drawDynamicShaderQuad(@NotNull GuiGraphics g, @Nullable ShaderInstance shader, int x, int y, int w, int h,
                                              float timeSeconds) {
         if (shader == null || w <= 0 || h <= 0) return;
 
@@ -87,7 +89,7 @@ public final class BackgroundRenderUtil {
         return (animTick % 3_600_000L) / 1000f;
     }
 
-    public static ResourceLocation maskTextureFor(String shape) {
+    public static @NotNull ResourceLocation maskTextureFor(@Nullable String shape) {
         String key = shape == null ? "square" : shape.toLowerCase(java.util.Locale.ROOT);
         String file = switch (key) {
             case "circle", "diamond", "hexagon", "triangle", "star", "pentagon", "shield", "cross" -> key;

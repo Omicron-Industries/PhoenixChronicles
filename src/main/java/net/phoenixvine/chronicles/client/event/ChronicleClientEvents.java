@@ -17,12 +17,13 @@ import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.tracker.TutorialProgressTracker;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import org.jetbrains.annotations.NotNull;
 
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class ChronicleClientEvents {
 
     @SubscribeEvent
-    public static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
+    public static void onRegisterClientCommands(@NotNull RegisterClientCommandsEvent event) {
         event.getDispatcher().register(
                 Commands.literal("chronicles")
                         .executes(context -> {
@@ -68,7 +69,7 @@ public class ChronicleClientEvents {
     }
 
     @SubscribeEvent
-    public static void onPlayerLogout(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) {
+    public static void onPlayerLogout(net.minecraftforge.event.entity.player.PlayerEvent.@NotNull PlayerLoggedOutEvent event) {
         if (Minecraft.getInstance().player != null && event.getEntity() == Minecraft.getInstance().player) {
             QuestFileSaver.saveAllQuestsToDisk();
             LangSyncScheduler.flushNow();

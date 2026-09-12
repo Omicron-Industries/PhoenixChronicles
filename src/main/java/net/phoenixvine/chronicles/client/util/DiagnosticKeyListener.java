@@ -9,6 +9,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.profiler.ProfilerSession;
 
+import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
@@ -17,7 +18,7 @@ public final class DiagnosticKeyListener {
     private DiagnosticKeyListener() {}
 
     @SubscribeEvent
-    public static void onKey(InputEvent.Key event) {
+    public static void onKey(InputEvent.@NotNull Key event) {
         if (event.getAction() != GLFW.GLFW_PRESS) return;
 
         int key = event.getKey();

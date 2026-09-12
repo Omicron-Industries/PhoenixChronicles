@@ -10,6 +10,7 @@ import net.phoenixvine.chronicles.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.model.QuestState;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -1028,7 +1029,7 @@ public class DependencyLineRenderer {
         return current ? Boolean.FALSE : null;
     }
 
-    private static <T extends Enum<T>> T cycleLineOverride(T current, T[] values) {
+    private static <T extends Enum<T>> @Nullable T cycleLineOverride(@Nullable T current, T[] values) {
         if (current == null) return values[0];
         int next = current.ordinal() + 1;
         return next < values.length ? values[next] : null;

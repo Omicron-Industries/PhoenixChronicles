@@ -9,6 +9,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -33,43 +35,43 @@ public class ChapterConfig {
 
     public static final class CanvasOverride {
 
-        public String condition = "";
-        public BgStyle style = BgStyle.DOT_GRID;
-        public String texture = "";
-        public String shaderId = "";
+        public @NotNull String condition = "";
+        public @NotNull BgStyle style = BgStyle.DOT_GRID;
+        public @NotNull String texture = "";
+        public @NotNull String shaderId = "";
 
         public CanvasOverride() {}
 
-        public CanvasOverride(String condition, BgStyle style, String texture, String shaderId) {
+        public CanvasOverride(@Nullable String condition, @Nullable BgStyle style, @Nullable String texture, @Nullable String shaderId) {
             this.condition = condition != null ? condition : "";
             this.style = style != null ? style : BgStyle.DOT_GRID;
             this.texture = texture != null ? texture : "";
             this.shaderId = shaderId != null ? shaderId : "";
         }
 
-        public CanvasOverride copy() {
+        public @NotNull CanvasOverride copy() {
             return new CanvasOverride(condition, style, texture, shaderId);
         }
     }
 
     public static final class SidebarOverride {
 
-        public String condition = "";
-        public String sidebarShaderId = "";
+        public @NotNull String condition = "";
+        public @NotNull String sidebarShaderId = "";
 
         public SidebarOverride() {}
 
-        public SidebarOverride(String condition, String sidebarShaderId) {
+        public SidebarOverride(@Nullable String condition, @Nullable String sidebarShaderId) {
             this.condition = condition != null ? condition : "";
             this.sidebarShaderId = sidebarShaderId != null ? sidebarShaderId : "";
         }
 
-        public SidebarOverride copy() {
+        public @NotNull SidebarOverride copy() {
             return new SidebarOverride(condition, sidebarShaderId);
         }
     }
 
-    private BgStyle style = BgStyle.DOT_GRID;
+    private @NotNull BgStyle style = BgStyle.DOT_GRID;
 
     private int color = 0;
 
@@ -90,7 +92,7 @@ public class ChapterConfig {
 
     private String icon = "";
 
-    private String parentChapter = "";
+    private @NotNull String parentChapter = "";
 
     public BgStyle getStyle() {
         return style;
@@ -124,7 +126,7 @@ public class ChapterConfig {
         return shaderId;
     }
 
-    public void setShaderId(String s) {
+    public void setShaderId(@Nullable String s) {
         this.shaderId = s != null ? s : "";
     }
 
@@ -132,15 +134,15 @@ public class ChapterConfig {
         return sidebarShaderId;
     }
 
-    public void setSidebarShaderId(String s) {
+    public void setSidebarShaderId(@Nullable String s) {
         this.sidebarShaderId = s != null ? s : "";
     }
 
-    public List<CanvasOverride> getCanvasOverrides() {
+    public @NotNull List<CanvasOverride> getCanvasOverrides() {
         return java.util.Collections.unmodifiableList(canvasOverrides);
     }
 
-    public void setCanvasOverrides(List<CanvasOverride> overrides) {
+    public void setCanvasOverrides(@Nullable List<CanvasOverride> overrides) {
         canvasOverrides.clear();
         if (overrides == null) return;
         for (CanvasOverride o : overrides) {
@@ -148,11 +150,11 @@ public class ChapterConfig {
         }
     }
 
-    public List<SidebarOverride> getSidebarOverrides() {
+    public @NotNull List<SidebarOverride> getSidebarOverrides() {
         return java.util.Collections.unmodifiableList(sidebarOverrides);
     }
 
-    public void setSidebarOverrides(List<SidebarOverride> overrides) {
+    public void setSidebarOverrides(@Nullable List<SidebarOverride> overrides) {
         sidebarOverrides.clear();
         if (overrides == null) return;
         for (SidebarOverride o : overrides) {
@@ -160,7 +162,7 @@ public class ChapterConfig {
         }
     }
 
-    public CanvasOverride resolveCanvas() {
+    public @NotNull CanvasOverride resolveCanvas() {
         for (CanvasOverride o : canvasOverrides) {
             if (PhoenixQuestFlags.evaluate(o.condition, null, "chapter canvas theme override")) return o;
         }
@@ -188,11 +190,11 @@ public class ChapterConfig {
         return parentChapter;
     }
 
-    public void setParentChapter(String parent) {
+    public void setParentChapter(@Nullable String parent) {
         this.parentChapter = parent == null ? "" : parent.trim().toUpperCase();
     }
 
-    public net.minecraft.world.item.Item getIconItem() {
+    public net.minecraft.world.item.@NotNull Item getIconItem() {
         if (!icon.isEmpty()) {
             try {
                 net.minecraft.world.item.Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS
@@ -203,7 +205,7 @@ public class ChapterConfig {
         return net.minecraft.world.item.Items.BOOK;
     }
 
-    public void setStyle(BgStyle s) {
+    public void setStyle(@Nullable BgStyle s) {
         this.style = s != null ? s : BgStyle.DOT_GRID;
     }
 
@@ -215,19 +217,19 @@ public class ChapterConfig {
         this.nameColor = c;
     }
 
-    public void setTexture(String t) {
+    public void setTexture(@Nullable String t) {
         this.texture = t != null ? t : "";
     }
 
-    public void setDisplayName(String n) {
+    public void setDisplayName(@Nullable String n) {
         this.displayName = n != null ? n : "";
     }
 
-    public void setIcon(String i) {
+    public void setIcon(@Nullable String i) {
         this.icon = i != null ? i : "";
     }
 
-    public JsonObject toJson() {
+    public @NotNull JsonObject toJson() {
         JsonObject o = new JsonObject();
         o.addProperty("style", style.name());
         if (color != 0) o.addProperty("color", String.format("#%06X", color & 0x00FFFFFF));
@@ -264,7 +266,7 @@ public class ChapterConfig {
         return o;
     }
 
-    public static ChapterConfig fromJson(JsonObject o) {
+    public static @NotNull ChapterConfig fromJson(@NotNull JsonObject o) {
         ChapterConfig cfg = new ChapterConfig();
         if (o.has("style")) {
             try {
@@ -329,11 +331,11 @@ public class ChapterConfig {
         return CACHE.getOrDefault(chapter, new ChapterConfig());
     }
 
-    public static ChapterConfig getEffective(String chapter) {
+    public static @NotNull ChapterConfig getEffective(String chapter) {
         return getEffective(chapter, new java.util.HashSet<>());
     }
 
-    private static ChapterConfig getEffective(String chapter, java.util.Set<String> visited) {
+    private static @NotNull ChapterConfig getEffective(String chapter, java.util.@NotNull Set<String> visited) {
         ChapterConfig own = get(chapter);
         boolean hasOwnTheme = own.style != BgStyle.DOT_GRID || own.color != 0 || own.colorAlpha != 0xCC ||
                 !own.texture.isEmpty() || !own.shaderId.isEmpty() || !own.sidebarShaderId.isEmpty() ||
@@ -342,7 +344,7 @@ public class ChapterConfig {
         return getEffective(own.parentChapter, visited);
     }
 
-    public static String getResolvedDisplayName(String chapter) {
+    public static String getResolvedDisplayName(@Nullable String chapter) {
         if (chapter == null) return null;
         String key = "phoenix_chronicles.chapter." + chapter.toLowerCase() + ".name";
         String legacyKey = "phoenix_chronicles.category." + chapter.toLowerCase() + ".name";
@@ -422,7 +424,7 @@ public class ChapterConfig {
         }
     }
 
-    private static Path configPath() {
+    private static @NotNull Path configPath() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve("phoenix_chronicles").resolve("chapters.json");
     }

@@ -8,6 +8,7 @@ import net.phoenixvine.chronicles.client.screen.utils.QuestEditOpsState;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class QuestEditOpsTest {
 
     private final List<QuestNode> registered = new ArrayList<>();
 
-    private QuestNode node(String path, int customX) {
+    private @NotNull QuestNode node(@NotNull String path, int customX) {
         QuestNode n = new QuestNode(new ResourceLocation("phoenix_chronicles", path),
                 Component.literal(path), Component.literal(""));
         n.setCustomPosition(customX, 0);

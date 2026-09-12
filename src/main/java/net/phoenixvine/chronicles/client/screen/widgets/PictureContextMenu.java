@@ -8,6 +8,7 @@ import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -46,7 +47,7 @@ public class PictureContextMenu implements TogglePanel {
     }
 
     @Override
-    public boolean isVisible(ScreenContext ctx) {
+    public boolean isVisible(@NotNull ScreenContext ctx) {
         return ctx.isDevMode() && isOpen();
     }
 
@@ -77,7 +78,7 @@ public class PictureContextMenu implements TogglePanel {
         target = null;
     }
 
-    private int drawRow(GuiGraphics g, int x, int iy, String label, String color, boolean danger,
+    private int drawRow(@NotNull GuiGraphics g, int x, int iy, String label, String color, boolean danger,
                         int mx, int my) {
         boolean hov = mx >= x + 1 && mx <= x + CTX_W - 1 && my >= iy && my <= iy + CTX_ROW;
         if (hov) g.fill(x + 1, iy, x + CTX_W - 1, iy + CTX_ROW, ChronicleOverviewScreen.C_CTX_HOVER);
@@ -87,11 +88,11 @@ public class PictureContextMenu implements TogglePanel {
     }
 
     @Override
-    public void render(ScreenContext ctx, GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+    public void render(ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
         render(g, mouseX, mouseY);
     }
 
-    private void render(GuiGraphics g, int mx, int my) {
+    private void render(@NotNull GuiGraphics g, int mx, int my) {
         if (target == null) {
             open = false;
             return;
@@ -132,7 +133,7 @@ public class PictureContextMenu implements TogglePanel {
         g.pose().popPose();
     }
 
-    private void renderResizeSubmenu(GuiGraphics g, int x, int subY, int mx, int my) {
+    private void renderResizeSubmenu(@NotNull GuiGraphics g, int x, int subY, int mx, int my) {
         int subX = x + CTX_W + 2;
         ResourceLocation nativeLoc = texture();
         int[] nativeSz = nativeLoc != null ? CustomTextureCache.nativeSize(nativeLoc) : null;
@@ -164,7 +165,7 @@ public class PictureContextMenu implements TogglePanel {
         }
     }
 
-    private void renderOpacitySubmenu(GuiGraphics g, int x, int subY, int mx, int my) {
+    private void renderOpacitySubmenu(@NotNull GuiGraphics g, int x, int subY, int mx, int my) {
         int subX = x + CTX_W + 2;
         int subH = OPACITY_PRESETS.length * CTX_ROW + 4;
         g.fill(subX + 2, subY + 2, subX + CTX_W + 2, subY + subH + 2, 0x55000000);
@@ -179,7 +180,7 @@ public class PictureContextMenu implements TogglePanel {
         }
     }
 
-    private void renderTintSubmenu(GuiGraphics g, int x, int subY, int mx, int my) {
+    private void renderTintSubmenu(@NotNull GuiGraphics g, int x, int subY, int mx, int my) {
         int subX = x + CTX_W + 2;
         int subH = TINT_PRESETS.length * CTX_ROW + 4;
         g.fill(subX + 2, subY + 2, subX + CTX_W + 2, subY + subH + 2, 0x55000000);
@@ -194,7 +195,7 @@ public class PictureContextMenu implements TogglePanel {
         }
     }
 
-    private void renderMoveCatSubmenu(GuiGraphics g, int x, int subY, int mx, int my) {
+    private void renderMoveCatSubmenu(@NotNull GuiGraphics g, int x, int subY, int mx, int my) {
         List<String> cats = ctx.buildChapterList();
         cats.remove("ALL");
         cats.remove(ctx.selectedChapter());
@@ -401,7 +402,7 @@ public class PictureContextMenu implements TogglePanel {
         return true;
     }
 
-    private void applyResize(BackgroundPictureConfig.Picture pic, float w, float h) {
+    private void applyResize(BackgroundPictureConfig.@NotNull Picture pic, float w, float h) {
         final float oldW = pic.w, oldH = pic.h;
         ctx.pushUndo("Undo: picture resized", () -> {
             pic.w = oldW;

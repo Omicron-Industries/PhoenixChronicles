@@ -6,6 +6,7 @@ import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.model.QuestNode;
 import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +32,7 @@ class DependencyLineRendererTest {
         return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
     }
 
-    private static void rebuildOneEdge(DependencyLineRenderer renderer, int[] ln) {
+    private static void rebuildOneEdge(@NotNull DependencyLineRenderer renderer, int[] ln) {
         List<int[]> edges = new ArrayList<>();
         edges.add(ln);
         List<ResourceLocation[]> edgeNodes = new ArrayList<>();

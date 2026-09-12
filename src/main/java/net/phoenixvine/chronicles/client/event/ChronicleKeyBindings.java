@@ -7,6 +7,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 
+import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
@@ -83,7 +84,7 @@ public class ChronicleKeyBindings {
             "key.categories.phoenix_chronicles");
 
     @SubscribeEvent
-    public static void register(RegisterKeyMappingsEvent event) {
+    public static void register(@NotNull RegisterKeyMappingsEvent event) {
         event.register(ITEM_LOOKUP);
         event.register(OPEN_QUESTBOOK);
         event.register(PIN_QUEST);

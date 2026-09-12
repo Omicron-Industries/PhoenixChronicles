@@ -7,6 +7,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.screen.LangEditorScreen;
+import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
 
@@ -31,7 +32,7 @@ public class LangSyncScheduler {
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
+    public static void onClientTick(TickEvent.@NotNull ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (dirty && System.currentTimeMillis() >= dueAtMs) {
             flushNow();

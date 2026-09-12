@@ -6,6 +6,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.fml.ModList;
 import net.phoenix.core.conflux.research.ResearchTeamHelper;
 import net.phoenix.core.conflux.research.WorldResearchData;
+import org.jetbrains.annotations.NotNull;
 
 public final class ConfluxCompat {
 
@@ -27,13 +28,13 @@ public final class ConfluxCompat {
         return WorldResearchData.get(sp.serverLevel()).hasFlag(team, flag);
     }
 
-    public static void grantUnlock(ServerPlayer player, ResourceLocation nodeId) {
+    public static void grantUnlock(@NotNull ServerPlayer player, ResourceLocation nodeId) {
         if (!isAvailable()) return;
         var team = ResearchTeamHelper.getTeamId(player);
         WorldResearchData.get(player.serverLevel()).grantUnlock(team, nodeId);
     }
 
-    public static void grantFlag(ServerPlayer player, String flag) {
+    public static void grantFlag(@NotNull ServerPlayer player, String flag) {
         if (!isAvailable()) return;
         var team = ResearchTeamHelper.getTeamId(player);
         WorldResearchData.get(player.serverLevel()).grantFlag(team, flag);

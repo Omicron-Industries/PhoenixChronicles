@@ -1,5 +1,8 @@
 package net.phoenixvine.chronicles.condition;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -32,7 +35,7 @@ public final class ConditionExprParser {
      * Parses {@code expr} into a tree; a blank string parses to {@link ConditionNode#EMPTY}. Throws
      * {@link ConditionSyntaxException} with a human-readable message on malformed input.
      */
-    public static ConditionNode parse(String expr) {
+    public static ConditionNode parse(@Nullable String expr) {
         if (expr == null || expr.isBlank()) return ConditionNode.EMPTY;
         Cursor c = new Cursor(tokenize(expr));
         ConditionNode node = parseOr(c);
@@ -41,11 +44,11 @@ public final class ConditionExprParser {
     }
 
     /** Renders a tree back into this same syntax. */
-    public static String render(ConditionNode node) {
+    public static @NotNull String render(ConditionNode node) {
         return render(node, false);
     }
 
-    private static String render(ConditionNode node, boolean parenthesizeIfCompound) {
+    private static @NotNull String render(ConditionNode node, boolean parenthesizeIfCompound) {
         if (node instanceof ConditionNode.Leaf l) return l.type() + ":" + l.value();
         if (node instanceof ConditionNode.Not n) return "NOT " + render(n.child(), true);
         if (node instanceof ConditionNode.And a) {
@@ -63,14 +66,14 @@ public final class ConditionExprParser {
         throw new IllegalStateException("Unknown ConditionNode subtype: " + node);
     }
 
-    private static List<String> tokenize(String expr) {
+    private static @NotNull List<String> tokenize(@NotNull String expr) {
         List<String> out = new ArrayList<>();
         Matcher m = TOKEN.matcher(expr);
         while (m.find()) out.add(m.group());
         return out;
     }
 
-    private static ConditionNode parseOr(Cursor c) {
+    private static ConditionNode parseOr(@NotNull Cursor c) {
         ConditionNode left = parseAnd(c);
         List<ConditionNode> children = null;
         while (c.hasNext() && c.peek().equalsIgnoreCase("OR")) {
@@ -84,7 +87,7 @@ public final class ConditionExprParser {
         return children == null ? left : new ConditionNode.Or(children);
     }
 
-    private static ConditionNode parseAnd(Cursor c) {
+    private static ConditionNode parseAnd(@NotNull Cursor c) {
         ConditionNode left = parseUnary(c);
         List<ConditionNode> children = null;
         while (c.hasNext() && c.peek().equalsIgnoreCase("AND")) {
@@ -98,7 +101,7 @@ public final class ConditionExprParser {
         return children == null ? left : new ConditionNode.And(children);
     }
 
-    private static ConditionNode parseUnary(Cursor c) {
+    private static ConditionNode parseUnary(@NotNull Cursor c) {
         if (c.hasNext() && c.peek().equalsIgnoreCase("NOT")) {
             c.next();
             return new ConditionNode.Not(parseUnary(c));
@@ -106,7 +109,7 @@ public final class ConditionExprParser {
         return parsePrimary(c);
     }
 
-    private static ConditionNode parsePrimary(Cursor c) {
+    private static ConditionNode parsePrimary(@NotNull Cursor c) {
         if (!c.hasNext()) throw new ConditionSyntaxException("Expected a condition, found end of input");
         String tok = c.next();
 

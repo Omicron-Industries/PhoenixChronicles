@@ -4,6 +4,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.registry.ChapterPrereqDefaults;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -23,12 +24,12 @@ class QuestNodeTest {
         ChapterPrereqDefaults.clear();
     }
 
-    private static QuestNode node(String path) {
+    private static @NotNull QuestNode node(@NotNull String path) {
         return new QuestNode(new ResourceLocation("phoenix_chronicles", path),
                 Component.literal(path), Component.literal(""));
     }
 
-    private static Function<QuestNode, QuestState> lookup(Map<QuestNode, QuestState> states) {
+    private static @NotNull Function<QuestNode, QuestState> lookup(@NotNull Map<QuestNode, QuestState> states) {
         return n -> states.getOrDefault(n, QuestState.LOCKED);
     }
 

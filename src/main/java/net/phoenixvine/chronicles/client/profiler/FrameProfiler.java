@@ -1,5 +1,7 @@
 package net.phoenixvine.chronicles.client.profiler;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
@@ -160,7 +162,7 @@ public final class FrameProfiler {
         net.phoenixvine.chronicles.PhoenixChronicles.LOGGER.info(sb.toString());
     }
 
-    public static List<Map.Entry<String, Double>> sortedSections() {
+    public static @NotNull List<Map.Entry<String, Double>> sortedSections() {
         List<Map.Entry<String, Double>> list = new ArrayList<>(avgMs.entrySet());
         list.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
         return list;

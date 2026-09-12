@@ -8,6 +8,7 @@ import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.widgets.SidebarPanel;
 import net.phoenixvine.chronicles.client.screen.widgets.ToolbarPanel;
 
+import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ public final class ScreenClickSmokeTest {
 
     private record Result(String label, boolean passed, Throwable error) {}
 
-    public static void run(ChronicleOverviewScreen screen) {
+    public static void run(@NotNull ChronicleOverviewScreen screen) {
         List<Result> results = new ArrayList<>();
 
         String origChapter = screen.selectedChapter();
@@ -47,7 +48,7 @@ public final class ScreenClickSmokeTest {
         report(screen, results);
     }
 
-    private static void probeToolbarButtons(ChronicleOverviewScreen screen, List<Result> results) {
+    private static void probeToolbarButtons(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results) {
         probe(results, "toolbar: fit-to-canvas", () -> clickToolbarButton(screen, "fit"));
 
         probe(results, "toolbar: hide-done toggle (x2, restores)", () -> {
@@ -73,13 +74,13 @@ public final class ScreenClickSmokeTest {
         }
     }
 
-    private static void clickToolbarButton(ChronicleOverviewScreen screen, String key) {
+    private static void clickToolbarButton(@NotNull ChronicleOverviewScreen screen, String key) {
         int[] pt = findToolbarButtonCenter(screen, key);
         if (pt == null) throw new IllegalStateException("Toolbar button not found/visible: " + key);
         screen.mouseClicked(pt[0], pt[1], 0);
     }
 
-    private static int[] findToolbarButtonCenter(ChronicleOverviewScreen screen, String key) {
+    private static int[] findToolbarButtonCenter(@NotNull ChronicleOverviewScreen screen, String key) {
         ToolbarPanel tp = screen.toolbarPanelInstance();
         int my = ChronicleOverviewScreen.TOOLBAR_Y + ChronicleOverviewScreen.TOOLBAR_H / 2;
         int width = screen.width();
@@ -96,8 +97,8 @@ public final class ScreenClickSmokeTest {
         return new int[] { (start + end) / 2, my };
     }
 
-    private static void probeFilterPills(ChronicleOverviewScreen screen, List<Result> results,
-                                         String originalFilter) {
+    private static void probeFilterPills(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results,
+                                         @NotNull String originalFilter) {
         probe(results, "filter pills: click through all, then restore", () -> {
             ToolbarPanel tp = screen.toolbarPanelInstance();
             int cl = screen.sidebarW();
@@ -117,7 +118,7 @@ public final class ScreenClickSmokeTest {
         });
     }
 
-    private static void probeHeaderBar(ChronicleOverviewScreen screen, List<Result> results) {
+    private static void probeHeaderBar(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results) {
         probe(results, "header: grid-snap-cycle click", () -> {
             int[] gridBtn = screen.computeHeaderBarLayout(screen.width())[1];
             clickRectCenter(screen, gridBtn);
@@ -145,13 +146,13 @@ public final class ScreenClickSmokeTest {
         }
     }
 
-    private static void clickRectCenter(ChronicleOverviewScreen screen, int[] rect) {
+    private static void clickRectCenter(@NotNull ChronicleOverviewScreen screen, int @NotNull [] rect) {
         int cx = (rect[0] + rect[2]) / 2;
         int cy = (rect[1] + rect[3]) / 2;
         screen.mouseClicked(cx, cy, 0);
     }
 
-    private static void probeSidebar(ChronicleOverviewScreen screen, List<Result> results, String origChapter) {
+    private static void probeSidebar(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results, @NotNull String origChapter) {
         probe(results, "sidebar: collapse toggle (x2, restores)", () -> {
             SidebarPanel sp = screen.sidebarPanelInstance();
             boolean origCollapsed = sp.collapsed();
@@ -175,13 +176,13 @@ public final class ScreenClickSmokeTest {
         });
     }
 
-    private static void clickSidebarCollapseToggle(ChronicleOverviewScreen screen) {
+    private static void clickSidebarCollapseToggle(@NotNull ChronicleOverviewScreen screen) {
         int x = Math.max(2, screen.sidebarW() / 2);
         int y = ChronicleOverviewScreen.HEADER_H + 1 + SidebarPanel.SIDEBAR_COLLAPSE_TOGGLE_H / 2;
         screen.mouseClicked(x, y, 0);
     }
 
-    private static void probeMinimap(ChronicleOverviewScreen screen, List<Result> results) {
+    private static void probeMinimap(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results) {
         probe(results, "minimap: open, click inside, close", () -> {
             boolean wasOpen = screen.minimapOpen();
             if (!wasOpen) clickToolbarButton(screen, "map");
@@ -196,7 +197,7 @@ public final class ScreenClickSmokeTest {
         });
     }
 
-    private static void probeCanvasNodes(ChronicleOverviewScreen screen, List<Result> results) {
+    private static void probeCanvasNodes(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results) {
         List<Map.Entry<ResourceLocation, ChronicleOverviewScreen.NodeHitbox>> visible = new ArrayList<>();
         for (Map.Entry<ResourceLocation, ChronicleOverviewScreen.NodeHitbox> e : screen.nodeButtons().entrySet()) {
             if (e.getValue().visible) {
@@ -240,12 +241,12 @@ public final class ScreenClickSmokeTest {
         }
     }
 
-    private static void toggleMultiSelect(Set<ResourceLocation> multiSelection, ResourceLocation id) {
+    private static void toggleMultiSelect(@NotNull Set<ResourceLocation> multiSelection, ResourceLocation id) {
         if (multiSelection.contains(id)) multiSelection.remove(id);
         else multiSelection.add(id);
     }
 
-    private static void probeCanvasEmptyArea(ChronicleOverviewScreen screen, List<Result> results) {
+    private static void probeCanvasEmptyArea(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results) {
         int[] pt = findEmptyCanvasPoint(screen);
         if (pt == null) {
             results.add(new Result("canvas empty-area: right-click menu + Escape (skipped, no empty spot found)",
@@ -271,7 +272,7 @@ public final class ScreenClickSmokeTest {
         });
     }
 
-    private static int[] findEmptyCanvasPoint(ChronicleOverviewScreen screen) {
+    private static int[] findEmptyCanvasPoint(@NotNull ChronicleOverviewScreen screen) {
         int cl = screen.sidebarW();
         int cr = screen.width();
         int top = ChronicleOverviewScreen.HEADER_H + 5;
@@ -284,14 +285,14 @@ public final class ScreenClickSmokeTest {
         return null;
     }
 
-    private static boolean coveredByNode(ChronicleOverviewScreen screen, int x, int y) {
+    private static boolean coveredByNode(@NotNull ChronicleOverviewScreen screen, int x, int y) {
         for (ChronicleOverviewScreen.NodeHitbox hb : screen.nodeButtons().values()) {
             if (hb.visible && hb.x <= x && x < hb.x + hb.w && hb.y <= y && y < hb.y + hb.h) return true;
         }
         return false;
     }
 
-    private static void probeKeyBattery(ChronicleOverviewScreen screen, List<Result> results) {
+    private static void probeKeyBattery(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results) {
         int ctrlMods = GLFW.GLFW_MOD_CONTROL;
 
         probe(results, "key: fit-to-canvas", () -> pressKeybind(screen, ChronicleKeyBindings.FIT_TO_CANVAS));
@@ -335,7 +336,7 @@ public final class ScreenClickSmokeTest {
                 () -> screen.keyPressed(GLFW.GLFW_KEY_Y, 0, ctrlMods));
     }
 
-    private static void pressKeybind(ChronicleOverviewScreen screen, net.minecraft.client.KeyMapping mapping) {
+    private static void pressKeybind(@NotNull ChronicleOverviewScreen screen, net.minecraft.client.@NotNull KeyMapping mapping) {
         screen.keyPressed(mapping.getKey().getValue(), 0, 0);
     }
 
@@ -344,7 +345,7 @@ public final class ScreenClickSmokeTest {
         void run() throws Exception;
     }
 
-    private static void probe(List<Result> results, String label, Probe action) {
+    private static void probe(@NotNull List<Result> results, String label, @NotNull Probe action) {
         try {
             action.run();
             results.add(new Result(label, true, null));
@@ -360,7 +361,7 @@ public final class ScreenClickSmokeTest {
         }
     }
 
-    private static void report(ChronicleOverviewScreen screen, List<Result> results) {
+    private static void report(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results) {
         int total = results.size();
         int passCount = 0;
         List<String> failureLabels = new ArrayList<>();

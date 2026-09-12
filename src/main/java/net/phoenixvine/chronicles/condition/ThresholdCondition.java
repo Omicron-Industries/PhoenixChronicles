@@ -1,5 +1,7 @@
 package net.phoenixvine.chronicles.condition;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,7 +27,7 @@ public final class ThresholdCondition {
     public record Parsed(String id, String op, long threshold) {}
 
     /** {@code value} is the raw leaf value, e.g. {@code "main/forge"} or {@code "main/forge>=50"}. */
-    public static Parsed parse(String value) {
+    public static @NotNull Parsed parse(@NotNull String value) {
         Matcher m = COMPARISON.matcher(value);
         if (m.matches()) {
             return new Parsed(m.group(1), m.group(2), Long.parseLong(m.group(3)));
@@ -33,7 +35,7 @@ public final class ThresholdCondition {
         return new Parsed(value, ">=", 1);
     }
 
-    public static boolean test(long value, String op, long threshold) {
+    public static boolean test(long value, @NotNull String op, long threshold) {
         return switch (op) {
             case "<=" -> value <= threshold;
             case "==" -> value == threshold;

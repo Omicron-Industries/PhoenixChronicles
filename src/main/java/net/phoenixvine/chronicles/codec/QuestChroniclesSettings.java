@@ -4,6 +4,8 @@ import net.minecraft.client.Minecraft;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -221,7 +223,7 @@ public class QuestChroniclesSettings {
         return target;
     }
 
-    private static <T> T resolve(T explicit, T packDefault, T hardcoded) {
+    private static <T> @NotNull T resolve(@Nullable T explicit, @Nullable T packDefault, @NotNull T hardcoded) {
         if (explicit != null) return explicit;
         if (packDefault != null) return packDefault;
         return hardcoded;

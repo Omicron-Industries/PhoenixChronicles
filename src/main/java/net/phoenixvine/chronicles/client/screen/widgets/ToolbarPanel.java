@@ -3,6 +3,8 @@ package net.phoenixvine.chronicles.client.screen.widgets;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,9 +26,9 @@ public class ToolbarPanel {
 
     private final Map<String, int[]> btnBounds = new HashMap<>();
 
-    public void render(GuiGraphics g, Font font, int mx, int my, int width, int cl, int cr, int toolbarY, int toolbarH,
-                       Colors colors, String stateFilter, boolean hideCompleted, boolean minimapOpen, boolean devMode,
-                       Consumer<Runnable> deferDraw) {
+    public void render(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int cl, int cr, int toolbarY, int toolbarH,
+                       @NotNull Colors colors, @NotNull String stateFilter, boolean hideCompleted, boolean minimapOpen, boolean devMode,
+                       @NotNull Consumer<Runnable> deferDraw) {
         int ty = toolbarY;
         g.fill(0, ty, width, ty + toolbarH, colors.panelDark());
         g.fill(0, ty + toolbarH - 1, width, ty + toolbarH, colors.border());
@@ -63,7 +65,7 @@ public class ToolbarPanel {
         }
     }
 
-    private int rightClusterWidth(Font font, boolean devMode) {
+    private int rightClusterWidth(@NotNull Font font, boolean devMode) {
         int w = 4;
         w += font.width("⊞ Fit") + 10 + 2;
         w += font.width("⚙") + 10 + 2;
@@ -74,8 +76,8 @@ public class ToolbarPanel {
         return w;
     }
 
-    private void drawFilterPills(GuiGraphics g, Font font, int mx, int my, int cl, int toolbarY, int toolbarH,
-                                 String stateFilter, int maxX) {
+    private void drawFilterPills(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int cl, int toolbarY, int toolbarH,
+                                 @NotNull String stateFilter, int maxX) {
         int px = cl + 4;
         int py = toolbarY + 2;
         int ph = toolbarH - 4;
@@ -101,7 +103,7 @@ public class ToolbarPanel {
         }
     }
 
-    public int[][] filterPillBounds(int cl, int cr, int toolbarY, int toolbarH, Font font, boolean devMode) {
+    public int[][] filterPillBounds(int cl, int cr, int toolbarY, int toolbarH, @NotNull Font font, boolean devMode) {
         int maxX = cr - rightClusterWidth(font, devMode);
         int px = cl + 4;
         int py = toolbarY + 2, ph = toolbarH - 4;
@@ -120,7 +122,7 @@ public class ToolbarPanel {
         return bounds;
     }
 
-    public String filterKey(int index) {
+    public @NotNull String filterKey(int index) {
         return FILTER_KEYS[index];
     }
 
@@ -128,8 +130,8 @@ public class ToolbarPanel {
         return FILTER_KEYS.length;
     }
 
-    private int drawBtnR(GuiGraphics g, Font font, int mx, int my, int rx, int ty, int toolbarH, Colors colors,
-                         String label, String key, String tooltip, Consumer<Runnable> deferDraw) {
+    private int drawBtnR(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int rx, int ty, int toolbarH, @NotNull Colors colors,
+                         @NotNull String label, String key, @Nullable String tooltip, @NotNull Consumer<Runnable> deferDraw) {
         int tw = font.width(label.replaceAll("§.", "")) + 10;
 
         int th = toolbarH - 4;

@@ -1,5 +1,6 @@
 package net.phoenixvine.chronicles.codec;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChronicleDataMigrationTest {
 
     @Test
-    void migratesLegacyFlatFilesWhenNewNameIsAbsent(@TempDir Path dir) throws IOException {
+    void migratesLegacyFlatFilesWhenNewNameIsAbsent(@TempDir @NotNull Path dir) throws IOException {
         Files.writeString(dir.resolve("categories.json"), "{}", StandardCharsets.UTF_8);
 
         ChronicleDataMigration.migrate(dir);
@@ -25,7 +26,7 @@ class ChronicleDataMigrationTest {
     }
 
     @Test
-    void doesNotOverwriteAnExistingNewNameFile(@TempDir Path dir) throws IOException {
+    void doesNotOverwriteAnExistingNewNameFile(@TempDir @NotNull Path dir) throws IOException {
         Files.writeString(dir.resolve("categories.json"), "{\"old\":true}", StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("chapters.json"), "{\"new\":true}", StandardCharsets.UTF_8);
 
@@ -35,7 +36,7 @@ class ChronicleDataMigrationTest {
     }
 
     @Test
-    void rewritesCategoryKeyToChapterKeyInsideQuestSnbtFiles(@TempDir Path dir) throws IOException {
+    void rewritesCategoryKeyToChapterKeyInsideQuestSnbtFiles(@TempDir @NotNull Path dir) throws IOException {
         Path questsDir = dir.resolve("quests");
         Files.createDirectories(questsDir);
         Files.writeString(questsDir.resolve("q1.snbt"), "{category:\"groundwork\",id:\"q1\"}",
@@ -49,7 +50,7 @@ class ChronicleDataMigrationTest {
     }
 
     @Test
-    void leavesQuestFileAloneIfChapterKeyAlreadyPresent(@TempDir Path dir) throws IOException {
+    void leavesQuestFileAloneIfChapterKeyAlreadyPresent(@TempDir @NotNull Path dir) throws IOException {
         Path questsDir = dir.resolve("quests");
         Files.createDirectories(questsDir);
         String original = "{category:\"old\",chapter:\"already_migrated\",id:\"q1\"}";
@@ -61,13 +62,13 @@ class ChronicleDataMigrationTest {
     }
 
     @Test
-    void writesMarkerFileAfterMigrating(@TempDir Path dir) {
+    void writesMarkerFileAfterMigrating(@TempDir @NotNull Path dir) {
         ChronicleDataMigration.migrate(dir);
         assertTrue(Files.exists(dir.resolve(".chapter_migration_done")));
     }
 
     @Test
-    void secondMigrateCallIsANoOpOnceMarkerExists(@TempDir Path dir) throws IOException {
+    void secondMigrateCallIsANoOpOnceMarkerExists(@TempDir @NotNull Path dir) throws IOException {
         Files.writeString(dir.resolve("categories.json"), "{}", StandardCharsets.UTF_8);
         ChronicleDataMigration.migrate(dir);
         Files.delete(dir.resolve("chapters.json"));
@@ -78,7 +79,7 @@ class ChronicleDataMigrationTest {
     }
 
     @Test
-    void migratesLegacyCategoryLangKeysToChapterKeysWithoutClobberingExisting(@TempDir Path dir) throws IOException {
+    void migratesLegacyCategoryLangKeysToChapterKeysWithoutClobberingExisting(@TempDir @NotNull Path dir) throws IOException {
         Path langDir = dir.resolve("assets").resolve("phoenix_chronicles").resolve("lang");
         Files.createDirectories(langDir);
         Files.writeString(langDir.resolve("en_us.json"), """
