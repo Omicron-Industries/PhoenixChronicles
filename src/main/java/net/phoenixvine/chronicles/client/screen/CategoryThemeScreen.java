@@ -18,8 +18,8 @@ import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.render.background.BackgroundRenderUtil;
 import net.phoenixvine.chronicles.client.render.shader.DynamicShaderManager;
 import net.phoenixvine.chronicles.client.util.CategoryShaderConfig;
-import net.phoenixvine.chronicles.model.CategoryDefinition;
-import net.phoenixvine.chronicles.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.model.CategoryDefinition;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
 
 import org.jetbrains.annotations.NotNull;
 

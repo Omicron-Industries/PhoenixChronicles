@@ -5,8 +5,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 import net.phoenixvine.chronicles.client.screen.utils.UndoRedoManager;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

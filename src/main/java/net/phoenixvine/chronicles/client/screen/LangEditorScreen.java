@@ -10,10 +10,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.rich.MultilineTextArea;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
-import net.phoenixvine.chronicles.codec.QuestFileLoader;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestFileLoader;
+import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -607,7 +609,7 @@ public class LangEditorScreen extends Screen {
             byQuest.computeIfAbsent(entry.questId().getPath(), k -> new ArrayList<>()).add(entry);
         }
 
-        boolean generateMd = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+        boolean generateMd = QuestChroniclesSettings.get()
                 .isGenerateMdSidecarFiles();
 
         int saved = 0;
@@ -764,9 +766,9 @@ public class LangEditorScreen extends Screen {
             }
         }
         try {
-            Path langDir = net.phoenixvine.chronicles.registry.QuestLangRegistry.langDir(base);
+            Path langDir = QuestLangRegistry.langDir(base);
             Files.createDirectories(langDir);
-            net.phoenixvine.chronicles.registry.QuestLangRegistry.ensurePackStructure(base);
+            QuestLangRegistry.ensurePackStructure(base);
             Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
             Path enUsFile = langDir.resolve("en_us.json");
             String newJson = gson.toJson(lang);

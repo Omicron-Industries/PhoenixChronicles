@@ -8,10 +8,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.model.QuestGroup;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestGroup;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayDeque;
@@ -55,7 +55,7 @@ public class QuestToastManager {
     private final List<ActiveToast> active = new ArrayList<>();
 
     public void push(QuestNode node, ToastType type) {
-        if (!net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isShowToasts()) return;
+        if (!QuestChroniclesSettings.get().isShowToasts()) return;
         queue.addLast(new ToastEntry(node, type));
     }
 

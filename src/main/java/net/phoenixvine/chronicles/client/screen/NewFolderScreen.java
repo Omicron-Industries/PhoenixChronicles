@@ -7,7 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
 
 import org.jetbrains.annotations.NotNull;
 

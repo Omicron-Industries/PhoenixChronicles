@@ -1,7 +1,7 @@
 package net.phoenixvine.chronicles.client.render.line;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
 import org.jetbrains.annotations.NotNull;
 
 public class FlowingParticleLineStyle implements IDependencyLineStyle {

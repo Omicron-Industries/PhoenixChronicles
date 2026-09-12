@@ -13,8 +13,8 @@ import net.phoenixvine.chronicles.client.registry.QuestToastPresetRegistry;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.model.QuestGroup;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestGroup;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 
 import org.jetbrains.annotations.NotNull;
 

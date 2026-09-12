@@ -3,7 +3,7 @@ package net.phoenixvine.chronicles.client.render.background;
 import net.minecraft.client.gui.GuiGraphics;
 import net.phoenixvine.chronicles.client.render.IQuestBackground;
 import net.phoenixvine.chronicles.client.render.NodeShapeRenderer;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

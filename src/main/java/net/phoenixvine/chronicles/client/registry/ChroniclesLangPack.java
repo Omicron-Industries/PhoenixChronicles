@@ -7,7 +7,7 @@ import net.minecraft.server.packs.PathPackResources;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
 import net.minecraftforge.event.AddPackFindersEvent;
-import net.phoenixvine.chronicles.registry.QuestLangRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;

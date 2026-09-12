@@ -53,7 +53,7 @@ float pct = QuestAPI.getProgress(player, "phoenix_chronicles:my_quest");
 
 ---
 
-## Forge event hooks (Java: net.phoenixvine.chronicles.event.QuestEvent)
+## Forge event hooks (Java: net.phoenixvine.chronicles.common.event.QuestEvent)
 
 All nested inside QuestEvent except PhoenixQuestScriptRewardEvent below, which
 is its own top-level class. getPlayer()/getNode() are on the QuestEvent base.
@@ -238,7 +238,7 @@ if KubeJS is actually installed, so nothing here requires KubeJS to be present.
 
 ```
 ForgeEvents.onEvent(
-  'net.phoenixvine.chronicles.event.QuestEvent$StateChanged', event => {
+  'net.phoenixvine.chronicles.common.event.QuestEvent$StateChanged', event => {
     if (event.newState == 'COMPLETED') {
       let id = event.node.id.path  // e.g. 'magic/first_spell'
     }
@@ -249,7 +249,7 @@ ForgeEvents.onEvent(
 
 ```
 ForgeEvents.onEvent(
-  'net.phoenixvine.chronicles.event.PhoenixQuestScriptRewardEvent', event => {
+  'net.phoenixvine.chronicles.common.event.PhoenixQuestScriptRewardEvent', event => {
     if (event.eventId === 'my_event') {
       event.serverPlayer.tell('Reward fired!')
     }

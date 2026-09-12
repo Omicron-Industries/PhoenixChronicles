@@ -5,8 +5,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fluids.FluidStack;
-import net.phoenixvine.chronicles.filter.IFluidFilter;
-import net.phoenixvine.chronicles.filter.IItemFilter;
+import net.phoenixvine.chronicles.common.filter.IFluidFilter;
+import net.phoenixvine.chronicles.common.filter.IItemFilter;
 import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 
 import appeng.api.config.Actionable;

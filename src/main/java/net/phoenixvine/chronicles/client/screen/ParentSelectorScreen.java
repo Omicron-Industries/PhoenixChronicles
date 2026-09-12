@@ -7,8 +7,10 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.model.CategoryDefinition;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -82,7 +84,7 @@ public class ParentSelectorScreen extends Screen {
     }
 
     private String categoryLabelOf(QuestNode node) {
-        net.phoenixvine.chronicles.model.CategoryDefinition cat = net.phoenixvine.chronicles.registry.CategoryRegistry
+        CategoryDefinition cat = CategoryRegistry
                 .categoryFor(node.getChapter());
         return cat != null ? cat.displayName() : "￿";
     }

@@ -1,0 +1,171 @@
+package net.phoenixvine.chronicles.common.flag;
+
+import net.minecraft.server.MinecraftServer;
+import net.minecraftforge.fml.loading.FMLPaths;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+import javax.annotation.Nullable;
+
+public class ConfigFileFlagProvider implements QuestFlagProvider {
+
+    private static final long CACHE_TTL_MS = 15_000;
+
+    private record CachedFile(Map<String, String> flat, long loadedAt) {}
+
+    private final Map<String, CachedFile> cache = new ConcurrentHashMap<>();
+    private final Set<String> warnedMalformed = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    @Override
+    public String prefix() {
+        return "config";
+    }
+
+    @Override
+    public boolean evaluate(String expression, @Nullable MinecraftServer server) {
+        int hash = expression.indexOf('#');
+        if (hash < 0) {
+            String context = PhoenixQuestFlags.currentContext();
+            String warnKey = expression + "|" + context;
+            if (warnedMalformed.add(warnKey)) {
+                System.err.println("[Phoenix Chronicles] Malformed config flag expression '" + expression +
+                        "' : expected 'config:<filename>#<key>=<value>' (missing '#')" +
+                        (context != null ? " [" + context + "]" : "") + ".");
+            }
+            return false;
+        }
+        String filename = expression.substring(0, hash).trim();
+        String rest = expression.substring(hash + 1).trim();
+
+        FlagExpression expr = FlagExpression.parse(rest);
+        Map<String, String> flat = loadFlat(filename, server);
+        return expr.test(flat.get(expr.key));
+    }
+
+    private Map<String, String> loadFlat(String filename, @Nullable MinecraftServer server) {
+        CachedFile cached = cache.get(filename);
+        if (cached != null && System.currentTimeMillis() - cached.loadedAt() < CACHE_TTL_MS) {
+            return cached.flat();
+        }
+
+        Path baseConfigDir = server != null ? server.getServerDirectory().toPath().resolve("config") :
+                FMLPaths.CONFIGDIR.get();
+
+        boolean rootRelative = filename.startsWith("/");
+        Path file;
+        if (rootRelative) {
+            file = baseConfigDir.resolve(filename.substring(1));
+        } else {
+            Path chroniclesConfigDir = baseConfigDir.resolve("phoenix_chronicles");
+            try {
+                Files.createDirectories(chroniclesConfigDir);
+            } catch (IOException e) {
+                System.err.println("[Phoenix Chronicles] Could not create phoenix_chronicles config directory: " +
+                        e.getMessage());
+                return Map.of();
+            }
+            file = chroniclesConfigDir.resolve(filename);
+        }
+
+        Map<String, String> flat = readFlat(file);
+        cache.put(filename, new CachedFile(flat, System.currentTimeMillis()));
+        return flat;
+    }
+
+    public void invalidateCache() {
+        cache.clear();
+    }
+
+    private Map<String, String> readFlat(Path file) {
+        if (!Files.exists(file)) return Map.of();
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        try {
+            if (name.endsWith(".json")) return flattenJson(file);
+            if (name.endsWith(".toml")) return flattenToml(file);
+            if (name.endsWith(".properties")) return flattenProperties(file);
+        } catch (Exception e) {
+            System.err.println(
+                    "[Phoenix Chronicles] config flag: failed to read " + file.getFileName() + ": " + e.getMessage());
+        }
+        return Map.of();
+    }
+
+    private Map<String, String> flattenJson(Path file) throws IOException {
+        Map<String, String> out = new LinkedHashMap<>();
+        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            JsonElement root = JsonParser.parseReader(r);
+            if (root.isJsonObject()) flattenJsonObject(root.getAsJsonObject(), "", out);
+        }
+        return out;
+    }
+
+    private void flattenJsonObject(JsonObject obj, String prefix, Map<String, String> out) {
+        for (Map.Entry<String, JsonElement> e : obj.entrySet()) {
+            String key = prefix.isEmpty() ? e.getKey() : prefix + "." + e.getKey();
+            JsonElement v = e.getValue();
+            if (v.isJsonObject()) {
+                flattenJsonObject(v.getAsJsonObject(), key, out);
+            } else if (v.isJsonArray()) {
+                out.put(key, v.toString());
+            } else {
+                String raw = v.getAsString();
+                out.put(key, raw);
+            }
+        }
+    }
+
+    private Map<String, String> flattenToml(Path file) throws IOException {
+        Map<String, String> out = new LinkedHashMap<>();
+        String section = "";
+        for (String raw : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            String line = raw.trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+
+            if (line.startsWith("[") && line.endsWith("]") && !line.startsWith("[[")) {
+                section = line.substring(1, line.length() - 1).trim();
+                continue;
+            }
+
+            int eq = line.indexOf('=');
+            if (eq > 0) {
+                String k = line.substring(0, eq).trim();
+                String v = stripTomlValue(line.substring(eq + 1).trim());
+                String fullKey = section.isEmpty() ? k : section + "." + k;
+                out.put(fullKey, v);
+            }
+        }
+        return out;
+    }
+
+    private String stripTomlValue(String raw) {
+        int comment = raw.indexOf('#');
+        if (comment > 0) raw = raw.substring(0, comment).trim();
+
+        if ((raw.startsWith("\"") && raw.endsWith("\"")) || (raw.startsWith("'") && raw.endsWith("'"))) {
+            raw = raw.substring(1, raw.length() - 1);
+        }
+        return raw;
+    }
+
+    private Map<String, String> flattenProperties(Path file) throws IOException {
+        Properties props = new Properties();
+        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            props.load(r);
+        }
+        Map<String, String> out = new LinkedHashMap<>();
+        for (String key : props.stringPropertyNames()) {
+            out.put(key, props.getProperty(key));
+        }
+        return out;
+    }
+}

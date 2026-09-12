@@ -1,10 +1,10 @@
 package net.phoenixvine.chronicles.client.screen;
 
 import net.minecraft.client.gui.screens.Screen;
-import net.phoenixvine.chronicles.codec.QuestFileLoader;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestFileLoader;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.PhoenixTaskRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.wiki.client.screen.WikiScreen;
 import net.phoenixvine.wiki.client.screen.WikiTheme;
 

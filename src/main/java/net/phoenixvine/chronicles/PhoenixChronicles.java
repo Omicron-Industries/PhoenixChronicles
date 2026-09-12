@@ -20,7 +20,7 @@ import net.phoenixvine.chronicles.client.ChroniclesClient;
 import net.phoenixvine.chronicles.client.registry.ChroniclesLangPack;
 import net.phoenixvine.chronicles.integration.gtceu.GTCEuCompat;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.item.ChronicleItems;
+import net.phoenixvine.chronicles.common.item.ChronicleItems;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 

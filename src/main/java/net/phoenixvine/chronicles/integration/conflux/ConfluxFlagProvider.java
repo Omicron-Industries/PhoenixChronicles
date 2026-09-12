@@ -3,8 +3,8 @@ package net.phoenixvine.chronicles.integration.conflux;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.player.Player;
-import net.phoenixvine.chronicles.flag.PhoenixQuestFlags;
-import net.phoenixvine.chronicles.flag.QuestFlagProvider;
+import net.phoenixvine.chronicles.common.flag.PhoenixQuestFlags;
+import net.phoenixvine.chronicles.common.flag.QuestFlagProvider;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;

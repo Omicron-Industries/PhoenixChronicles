@@ -2,7 +2,7 @@ package net.phoenixvine.chronicles.client.util;
 
 import net.minecraft.client.Minecraft;
 import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
-import net.phoenixvine.chronicles.flag.PhoenixQuestFlags;
+import net.phoenixvine.chronicles.common.flag.PhoenixQuestFlags;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

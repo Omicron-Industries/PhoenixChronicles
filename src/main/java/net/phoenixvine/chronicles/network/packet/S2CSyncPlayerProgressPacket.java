@@ -10,9 +10,10 @@ import net.minecraftforge.network.NetworkEvent;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
 import net.phoenixvine.chronicles.client.registry.QuestToastManager;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -75,7 +76,7 @@ public class S2CSyncPlayerProgressPacket {
                     QuestState oldState = oldStates.getOrDefault(node.getId(), QuestState.LOCKED);
                     QuestState newState = data.getQuestState(node.getId(), QuestState.LOCKED);
                     if (oldState == newState) continue;
-                    boolean playSounds = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                    boolean playSounds = QuestChroniclesSettings.get()
                             .isPlayToastSounds();
                     if (newState == QuestState.UNLOCKED) {
                         QuestToastManager.get().push(node, QuestToastManager.ToastType.UNLOCKED);

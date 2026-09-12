@@ -5,8 +5,8 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
-import net.phoenixvine.chronicles.item.FluidFilterTokenItem;
-import net.phoenixvine.chronicles.item.ItemFilterTokenItem;
+import net.phoenixvine.chronicles.common.item.FluidFilterTokenItem;
+import net.phoenixvine.chronicles.common.item.ItemFilterTokenItem;
 
 import java.util.function.Supplier;
 

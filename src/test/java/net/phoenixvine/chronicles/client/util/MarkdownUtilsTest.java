@@ -1,6 +1,6 @@
 package net.phoenixvine.chronicles.client.util;
 
-import net.phoenixvine.chronicles.model.FullQuestData;
+import net.phoenixvine.chronicles.common.model.FullQuestData;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;

@@ -6,12 +6,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.PacketDistributor;
 import net.phoenixvine.chronicles.client.util.ClientPooledProgress;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPooledProgressPacket;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
-import net.phoenixvine.chronicles.tracker.TeamKeyResolver;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
+import net.phoenixvine.chronicles.common.tracker.TeamKeyResolver;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;

@@ -11,10 +11,10 @@ import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.util.ClientPooledProgress;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tracker.TutorialProgressTracker;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tracker.TutorialProgressTracker;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import org.jetbrains.annotations.NotNull;

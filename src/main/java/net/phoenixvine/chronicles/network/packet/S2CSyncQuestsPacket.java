@@ -7,12 +7,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
-import net.phoenixvine.chronicles.model.FullQuestData;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestReward;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.model.FullQuestData;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestReward;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.PhoenixTaskRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -474,7 +475,7 @@ public class S2CSyncQuestsPacket {
                                     !snap.prereqLineShape.get(pi).isEmpty()) {
                                 try {
                                     node.setPrereqLineShape(req.getId(),
-                                            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineStyle
+                                            QuestChroniclesSettings.LineStyle
                                                     .valueOf(snap.prereqLineShape.get(pi)));
                                 } catch (IllegalArgumentException ignored) {}
                             }
@@ -482,7 +483,7 @@ public class S2CSyncQuestsPacket {
                                     !snap.prereqLineVisual.get(pi).isEmpty()) {
                                 try {
                                     node.setPrereqLineVisual(req.getId(),
-                                            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineVisualStyle
+                                            QuestChroniclesSettings.LineVisualStyle
                                                     .valueOf(snap.prereqLineVisual.get(pi)));
                                 } catch (IllegalArgumentException ignored) {}
                             }
@@ -490,7 +491,7 @@ public class S2CSyncQuestsPacket {
                                     !snap.prereqLineSpeed.get(pi).isEmpty()) {
                                 try {
                                     node.setPrereqLineSpeed(req.getId(),
-                                            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.LineAnimSpeed
+                                            QuestChroniclesSettings.LineAnimSpeed
                                                     .valueOf(snap.prereqLineSpeed.get(pi)));
                                 } catch (IllegalArgumentException ignored) {}
                             }

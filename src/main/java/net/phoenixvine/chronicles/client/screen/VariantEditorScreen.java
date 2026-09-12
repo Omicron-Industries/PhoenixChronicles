@@ -7,7 +7,9 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.jetbrains.annotations.NotNull;
@@ -185,8 +187,8 @@ public class VariantEditorScreen extends Screen {
         questNode.clearVariants();
         for (QuestNode.QuestVariant v : variants) questNode.addVariant(v);
 
-        if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
-            net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
+        if (QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
+            QuestFileSaver.saveOneQuestToDisk(questNode);
         }
         ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
     }

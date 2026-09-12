@@ -10,8 +10,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestTask;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.util.List;

@@ -3,8 +3,10 @@ package net.phoenixvine.chronicles.client.screen.widgets;
 import net.minecraft.client.gui.GuiGraphics;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
+import net.phoenixvine.chronicles.common.model.QuestGroupManager;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.model.*;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.jetbrains.annotations.NotNull;

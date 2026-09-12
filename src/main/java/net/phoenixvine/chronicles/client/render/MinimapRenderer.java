@@ -2,9 +2,9 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import java.util.Collection;
 import java.util.function.Function;

@@ -1,8 +1,8 @@
 package net.phoenixvine.chronicles.client.screen.utils;
 
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.model.QuestGroup;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestGroup;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 
 import org.jetbrains.annotations.Nullable;
 

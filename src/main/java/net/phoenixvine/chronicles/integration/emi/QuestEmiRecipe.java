@@ -12,12 +12,12 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestReward;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.tasks.CraftItemTask;
-import net.phoenixvine.chronicles.tasks.FluidRequirementTask;
-import net.phoenixvine.chronicles.tasks.ItemRequirementTask;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestReward;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.tasks.CraftItemTask;
+import net.phoenixvine.chronicles.common.tasks.FluidRequirementTask;
+import net.phoenixvine.chronicles.common.tasks.ItemRequirementTask;
 
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;

@@ -5,11 +5,12 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.registry.DependencyLineStyleRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -897,7 +898,7 @@ public class DependencyLineRenderer {
         if (styleIdStr == null || styleIdStr.isEmpty()) return false;
 
         ResourceLocation styleId = ResourceLocation.tryParse(styleIdStr);
-        net.phoenixvine.chronicles.client.render.line.IDependencyLineStyle style = net.phoenixvine.chronicles.registry.DependencyLineStyleRegistry
+        net.phoenixvine.chronicles.client.render.line.IDependencyLineStyle style = DependencyLineStyleRegistry
                 .get(styleId);
         if (style == null) return false;
 

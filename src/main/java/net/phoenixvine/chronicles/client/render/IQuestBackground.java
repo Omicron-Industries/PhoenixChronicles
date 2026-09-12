@@ -1,7 +1,7 @@
 package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 
 public interface IQuestBackground {
 

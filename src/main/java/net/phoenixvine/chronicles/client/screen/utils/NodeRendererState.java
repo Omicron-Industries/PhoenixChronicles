@@ -3,8 +3,8 @@ package net.phoenixvine.chronicles.client.screen.utils;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.capability.PlayerQuestData;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestTask;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestTask;
 
 import org.jetbrains.annotations.Nullable;
 

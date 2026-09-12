@@ -1,6 +1,6 @@
 package net.phoenixvine.chronicles.client.rich;
 
-import net.phoenixvine.chronicles.condition.ConditionNode;
+import net.phoenixvine.chronicles.common.condition.ConditionNode;
 
 import java.util.List;
 

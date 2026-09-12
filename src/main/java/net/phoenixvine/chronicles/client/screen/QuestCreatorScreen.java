@@ -12,12 +12,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.model.CategoryDefinition;
+import net.phoenixvine.chronicles.common.registry.*;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestReward;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestReward;
+import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.jetbrains.annotations.NotNull;
@@ -500,7 +501,7 @@ public class QuestCreatorScreen extends Screen {
         rowY = y + LABEL_H + LABEL_GAP;
         java.util.List<String> bgIds = new java.util.ArrayList<>();
         bgIds.add("");
-        bgIds.addAll(net.phoenixvine.chronicles.registry.QuestBackgroundRegistry.getAll().keySet());
+        bgIds.addAll(QuestBackgroundRegistry.getAll().keySet());
         String bgLabel = cachedBackgroundType.isBlank() ? "§fNo background" : "§d" + cachedBackgroundType;
         labels.add(new LabelEntry(cx, y, "§fBackground (animated, drawn as the node's own body)", C_TEXT_FAINT));
         addRenderableWidget(Button.builder(Component.literal(bgLabel), b -> {
@@ -670,7 +671,7 @@ public class QuestCreatorScreen extends Screen {
         String prereqLabel;
         if (cachedRequireAll == null) {
 
-            Boolean catDefault = net.phoenixvine.chronicles.registry.ChapterPrereqDefaults
+            Boolean catDefault = ChapterPrereqDefaults
                     .getRequireAll(cachedChapter);
             boolean effective = catDefault != null ? catDefault : true;
             prereqLabel = "§fInherit (" + (effective ? "ALL" : "ANY") + ") §f▾";
@@ -1329,7 +1330,7 @@ public class QuestCreatorScreen extends Screen {
             if (!cachedIconItemId.isBlank()) tag.putString("icon_item", cachedIconItemId.trim());
             if (editingNode != null && !editingNode.getTasks().isEmpty()) {
                 net.minecraft.nbt.ListTag tl = new net.minecraft.nbt.ListTag();
-                for (net.phoenixvine.chronicles.model.QuestTask t : editingNode.getTasks()) {
+                for (QuestTask t : editingNode.getTasks()) {
                     net.minecraft.nbt.CompoundTag tt = t.serializeNBT();
                     tt.putString("task_id", t.getTaskId().toString());
                     tl.add(tt);
@@ -1492,7 +1493,7 @@ public class QuestCreatorScreen extends Screen {
         if (value.isEmpty() || minecraft == null) return;
         String key = "phoenix_chronicles.quest." + questId.getPath().replace('/', '.') + "." + field;
         java.nio.file.Path base = minecraft.gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
-        net.phoenixvine.chronicles.registry.QuestLangRegistry.writeKey(base, key, value);
+        QuestLangRegistry.writeKey(base, key, value);
     }
 
     private List<String> buildExistingCategories() {
@@ -1513,7 +1514,7 @@ public class QuestCreatorScreen extends Screen {
             }
         } catch (IOException ignored) {}
 
-        for (net.phoenixvine.chronicles.model.CategoryDefinition cd : net.phoenixvine.chronicles.registry.CategoryRegistry
+        for (CategoryDefinition cd : CategoryRegistry
                 .getCategories()) {
             for (String chap : cd.chapters()) {
                 if (chap != null && !chap.isBlank() && !cats.contains(chap.toUpperCase())) cats.add(chap.toUpperCase());

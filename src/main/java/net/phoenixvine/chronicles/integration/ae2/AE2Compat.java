@@ -4,8 +4,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fml.ModList;
-import net.phoenixvine.chronicles.filter.IFluidFilter;
-import net.phoenixvine.chronicles.filter.IItemFilter;
+import net.phoenixvine.chronicles.common.filter.IFluidFilter;
+import net.phoenixvine.chronicles.common.filter.IItemFilter;
 
 public final class AE2Compat {
 

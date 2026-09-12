@@ -10,6 +10,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -137,7 +139,7 @@ public class FtbQuestsImporter {
 
         importChapterGroups(chapters, cleanImportDir, langMap, warnings);
 
-        net.phoenixvine.chronicles.registry.QuestLangRegistry.mergeWrite(outputDir, langOut);
+        QuestLangRegistry.mergeWrite(outputDir, langOut);
         if (!langOut.isEmpty()) warnings.add("Wrote " + langOut.size() + " lang key(s) to lang/en_us.json.");
 
         System.out.println(
@@ -438,15 +440,15 @@ public class FtbQuestsImporter {
             if (label == null || label.isBlank()) label = "Imported Group (" + ftbGroupId.substring(0,
                     Math.min(6, ftbGroupId.length())) + ")";
 
-            if (net.phoenixvine.chronicles.registry.CategoryRegistry.get(categoryId) == null) {
-                net.phoenixvine.chronicles.registry.CategoryRegistry.addCategory(categoryId, label);
+            if (CategoryRegistry.get(categoryId) == null) {
+                CategoryRegistry.addCategory(categoryId, label);
                 created++;
             }
             for (String chapterSlug : e.getValue()) {
-                net.phoenixvine.chronicles.registry.CategoryRegistry.addChapterToCategory(categoryId, chapterSlug);
+                CategoryRegistry.addChapterToCategory(categoryId, chapterSlug);
             }
         }
-        net.phoenixvine.chronicles.registry.CategoryRegistry.save();
+        CategoryRegistry.save();
         if (created > 0) {
             warnings.add("Imported " + created + " chapter group(s) as categories" +
                     (groupTitles.isEmpty() ? " (no chapter_groups.snbt found - used placeholder names, rename them " +

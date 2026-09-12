@@ -5,9 +5,10 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.util.ArrayList;
@@ -343,7 +344,7 @@ public class SearchOverlayScreen extends Screen {
         for (QuestNode n : all) {
             if (n.isFlagDisabled(null)) continue;
             if (n.getVisibility() == QuestNode.Visibility.HIDDEN) continue;
-            if (net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isCascadeHiddenQuests() &&
+            if (QuestChroniclesSettings.get().isCascadeHiddenQuests() &&
                     n.isAncestorGatedHidden(parent::getState))
                 continue;
             if (!activeCat.isEmpty() && !activeCat.equalsIgnoreCase(n.getChapter())) continue;

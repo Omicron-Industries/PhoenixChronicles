@@ -16,9 +16,9 @@ import net.phoenixvine.chronicles.client.render.shader.DynamicShaderManager;
 import net.phoenixvine.chronicles.client.screen.utils.SidebarRow;
 import net.phoenixvine.chronicles.client.util.CategoryShaderConfig;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.model.CategoryDefinition;
-import net.phoenixvine.chronicles.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.model.CategoryDefinition;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.jetbrains.annotations.NotNull;

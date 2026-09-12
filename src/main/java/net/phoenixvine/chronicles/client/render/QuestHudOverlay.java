@@ -19,12 +19,12 @@ import net.phoenixvine.chronicles.client.registry.QuestToastManager;
 import net.phoenixvine.chronicles.client.rich.ItemLookup;
 import net.phoenixvine.chronicles.client.rich.MultilineTextArea;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestReward;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestReward;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import java.util.List;
 

@@ -5,11 +5,11 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.PhoenixChronicles;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tracker.TutorialProgressTracker;
-import net.phoenixvine.chronicles.tracker.TutorialStep;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tracker.TutorialProgressTracker;
+import net.phoenixvine.chronicles.common.tracker.TutorialStep;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

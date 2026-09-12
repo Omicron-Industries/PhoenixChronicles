@@ -16,9 +16,11 @@ import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 import net.phoenixvine.chronicles.client.screen.widgets.BulkOpsPanel;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.model.*;
+import net.phoenixvine.chronicles.common.registry.QuestBackgroundRegistry;
 import net.phoenixvine.chronicles.model.*;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -322,7 +324,7 @@ public class NodeRenderer {
         boolean hasBackground = false;
         String backgroundType = node.getBackgroundType();
         if (backgroundType != null && !backgroundType.isEmpty()) {
-            net.phoenixvine.chronicles.client.render.IQuestBackground background = net.phoenixvine.chronicles.registry.QuestBackgroundRegistry
+            net.phoenixvine.chronicles.client.render.IQuestBackground background = QuestBackgroundRegistry
                     .get(backgroundType);
             if (background != null) {
                 background.render(g, node, fx, fy, fsz, System.currentTimeMillis());

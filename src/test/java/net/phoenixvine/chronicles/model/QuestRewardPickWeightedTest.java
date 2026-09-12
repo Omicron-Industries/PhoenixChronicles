@@ -4,6 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import net.phoenixvine.chronicles.common.model.QuestReward;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 

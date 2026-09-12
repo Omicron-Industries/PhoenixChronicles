@@ -8,10 +8,10 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestReward;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestReward;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import java.util.ArrayList;
 import java.util.List;

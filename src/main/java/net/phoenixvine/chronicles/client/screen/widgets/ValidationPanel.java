@@ -4,10 +4,12 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.model.*;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tasks.ItemRequirementTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tasks.ItemRequirementTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

@@ -14,12 +14,12 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fml.ModList;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.filter.FluidFilters;
-import net.phoenixvine.chronicles.filter.IFluidFilter;
-import net.phoenixvine.chronicles.filter.IItemFilter;
-import net.phoenixvine.chronicles.filter.ItemFilters;
-import net.phoenixvine.chronicles.item.FluidFilterTokenItem;
-import net.phoenixvine.chronicles.item.ItemFilterTokenItem;
+import net.phoenixvine.chronicles.common.filter.FluidFilters;
+import net.phoenixvine.chronicles.common.filter.IFluidFilter;
+import net.phoenixvine.chronicles.common.filter.IItemFilter;
+import net.phoenixvine.chronicles.common.filter.ItemFilters;
+import net.phoenixvine.chronicles.common.item.FluidFilterTokenItem;
+import net.phoenixvine.chronicles.common.item.ItemFilterTokenItem;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

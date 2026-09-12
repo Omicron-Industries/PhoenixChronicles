@@ -8,10 +8,10 @@ import net.phoenixvine.chronicles.client.screen.TextureBrowserScreen;
 import net.phoenixvine.chronicles.client.screen.utils.BulkOpsPanelState;
 import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
-import net.phoenixvine.chronicles.codec.QuestFileLoader;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestFileLoader;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.jetbrains.annotations.NotNull;

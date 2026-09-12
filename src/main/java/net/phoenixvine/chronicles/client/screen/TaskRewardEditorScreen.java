@@ -19,18 +19,21 @@ import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemeRenderer;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.screen.utils.UndoRedoManager;
-import net.phoenixvine.chronicles.filter.IFluidFilter;
-import net.phoenixvine.chronicles.filter.IItemFilter;
-import net.phoenixvine.chronicles.filter.ItemFilters;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.filter.FluidFilters;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.registry.RewardTableRegistry;
+import net.phoenixvine.chronicles.common.filter.IFluidFilter;
+import net.phoenixvine.chronicles.common.filter.IItemFilter;
+import net.phoenixvine.chronicles.common.filter.ItemFilters;
+import net.phoenixvine.chronicles.common.tasks.*;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
-import net.phoenixvine.chronicles.item.FluidFilterTokenItem;
-import net.phoenixvine.chronicles.item.ItemFilterTokenItem;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestReward;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.PhoenixTaskRegistry;
-import net.phoenixvine.chronicles.tasks.*;
-import net.phoenixvine.chronicles.tasks.BlockBreakTask;
+import net.phoenixvine.chronicles.common.item.FluidFilterTokenItem;
+import net.phoenixvine.chronicles.common.item.ItemFilterTokenItem;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestReward;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.PhoenixTaskRegistry;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.jetbrains.annotations.NotNull;
@@ -573,7 +576,7 @@ public class TaskRewardEditorScreen extends Screen {
             rewardEventDataBox.setValue(rEventDataVal);
             addRenderableWidget(rewardEventDataBox);
         } else if (rewardType.equals("reward_table")) {
-            String knownTables = net.phoenixvine.chronicles.registry.RewardTableRegistry.getAll().keySet()
+            String knownTables = RewardTableRegistry.getAll().keySet()
                     .stream().reduce("", (a, b) -> a.isEmpty() ? b : a + ", " + b);
             String hint = knownTables.isEmpty() ? "§8Table ID  (no tables loaded yet)" :
                     "§8Table ID: known: " + knownTables;
@@ -835,12 +838,12 @@ public class TaskRewardEditorScreen extends Screen {
                             if (id.isEmpty()) continue;
                             var fluid = ForgeRegistries.FLUIDS.getValue(ResourceLocation.parse(id));
                             if (fluid != null && fluid != net.minecraft.world.level.material.Fluids.EMPTY)
-                                alts.add(net.phoenixvine.chronicles.filter.FluidFilters
+                                alts.add(FluidFilters
                                         .exact(ResourceLocation.parse(id)));
                         }
                         if (alts.isEmpty()) yield null;
                         filter = alts.size() == 1 ? alts.get(0) :
-                                net.phoenixvine.chronicles.filter.FluidFilters
+                                FluidFilters
                                         .anyOf(alts.toArray(new IFluidFilter[0]));
                     }
                     FilterFluidTask fft = new FilterFluidTask(taskId, descComp, filter, count, taskConsume);
@@ -879,12 +882,12 @@ public class TaskRewardEditorScreen extends Screen {
                         count);
                 case "info" -> new InfoTask(taskId, descComp, target);
                 case "external_trigger" -> new ExternalTriggerTask(taskId, descComp, target, count);
-                case "view_machine" -> new net.phoenixvine.chronicles.tasks.ViewMachineTask(taskId, descComp, target,
+                case "view_machine" -> new ViewMachineTask(taskId, descComp, target,
                         (float) count);
-                case "view_scene" -> new net.phoenixvine.chronicles.tasks.ViewSceneTask(taskId, descComp, target,
+                case "view_scene" -> new ViewSceneTask(taskId, descComp, target,
                         (float) count);
-                case "view_guide" -> new net.phoenixvine.chronicles.tasks.ViewGuideTask(taskId, descComp, target);
-                case "archive_entry" -> new net.phoenixvine.chronicles.tasks.ArchiveEntryTask(taskId, descComp, target);
+                case "view_guide" -> new ViewGuideTask(taskId, descComp, target);
+                case "archive_entry" -> new ArchiveEntryTask(taskId, descComp, target);
                 case "energy_check" -> {
                     var eType = EnergyStorageTask.EnergyType.FE;
                     if (!target.isBlank()) {
@@ -1017,15 +1020,15 @@ public class TaskRewardEditorScreen extends Screen {
             pendingTaskTarget = ift.getBody();
         } else if (t instanceof TimerTask timt) {
             pendingTaskCount = String.valueOf(timt.getDurationSeconds());
-        } else if (t instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask vmt) {
+        } else if (t instanceof ViewMachineTask vmt) {
             pendingTaskTarget = vmt.getMachineId();
             pendingTaskCount = String.valueOf((int) vmt.getMinSeconds());
-        } else if (t instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask vst) {
+        } else if (t instanceof ViewSceneTask vst) {
             pendingTaskTarget = vst.getSceneId();
             pendingTaskCount = String.valueOf((int) vst.getMinSeconds());
-        } else if (t instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask vgt) {
+        } else if (t instanceof ViewGuideTask vgt) {
             pendingTaskTarget = vgt.getGuideId();
-        } else if (t instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask aet) {
+        } else if (t instanceof ArchiveEntryTask aet) {
             pendingTaskTarget = aet.getArchiveEntryId();
         } else if (t instanceof EnergyStorageTask est) {
             pendingTaskTarget = est.getEnergyType().name();
@@ -1066,11 +1069,11 @@ public class TaskRewardEditorScreen extends Screen {
         return f.describe();
     }
 
-    private static String describeFluidFilterAsIdList(net.phoenixvine.chronicles.filter.IFluidFilter f) {
-        if (f instanceof net.phoenixvine.chronicles.filter.FluidFilters.ExactFluid ex) {
+    private static String describeFluidFilterAsIdList(IFluidFilter f) {
+        if (f instanceof FluidFilters.ExactFluid ex) {
             return ex.fluidId().toString();
         }
-        if (f instanceof net.phoenixvine.chronicles.filter.FluidFilters.AnyOf any) {
+        if (f instanceof FluidFilters.AnyOf any) {
             List<String> ids = new ArrayList<>();
             for (var child : any.children()) {
                 String s = describeFluidFilterAsIdList(child);
@@ -1111,10 +1114,10 @@ public class TaskRewardEditorScreen extends Screen {
         if (t instanceof TimerTask) return "timer";
         if (t instanceof TagItemTask) return "tag_item";
         if (t instanceof InfoTask) return "info";
-        if (t instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "view_machine";
-        if (t instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "view_scene";
-        if (t instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask) return "view_guide";
-        if (t instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask) return "archive_entry";
+        if (t instanceof ViewMachineTask) return "view_machine";
+        if (t instanceof ViewSceneTask) return "view_scene";
+        if (t instanceof ViewGuideTask) return "view_guide";
+        if (t instanceof ArchiveEntryTask) return "archive_entry";
         if (t instanceof EnergyStorageTask) return "energy_check";
         if (t instanceof FilterItemTask) return "filter_item";
         if (t instanceof FilterFluidTask) return "filter_fluid";
@@ -1308,8 +1311,8 @@ public class TaskRewardEditorScreen extends Screen {
             for (QuestReward r : rewards) questNode.addReward(r);
         }
 
-        if (net.phoenixvine.chronicles.registry.QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
-            net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(questNode);
+        if (QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
+            QuestFileSaver.saveOneQuestToDisk(questNode);
             LangSyncScheduler.markDirty();
         }
     }

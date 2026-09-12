@@ -5,7 +5,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.screen.utils.BulkOpsPanelState;
 import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
 import net.phoenixvine.chronicles.client.screen.widgets.BulkOpsPanel;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

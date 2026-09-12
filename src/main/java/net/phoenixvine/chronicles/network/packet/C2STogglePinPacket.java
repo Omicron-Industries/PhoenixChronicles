@@ -6,10 +6,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.network.NetworkEvent;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
-import net.phoenixvine.chronicles.event.QuestEvent;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
+import net.phoenixvine.chronicles.common.event.QuestEvent;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 

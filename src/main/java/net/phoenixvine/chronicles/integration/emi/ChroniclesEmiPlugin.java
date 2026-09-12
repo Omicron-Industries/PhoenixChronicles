@@ -1,7 +1,7 @@
 package net.phoenixvine.chronicles.integration.emi;
 
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.wiki.client.suite.SuiteHudBar;
 
 import dev.emi.emi.api.EmiEntrypoint;

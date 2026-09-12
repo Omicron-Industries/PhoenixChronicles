@@ -4,7 +4,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
-import net.phoenixvine.chronicles.event.QuestEvent;
+import net.phoenixvine.chronicles.common.event.QuestEvent;
 
 import dev.emi.emi.runtime.EmiReloadManager;
 

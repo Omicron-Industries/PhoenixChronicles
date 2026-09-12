@@ -1,7 +1,7 @@
 package net.phoenixvine.chronicles.client.screen.utils;
 
 import net.minecraft.client.gui.screens.Screen;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import org.jetbrains.annotations.Nullable;
 
 public interface BulkOpsPanelState {

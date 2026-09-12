@@ -1,0 +1,34 @@
+package net.phoenixvine.chronicles.common.tasks;
+
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
+import net.phoenixvine.chronicles.capability.TaskProgressAccess;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+
+public class CheckmarkTask extends QuestTask {
+
+    public CheckmarkTask(ResourceLocation taskId, Component description) {
+        super(taskId, description);
+    }
+
+    public static void complete(Player player, ResourceLocation taskId) {
+        TaskProgressAccess.with(player, taskId, nbt -> nbt.putBoolean("completed", true));
+    }
+
+    @Override
+    public boolean isCompletedFor(Player player) {
+        return TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed");
+    }
+
+    @Override
+    public CompoundTag serializeNBT() {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("type", "checkmark");
+        return tag;
+    }
+
+    @Override
+    public void deserializeNBT(CompoundTag nbt) {}
+}

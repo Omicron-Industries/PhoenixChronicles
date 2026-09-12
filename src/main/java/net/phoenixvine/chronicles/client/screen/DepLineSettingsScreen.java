@@ -5,12 +5,12 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.NodeShapeRenderer;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.ChapterPrereqDefaults;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings.*;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.ChapterPrereqDefaults;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.nio.charset.StandardCharsets;

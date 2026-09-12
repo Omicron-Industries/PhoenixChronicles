@@ -5,13 +5,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.MinecraftForge;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
-import net.phoenixvine.chronicles.event.QuestEvent;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tasks.ExternalTriggerTask;
-import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
+import net.phoenixvine.chronicles.common.event.QuestEvent;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tasks.ExternalTriggerTask;
+import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 
 import org.jetbrains.annotations.Nullable;
 

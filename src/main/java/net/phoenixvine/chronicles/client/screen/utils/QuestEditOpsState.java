@@ -1,6 +1,6 @@
 package net.phoenixvine.chronicles.client.screen.utils;
 
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 
 public interface QuestEditOpsState {
 

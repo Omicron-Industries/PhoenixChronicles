@@ -14,8 +14,9 @@ import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.render.background.BackgroundRenderUtil;
 import net.phoenixvine.chronicles.client.render.shader.DynamicShaderManager;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
-import net.phoenixvine.chronicles.model.CategoryDefinition;
-import net.phoenixvine.chronicles.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
+import net.phoenixvine.chronicles.common.model.CategoryDefinition;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -438,7 +439,7 @@ public class ChapterThemeScreen extends Screen {
             String key = "phoenix_chronicles.chapter." + chapter.toLowerCase() + ".name";
             java.nio.file.Path base = minecraft.gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
             String value = cachedDisplayName.isEmpty() ? defaultFriendlyName() : cachedDisplayName;
-            net.phoenixvine.chronicles.registry.QuestLangRegistry.writeKey(base, key, value);
+            QuestLangRegistry.writeKey(base, key, value);
 
             ClientTextOverrides.put(key, value);
         }

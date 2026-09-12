@@ -5,10 +5,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.capability.importer.FtbQuestsImporter;
 import net.phoenixvine.chronicles.client.registry.ChroniclesLangPack;
-import net.phoenixvine.chronicles.codec.QuestFileLoader;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestFileLoader;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

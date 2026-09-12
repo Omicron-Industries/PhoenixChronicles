@@ -14,11 +14,11 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ModelEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
-import net.phoenixvine.chronicles.filter.IFluidFilter;
-import net.phoenixvine.chronicles.filter.IItemFilter;
-import net.phoenixvine.chronicles.item.ChronicleItems;
-import net.phoenixvine.chronicles.item.FluidFilterTokenItem;
-import net.phoenixvine.chronicles.item.ItemFilterTokenItem;
+import net.phoenixvine.chronicles.common.filter.IFluidFilter;
+import net.phoenixvine.chronicles.common.filter.IItemFilter;
+import net.phoenixvine.chronicles.common.item.ChronicleItems;
+import net.phoenixvine.chronicles.common.item.FluidFilterTokenItem;
+import net.phoenixvine.chronicles.common.item.ItemFilterTokenItem;
 
 import org.jetbrains.annotations.Nullable;
 

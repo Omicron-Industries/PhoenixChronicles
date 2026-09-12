@@ -13,13 +13,19 @@ import net.phoenixvine.chronicles.client.event.ChronicleKeyBindings;
 import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.render.EmiReturnScreenFix;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.condition.ConditionEvaluator;
+import net.phoenixvine.chronicles.common.condition.ThresholdCondition;
+import net.phoenixvine.chronicles.common.flag.PhoenixQuestFlags;
+import net.phoenixvine.chronicles.common.model.*;
+import net.phoenixvine.chronicles.common.tasks.*;
 import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
 import net.phoenixvine.chronicles.network.packet.C2SResolveChoiceBoxPacket;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tasks.*;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.util.ArrayList;
@@ -403,7 +409,7 @@ public class QuestTasksScreen extends Screen {
         java.util.List<net.phoenixvine.chronicles.client.rich.RichBlock> resolvedDescBlocks = resolveConditionals(
                 descBlocks);
 
-        float compactTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+        float compactTextScale = QuestChroniclesSettings.get()
                 .getTextScaleMultiplier();
         int compactLineH = Math.max(1, Math.round(10 * compactTextScale));
 
@@ -699,7 +705,7 @@ public class QuestTasksScreen extends Screen {
         boolean descIsId = desc.isEmpty() || desc.matches("[a-z0-9_]+");
         String primary = (descIsId && detail != null) ? detail : desc;
 
-        float rowTs = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
+        float rowTs = QuestChroniclesSettings.get().getTextScaleMultiplier();
 
         String prog = done ? "§a✔" : (progress != null ? "§8" + progress : "");
         int progW = prog.isEmpty() ? 0 : Math.round(font.width(prog) * rowTs) + 2;
@@ -803,7 +809,7 @@ public class QuestTasksScreen extends Screen {
         int usesX = fsX - 20;
         int titleMaxW = headerTitleMaxW();
 
-        float headerTextScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
+        float headerTextScale = QuestChroniclesSettings.get().getTextScaleMultiplier();
 
         float titleAvailPreScale = titleMaxW / headerTextScale;
         String titleStr = (node.isOptional() ? "§d[Optional] §f" : "") + content.title().getString();
@@ -1111,7 +1117,7 @@ public class QuestTasksScreen extends Screen {
             g.drawString(font, "§8Click to add a description", x, y, C_TEXT_FAINT, false);
         }
 
-        float textScale = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
+        float textScale = QuestChroniclesSettings.get().getTextScaleMultiplier();
 
         int descContentH = net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer.measureBlocksHeight(font,
                 resolvedDescBlocks, w, textScale, descExpandedKeys);
@@ -1158,7 +1164,7 @@ public class QuestTasksScreen extends Screen {
         java.util.List<net.phoenixvine.chronicles.client.rich.RichBlock> out = new java.util.ArrayList<>(blocks.size());
         for (net.phoenixvine.chronicles.client.rich.RichBlock b : blocks) {
             if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.ConditionalSection cs) {
-                boolean met = net.phoenixvine.chronicles.condition.ConditionEvaluator.evaluate(cs.condition(),
+                boolean met = ConditionEvaluator.evaluate(cs.condition(),
                         this::isConditionMet);
                 out.addAll(resolveConditionals(met ? cs.thenChildren() : cs.elseChildren()));
             } else if (b instanceof net.phoenixvine.chronicles.client.rich.RichBlock.Callout c) {
@@ -1234,7 +1240,7 @@ public class QuestTasksScreen extends Screen {
     private net.phoenixvine.chronicles.client.rich.RichSpan resolveConditionalTip(
                                                                                    net.phoenixvine.chronicles.client.rich.RichSpan.ConditionalTip ct) {
         for (net.phoenixvine.chronicles.client.rich.RichSpan.TipCandidate candidate : ct.candidates()) {
-            if (candidate.condition() == null || net.phoenixvine.chronicles.condition.ConditionEvaluator
+            if (candidate.condition() == null || ConditionEvaluator
                     .evaluate(candidate.condition(), this::isConditionMet)) {
                 return new net.phoenixvine.chronicles.client.rich.RichSpan.Tip(ct.label(), ct.style(),
                         candidate.tooltip());
@@ -1249,7 +1255,7 @@ public class QuestTasksScreen extends Screen {
      * Leaf checker for {@code :::if} conditions -- {@code quest:<id>} (completed), {@code
      * quest_unlocked:<id>} (unlocked or active), {@code quest_progress:<id><op><percent>} (task
      * completion percentage compared against a threshold, see ThresholdCondition), or {@code flag:<expr>}
-     * -- a pack-defined flag, evaluated through the same {@link net.phoenixvine.chronicles.flag.PhoenixQuestFlags}
+     * -- a pack-defined flag, evaluated through the same {@link PhoenixQuestFlags}
      * expression engine that already gates quest {@code enableIf}/variants/chapter themes, so the exact
      * same {@code config:<file>#<key>=<value>}, {@code kjs:}, {@code mod:}, {@code rule:} and plain
      * static-flag syntax packs already use elsewhere works verbatim inside quest description text too.
@@ -1265,14 +1271,14 @@ public class QuestTasksScreen extends Screen {
             return net.phoenixvine.chronicles.QuestAPI.isUnlocked(this.minecraft.player, value);
         }
         if (type.equalsIgnoreCase("quest_progress")) {
-            net.phoenixvine.chronicles.condition.ThresholdCondition.Parsed p = net.phoenixvine.chronicles.condition.ThresholdCondition
+            ThresholdCondition.Parsed p = ThresholdCondition
                     .parse(value);
             long percent = Math.round(net.phoenixvine.chronicles.QuestAPI.getProgress(this.minecraft.player,
                     p.id()) * 100f);
-            return net.phoenixvine.chronicles.condition.ThresholdCondition.test(percent, p.op(), p.threshold());
+            return ThresholdCondition.test(percent, p.op(), p.threshold());
         }
         if (type.equalsIgnoreCase("flag")) {
-            return net.phoenixvine.chronicles.flag.PhoenixQuestFlags.evaluate(value, null, this.minecraft.player,
+            return PhoenixQuestFlags.evaluate(value, null, this.minecraft.player,
                     "quest text :::if");
         }
         return false;
@@ -1285,7 +1291,7 @@ public class QuestTasksScreen extends Screen {
      * PhantasiaCompat.canOpenForTask/openForTask's role for Phantasia's own view tasks.
      */
     private boolean tryOpenArchiveEntry(QuestTask task) {
-        if (!(task instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask aet)) return false;
+        if (!(task instanceof ArchiveEntryTask aet)) return false;
         if (!net.phoenixvine.chronicles.integration.archive.ArchiveLoreCompat.hasEntry(aet.getArchiveEntryId())) {
             return false;
         }
@@ -1295,7 +1301,7 @@ public class QuestTasksScreen extends Screen {
         Player player = this.minecraft.player;
         if (player != null && !aet.isCompletedFor(player)) {
             aet.markCompletedClient(player);
-            net.phoenixvine.chronicles.model.QuestNode owner = QuestTreeRegistry.getTaskOwner(aet.getTaskId());
+            QuestNode owner = QuestTreeRegistry.getTaskOwner(aet.getTaskId());
             if (owner != null) {
                 net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.sendToServer(
                         new net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket(owner.getId(),
@@ -1579,7 +1585,7 @@ public class QuestTasksScreen extends Screen {
             cx += 10;
         }
 
-        float taskTs = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTextScaleMultiplier();
+        float taskTs = QuestChroniclesSettings.get().getTextScaleMultiplier();
 
         String desc = task.getDescription().getString();
         int progW = (progress != null && !done) ? Math.round(font.width(progress) * taskTs) + 4 : 0;
@@ -1758,7 +1764,7 @@ public class QuestTasksScreen extends Screen {
         if (item == null || item == net.minecraft.world.item.Items.AIR) return ItemStack.EMPTY;
         ItemStack stack = new ItemStack(item, taskRequiredCount(task));
 
-        if (task instanceof net.phoenixvine.chronicles.tasks.ItemRequirementTask t && t.getNbtFilter() != null &&
+        if (task instanceof ItemRequirementTask t && t.getNbtFilter() != null &&
                 !t.getNbtFilter().isEmpty()) {
             stack.setTag(t.getNbtFilter().copy());
         }
@@ -1783,15 +1789,15 @@ public class QuestTasksScreen extends Screen {
         if (task instanceof AdvancementTask) return "§d★";
         if (task instanceof CheckmarkTask) return "§7☑";
         if (task instanceof InfoTask) return "§7✎";
-        if (task instanceof net.phoenixvine.chronicles.tasks.TimerTask) return "§b⏱";
+        if (task instanceof TimerTask) return "§b⏱";
         if (task instanceof TagItemTask) return "§e◈";
         if (task instanceof EnergyStorageTask) return "§6⚡";
         if (task instanceof FilterItemTask) return "§e◈";
         if (task instanceof FilterFluidTask) return "§3◈";
-        if (task instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask) return "§b⬡";
-        if (task instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask) return "§b⬢";
-        if (task instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask) return "§b📖";
-        if (task instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask) return "§b📖";
+        if (task instanceof ViewMachineTask) return "§b⬡";
+        if (task instanceof ViewSceneTask) return "§b⬢";
+        if (task instanceof ViewGuideTask) return "§b📖";
+        if (task instanceof ArchiveEntryTask) return "§b📖";
         return "§8◇";
     }
 
@@ -1836,7 +1842,7 @@ public class QuestTasksScreen extends Screen {
         if (task instanceof InfoTask) {
             return null;
         }
-        if (task instanceof net.phoenixvine.chronicles.tasks.TimerTask t) {
+        if (task instanceof TimerTask t) {
             return "Wait " + t.getDurationSeconds() + "s";
         }
         if (task instanceof TagItemTask t) {
@@ -1850,16 +1856,16 @@ public class QuestTasksScreen extends Screen {
             return t.getFilter().describe() + ": " + String.format("%,d", t.getAmount()) + " mB" +
                     (t.isConsume() ? "  (consumed)" : "");
         }
-        if (task instanceof net.phoenixvine.chronicles.tasks.ViewMachineTask t) {
+        if (task instanceof ViewMachineTask t) {
             return "Phantasia: " + t.getMachineId();
         }
-        if (task instanceof net.phoenixvine.chronicles.tasks.ViewSceneTask t) {
+        if (task instanceof ViewSceneTask t) {
             return "Phantasia scene: " + t.getSceneId();
         }
-        if (task instanceof net.phoenixvine.chronicles.tasks.ViewGuideTask t) {
+        if (task instanceof ViewGuideTask t) {
             return "Phantasia guide: " + t.getGuideId();
         }
-        if (task instanceof net.phoenixvine.chronicles.tasks.ArchiveEntryTask t) {
+        if (task instanceof ArchiveEntryTask t) {
             return "Archive entry: " + t.getArchiveEntryId();
         }
         return null;
@@ -1918,7 +1924,7 @@ public class QuestTasksScreen extends Screen {
             api.getMethod("displayRecipes", ingredientClass).invoke(null, es);
 
             try {
-                if (!net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                if (!QuestChroniclesSettings.get()
                         .isReturnToQuestbookFromRecipeViewer())
                     return;
                 Class<?> recipeScreenClass = Class.forName("dev.emi.emi.screen.RecipeScreen");
@@ -1992,7 +1998,7 @@ public class QuestTasksScreen extends Screen {
             int rewardW = calcRewardW();
             int maxInspW = Math.max(MIN_INSP_W, width - MARGIN * 3 - MIN_CONTENT_W - rewardW);
             int newInspW = Math.max(MIN_INSP_W, Math.min(maxInspW, dividerDragStartInspW - delta));
-            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().setTaskInspectorW(newInspW);
+            QuestChroniclesSettings.get().setTaskInspectorW(newInspW);
             return true;
         }
         if (draggingRewardDivider) {
@@ -2000,7 +2006,7 @@ public class QuestTasksScreen extends Screen {
             int pairTotal = dividerDragStartInspW + dividerDragStartRewardW;
             int newInspW = Math.max(MIN_INSP_W, Math.min(pairTotal - MIN_REWARD_W, dividerDragStartInspW + delta));
             int newRewardW = pairTotal - newInspW;
-            var settings = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get();
+            var settings = QuestChroniclesSettings.get();
             settings.setTaskInspectorW(newInspW);
             settings.setTaskRewardW(newRewardW);
             return true;
@@ -2013,7 +2019,7 @@ public class QuestTasksScreen extends Screen {
         if (draggingInspDivider || draggingRewardDivider) {
             draggingInspDivider = false;
             draggingRewardDivider = false;
-            net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().save();
+            QuestChroniclesSettings.get().save();
             return true;
         }
         return super.mouseReleased(mx, my, btn);
@@ -2103,7 +2109,7 @@ public class QuestTasksScreen extends Screen {
                         node.setDescription(Component.literal(v));
                         liveDescOverride = v;
                         richSpansPage = -1;
-                        net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
+                        QuestFileSaver.saveOneQuestToDisk(node);
                         LangSyncScheduler.markDirty();
                     }));
             return true;
@@ -2334,7 +2340,7 @@ public class QuestTasksScreen extends Screen {
                         node.setDescription(Component.literal(v));
                         liveDescOverride = v;
                         richSpansPage = -1;
-                        net.phoenixvine.chronicles.codec.QuestFileSaver.saveOneQuestToDisk(node);
+                        QuestFileSaver.saveOneQuestToDisk(node);
                         LangSyncScheduler.markDirty();
                     }));
             return true;
@@ -2497,14 +2503,14 @@ public class QuestTasksScreen extends Screen {
     private static final int MIN_CONTENT_W = 150;
 
     private int calcInspW() {
-        int stored = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTaskInspectorW();
+        int stored = QuestChroniclesSettings.get().getTaskInspectorW();
         if (stored > 0) return Math.max(MIN_INSP_W, stored);
         int budget = Math.max(140, width - 180 - MARGIN * 4);
         return Math.max(MIN_INSP_W, Math.min(160, budget * 3 / 5));
     }
 
     private int calcRewardW() {
-        int stored = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().getTaskRewardW();
+        int stored = QuestChroniclesSettings.get().getTaskRewardW();
         if (stored > 0) return Math.max(MIN_REWARD_W, stored);
         int budget = Math.max(140, width - 180 - MARGIN * 4);
         return Math.max(MIN_REWARD_W, Math.min(REWARD_W, budget * 2 / 5));
@@ -2674,7 +2680,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private boolean tryCompleteCheckmark(QuestTask task) {
-        if (!(task instanceof net.phoenixvine.chronicles.tasks.CheckmarkTask)) return false;
+        if (!(task instanceof CheckmarkTask)) return false;
         if (task.isCompletedFor(minecraft.player)) return true;
 
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :

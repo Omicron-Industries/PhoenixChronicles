@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
 
 import org.jetbrains.annotations.NotNull;
 

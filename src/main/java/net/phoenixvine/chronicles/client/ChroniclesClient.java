@@ -12,9 +12,9 @@ import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.rich.ChronicleRichTextRenderer;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.registry.DependencyLineStyleRegistry;
-import net.phoenixvine.chronicles.registry.QuestBackgroundRegistry;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.registry.DependencyLineStyleRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestBackgroundRegistry;
 import net.phoenixvine.wiki.client.suite.SuiteHudBar;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 

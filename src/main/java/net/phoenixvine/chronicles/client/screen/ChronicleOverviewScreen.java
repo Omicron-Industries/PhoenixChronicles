@@ -27,16 +27,20 @@ import net.phoenixvine.chronicles.client.screen.utils.*;
 import net.phoenixvine.chronicles.client.screen.widgets.*;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.codec.QuestContentLoader;
+import net.phoenixvine.chronicles.common.model.*;
+import net.phoenixvine.chronicles.common.registry.ChapterFlagRegistry;
+import net.phoenixvine.chronicles.common.tasks.ItemRequirementTask;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
-import net.phoenixvine.chronicles.registry.CategoryRegistry;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tasks.ScreenOpenedTask;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tasks.ScreenOpenedTask;
 import net.phoenixvine.wiki.client.screen.WikiTheme;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
@@ -401,7 +405,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public QuestTask matchingIconTask(QuestNode node, Item icon) {
         for (QuestTask task : node.getTasks()) {
-            if (task instanceof net.phoenixvine.chronicles.tasks.ItemRequirementTask t && t.getItem() == icon) {
+            if (task instanceof ItemRequirementTask t && t.getItem() == icon) {
                 return task;
             }
         }
@@ -410,7 +414,7 @@ public class ChronicleOverviewScreen extends Screen
 
     @Override
     public ItemStack nbtAwareIconStack(QuestTask task, Item icon) {
-        if (!(task instanceof net.phoenixvine.chronicles.tasks.ItemRequirementTask t) || t.getNbtFilter() == null ||
+        if (!(task instanceof ItemRequirementTask t) || t.getNbtFilter() == null ||
                 t.getNbtFilter().isEmpty()) {
             return cachedIconStack(icon);
         }
@@ -457,7 +461,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public List<ResourceLocation> questIdsInCategory(String categoryId) {
         List<ResourceLocation> ids = new ArrayList<>();
-        net.phoenixvine.chronicles.model.CategoryDefinition cat = net.phoenixvine.chronicles.registry.CategoryRegistry
+        CategoryDefinition cat = CategoryRegistry
                 .get(categoryId);
         if (cat == null) return ids;
         for (String chapter : cat.chapters()) ids.addAll(questIdsInChapter(chapter));
@@ -538,7 +542,7 @@ public class ChronicleOverviewScreen extends Screen
 
             if (!isDevMode || !QuestChroniclesSettings.get().isShowFlagDisabledChapters()) {
                 MinecraftServer server = minecraft != null ? minecraft.getSingleplayerServer() : null;
-                chapters.removeIf(c -> !net.phoenixvine.chronicles.registry.ChapterFlagRegistry.isChapterEnabled(c));
+                chapters.removeIf(c -> !ChapterFlagRegistry.isChapterEnabled(c));
                 if (QuestChroniclesSettings.get().isCascadeHiddenQuests())
                     chapters.removeIf(c -> QuestTreeRegistry.isChapterGatedHidden(c, this::getState));
             }
@@ -741,8 +745,8 @@ public class ChronicleOverviewScreen extends Screen
 
             Path mdPath = QuestFileSaver.getQuestMarkdownPath(Objects.requireNonNull(target));
 
-            net.phoenixvine.chronicles.codec.QuestContentLoader.syncActiveLocaleFromClient();
-            Path resolvedMdPath = net.phoenixvine.chronicles.codec.QuestContentLoader
+            QuestContentLoader.syncActiveLocaleFromClient();
+            Path resolvedMdPath = QuestContentLoader
                     .resolveLocaleFile(mdPath, Objects.requireNonNull(target).getId().getPath());
 
             FullQuestData mdData = loadMarkdownContent(resolvedMdPath);
@@ -1647,9 +1651,9 @@ public class ChronicleOverviewScreen extends Screen
                 if (e.getValue().visible && e.getValue().isMouseOver(mx, my)) {
                     editorState.draggedNode = QuestTreeRegistry.getQuest(e.getKey());
                     if (editorState.draggedNode != null) {
-                        pickupPlaceActive = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                        pickupPlaceActive = QuestChroniclesSettings.get()
                                 .getNodeMoveMode() ==
-                                net.phoenixvine.chronicles.codec.QuestChroniclesSettings.NodeMoveMode.PICKUP_PLACE;
+                                QuestChroniclesSettings.NodeMoveMode.PICKUP_PLACE;
                         final int preX = editorState.draggedNode.getCustomX(),
                                 preY = editorState.draggedNode.getCustomY();
                         dragOrigX = preX;
@@ -1706,7 +1710,7 @@ public class ChronicleOverviewScreen extends Screen
                         dragGrabY = (int) my - e.getValue().getY();
                         editorState.selectedNode = editorState.draggedNode;
                         dragForceSnap = true;
-                        middleDragPickupActive = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get()
+                        middleDragPickupActive = QuestChroniclesSettings.get()
                                 .isMiddleClickPickupPlace();
                         if (editorState.subgraphMode) rebuildSubgraph();
                     }
@@ -2112,8 +2116,8 @@ public class ChronicleOverviewScreen extends Screen
             if (!moved) {
 
                 if (source.isFolder()) {
-                    net.phoenixvine.chronicles.registry.CategoryRegistry.toggleCollapsed(source.id());
-                    net.phoenixvine.chronicles.registry.CategoryRegistry.save();
+                    CategoryRegistry.toggleCollapsed(source.id());
+                    CategoryRegistry.save();
                     rebuild();
                 } else {
                     selectedChapter = source.id();

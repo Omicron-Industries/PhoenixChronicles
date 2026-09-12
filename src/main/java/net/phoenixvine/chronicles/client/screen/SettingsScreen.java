@@ -4,8 +4,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.codec.QuestChroniclesSettings.*;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings.*;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 import net.phoenixvine.wiki.theme.PhoenixThemeEditorScreen;
@@ -196,7 +196,7 @@ public class SettingsScreen extends Screen {
                                 "HOVER_TO_EXPAND: FTB Quests-style - always collapsed, moving the\n" +
                                 "mouse over it opens it, moving away closes it - no clicking needed."));
                 rows.add(Row.cycle("§fQuest Node Move Style",
-                        net.phoenixvine.chronicles.codec.QuestChroniclesSettings.NodeMoveMode.class,
+                        QuestChroniclesSettings.NodeMoveMode.class,
                         settings::getNodeMoveMode, settings::setNodeMoveMode)
                         .tip("DRAG: shift+click and hold to move a quest node, release to drop it.\n" +
                                 "PICKUP_PLACE: shift+click once to pick it up (it follows the cursor\n" +

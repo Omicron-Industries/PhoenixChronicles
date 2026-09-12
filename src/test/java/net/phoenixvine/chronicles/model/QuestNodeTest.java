@@ -2,7 +2,9 @@ package net.phoenixvine.chronicles.model;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.registry.ChapterPrereqDefaults;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.ChapterPrereqDefaults;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;

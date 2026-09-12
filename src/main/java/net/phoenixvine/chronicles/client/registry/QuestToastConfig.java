@@ -1,7 +1,7 @@
 package net.phoenixvine.chronicles.client.registry;
 
 import net.minecraft.client.Minecraft;
-import net.phoenixvine.chronicles.model.QuestGroup;
+import net.phoenixvine.chronicles.common.model.QuestGroup;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

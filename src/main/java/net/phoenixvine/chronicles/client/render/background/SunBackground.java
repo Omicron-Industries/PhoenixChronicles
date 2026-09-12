@@ -4,7 +4,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.ChronicleShaders;
 import net.phoenixvine.chronicles.client.render.IQuestBackground;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import org.jetbrains.annotations.NotNull;
 
 public class SunBackground implements IQuestBackground {

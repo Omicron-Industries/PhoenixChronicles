@@ -5,15 +5,15 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
-import net.phoenixvine.chronicles.model.QuestNode;
-import net.phoenixvine.chronicles.model.QuestState;
-import net.phoenixvine.chronicles.model.QuestTask;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tasks.ArchiveEntryTask;
-import net.phoenixvine.chronicles.tasks.ViewGuideTask;
-import net.phoenixvine.chronicles.tasks.ViewMachineTask;
-import net.phoenixvine.chronicles.tasks.ViewSceneTask;
-import net.phoenixvine.chronicles.tracker.QuestProgressTracker;
+import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tasks.ArchiveEntryTask;
+import net.phoenixvine.chronicles.common.tasks.ViewGuideTask;
+import net.phoenixvine.chronicles.common.tasks.ViewMachineTask;
+import net.phoenixvine.chronicles.common.tasks.ViewSceneTask;
+import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 

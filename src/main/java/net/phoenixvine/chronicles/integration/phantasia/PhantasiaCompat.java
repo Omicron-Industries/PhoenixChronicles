@@ -8,13 +8,14 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModList;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
-import net.phoenixvine.chronicles.registry.QuestTreeRegistry;
-import net.phoenixvine.chronicles.tasks.ViewGuideTask;
-import net.phoenixvine.chronicles.tasks.ViewMachineTask;
-import net.phoenixvine.chronicles.tasks.ViewSceneTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tasks.ViewGuideTask;
+import net.phoenixvine.chronicles.common.tasks.ViewMachineTask;
+import net.phoenixvine.chronicles.common.tasks.ViewSceneTask;
 import net.phoenixvine.phantasia.api.PhantasiaAPI;
 import net.phoenixvine.phantasia.api.PhantasiaEvents;
 import net.phoenixvine.phantasia.api.PhantasiaMachinePreview;
@@ -150,7 +151,7 @@ public class PhantasiaCompat {
     }
 
     private static void applyAutoSpinSetting(Object preview) {
-        float degPerSec = net.phoenixvine.chronicles.codec.QuestChroniclesSettings.get().isPhantasiaAutoSpin() ?
+        float degPerSec = QuestChroniclesSettings.get().isPhantasiaAutoSpin() ?
                 20f : 0f;
         if (preview instanceof PhantasiaMachinePreview p) p.setAutoSpin(degPerSec);
         else if (preview instanceof PhantasiaScenePreview p) p.setAutoSpin(degPerSec);

@@ -7,8 +7,8 @@ import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
 import net.phoenixvine.chronicles.client.screen.utils.NodeContextMenuBuilder;
 import net.phoenixvine.chronicles.client.screen.utils.NodeContextMenuBuilderState;
 import net.phoenixvine.chronicles.client.screen.utils.NodeCtxMenuState;
-import net.phoenixvine.chronicles.model.QuestGroup;
-import net.phoenixvine.chronicles.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestGroup;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

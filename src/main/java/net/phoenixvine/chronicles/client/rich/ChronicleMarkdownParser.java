@@ -3,6 +3,9 @@ package net.phoenixvine.chronicles.client.rich;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
+import net.phoenixvine.chronicles.common.condition.ConditionExprParser;
+import net.phoenixvine.chronicles.common.condition.ConditionNode;
+import net.phoenixvine.chronicles.common.condition.ConditionSyntaxException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -54,11 +57,11 @@ public final class ChronicleMarkdownParser {
             Matcher fn = FOOTNOTE_DEF.matcher(line.trim());
             if (fn.matches()) {
                 String condExpr = fn.group(2);
-                net.phoenixvine.chronicles.condition.ConditionNode condition = null;
+                ConditionNode condition = null;
                 if (condExpr != null && !condExpr.isBlank()) {
                     try {
-                        condition = net.phoenixvine.chronicles.condition.ConditionExprParser.parse(condExpr);
-                    } catch (net.phoenixvine.chronicles.condition.ConditionSyntaxException ignored) {
+                        condition = ConditionExprParser.parse(condExpr);
+                    } catch (ConditionSyntaxException ignored) {
                         // Bad guard expression -- fall back to an always-shown candidate rather than
                         // silently dropping the whole footnote over a typo.
                     }
@@ -205,11 +208,11 @@ public final class ChronicleMarkdownParser {
                         elseLines = new String[0];
                     }
                     try {
-                        net.phoenixvine.chronicles.condition.ConditionNode condition = net.phoenixvine.chronicles.condition.ConditionExprParser
+                        ConditionNode condition = ConditionExprParser
                                 .parse(title);
                         blocks.add(new RichBlock.ConditionalSection(condition,
                                 parseLines(thenLines, footnotes), parseLines(elseLines, footnotes)));
-                    } catch (net.phoenixvine.chronicles.condition.ConditionSyntaxException ex) {
+                    } catch (ConditionSyntaxException ex) {
                         blocks.add(new RichBlock.Callout("warning", "Bad :::if condition", List.of(
                                 new RichBlock.Paragraph(List.of(new RichSpan.Text("§c" + ex.getMessage(),
                                         Style.EMPTY))))));
