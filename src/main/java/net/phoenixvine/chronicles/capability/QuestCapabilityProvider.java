@@ -17,10 +17,8 @@ import org.jetbrains.annotations.Nullable;
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class QuestCapabilityProvider implements ICapabilitySerializable<CompoundTag> {
 
-    public static final Capability<PlayerQuestData> PLAYER_QUESTS =
-            CapabilityManager.get(new CapabilityToken<>() {});
-    private static final ResourceLocation KEY =
-            ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID,
+    public static final Capability<PlayerQuestData> PLAYER_QUESTS = CapabilityManager.get(new CapabilityToken<>() {});
+    private static final ResourceLocation KEY = ResourceLocation.fromNamespaceAndPath(PhoenixChronicles.MOD_ID,
             "player_quests");
 
     private final PlayerQuestData instance = new PlayerQuestData();

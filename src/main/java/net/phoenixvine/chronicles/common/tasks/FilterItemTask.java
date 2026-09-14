@@ -9,9 +9,9 @@ import net.minecraft.world.item.ItemStack;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.common.filter.IItemFilter;
 import net.phoenixvine.chronicles.common.filter.ItemFilters;
+import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
 import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
-import net.phoenixvine.chronicles.common.model.QuestTask;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -48,9 +48,6 @@ public class QuestTextInputScreen extends Screen {
             "Page Break (---) - splits into pages in-game instead of scrolling"
     };
 
-    // Second row: the block-level markdown ChronicleMarkdownParser gained since MD_LABELS above was
-    // written (table, checklist, callouts, spoiler, code) -- see ChronicleMarkdownParserTest for the
-    // full syntax these produce.
     private static final String[] MD2_LABELS = { "1.", "[x]", ">", "`c`", "```", "Tbl", "!", ":::" };
     private static final String[] MD2_INSERTS = {
             "1. ", "- [ ] ", "> ", "`code`", "\n```\n\ncode\n```\n",
@@ -102,6 +99,7 @@ public class QuestTextInputScreen extends Screen {
 
         inputBox = addRenderableWidget(new MultilineTextArea(font, px + 8, py + 26, pw - 16, ph - 100, maxLength));
         inputBox.setValue(initial);
+        inputBox.seekToStart();
         setInitialFocus(inputBox);
 
         int hexY = btnY - 36;
@@ -196,7 +194,6 @@ public class QuestTextInputScreen extends Screen {
         }
     }
 
-    /** Button widths vary with label length (Tbl/[x]/``` are wider than a single glyph). */
     private int md2ButtonW(int index) {
         return Math.max(16, font.width(MD2_LABELS[index]) + 6);
     }

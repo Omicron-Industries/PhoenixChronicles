@@ -12,11 +12,11 @@ import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+import net.phoenixvine.chronicles.common.flag.PhoenixQuestFlags;
+import net.phoenixvine.chronicles.common.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.common.registry.ChapterPrereqDefaults;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.tracker.TeamKeyResolver;
-import net.phoenixvine.chronicles.common.flag.PhoenixQuestFlags;
-import net.phoenixvine.chronicles.common.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.common.tracker.TutorialStep;
 
 import com.google.gson.annotations.SerializedName;
@@ -79,7 +79,6 @@ public class QuestNode {
         return isFlagEnabled(server, null);
     }
 
-    /** Player-aware -- see {@link #resolveVariant(MinecraftServer, net.minecraft.world.entity.player.Player)}. */
     public boolean isFlagEnabled(MinecraftServer server,
                                  @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
         if (enableIf != null && !PhoenixQuestFlags.evaluate(enableIf, server, player, "quest " + id + " enableIf"))
@@ -781,12 +780,6 @@ public class QuestNode {
         return resolveVariant(server, null);
     }
 
-    /**
-     * Player-aware variant resolution -- lets a variant condition use a team-scoped {@code flag:} (or
-     * {@code conflux:}, which is inherently per-team) instead of only global flags. Every {@code
-     * getEffective*} getter below has a matching overload; the player-less ones above are unchanged and
-     * still evaluate variant conditions without team context, same as before this existed.
-     */
     public QuestVariant resolveVariant(net.minecraft.server.MinecraftServer server,
                                        @javax.annotation.Nullable net.minecraft.world.entity.player.Player player) {
         for (QuestVariant v : variants) {

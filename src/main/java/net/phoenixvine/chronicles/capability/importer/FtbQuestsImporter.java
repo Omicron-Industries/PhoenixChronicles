@@ -5,13 +5,13 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
-import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

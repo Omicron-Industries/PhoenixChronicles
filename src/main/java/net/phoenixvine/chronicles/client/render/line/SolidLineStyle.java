@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.client.render.line;
 
 import net.minecraft.client.gui.GuiGraphics;
+
 import org.jetbrains.annotations.NotNull;
 
 public class SolidLineStyle implements IDependencyLineStyle {

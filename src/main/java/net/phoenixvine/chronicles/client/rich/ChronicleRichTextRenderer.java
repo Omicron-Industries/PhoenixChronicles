@@ -221,9 +221,9 @@ public final class ChronicleRichTextRenderer {
             String glyph = checked ? "☑" : "☐";
             if (curY[0] >= clipTop && curY[0] + 8 <= clipBot) {
                 g.drawString(font, glyph, x, curY[0], checked ? 0xFF6FCF6F : 0xFFAAAAAA, false);
+                regions.add(new RichSpan.Region(x, curY[0], x + cl.indent(), curY[0] + 10,
+                        new RichSpan.ChecklistToggle(cl.checkKey(), cl.checkedDefault())));
             }
-            regions.add(new RichSpan.Region(x, curY[0], x + cl.indent(), curY[0] + 10,
-                    new RichSpan.ChecklistToggle(cl.checkKey(), cl.checkedDefault())));
             List<RichSpan> spans = checked ? withStrikethroughStyle(cl.spans()) : cl.spans();
             renderSpanList(g, font, spans, x + cl.indent(), curY, x + cl.indent(),
                     maxW - cl.indent(), clipTop, clipBot, regions, scale);
@@ -284,15 +284,6 @@ public final class ChronicleRichTextRenderer {
         return "HCOL:" + collapseKey;
     }
 
-    /**
-     * Renders a heading with a click-to-toggle arrow prefix, then its children if expanded. Uses the
-     * exact same {@code RichSpan.DetailsToggle} region mechanism Details already relies on, just with
-     * an "HCOL:"-prefixed key so the two don't collide sharing the same expandedKeys Set -- meaning
-     * whatever already toggles Details on click already handles this too, with no screen-side changes.
-     * Sections start expanded by default (collapsed only once its key has been added to the set),
-     * unlike Details which starts collapsed -- matching how a normal heading-delimited section reads
-     * open until you choose to fold it away. Ported from Phoenix Archive.
-     */
     private static int renderCollapsibleSection(GuiGraphics g, Font font, RichBlock.CollapsibleSection s, int x,
                                                 int y, int maxW, int clipTop, int clipBot,
                                                 List<RichSpan.Region> regions, float scale, int accentColor,
@@ -316,8 +307,10 @@ public final class ChronicleRichTextRenderer {
         }
         curY[0] += GAP_HEADING_AFTER;
 
-        regions.add(new RichSpan.Region(x, headY, x + maxW, curY[0],
-                new RichSpan.DetailsToggle(collapseTrackingKey(s.collapseKey()))));
+        if (curY[0] >= clipTop && headY <= clipBot) {
+            regions.add(new RichSpan.Region(x, headY, x + maxW, curY[0],
+                    new RichSpan.DetailsToggle(collapseTrackingKey(s.collapseKey()))));
+        }
 
         if (!collapsed) {
             curY[0] = renderBlockList(g, font, s.children(), x, curY[0], maxW, clipTop, clipBot, regions, scale,
@@ -337,8 +330,8 @@ public final class ChronicleRichTextRenderer {
             if (y + 3 >= clipTop && y + 3 <= clipBot) {
                 g.drawString(font, (expanded ? "§f▾ " : "§7▸ ") + "§l" + d.title(), x + 4, y + 3, 0xFFE0D8F0, false);
             }
+            regions.add(new RichSpan.Region(x, y, x + maxW, y + headH, new RichSpan.DetailsToggle(d.expandKey())));
         }
-        regions.add(new RichSpan.Region(x, y, x + maxW, y + headH, new RichSpan.DetailsToggle(d.expandKey())));
         int curY = y + headH + (expanded ? 3 : 0);
 
         if (expanded) {
@@ -568,9 +561,9 @@ public final class ChronicleRichTextRenderer {
                     }
                 }
             }
+            regions.add(new RichSpan.Region(x + maxW - btnW - 2, y + 1, x + maxW - 2, y + 1 + font.lineHeight + 2,
+                    new RichSpan.CodeCopy(code)));
         }
-        regions.add(new RichSpan.Region(x + maxW - btnW - 2, y + 1, x + maxW - 2, y + 1 + font.lineHeight + 2,
-                new RichSpan.CodeCopy(code)));
         return y + boxH;
     }
 
@@ -786,10 +779,11 @@ public final class ChronicleRichTextRenderer {
                     curX = originX;
                     curY[0] += lineH;
                 }
-                if (curY[0] >= clipTop && curY[0] + img.h() <= clipBot)
+                if (curY[0] >= clipTop && curY[0] + img.h() <= clipBot) {
                     g.blit(imageResolver.apply(img.texture()),
                             curX, curY[0], 0, 0, img.w(), img.h(), img.w(), img.h());
-                regions.add(new RichSpan.Region(curX, curY[0], curX + img.w(), curY[0] + img.h(), img));
+                    regions.add(new RichSpan.Region(curX, curY[0], curX + img.w(), curY[0] + img.h(), img));
+                }
                 curY[0] += img.h() + 2;
                 curX = originX;
             } else if (span instanceof RichSpan.ItemIcon icon) {
@@ -805,14 +799,13 @@ public final class ChronicleRichTextRenderer {
                             g.renderItem(new ItemStack(item), curX, iconY);
                         } catch (Exception ignored) {}
                     } else {
-                        // Referenced item doesn't exist (uninstalled/incompatible mod) -- render as a
-                        // clearly-marked missing slot instead of leaving a blank gap.
+
                         g.fill(curX, iconY, curX + 16, iconY + 16, 0x33FF4444);
                         g.renderOutline(curX, iconY, 16, 16, 0xFFFF4444);
                         g.drawCenteredString(font, "?", curX + 8, iconY + 4, 0xFFFF4444);
                     }
+                    regions.add(new RichSpan.Region(curX, iconY, curX + 16, iconY + 16, icon));
                 }
-                regions.add(new RichSpan.Region(curX, iconY, curX + 16, iconY + 16, icon));
                 curX += 18;
             } else if (span instanceof RichSpan.Text t) {
                 int[] pos = renderWords(g, font, t.text(), t.style(), 0xFFFFFFFF,
@@ -832,8 +825,7 @@ public final class ChronicleRichTextRenderer {
                 curX = pos[0];
                 curY[0] = pos[1];
             } else if (span instanceof RichSpan.ConditionalTip t) {
-                // Should already be resolved into a plain Tip/Text by QuestTasksScreen#resolveConditionals
-                // before this is called -- rendered as inert, non-tooltip text if one somehow slips through.
+
                 Style ts = t.style().withColor(TIP_COLOR);
                 int[] pos = renderWords(g, font, t.label(), ts, TIP_COLOR,
                         curX, curY[0], originX, maxW, clipTop, clipBot, regions, null, scale);
@@ -883,12 +875,6 @@ public final class ChronicleRichTextRenderer {
         return curY + (curX > 0 ? lineH : 0);
     }
 
-    /**
-     * Style plus whether the run is under the {@code &t} code -- tracked outside the vanilla
-     * {@link Style} object (which has no room for a "resolve me at draw time" marker) so
-     * {@link #flushRun} can look up the *current* {@link ChroniclesThemePalette#SEL_ACCENT} every call
-     * instead of a color baked in when the text was parsed. Ported from Phoenix Archive.
-     */
     private record LegacyStyle(Style style, boolean themed) {}
 
     private static int[] renderWords(
@@ -942,9 +928,31 @@ public final class ChronicleRichTextRenderer {
                 }
                 running = newStyle;
                 runStyle = newStyle;
+
+                if (tokW > maxW) {
+
+                    for (int ci = 0; ci < token.length(); ci++) {
+                        char ch = token.charAt(ci);
+                        int chW = Math.round(font.width(String.valueOf(ch)) * scale);
+                        if (curX + chW > originX + maxW && curX > originX) {
+                            flushRun(g, font, run, runStyle, fallbackColor, runStartX, curY, clipTop, clipBot,
+                                    scale, background);
+                            curX = originX;
+                            curY += lineH;
+                            runStartX = curX;
+                        }
+                        run.append(ch);
+                        if (interactive && curY >= clipTop && curY + lineH <= clipBot) {
+                            regions.add(new RichSpan.Region(curX, curY, curX + chW, curY + lineH, regionPayload));
+                        }
+                        curX += chW;
+                    }
+                    continue;
+                }
+
                 run.append(token);
 
-                if (interactive && !token.isBlank()) {
+                if (interactive && !token.isBlank() && curY >= clipTop && curY + lineH <= clipBot) {
                     regions.add(new RichSpan.Region(curX, curY, curX + tokW, curY + lineH, regionPayload));
                 }
                 curX += tokW;
@@ -964,8 +972,7 @@ public final class ChronicleRichTextRenderer {
             if (runStyle.style().getColor() != null) {
                 color = 0xFF000000 | runStyle.style().getColor().getValue();
             } else if (runStyle.themed()) {
-                // Resolved fresh every draw call, not cached -- an animated or swapped theme shows up
-                // on the very next frame with no need to re-save the quest description.
+
                 color = 0xFF000000 | (ChroniclesThemePalette.SEL_ACCENT & 0xFFFFFF);
             } else {
                 color = fallbackColor;
@@ -1006,21 +1013,24 @@ public final class ChronicleRichTextRenderer {
                     curX = originX;
                     curY += lineH;
                 }
+                if (tokW > maxW) {
+
+                    for (int ci = 0; ci < token.length(); ci++) {
+                        int chW = Math.round(font.width(String.valueOf(token.charAt(ci))) * scale);
+                        if (curX + chW > originX + maxW && curX > originX) {
+                            curX = originX;
+                            curY += lineH;
+                        }
+                        curX += chW;
+                    }
+                    continue;
+                }
                 curX += tokW;
             }
         }
         return new int[] { curX, curY };
     }
 
-    /**
-     * {@code &t} (i.e. {@code §t} once the raw text reaches this point) is a Chronicles-only code, not
-     * part of vanilla's own set -- it behaves like every other color code for scope/reset purposes
-     * (stays active until the next color code or a reset), but instead of a fixed color it marks the
-     * run as "themed" for flushRun to resolve against the live {@link ChroniclesThemePalette#SEL_ACCENT}
-     * every draw call. Deliberately never written into the {@link Style} itself via {@code withColor} --
-     * Style's color, once set, always wins over whatever flushRun would otherwise choose, so there'd be
-     * no way to override it later with the live value. Ported from Phoenix Archive.
-     */
     private static LegacyStyle applyLegacyCodes(LegacyStyle base, String token) {
         Style style = base.style();
         boolean themed = base.themed();

@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.registry;
 
 import net.phoenixvine.chronicles.common.registry.ChapterPrereqDefaults;
+
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

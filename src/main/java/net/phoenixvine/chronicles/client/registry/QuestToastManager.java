@@ -9,9 +9,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
-import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.common.model.QuestGroup;
 import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayDeque;
@@ -90,7 +91,8 @@ public class QuestToastManager {
         }
     }
 
-    private void renderCompact(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull List<ActiveToast> toasts) {
+    private void renderCompact(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH,
+                               @NotNull List<ActiveToast> toasts) {
         QuestChroniclesSettings.HUDPosition pos = QuestChroniclesSettings.get().getToastPosition();
         boolean top = pos == QuestChroniclesSettings.HUDPosition.TOP_LEFT ||
                 pos == QuestChroniclesSettings.HUDPosition.TOP_CENTER ||
@@ -148,7 +150,8 @@ public class QuestToastManager {
     private static final int BANNER_W = 200;
     private static final int BANNER_H = 26;
 
-    private void renderAboveHotbar(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull List<ActiveToast> toasts) {
+    private void renderAboveHotbar(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH,
+                                   @NotNull List<ActiveToast> toasts) {
         int x = (screenW - BANNER_W) / 2;
 
         int slotY = screenH - 62 - (toasts.size() - 1) * (BANNER_H + GAP);
@@ -183,7 +186,8 @@ public class QuestToastManager {
         }
     }
 
-    private void renderBigCenter(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull List<ActiveToast> toasts) {
+    private void renderBigCenter(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH,
+                                 @NotNull List<ActiveToast> toasts) {
         int cy = screenH / 2 - 40;
         for (ActiveToast t : toasts) {
             float alpha = computeAlpha(t);
@@ -215,7 +219,8 @@ public class QuestToastManager {
         }
     }
 
-    public void renderCustom(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH, @NotNull ActiveToast t,
+    public void renderCustom(@NotNull GuiGraphics g, @NotNull Font font, int screenW, int screenH,
+                             @NotNull ActiveToast t,
                              @NotNull QuestToastConfig cfg) {
         float alpha = computeAlpha(t);
         int a = (int) (alpha * 0xFF) << 24;
@@ -320,7 +325,8 @@ public class QuestToastManager {
                 "quickly from Phantasia's own UI but hangs here, that's worth reporting upstream.");
     }
 
-    private void renderToastIcon(@NotNull GuiGraphics g, QuestGroup.@NotNull GroupIcon icon, int x, int y, int size, float alpha) {
+    private void renderToastIcon(@NotNull GuiGraphics g, QuestGroup.@NotNull GroupIcon icon, int x, int y, int size,
+                                 float alpha) {
         try {
             switch (icon.kind) {
                 case ITEM -> {
@@ -372,7 +378,8 @@ public class QuestToastManager {
         }
     }
 
-    private void drawCustomElement(@NotNull GuiGraphics g, @NotNull Font font, QuestToastConfig.@NotNull Element el, String text,
+    private void drawCustomElement(@NotNull GuiGraphics g, @NotNull Font font, QuestToastConfig.@NotNull Element el,
+                                   String text,
                                    int screenW, int screenH, int alpha, float bgHalfWidth) {
         String display = (el.bold ? "§l" : "") + text;
         float x = el.x * screenW, y = el.y * screenH;

@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.codec;
 
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

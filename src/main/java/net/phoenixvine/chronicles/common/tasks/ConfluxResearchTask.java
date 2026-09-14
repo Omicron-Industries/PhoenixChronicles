@@ -4,8 +4,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
-import net.phoenixvine.chronicles.integration.conflux.ConfluxCompat;
 import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.integration.conflux.ConfluxCompat;
 
 public class ConfluxResearchTask extends QuestTask {
 

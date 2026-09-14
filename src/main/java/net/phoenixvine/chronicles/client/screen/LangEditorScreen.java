@@ -12,9 +12,9 @@ import net.phoenixvine.chronicles.client.rich.MultilineTextArea;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.common.codec.QuestFileLoader;
-import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import com.google.gson.Gson;

@@ -24,19 +24,18 @@ import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.capability.PooledTaskProgress;
 import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
 import net.phoenixvine.chronicles.common.codec.*;
-import net.phoenixvine.chronicles.common.model.QuestTask;
-import net.phoenixvine.chronicles.common.registry.*;
-import net.phoenixvine.chronicles.common.tasks.*;
 import net.phoenixvine.chronicles.common.flag.PhoenixQuestFlags;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.*;
+import net.phoenixvine.chronicles.common.tasks.*;
+import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
+import net.phoenixvine.chronicles.common.tracker.TeamKeyResolver;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPooledProgressPacket;
 import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
-import net.phoenixvine.chronicles.tasks.*;
-import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
-import net.phoenixvine.chronicles.common.tracker.TeamKeyResolver;
 
 import org.jetbrains.annotations.Nullable;
 

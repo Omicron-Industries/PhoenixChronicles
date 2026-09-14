@@ -12,9 +12,9 @@ import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.common.filter.FluidFilters;
 import net.phoenixvine.chronicles.common.filter.IFluidFilter;
+import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
 import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
-import net.phoenixvine.chronicles.common.model.QuestTask;
 
 public class FilterFluidTask extends QuestTask {
 

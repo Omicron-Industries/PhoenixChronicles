@@ -8,8 +8,8 @@ import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.common.model.CategoryDefinition;
-import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
 import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import org.jetbrains.annotations.NotNull;

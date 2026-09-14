@@ -7,11 +7,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.PacketDistributor;
 import net.phoenixvine.chronicles.client.util.ClientPooledProgress;
 import net.phoenixvine.chronicles.common.model.QuestNode;
-import net.phoenixvine.chronicles.network.ChronicleNetwork;
-import net.phoenixvine.chronicles.network.packet.S2CSyncPooledProgressPacket;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 import net.phoenixvine.chronicles.common.tracker.TeamKeyResolver;
+import net.phoenixvine.chronicles.network.ChronicleNetwork;
+import net.phoenixvine.chronicles.network.packet.S2CSyncPooledProgressPacket;
+
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
@@ -46,7 +47,8 @@ public final class TaskProgressAccess {
         return tag != null ? tag : new CompoundTag();
     }
 
-    private static @Nullable CompoundTag resolve(Player player, ResourceLocation taskId, QuestNode owner, boolean pooled) {
+    private static @Nullable CompoundTag resolve(Player player, ResourceLocation taskId, QuestNode owner,
+                                                 boolean pooled) {
         if (pooled) {
             if (player instanceof ServerPlayer sp) {
                 return TeamKeyResolver.resolve(sp)
@@ -60,7 +62,6 @@ public final class TaskProgressAccess {
         return player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS)
                 .map(data -> data.getOrCreateTaskProgress(taskId))
                 .orElse(null);
-
     }
 
     private static void broadcastPooledProgress(ServerPlayer source, ResourceLocation taskId, CompoundTag tag) {

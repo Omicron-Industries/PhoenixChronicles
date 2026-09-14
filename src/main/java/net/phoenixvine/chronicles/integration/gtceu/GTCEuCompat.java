@@ -7,6 +7,7 @@ import com.gregtechceu.gtceu.api.registry.registrate.GTRegistrate;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.phoenixvine.chronicles.PhoenixChronicles;
+
 import org.jetbrains.annotations.NotNull;
 
 public final class GTCEuCompat {

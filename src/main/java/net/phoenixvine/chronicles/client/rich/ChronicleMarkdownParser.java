@@ -31,13 +31,7 @@ public final class ChronicleMarkdownParser {
     private static final Pattern COLLAPSE_MARKER = Pattern.compile("(?i)\\s*\\{collapse}\\s*$");
     private static final Pattern TABLE_ROW = Pattern.compile("^\\|?.*\\|.*\\|?$");
     private static final Pattern TABLE_SEP = Pattern.compile("^\\|?[\\s:-]*-[\\s:-]*\\|[\\s:|-]*$");
-    /**
-     * {@code [^id]: text} as before, plus an optional {@code ?<expr>} condition guard right before the
-     * closing bracket -- {@code [^id?flag:qa_mode]: text} -- letting the same {@code id} carry several
-     * candidate bodies gated by different conditions (see the {@code flag:}/{@code quest:}/etc. syntax
-     * ChronicleRichTextRenderer's {@code :::if} blocks already accept, reused verbatim here through the
-     * same ConditionExprParser). Group 1 = id, group 2 = condition expression (optional), group 3 = body.
-     */
+    
     private static final Pattern FOOTNOTE_DEF = Pattern.compile("^\\[\\^([^\\]?]+)(?:\\?([^\\]]+))?]:\\s*(.*)$");
     private static final Pattern SCALE_DIRECTIVE = Pattern.compile("^\\{scale:(\\d+(?:\\.\\d+)?)}$");
 
@@ -62,8 +56,7 @@ public final class ChronicleMarkdownParser {
                     try {
                         condition = ConditionExprParser.parse(condExpr);
                     } catch (ConditionSyntaxException ignored) {
-                        // Bad guard expression -- fall back to an always-shown candidate rather than
-                        // silently dropping the whole footnote over a typo.
+
                     }
                 }
                 footnotes.computeIfAbsent(fn.group(1), k -> new ArrayList<>())
@@ -76,16 +69,6 @@ public final class ChronicleMarkdownParser {
         return groupCollapsibleHeadings(parseLines(filtered.toArray(String[]::new), footnotes));
     }
 
-    /**
-     * Wraps every heading marked collapsible (see {@code {collapse}} above) into a
-     * {@link RichBlock.CollapsibleSection}, swallowing every following block up to (not including) the
-     * next heading of the same or shallower level -- exactly the section boundary an ordinary heading
-     * already implies, just made collapsible. A heading WITHOUT the marker is left as a plain
-     * {@code RichBlock.Heading}, completely unaffected, and does not swallow anything -- it's not a
-     * section boundary for this pass at all, only for reading order. Recurses into Callout/Details/
-     * ConditionalSection children so a collapsible heading can appear nested inside those too. Ported
-     * from Phoenix Archive's groupHeadingsIntoSections.
-     */
     private static List<RichBlock> groupCollapsibleHeadings(List<RichBlock> blocks) {
         List<RichBlock> out = new ArrayList<>();
         int i = 0;
@@ -161,8 +144,7 @@ public final class ChronicleMarkdownParser {
             if (hm.matches()) {
                 int level = hm.group(1).length();
                 String headingText = hm.group(2);
-                // Opt-in: a heading only becomes collapsible with a trailing {collapse} marker --
-                // ordinary headings are completely unaffected, same as before this existed.
+
                 Matcher cm = COLLAPSE_MARKER.matcher(headingText);
                 boolean collapsible = cm.find();
                 if (collapsible) headingText = cm.replaceFirst("");
@@ -179,9 +161,7 @@ public final class ChronicleMarkdownParser {
                 int depth = 1;
                 int start = i + 1;
                 int j = start;
-                // For "if" blocks, elseIdx records the first :::else seen at this block's own depth
-                // (1) -- a nested :::if's own :::else lives deeper and isn't captured here; it gets
-                // handled when that inner block is parsed by its own recursive parseLines call below.
+
                 int elseIdx = -1;
                 while (j < lines.length && depth > 0) {
                     String t = lines[j].trim();
@@ -332,7 +312,8 @@ public final class ChronicleMarkdownParser {
         return row.contains("|") && TABLE_ROW.matcher(row).matches() && TABLE_SEP.matcher(sep).matches();
     }
 
-    private static int parseTable(String[] lines, int i, List<RichBlock> blocks, Map<String, List<RichSpan.TipCandidate>> footnotes) {
+    private static int parseTable(String[] lines, int i, List<RichBlock> blocks,
+                                  Map<String, List<RichSpan.TipCandidate>> footnotes) {
         List<List<RichSpan>> header = new ArrayList<>();
         for (String cell : splitRow(lines[i])) header.add(parseInline(cell.trim(), footnotes));
         i += 2;
@@ -415,8 +396,7 @@ public final class ChronicleMarkdownParser {
                     if (candidates == null) {
                         out.add(new RichSpan.Text("[^" + id + "]", currentStyle));
                     } else if (candidates.size() == 1 && candidates.get(0).condition() == null) {
-                        // The common case (a single, unconditioned definition) stays a plain Tip --
-                        // no per-render resolution needed, identical to before this feature existed.
+
                         out.add(new RichSpan.Tip("[" + id + "]", tipStyle, candidates.get(0).tooltip()));
                     } else {
                         out.add(new RichSpan.ConditionalTip("[" + id + "]", tipStyle, candidates));

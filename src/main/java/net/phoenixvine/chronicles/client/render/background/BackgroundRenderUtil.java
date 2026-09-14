@@ -18,12 +18,14 @@ public final class BackgroundRenderUtil {
 
     private BackgroundRenderUtil() {}
 
-    public static void drawShaderQuad(@NotNull GuiGraphics g, ShaderInstance shader, @NotNull ResourceLocation baseTexture,
+    public static void drawShaderQuad(@NotNull GuiGraphics g, ShaderInstance shader,
+                                      @NotNull ResourceLocation baseTexture,
                                       int x, int y, int size, float timeSeconds) {
         drawShaderQuad(g, shader, baseTexture, x, y, size, timeSeconds, 1f);
     }
 
-    public static void drawShaderQuad(@NotNull GuiGraphics g, @Nullable ShaderInstance shader, @NotNull ResourceLocation baseTexture,
+    public static void drawShaderQuad(@NotNull GuiGraphics g, @Nullable ShaderInstance shader,
+                                      @NotNull ResourceLocation baseTexture,
                                       int x, int y, int size, float timeSeconds, float scale) {
         if (shader == null) return;
 
@@ -54,7 +56,8 @@ public final class BackgroundRenderUtil {
         RenderSystem.disableBlend();
     }
 
-    public static void drawDynamicShaderQuad(@NotNull GuiGraphics g, @Nullable ShaderInstance shader, int x, int y, int w, int h,
+    public static void drawDynamicShaderQuad(@NotNull GuiGraphics g, @Nullable ShaderInstance shader, int x, int y,
+                                             int w, int h,
                                              float timeSeconds) {
         if (shader == null || w <= 0 || h <= 0) return;
 

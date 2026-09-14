@@ -80,7 +80,7 @@ public final class BackgroundEffects {
         };
     }
 
-    public static @NotNull BackgroundEffect colorCycle(float speedHz, int @NotNull ... colors) {
+    public static @NotNull BackgroundEffect colorCycle(float speedHz, int @NotNull... colors) {
         if (colors.length == 0) return solid(0);
         if (colors.length == 1) return solid(colors[0]);
         return (nx, ny, dist, angle, animTick) -> {

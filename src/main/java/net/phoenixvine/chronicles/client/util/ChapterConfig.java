@@ -42,7 +42,8 @@ public class ChapterConfig {
 
         public CanvasOverride() {}
 
-        public CanvasOverride(@Nullable String condition, @Nullable BgStyle style, @Nullable String texture, @Nullable String shaderId) {
+        public CanvasOverride(@Nullable String condition, @Nullable BgStyle style, @Nullable String texture,
+                              @Nullable String shaderId) {
             this.condition = condition != null ? condition : "";
             this.style = style != null ? style : BgStyle.DOT_GRID;
             this.texture = texture != null ? texture : "";

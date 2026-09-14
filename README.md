@@ -1,36 +1,41 @@
-# GregTech Addon Template
-## Template for GregTech Modern addons on 1.20.1
+# Phoenix Chronicles
 
- Original template by [screret](https://github.com/screret), maintained by [JuiceyBeans](https://github.com/JuiceyBeans)
+# Logo 
 
-<hr>
+## Wiki link
 
-## How do I make an addon for GregTech Modern?
-Well for one, you WILL need to know Java to make an addon. There's no getting around this. A good starting point would be [MOOC](https://java-programming.mooc.fi/) or [W3Schools](https://www.w3schools.com/java/
-)
+# Small except explaining what chronicles is.
 
-Unfortunately, there isn't any official documentation so far for making GregTech Modern addons. There are a couple of mods you can look at to reference though!
+# Why you should use chronicles over alternatives.
 
-Repositories for other addons:
+# Getting started as a dev and/or packdev.
 
-- [GT Community Additions](https://github.com/mordgren/GTCA)
-- [MoniLabs](https://github.com/NegaNote/MoniLabs)
+# Major feature list.
+## Will probably contain some pictures.
 
-Additionally, you may be able to find help on the [GregTech CEu Discord](https://discord.gg/bWSWuYvURP)!
+# Roadmap
 
-<hr>
+# Explaining how it fits into the rest of the suite.
 
-## This template comes packaged with [Spotless](https://github.com/diffplug/spotless)!
+# Small snippt of the markdown of quests.
 
-### 1. What is Spotless?
-- Spotless keeps your code neatly formatted. It's essentially a grammar check for your code!
-### 2. Can I choose not to use Spotless?
-- Yes! Spotless is completely optional and will not affect your project by default
-### 3. How do I run Spotless?
-- You can run Spotless anytime by:
-  - Running the `spotlessApply` task from the Gradle tab in IntelliJ
-  - Installing the [Spotless Gradle plugin for IntelliJ](https://plugins.jetbrains.com/plugin/18321-spotless-gradle)
-  - Typing in `gradlew.bat :spotlessApply` if you're on Windows
-  - Typing in `bash gradlew :spotlessApply` if you're on Linux
-### 4. So how do I check if Spotless has been applied to my code?
-- Running `spotlessApply` will format all files for you automatically! If you want GitHub to check each commit for if Spotless has been run, you can add [this](https://github.com/Frontiers-PackForge/CosmicCore/blob/main-1.20.1-forge/.github/workflows/spotless.yml) and [this](https://github.com/Frontiers-PackForge/CosmicCore/blob/main-1.20.1-forge/.github/actions/build_setup/action.yml) to your project
+# Claiming to be an omind project.
+
+# Credits
+
+# Ai disclosure.
+
+# Discord link.
+
+# Where to go next.
+Contributing
+See CONTRIBUTING.md.
+
+Architecture Decisions 
+See Architecture.md.
+
+Frequently Asked Questions
+See FAQ.md
+
+Known Issues
+See KNOWN-ISSUES.md

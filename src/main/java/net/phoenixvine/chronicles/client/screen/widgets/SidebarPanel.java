@@ -151,7 +151,8 @@ public class SidebarPanel {
         closeContextMenu();
     }
 
-    public void renderContextMenu(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int screenW, int screenH, @NotNull Colors colors) {
+    public void renderContextMenu(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int screenW, int screenH,
+                                  @NotNull Colors colors) {
         if (ctxActions == null) return;
         int h = ctxActions.size() * CTX_ROW_H + 4;
         int x = Math.min(ctxX, screenW - CTX_MENU_W - 2);
@@ -256,7 +257,8 @@ public class SidebarPanel {
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
-    public @NotNull List<SidebarRow> buildRows(@NotNull Function<String, String> friendly, @NotNull Function<String, int[]> progressLookup,
+    public @NotNull List<SidebarRow> buildRows(@NotNull Function<String, String> friendly,
+                                               @NotNull Function<String, int[]> progressLookup,
                                                @NotNull List<String> cats) {
         List<SidebarRow> rows = new ArrayList<>();
         int y = HEADER_H + 16 - scrollY;
@@ -306,7 +308,8 @@ public class SidebarPanel {
         return rows;
     }
 
-    private int emitSubChapters(@NotNull List<SidebarRow> rows, String parent, @NotNull Map<String, List<String>> childrenOf,
+    private int emitSubChapters(@NotNull List<SidebarRow> rows, String parent,
+                                @NotNull Map<String, List<String>> childrenOf,
                                 int y, boolean inFolder, @NotNull Function<String, String> friendly,
                                 @NotNull Function<String, int[]> progressLookup) {
         List<String> children = childrenOf.get(parent);
@@ -335,7 +338,8 @@ public class SidebarPanel {
         return Math.max(0, (newCatBtnY(height) - 6) - (HEADER_H + 1 + SIDEBAR_COLLAPSE_TOGGLE_H));
     }
 
-    public int contentHeight(int height, @NotNull Function<String, String> friendly, @NotNull Function<String, int[]> progressLookup,
+    public int contentHeight(int height, @NotNull Function<String, String> friendly,
+                             @NotNull Function<String, int[]> progressLookup,
                              @NotNull List<String> cats) {
         int saved = scrollY;
         scrollY = 0;
@@ -360,8 +364,10 @@ public class SidebarPanel {
     }
 
     public void handleDrop(@NotNull SidebarRow source, int mx, int my, @NotNull Function<String, String> friendly,
-                           @NotNull Function<String, int[]> progressLookup, @NotNull Supplier<List<String>> buildChapterList,
-                           @NotNull Consumer<String> setFeedback, @NotNull Runnable rebuild, @NotNull List<String> cats) {
+                           @NotNull Function<String, int[]> progressLookup,
+                           @NotNull Supplier<List<String>> buildChapterList,
+                           @NotNull Consumer<String> setFeedback, @NotNull Runnable rebuild,
+                           @NotNull List<String> cats) {
         List<SidebarRow> rows = buildRows(friendly, progressLookup, cats);
         SidebarRow target = rowAt(rows, mx, my);
 
@@ -476,10 +482,13 @@ public class SidebarPanel {
                 (int) (bb + (ob - bb) * a);
     }
 
-    public void renderPanel(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int height, @NotNull Colors colors,
+    public void renderPanel(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int height,
+                            @NotNull Colors colors,
                             boolean devMode, String selectedChapter, @NotNull Function<String, String> friendly,
-                            @NotNull Function<String, int[]> progressLookup, @NotNull Function<String, Boolean> attentionLookup,
-                            @NotNull Function<String, Boolean> rewardsLookup, @NotNull Consumer<Runnable> deferDraw, @NotNull List<String> cats) {
+                            @NotNull Function<String, int[]> progressLookup,
+                            @NotNull Function<String, Boolean> attentionLookup,
+                            @NotNull Function<String, Boolean> rewardsLookup, @NotNull Consumer<Runnable> deferDraw,
+                            @NotNull List<String> cats) {
         g.fill(0, HEADER_H, visualWidth() - 1, HEADER_H + 1, colors.border());
 
         int toggleY = HEADER_H + 1;
@@ -563,7 +572,8 @@ public class SidebarPanel {
         }
     }
 
-    private void renderTooltip(@NotNull GuiGraphics g, @NotNull Font font, int width, int height, @NotNull SidebarRow row, int mx, int my,
+    private void renderTooltip(@NotNull GuiGraphics g, @NotNull Font font, int width, int height,
+                               @NotNull SidebarRow row, int mx, int my,
                                @NotNull Colors colors, @NotNull Function<String, int[]> progressLookup) {
         String line1 = row.label();
         String line2 = null;
@@ -590,7 +600,8 @@ public class SidebarPanel {
         g.pose().popPose();
     }
 
-    private void renderFolderRow(@NotNull GuiGraphics g, @NotNull Font font, @NotNull SidebarRow row, int mx, int my, @NotNull Colors colors) {
+    private void renderFolderRow(@NotNull GuiGraphics g, @NotNull Font font, @NotNull SidebarRow row, int mx, int my,
+                                 @NotNull Colors colors) {
         int y = row.y(), h = row.height();
         boolean hov = mx >= 0 && mx < width() - 1 && my >= y && my < y + h;
         if (!drawRowShaderBg(g, CategoryShaderConfig.resolve(row.id()), y, h)) {
@@ -683,9 +694,11 @@ public class SidebarPanel {
         }
     }
 
-    private void renderCatRow(@NotNull GuiGraphics g, @NotNull Font font, @NotNull SidebarRow row, int mx, int my, @NotNull Colors colors,
+    private void renderCatRow(@NotNull GuiGraphics g, @NotNull Font font, @NotNull SidebarRow row, int mx, int my,
+                              @NotNull Colors colors,
                               boolean devMode, String selectedChapter, @NotNull Function<String, int[]> progressLookup,
-                              @NotNull Function<String, Boolean> attentionLookup, @NotNull Function<String, Boolean> rewardsLookup) {
+                              @NotNull Function<String, Boolean> attentionLookup,
+                              @NotNull Function<String, Boolean> rewardsLookup) {
         String cat = row.id();
         int y = row.y(), h = row.height();
 
@@ -751,7 +764,8 @@ public class SidebarPanel {
         }
     }
 
-    public void renderNewChapterButton(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int height, boolean devMode,
+    public void renderNewChapterButton(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int height,
+                                       boolean devMode,
                                        @NotNull Colors colors) {
         if (!devMode) return;
         int x = 4, y = newCatBtnY(height), w = width() - 9, h = 14;
@@ -769,7 +783,8 @@ public class SidebarPanel {
         }
     }
 
-    public void renderGear(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int height, boolean devMode,
+    public void renderGear(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int height,
+                           boolean devMode,
                            @NotNull Colors colors, @NotNull Consumer<Runnable> deferDraw) {
         int gx = width() - GEAR_SIZE - 4;
         int gy = gearY(height);

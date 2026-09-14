@@ -272,7 +272,8 @@ public class PlayerQuestData {
         }
     }
 
-    private static void readCompoundList(CompoundTag root, String key, java.util.function.Consumer<CompoundTag> consumer) {
+    private static void readCompoundList(CompoundTag root, String key,
+                                         java.util.function.Consumer<CompoundTag> consumer) {
         for (Tag rawTag : root.getList(key, Tag.TAG_COMPOUND)) {
             if (rawTag instanceof CompoundTag compound) {
                 consumer.accept(compound);

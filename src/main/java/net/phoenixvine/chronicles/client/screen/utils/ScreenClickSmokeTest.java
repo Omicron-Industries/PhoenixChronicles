@@ -152,7 +152,8 @@ public final class ScreenClickSmokeTest {
         screen.mouseClicked(cx, cy, 0);
     }
 
-    private static void probeSidebar(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results, @NotNull String origChapter) {
+    private static void probeSidebar(@NotNull ChronicleOverviewScreen screen, @NotNull List<Result> results,
+                                     @NotNull String origChapter) {
         probe(results, "sidebar: collapse toggle (x2, restores)", () -> {
             SidebarPanel sp = screen.sidebarPanelInstance();
             boolean origCollapsed = sp.collapsed();
@@ -336,7 +337,8 @@ public final class ScreenClickSmokeTest {
                 () -> screen.keyPressed(GLFW.GLFW_KEY_Y, 0, ctrlMods));
     }
 
-    private static void pressKeybind(@NotNull ChronicleOverviewScreen screen, net.minecraft.client.@NotNull KeyMapping mapping) {
+    private static void pressKeybind(@NotNull ChronicleOverviewScreen screen,
+                                     net.minecraft.client.@NotNull KeyMapping mapping) {
         screen.keyPressed(mapping.getKey().getValue(), 0, 0);
     }
 

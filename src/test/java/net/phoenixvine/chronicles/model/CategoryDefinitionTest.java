@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.model;
 
 import net.phoenixvine.chronicles.common.model.CategoryDefinition;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

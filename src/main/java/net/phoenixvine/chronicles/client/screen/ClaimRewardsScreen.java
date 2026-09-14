@@ -11,10 +11,10 @@ import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SClaimAllRewardsPacket;
 import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
-import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import java.util.ArrayList;

@@ -4,22 +4,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
-import net.phoenixvine.chronicles.network.packet.C2SAcknowledgeInfoTasksPacket;
-import net.phoenixvine.chronicles.network.packet.C2SBulkQuestActionPacket;
-import net.phoenixvine.chronicles.network.packet.C2SClaimAllRewardsPacket;
-import net.phoenixvine.chronicles.network.packet.C2SClaimQuestRewardPacket;
-import net.phoenixvine.chronicles.network.packet.C2SCompleteCheckmarkTaskPacket;
-import net.phoenixvine.chronicles.network.packet.C2SPhantasiaTaskCompletePacket;
-import net.phoenixvine.chronicles.network.packet.C2SResolveChoiceBoxPacket;
-import net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket;
-import net.phoenixvine.chronicles.network.packet.C2SSetFilterTokenPacket;
-import net.phoenixvine.chronicles.network.packet.C2SSetQuestStatePacket;
-import net.phoenixvine.chronicles.network.packet.C2STogglePinPacket;
-import net.phoenixvine.chronicles.network.packet.S2COpenExternalScreenPacket;
-import net.phoenixvine.chronicles.network.packet.S2CReloadQuestsFromDiskPacket;
-import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
-import net.phoenixvine.chronicles.network.packet.S2CSyncPooledProgressPacket;
-import net.phoenixvine.chronicles.network.packet.S2CSyncQuestsPacket;
+import net.phoenixvine.chronicles.network.packet.*;
 
 import java.util.Optional;
 
@@ -150,10 +135,10 @@ public class ChronicleNetwork {
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
 
         CHANNEL.registerMessage(id++,
-                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket.class,
-                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket::encode,
-                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket::new,
-                net.phoenixvine.chronicles.network.packet.S2CSyncTeamKeyPacket::handle,
+                S2CSyncTeamKeyPacket.class,
+                S2CSyncTeamKeyPacket::encode,
+                S2CSyncTeamKeyPacket::new,
+                S2CSyncTeamKeyPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

@@ -3,6 +3,7 @@ package net.phoenixvine.chronicles.client.screen.widgets;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,8 +27,10 @@ public class ToolbarPanel {
 
     private final Map<String, int[]> btnBounds = new HashMap<>();
 
-    public void render(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int cl, int cr, int toolbarY, int toolbarH,
-                       @NotNull Colors colors, @NotNull String stateFilter, boolean hideCompleted, boolean minimapOpen, boolean devMode,
+    public void render(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int cl, int cr,
+                       int toolbarY, int toolbarH,
+                       @NotNull Colors colors, @NotNull String stateFilter, boolean hideCompleted, boolean minimapOpen,
+                       boolean devMode,
                        @NotNull Consumer<Runnable> deferDraw) {
         int ty = toolbarY;
         g.fill(0, ty, width, ty + toolbarH, colors.panelDark());
@@ -76,7 +79,8 @@ public class ToolbarPanel {
         return w;
     }
 
-    private void drawFilterPills(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int cl, int toolbarY, int toolbarH,
+    private void drawFilterPills(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int cl, int toolbarY,
+                                 int toolbarH,
                                  @NotNull String stateFilter, int maxX) {
         int px = cl + 4;
         int py = toolbarY + 2;
@@ -130,8 +134,10 @@ public class ToolbarPanel {
         return FILTER_KEYS.length;
     }
 
-    private int drawBtnR(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int rx, int ty, int toolbarH, @NotNull Colors colors,
-                         @NotNull String label, String key, @Nullable String tooltip, @NotNull Consumer<Runnable> deferDraw) {
+    private int drawBtnR(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int rx, int ty, int toolbarH,
+                         @NotNull Colors colors,
+                         @NotNull String label, String key, @Nullable String tooltip,
+                         @NotNull Consumer<Runnable> deferDraw) {
         int tw = font.width(label.replaceAll("§.", "")) + 10;
 
         int th = toolbarH - 4;

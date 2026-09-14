@@ -8,12 +8,12 @@ import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 import net.phoenixvine.chronicles.common.codec.QuestFileLoader;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
-import net.phoenixvine.chronicles.integration.archive.ArchiveLoreCompat;
 import net.phoenixvine.chronicles.common.model.QuestGroup;
 import net.phoenixvine.chronicles.common.model.QuestGroupManager;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestState;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.integration.archive.ArchiveLoreCompat;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

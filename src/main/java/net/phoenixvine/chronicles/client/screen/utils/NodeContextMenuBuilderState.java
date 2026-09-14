@@ -93,5 +93,6 @@ public interface NodeContextMenuBuilderState {
 
     int viewOffY();
 
-    @Nullable ChronicleOverviewScreen thisScreen();
+    @Nullable
+    ChronicleOverviewScreen thisScreen();
 }

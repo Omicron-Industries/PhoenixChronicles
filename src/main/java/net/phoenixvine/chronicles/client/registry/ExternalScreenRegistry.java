@@ -3,6 +3,7 @@ package net.phoenixvine.chronicles.client.registry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.common.model.QuestNode;
+
 import org.jetbrains.annotations.Nullable;
 
 import java.util.LinkedHashMap;

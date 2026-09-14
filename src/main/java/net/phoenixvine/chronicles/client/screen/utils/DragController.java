@@ -6,6 +6,7 @@ import net.phoenixvine.chronicles.client.render.*;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -168,7 +169,9 @@ public class DragController {
     public void renderDragSnapPosBox(@NotNull GuiGraphics g, int mx, int my) {
         if (editorState.draggedNode == null) return;
         int[] logPos = computeDraggedNodeSnapLogicalPos(mx, my, currentDragSnap());
-        String label = "X: " + logPos[0] + ", Y: " + logPos[1];
+
+        int half = editorState.draggedNode.getNodePixelSize() / 2;
+        String label = "X: " + (logPos[0] + half) + ", Y: " + (logPos[1] + half);
         int tw = ctx.font().width(label);
         int bx = mx + 14, by = my + 14;
         g.fill(bx - 3, by - 2, bx + tw + 3, by + 11, 0xCC101010);

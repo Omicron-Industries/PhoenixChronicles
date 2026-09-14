@@ -19,7 +19,6 @@ import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.common.model.*;
 import net.phoenixvine.chronicles.common.registry.QuestBackgroundRegistry;
-import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import org.jetbrains.annotations.Nullable;

@@ -1,9 +1,9 @@
 package net.phoenixvine.chronicles.common.registry;
 
 import net.minecraft.resources.ResourceLocation;
+import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestState;
 import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
-import net.phoenixvine.chronicles.common.model.QuestNode;
 
 import org.jetbrains.annotations.Nullable;
 

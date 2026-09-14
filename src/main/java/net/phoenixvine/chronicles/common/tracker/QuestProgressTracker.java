@@ -15,10 +15,10 @@ import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestState;
 import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.tasks.*;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.S2CSyncPlayerProgressPacket;
-import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import java.time.Instant;
 import java.time.LocalDate;

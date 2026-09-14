@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.client.profiler;
 
 import net.phoenixvine.chronicles.PhoenixChronicles;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

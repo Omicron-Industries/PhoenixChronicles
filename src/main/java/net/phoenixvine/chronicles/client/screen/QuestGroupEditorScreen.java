@@ -14,9 +14,9 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
-import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.common.model.QuestGroup;
 import net.phoenixvine.chronicles.common.model.QuestGroupManager;
+import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

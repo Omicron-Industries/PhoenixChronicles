@@ -6,6 +6,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.fml.ModList;
 import net.phoenix.core.conflux.research.ResearchTeamHelper;
 import net.phoenix.core.conflux.research.WorldResearchData;
+
 import org.jetbrains.annotations.NotNull;
 
 public final class ConfluxCompat {

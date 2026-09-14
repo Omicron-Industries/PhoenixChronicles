@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.screen.utils;
 
 import net.minecraft.client.gui.screens.Screen;
 import net.phoenixvine.chronicles.common.model.QuestNode;
+
 import org.jetbrains.annotations.Nullable;
 
 public interface BulkOpsPanelState {
@@ -18,5 +19,6 @@ public interface BulkOpsPanelState {
 
     int colorBorderLit();
 
-    @Nullable Screen thisScreen();
+    @Nullable
+    Screen thisScreen();
 }

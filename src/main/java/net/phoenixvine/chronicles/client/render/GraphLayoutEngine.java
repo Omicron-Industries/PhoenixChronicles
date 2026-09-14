@@ -33,8 +33,9 @@ public class GraphLayoutEngine {
             for (QuestNode child : node.getChildren()) placeNodeRecursive(child, cl, cr);
             return;
         }
-        int cx = node.getCustomX() != 0 ? node.getCustomX() : 20;
-        int cy = node.getCustomY() != 0 ? node.getCustomY() : 40;
+
+        int cx = node.getCustomX();
+        int cy = node.getCustomY();
 
         int sz = scaledNodeSize(node);
         int sx = (int) (cx * ctx.posZoom()) + dragState.viewOffX() + cl;

@@ -4,11 +4,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
-import net.phoenixvine.chronicles.common.tracker.TutorialStep;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+import net.phoenixvine.chronicles.common.tracker.TutorialStep;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -544,6 +544,7 @@ public class QuestFileSaver {
 
     public static void restoreRawSnbt(QuestNode node, String content) {
         if (content == null || content.isEmpty()) return;
+        QuestFileWatcher.suppressNextReload();
         try {
             Path p = getQuestSnbtPath(node);
             Files.createDirectories(p.getParent());

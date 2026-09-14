@@ -14,8 +14,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
-import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.integration.curios.CuriosCompat;
 
 import java.util.HashMap;
 import java.util.Map;

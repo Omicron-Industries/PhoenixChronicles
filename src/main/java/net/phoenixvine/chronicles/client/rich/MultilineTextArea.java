@@ -10,7 +10,6 @@ import net.minecraft.client.gui.components.Whence;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 
@@ -56,6 +55,10 @@ public class MultilineTextArea extends AbstractWidget {
         textField.setValue(v == null ? "" : v);
     }
 
+    public void seekToStart() {
+        textField.seekCursor(Whence.ABSOLUTE, 0);
+    }
+
     public String getValue() {
         return textField.value();
     }
@@ -68,17 +71,31 @@ public class MultilineTextArea extends AbstractWidget {
         if (responder != null) responder.accept(getValue());
     }
 
+    private int[] selectionBounds(String full, String sel) {
+        int cursor = textField.cursor();
+        int len = sel.length();
+        int candidateStart = cursor - len;
+        if (candidateStart >= 0 && full.regionMatches(candidateStart, sel, 0, len)) {
+            return new int[] { candidateStart, cursor };
+        }
+        int candidateEnd = cursor + len;
+        if (candidateEnd <= full.length() && full.regionMatches(cursor, sel, 0, len)) {
+            return new int[] { cursor, candidateEnd };
+        }
+
+        int idx = full.indexOf(sel);
+        return idx != -1 ? new int[] { idx, idx + len } : new int[] { cursor, cursor };
+    }
+
     public void forceInsert(String text) {
         String full = textField.value();
         int cursor = textField.cursor();
         int start = cursor, end = cursor;
         if (textField.hasSelection()) {
             String sel = textField.getSelectedText();
-            int idx = full.indexOf(sel);
-            if (idx != -1) {
-                start = idx;
-                end = idx + sel.length();
-            }
+            int[] bounds = selectionBounds(full, sel);
+            start = bounds[0];
+            end = bounds[1];
         }
         String updated = full.substring(0, start) + text + full.substring(end);
         if (updated.length() <= maxLength) {
@@ -112,14 +129,31 @@ public class MultilineTextArea extends AbstractWidget {
                     if (rawLine.isEmpty()) {
                         lines.add(new LinePos(currentIndex, currentIndex, ""));
                     } else {
-                        final int lineStart = currentIndex;
-                        font.getSplitter().splitLines(rawLine, width - 12, Style.EMPTY, false,
-                                (style, s, e) -> {
-                                    int globalStart = lineStart + s;
-                                    int globalEnd = lineStart + e;
-                                    lines.add(new LinePos(globalStart, globalEnd,
-                                            disp.substring(globalStart, globalEnd)));
-                                });
+
+                        int maxWidth = width - 12;
+                        int segStart = 0;
+                        int lastBreak = -1;
+                        int segW = 0;
+                        int i = 0;
+                        while (i < rawLine.length()) {
+                            int cw = font.width(String.valueOf(rawLine.charAt(i)));
+                            if (segW + cw > maxWidth && i > segStart) {
+                                int breakAt = lastBreak > segStart ? lastBreak : i;
+                                lines.add(new LinePos(currentIndex + segStart, currentIndex + breakAt,
+                                        disp.substring(currentIndex + segStart, currentIndex + breakAt)));
+                                segStart = breakAt;
+                                while (segStart < rawLine.length() && rawLine.charAt(segStart) == ' ') segStart++;
+                                i = segStart;
+                                segW = 0;
+                                lastBreak = -1;
+                                continue;
+                            }
+                            if (rawLine.charAt(i) == ' ') lastBreak = i + 1;
+                            segW += cw;
+                            i++;
+                        }
+                        lines.add(new LinePos(currentIndex + segStart, currentIndex + rawLine.length(),
+                                disp.substring(currentIndex + segStart, currentIndex + rawLine.length())));
                     }
                     currentIndex += rawLine.length() + 1;
                 }
@@ -169,8 +203,9 @@ public class MultilineTextArea extends AbstractWidget {
 
         if (textField.hasSelection()) {
             String sel = textField.getSelectedText().replace('§', '&');
-            int selStart = disp.indexOf(sel);
-            int selEnd = selStart + sel.length();
+            int[] bounds = selectionBounds(disp, sel);
+            int selStart = bounds[0];
+            int selEnd = bounds[1];
             for (int i = 0; i < lines.size(); i++) {
                 LinePos line = lines.get(i);
                 int lineY = textY + (i - scrollLines) * 9;

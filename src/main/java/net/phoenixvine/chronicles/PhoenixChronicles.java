@@ -1,5 +1,6 @@
 package net.phoenixvine.chronicles;
 
+import com.gregtechceu.gtceu.api.data.tag.TagPrefix;
 import com.gregtechceu.gtceu.api.registry.registrate.GTRegistrate;
 
 import net.minecraft.resources.ResourceLocation;
@@ -18,9 +19,9 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.phoenixvine.chronicles.client.ChronicleShaders;
 import net.phoenixvine.chronicles.client.ChroniclesClient;
 import net.phoenixvine.chronicles.client.registry.ChroniclesLangPack;
+import net.phoenixvine.chronicles.common.item.ChronicleItems;
 import net.phoenixvine.chronicles.integration.gtceu.GTCEuCompat;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
-import net.phoenixvine.chronicles.common.item.ChronicleItems;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
@@ -40,7 +41,6 @@ public class PhoenixChronicles {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
         ChronicleItems.ITEMS.register(modEventBus);
-
         modEventBus.addListener(this::commonSetup);
 
         if (FMLEnvironment.dist.isClient()) {

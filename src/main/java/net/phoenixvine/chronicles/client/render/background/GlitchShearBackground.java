@@ -5,6 +5,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.ChronicleShaders;
 import net.phoenixvine.chronicles.client.render.IQuestBackground;
 import net.phoenixvine.chronicles.common.model.QuestNode;
+
 import org.jetbrains.annotations.NotNull;
 
 public class GlitchShearBackground implements IQuestBackground {

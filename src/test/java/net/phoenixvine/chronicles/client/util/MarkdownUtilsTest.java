@@ -16,7 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MarkdownUtilsTest {
 
-    private static @NotNull Path write(@NotNull Path dir, @NotNull String name, @NotNull String content) throws IOException {
+    private static @NotNull Path write(@NotNull Path dir, @NotNull String name,
+                                       @NotNull String content) throws IOException {
         Path file = dir.resolve(name);
         Files.writeString(file, content, StandardCharsets.UTF_8);
         return file;

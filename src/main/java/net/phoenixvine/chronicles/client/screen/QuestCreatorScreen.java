@@ -14,11 +14,11 @@ import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.common.model.CategoryDefinition;
-import net.phoenixvine.chronicles.common.registry.*;
-import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.registry.*;
+import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
 import org.jetbrains.annotations.NotNull;
@@ -229,8 +229,10 @@ public class QuestCreatorScreen extends Screen {
         cachedSizeOverridePx = editingNode.getSizeOverridePx();
         cachedDevNotes = editingNode.getDevNotes();
         cachedPreviewMachineId = editingNode.getPreviewMachineId();
-        cachedPosX = editingNode.getCustomX();
-        cachedPosY = editingNode.getCustomY();
+        
+        int loadHalf = editingNode.getNodePixelSize() / 2;
+        cachedPosX = editingNode.getCustomX() + loadHalf;
+        cachedPosY = editingNode.getCustomY() + loadHalf;
         cachedPrerequisites.addAll(editingNode.getPrerequisites());
         idManuallySet = true;
         initialized = true;
@@ -595,6 +597,17 @@ public class QuestCreatorScreen extends Screen {
 
     private String positionSizeSummary() {
         return "§f(" + cachedPosX + ", " + cachedPosY + ")";
+    }
+
+    private int currentPixelSize() {
+        if (cachedSizeOverridePx > 0) return cachedSizeOverridePx;
+        return switch (cachedNodeSize) {
+            case TINY -> 14;
+            case SMALL -> 18;
+            case LARGE -> 48;
+            case HUGE -> 64;
+            default -> 32;
+        };
     }
 
     private int buildTasksRewards(int y) {
@@ -1309,8 +1322,9 @@ public class QuestCreatorScreen extends Screen {
                     .getPath());
             if (cachedRequireAll != null) tag.putBoolean("require_all_prereqs", cachedRequireAll);
             if (cachedTaskMinCount > 0) tag.putInt("task_min_count", cachedTaskMinCount);
-            tag.putInt("positionX", cachedPosX);
-            tag.putInt("positionY", cachedPosY);
+            int previewHalf = currentPixelSize() / 2;
+            tag.putInt("positionX", cachedPosX - previewHalf);
+            tag.putInt("positionY", cachedPosY - previewHalf);
             if (cachedRepeatMode != QuestNode.RepeatMode.NONE) {
                 tag.putString("repeat_mode", cachedRepeatMode.name());
                 if (cachedRepeatMode == QuestNode.RepeatMode.COOLDOWN)
@@ -1390,7 +1404,8 @@ public class QuestCreatorScreen extends Screen {
                 if (cachedSizeOverridePx > 0) editingNode.setSizeOverridePx(cachedSizeOverridePx);
                 editingNode.setDevNotes(cachedDevNotes.trim());
                 editingNode.setPreviewMachineId(cachedPreviewMachineId.trim());
-                editingNode.setCustomPosition(cachedPosX, cachedPosY);
+                int saveHalf = editingNode.getNodePixelSize() / 2;
+                editingNode.setCustomPosition(cachedPosX - saveHalf, cachedPosY - saveHalf);
                 if (!cachedIconItemId.isBlank()) editingNode.setIconItemById(cachedIconItemId.trim());
 
                 for (QuestNode existingPrereq : new ArrayList<>(editingNode.getPrerequisites())) {
@@ -1430,7 +1445,8 @@ public class QuestCreatorScreen extends Screen {
                 if (cachedSizeOverridePx > 0) node.setSizeOverridePx(cachedSizeOverridePx);
                 node.setDevNotes(cachedDevNotes.trim());
                 node.setPreviewMachineId(cachedPreviewMachineId.trim());
-                node.setCustomPosition(cachedPosX, cachedPosY);
+                int newHalf = node.getNodePixelSize() / 2;
+                node.setCustomPosition(cachedPosX - newHalf, cachedPosY - newHalf);
                 if (!cachedIconItemId.isBlank()) node.setIconItemById(cachedIconItemId.trim());
 
                 if (editingNode != null) {

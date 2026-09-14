@@ -23,8 +23,10 @@ class FakeScreenContext implements ScreenContext {
     int height = 600;
     int sidebarW = 120;
     float posZoom = 1.0f;
-    @NotNull String selectedChapter = "chapterA";
-    @NotNull List<String> chapterList = new ArrayList<>(List.of("ALL", "chapterA", "chapterB"));
+    @NotNull
+    String selectedChapter = "chapterA";
+    @NotNull
+    List<String> chapterList = new ArrayList<>(List.of("ALL", "chapterA", "chapterB"));
     final List<String> feedback = new ArrayList<>();
     final List<Runnable> pushedUndoActions = new ArrayList<>();
     final List<Runnable> pushedRedoActions = new ArrayList<>();

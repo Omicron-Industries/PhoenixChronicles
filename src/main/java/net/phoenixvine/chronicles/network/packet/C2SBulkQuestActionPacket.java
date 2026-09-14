@@ -8,9 +8,9 @@ import net.phoenixvine.chronicles.capability.QuestCapabilityProvider;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestState;
 import net.phoenixvine.chronicles.common.model.QuestTask;
-import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
+import net.phoenixvine.chronicles.network.ChronicleNetwork;
 
 import java.util.ArrayList;
 import java.util.List;

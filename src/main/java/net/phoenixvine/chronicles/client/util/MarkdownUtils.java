@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.util;
 
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.common.model.FullQuestData;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;

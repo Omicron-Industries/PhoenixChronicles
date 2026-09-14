@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.screen.utils;
 
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
+
 import org.jetbrains.annotations.NotNull;
 
 public class PaletteState {

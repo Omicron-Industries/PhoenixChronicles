@@ -3,9 +3,9 @@ package net.phoenixvine.chronicles.client.screen.widgets;
 import net.minecraft.client.gui.GuiGraphics;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
+import net.phoenixvine.chronicles.common.model.*;
 import net.phoenixvine.chronicles.common.model.QuestGroupManager;
 import net.phoenixvine.chronicles.common.model.QuestNode;
-import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -46,7 +46,8 @@ public class StatsPanel implements TogglePanel {
     }
 
     @Override
-    public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+    public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft,
+                       int contentRight) {
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
         g.flush();

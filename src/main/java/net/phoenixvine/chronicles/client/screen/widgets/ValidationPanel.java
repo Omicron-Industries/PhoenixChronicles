@@ -5,11 +5,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
+import net.phoenixvine.chronicles.common.model.*;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestTask;
-import net.phoenixvine.chronicles.model.*;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.tasks.ItemRequirementTask;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -98,7 +99,8 @@ public class ValidationPanel implements TogglePanel {
     }
 
     @Override
-    public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+    public void render(@NotNull ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft,
+                       int contentRight) {
         g.pose().pushPose();
         g.pose().translate(0f, 0f, 200f);
         g.flush();

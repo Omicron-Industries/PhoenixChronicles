@@ -7,6 +7,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.client.screen.LangEditorScreen;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;

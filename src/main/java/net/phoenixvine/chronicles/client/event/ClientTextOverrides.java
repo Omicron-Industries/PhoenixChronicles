@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.client.event;
 
 import net.minecraft.client.Minecraft;
+
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;

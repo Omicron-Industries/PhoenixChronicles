@@ -14,9 +14,9 @@ import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.render.background.BackgroundRenderUtil;
 import net.phoenixvine.chronicles.client.render.shader.DynamicShaderManager;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
-import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 import net.phoenixvine.chronicles.common.model.CategoryDefinition;
 import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
+import net.phoenixvine.chronicles.common.registry.QuestLangRegistry;
 
 import org.jetbrains.annotations.NotNull;
 

@@ -88,7 +88,8 @@ public class PictureContextMenu implements TogglePanel {
     }
 
     @Override
-    public void render(ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft, int contentRight) {
+    public void render(ScreenContext ctx, @NotNull GuiGraphics g, int mouseX, int mouseY, int contentLeft,
+                       int contentRight) {
         render(g, mouseX, mouseY);
     }
 

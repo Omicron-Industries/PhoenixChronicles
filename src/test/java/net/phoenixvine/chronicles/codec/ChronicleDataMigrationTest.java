@@ -1,6 +1,7 @@
 package net.phoenixvine.chronicles.codec;
 
 import net.phoenixvine.chronicles.common.codec.ChronicleDataMigration;
+
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

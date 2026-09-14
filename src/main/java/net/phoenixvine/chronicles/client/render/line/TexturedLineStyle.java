@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.render.line;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
+
 import org.jetbrains.annotations.NotNull;
 
 public class TexturedLineStyle implements IDependencyLineStyle {

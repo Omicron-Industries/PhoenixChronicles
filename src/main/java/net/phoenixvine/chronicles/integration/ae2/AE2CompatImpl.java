@@ -132,7 +132,8 @@ final class AE2CompatImpl {
                 key -> key instanceof AEFluidKey fluidKey && filter.test(fluidKey.toStack(1)), amount);
     }
 
-    private static long tryConsumeMatching(@NotNull Player player, java.util.function.@NotNull Predicate<AEKey> matcher, long amount) {
+    private static long tryConsumeMatching(@NotNull Player player, java.util.function.@NotNull Predicate<AEKey> matcher,
+                                           long amount) {
         if (amount <= 0) return 0;
         IGrid grid = getLinkedGrid(player);
         if (grid == null) return 0;

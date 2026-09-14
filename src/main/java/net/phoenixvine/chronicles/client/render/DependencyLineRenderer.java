@@ -7,10 +7,11 @@ import net.phoenixvine.chronicles.client.profiler.FrameProfiler;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
-import net.phoenixvine.chronicles.common.registry.DependencyLineStyleRegistry;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestState;
+import net.phoenixvine.chronicles.common.registry.DependencyLineStyleRegistry;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
+
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
