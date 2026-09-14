@@ -7,13 +7,6 @@ import net.minecraft.world.entity.player.Player;
 import net.phoenixvine.chronicles.capability.TaskProgressAccess;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 
-/**
- * Completes when the player views a specific Phoenix Archive lore entry -- the Chronicles-side half
- * of the Archive/Chronicles deep link (Archive's own "chronicles_quest" condition + View Lore menu
- * item is the reverse direction). Structurally a copy of {@link ViewGuideTask} (same sticky-complete-
- * on-view semantics, same NBT shape), just pointing at an Archive entry id instead of a Phantasia
- * guide id.
- */
 public class ArchiveEntryTask extends QuestTask {
 
     private String archiveEntryId;

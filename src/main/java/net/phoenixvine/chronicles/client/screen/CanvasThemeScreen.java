@@ -36,9 +36,7 @@ public class CanvasThemeScreen extends Screen {
     private static final int ADV_ROW_GAP = 4;
     private static final int ADV_BLOCK_H = FIELD_H * 4 + 2 * 3 + ADV_ROW_GAP;
     private static final int ADV_BOTTOM_PAD = 6;
-    // Up to this many overrides, the panel just grows to fit (same as before) -- beyond it, the
-    // viewport caps at this many rows and scrolls instead, so adding/removing an override no
-    // longer resizes (and re-centers) the whole panel once the list is already long.
+
     private static final int ADV_VISIBLE_ROWS = 2;
     private static final int ADV_SCROLLBAR_W = 3;
 

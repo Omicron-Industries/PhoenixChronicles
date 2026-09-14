@@ -33,12 +33,6 @@ public final class PhoenixQuestFlags {
         providers.put(provider.prefix(), provider);
     }
 
-    /**
-     * Both maps are keyed first by team key (see TeamKeyResolver -- "guild:<id>" / "ftbteam:<id>" /
-     * "sb:<name>"), then by flag name. {@link #GLOBAL} is the bucket for the plain (non-team-scoped)
-     * {@code setFlag}/{@code registerCondition} overloads packs already use -- unaffected by any of
-     * this, since a lookup always falls back to GLOBAL when there's no team-scoped value.
-     */
     private static final String GLOBAL = "";
     private static final Map<String, Map<String, Boolean>> staticFlags = new ConcurrentHashMap<>();
     private static final Map<String, Map<String, BooleanSupplier>> conditions = new ConcurrentHashMap<>();
@@ -48,7 +42,6 @@ public final class PhoenixQuestFlags {
         setFlag(GLOBAL, name, value);
     }
 
-    /** Team-scoped variant of {@link #setFlag(String, boolean)} -- {@code teamKey} from TeamKeyResolver. */
     public static void setFlag(String teamKey, String name, boolean value) {
         staticFlags.computeIfAbsent(bucket(teamKey), k -> new ConcurrentHashMap<>()).put(name, value);
         Map<String, BooleanSupplier> teamConditions = conditions.get(bucket(teamKey));
@@ -59,7 +52,6 @@ public final class PhoenixQuestFlags {
         registerCondition(GLOBAL, name, condition);
     }
 
-    /** Team-scoped variant of {@link #registerCondition(String, BooleanSupplier)}. */
     public static void registerCondition(String teamKey, String name, BooleanSupplier condition) {
         Map<String, Boolean> teamFlags = staticFlags.get(bucket(teamKey));
         if (teamFlags != null) teamFlags.remove(name);
@@ -70,7 +62,6 @@ public final class PhoenixQuestFlags {
         clearFlag(GLOBAL, name);
     }
 
-    /** Team-scoped variant of {@link #clearFlag(String)}. */
     public static void clearFlag(String teamKey, String name) {
         Map<String, Boolean> teamFlags = staticFlags.get(bucket(teamKey));
         if (teamFlags != null) teamFlags.remove(name);
@@ -78,24 +69,14 @@ public final class PhoenixQuestFlags {
         if (teamConditions != null) teamConditions.remove(name);
     }
 
-    /**
-     * Sets a flag scoped to whichever team {@code player} belongs to (or, if they're on no team, to
-     * just that player) -- the ergonomic entry point for KubeJS/event code reacting to *one player's*
-     * action (crafting an item, holding a nether star, ...), where calling the plain global {@link
-     * #setFlag(String, boolean)} would wrongly flip that flag on for every other team on the server too.
-     * Uses the exact same scope key {@link #evaluate} resolves for that player, so a flag set here is
-     * read back correctly by a bare {@code flag:<name>} (or {@code :::if flag:<name>}) check.
-     */
     public static void setFlagForPlayer(Player player, String name, boolean value) {
         setFlag(resolveScopeKey(player), name, value);
     }
 
-    /** Player/team-scoped variant of {@link #registerCondition(String, BooleanSupplier)}. */
     public static void registerConditionForPlayer(Player player, String name, BooleanSupplier condition) {
         registerCondition(resolveScopeKey(player), name, condition);
     }
 
-    /** Player/team-scoped variant of {@link #clearFlag(String)}. */
     public static void clearFlagForPlayer(Player player, String name) {
         clearFlag(resolveScopeKey(player), name);
     }
@@ -104,15 +85,6 @@ public final class PhoenixQuestFlags {
         return (teamKey == null || teamKey.isEmpty()) ? GLOBAL : teamKey;
     }
 
-    /**
-     * The scope a flag/condition should live under for {@code player}: their team key (see
-     * TeamKeyResolver) if they're on one, otherwise a key unique to just that player -- so a solo
-     * player's flags don't leak onto the global bucket (and every other solo player) either. The same
-     * resolution runs on both sides: server-side via a live TeamKeyResolver lookup, client-side via the
-     * value synced down by S2CSyncTeamKeyPacket (team membership itself needs the server's data; the
-     * per-player fallback needs nothing but the player's own UUID, which is available on both sides
-     * without any sync).
-     */
     public static String resolveScopeKey(Player player) {
         String teamKey = TeamKeyResolver.resolveAny(player).orElse(null);
         return teamKey != null ? teamKey : "player:" + player.getUUID();
@@ -134,12 +106,6 @@ public final class PhoenixQuestFlags {
         return evaluate(expression, server, null, context);
     }
 
-    /**
-     * Player-aware overload -- only needed for provider prefixes whose state is per-player/team (see
-     * {@link QuestFlagProvider#evaluate(String, MinecraftServer, Player)}), currently just {@code
-     * conflux:}. Everywhere else {@code player} is unused and safe to pass {@code null} (or just call
-     * one of the player-less overloads).
-     */
     public static boolean evaluate(@Nullable String expression, @Nullable MinecraftServer server,
                                    @Nullable Player player, @Nullable String context) {
         String prev = currentContext;
@@ -199,7 +165,6 @@ public final class PhoenixQuestFlags {
         return evaluateStaticFlag(term, teamKey);
     }
 
-    /** Team-scoped lookup first (if {@code teamKey} is non-null), falling back to the GLOBAL bucket. */
     private static boolean evaluateStaticFlag(String name, @Nullable String teamKey) {
         if (teamKey != null) {
             Map<String, Boolean> teamFlags = staticFlags.get(teamKey);
@@ -229,12 +194,6 @@ public final class PhoenixQuestFlags {
         return true;
     }
 
-    /**
-     * Human-readable diagnostic for testing/debugging flag scoping (see the "chronicles flag" command)
-     * -- shows {@code player}'s resolved scope key and what the {@code flag:<name>} lookup finds at
-     * each tier (scoped, then global), so a tester can confirm at a glance whether a flag actually is
-     * (or isn't) leaking across teams instead of guessing from behavior alone.
-     */
     public static String describeFlag(Player player, String name) {
         String scopeKey = resolveScopeKey(player);
         Map<String, Boolean> scopedFlags = staticFlags.get(scopeKey);

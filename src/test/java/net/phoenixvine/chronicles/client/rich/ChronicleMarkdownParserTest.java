@@ -217,9 +217,7 @@ class ChronicleMarkdownParserTest {
 
     @Test
     void singleUnconditionedFootnoteVariantStaysAPlainTip() {
-        // A footnote with only one, unconditioned definition must keep resolving to a plain Tip --
-        // ConditionalTip is only used once there's an actual condition or multiple candidates to pick
-        // between, so ordinary quests written before this feature existed render identically.
+
         List<RichBlock> blocks = ChronicleMarkdownParser.parse("See note[^1].\n\n[^1]: Just the detail.");
         RichBlock.Paragraph p = assertInstanceOf(RichBlock.Paragraph.class, blocks.get(0));
         assertInstanceOf(RichSpan.Tip.class, p.spans().get(1));

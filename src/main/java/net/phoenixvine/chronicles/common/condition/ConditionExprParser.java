@@ -8,33 +8,12 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Parses (and renders back) the small boolean-expression language used for {@code :::if} markdown
- * blocks: {@code AND} / {@code OR} / {@code NOT} (case-insensitive keywords) and parens over
- * {@code type:value} leaves, e.g.
- * 
- * <pre>
- *   quest:main/forge AND (quest_unlocked:main/reactor OR quest_progress:main/reactor>=50)
- *   AND NOT quest:main/reactor_meltdown
- * </pre>
- * 
- * OR binds loosest, then AND, then NOT, then parens/leaves. A leaf's value may itself contain colons
- * (namespaced quest ids); only the first colon in a token splits its type from its value.
- *
- * <p>
- * Ported verbatim from Phoenix Archive's condition engine -- this class has no dependency on
- * anything Chronicles- or Archive-specific, it just operates on {@link ConditionNode}.
- */
 public final class ConditionExprParser {
 
     private ConditionExprParser() {}
 
     private static final Pattern TOKEN = Pattern.compile("\\(|\\)|\\S+");
 
-    /**
-     * Parses {@code expr} into a tree; a blank string parses to {@link ConditionNode#EMPTY}. Throws
-     * {@link ConditionSyntaxException} with a human-readable message on malformed input.
-     */
     public static ConditionNode parse(@Nullable String expr) {
         if (expr == null || expr.isBlank()) return ConditionNode.EMPTY;
         Cursor c = new Cursor(tokenize(expr));
@@ -43,7 +22,6 @@ public final class ConditionExprParser {
         return node;
     }
 
-    /** Renders a tree back into this same syntax. */
     public static @NotNull String render(ConditionNode node) {
         return render(node, false);
     }

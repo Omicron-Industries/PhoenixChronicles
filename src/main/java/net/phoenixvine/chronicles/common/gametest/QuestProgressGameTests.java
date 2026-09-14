@@ -91,15 +91,6 @@ public class QuestProgressGameTests {
         }
     }
 
-    /**
-     * Regression test for the "one team holding a nether star unlocks the quest for everyone" bug
-     * class: setFlagForPlayer must scope the flag to the setting player alone (falling back to a
-     * per-player key here, since GameTestHelper#makeMockPlayer's mock is a plain Player, not a
-     * ServerPlayer -- TeamKeyResolver's guild/FTB-Team lookups never even run for it, so this
-     * specifically exercises the no-team fallback path; see guildMembersShareAScopedFlagButOutsidersDont
-     * below for the actual guild-sharing path), not leak it onto the global bucket every other
-     * player's evaluate() also checks.
-     */
     @GameTest(template = "gametest_empty", timeoutTicks = 200)
     public static void flagSetForOnePlayerDoesNotLeakToAnother(@NotNull GameTestHelper helper) {
         Player alice = helper.makeMockPlayer();
@@ -107,8 +98,7 @@ public class QuestProgressGameTests {
         String flagName = "gametest_has_nether_star";
 
         try {
-            // A known global baseline first -- otherwise bob's lookup would hit the "unknown flag
-            // defaults to true" fallback, which would mask a real leak as a false pass.
+
             PhoenixQuestFlags.setFlag(flagName, false);
             PhoenixQuestFlags.setFlagForPlayer(alice, flagName, true);
 
@@ -125,16 +115,6 @@ public class QuestProgressGameTests {
         }
     }
 
-    /**
-     * The actual guild-sharing path, which flagSetForOnePlayerDoesNotLeakToAnother above can't reach:
-     * this needs real {@link ServerPlayer}s (Phoenix Guilds' GuildManager keys off player UUIDs it
-     * looks up through a {@code ServerLevel}, and TeamKeyResolver only even attempts guild/FTB-Team
-     * resolution for an {@code instanceof ServerPlayer}), so it uses Forge's FakePlayer -- a real
-     * ServerPlayer subtype -- instead of GameTestHelper#makeMockPlayer's plain Player. Guild
-     * creation/membership itself needs no login/network flow, just GuildManager calls against the
-     * test's own ServerLevel, so this is fully self-contained and doesn't need a real multiplayer
-     * session to verify.
-     */
     @GameTest(template = "gametest_empty", timeoutTicks = 200)
     public static void guildMembersShareAScopedFlagButOutsidersDont(@NotNull GameTestHelper helper) {
         if (!ModList.get().isLoaded("phoenix_guilds")) {
