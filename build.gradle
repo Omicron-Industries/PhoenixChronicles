@@ -30,6 +30,10 @@ repositories {
         }
     }
     maven {
+        name = "Repsy"
+        url = uri("https://repo.repsy.io/mvn/user75142941/phoenixsuite")
+    }
+    maven {
         name 'FirstDarkDev'
         url "https://maven.firstdark.dev/snapshots/"
     }
@@ -174,7 +178,7 @@ dependencies {
     modCompileOnly('curse.maven:phoenix-guilds-1612085:8743646')
     modRuntimeOnly("curse.maven:phoenix-guilds-1612085:8743646")
 
-    modImplementation "net.phoenix.wiki:phoenix_wiki:0.1.0"
+    jarJar(modImplementation("net.phoenixvine.wiki:phoenix_wiki:0.2.3"))
 
     modCompileOnly("net.phoenix.phoenix_archive:phoenix_archive:${phoenix_archive_version}")
     modRuntimeOnly("net.phoenix.phoenix_archive:phoenix_archive:${phoenix_archive_version}")
