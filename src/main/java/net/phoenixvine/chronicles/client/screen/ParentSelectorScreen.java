@@ -71,7 +71,8 @@ public class ParentSelectorScreen extends Screen implements SuiteHudBar.Aware {
 
     private ParentSelectorScreen(Screen parentScreen, QuestNode editingNode, List<QuestNode> initiallySelected,
                                  Consumer<List<QuestNode>> onSelectionComplete, boolean singleSelect) {
-        super(Component.literal(singleSelect ? "Select Quest" : "Select Prerequisites"));
+        super(Component.translatable(singleSelect ? "phoenix_chronicles.screen.parent_selector.title_single" :
+                "phoenix_chronicles.screen.parent_selector.title_multi"));
         this.parentScreen = parentScreen;
         this.editingNode = editingNode;
         this.onSelectionComplete = onSelectionComplete;
@@ -100,7 +101,8 @@ public class ParentSelectorScreen extends Screen implements SuiteHudBar.Aware {
     }
 
     private String friendlyChapter(String chapter) {
-        if (chapter == null || chapter.isEmpty()) return "All Chapters";
+        if (chapter == null || chapter.isEmpty())
+            return net.minecraft.client.resources.language.I18n.get("phoenix_chronicles.ui.all_chapters");
         String resolved = ChapterConfig.getResolvedDisplayName(chapter);
         if (resolved != null) return resolved;
         StringBuilder sb = new StringBuilder();
@@ -147,8 +149,9 @@ public class ParentSelectorScreen extends Screen implements SuiteHudBar.Aware {
         this.resultButtons.clear();
         int midX = this.width / 2;
 
-        this.searchBox = new EditBox(this.font, midX - 140, 47, 280, 16, Component.literal("Search..."));
-        this.searchBox.setHint(Component.literal("§8Type to filter nodes..."));
+        this.searchBox = new EditBox(this.font, midX - 140, 47, 280, 16,
+                Component.translatable("phoenix_chronicles.screen.parent_selector.search_value"));
+        this.searchBox.setHint(Component.translatable("phoenix_chronicles.screen.parent_selector.search_hint"));
         this.searchBox.setValue(pendingQuery);
         this.searchBox.setResponder(this::updateSearchFilter);
         this.addRenderableWidget(this.searchBox);
@@ -156,17 +159,20 @@ public class ParentSelectorScreen extends Screen implements SuiteHudBar.Aware {
 
         int midXf = this.width / 2;
         if (singleSelect) {
-            this.addRenderableWidget(Button.builder(Component.literal("§7[ CANCEL ]"), b -> {
-                if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
-            }).bounds(midXf - 50, this.height - 28, 100, 20).build());
+            this.addRenderableWidget(
+                    Button.builder(Component.translatable("phoenix_chronicles.ui.cancel_bracketed"), b -> {
+                        if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
+                    }).bounds(midXf - 50, this.height - 28, 100, 20).build());
         } else {
-            this.addRenderableWidget(Button.builder(Component.literal("§a[ DONE ]"), b -> {
-                if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
-                this.onSelectionComplete.accept(new ArrayList<>(this.selected));
-            }).bounds(midXf - 105, this.height - 28, 100, 20).build());
-            this.addRenderableWidget(Button.builder(Component.literal("§7[ CANCEL ]"), b -> {
-                if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
-            }).bounds(midXf + 5, this.height - 28, 100, 20).build());
+            this.addRenderableWidget(
+                    Button.builder(Component.translatable("phoenix_chronicles.ui.done_bracketed"), b -> {
+                        if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
+                        this.onSelectionComplete.accept(new ArrayList<>(this.selected));
+                    }).bounds(midXf - 105, this.height - 28, 100, 20).build());
+            this.addRenderableWidget(
+                    Button.builder(Component.translatable("phoenix_chronicles.ui.cancel_bracketed"), b -> {
+                        if (this.minecraft != null) this.minecraft.setScreen(this.parentScreen);
+                    }).bounds(midXf + 5, this.height - 28, 100, 20).build());
         }
 
         rebuildResultButtons();

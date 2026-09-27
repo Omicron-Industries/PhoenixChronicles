@@ -109,6 +109,8 @@ public class S2CSyncQuestsPacket {
             String iconFluid = buf.readUtf();
             String backgroundType = buf.readUtf();
             String externalScreenId = buf.readUtf();
+            String unlockSoundId = buf.readUtf();
+            String completeSoundId = buf.readUtf();
 
             snapshotMap.put(id, new QuestSnapshot(
                     id, title, description, chapter, shapeType, iconItemId,
@@ -116,7 +118,8 @@ public class S2CSyncQuestsPacket {
                     childIds, prereqIds, prereqRequired, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, prereqLineStyleId,
                     optionalPrereqMinCount, tasksNbt, rewardsNbt, linkTarget, iconTexture, shapeTexture,
-                    nodeSize, sizeOverridePx, iconFluid, backgroundType, externalScreenId));
+                    nodeSize, sizeOverridePx, iconFluid, backgroundType, externalScreenId, unlockSoundId,
+                    completeSoundId));
         }
     }
 
@@ -178,6 +181,8 @@ public class S2CSyncQuestsPacket {
             buf.writeUtf(snap.iconFluid != null ? snap.iconFluid : "");
             buf.writeUtf(snap.backgroundType != null ? snap.backgroundType : "");
             buf.writeUtf(snap.externalScreenId != null ? snap.externalScreenId : "");
+            buf.writeUtf(snap.unlockSoundId != null ? snap.unlockSoundId : "");
+            buf.writeUtf(snap.completeSoundId != null ? snap.completeSoundId : "");
         }
     }
 
@@ -232,6 +237,8 @@ public class S2CSyncQuestsPacket {
         final String iconFluid;
         final String backgroundType;
         final String externalScreenId;
+        final String unlockSoundId;
+        final String completeSoundId;
 
         QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
             this.id = node.getId();
@@ -258,6 +265,8 @@ public class S2CSyncQuestsPacket {
             this.iconFluid = node.getIconFluid() != null ? node.getIconFluid() : "";
             this.backgroundType = node.getBackgroundType() != null ? node.getBackgroundType() : "";
             this.externalScreenId = node.getExternalScreenId() != null ? node.getExternalScreenId() : "";
+            this.unlockSoundId = node.getUnlockSoundId() != null ? node.getUnlockSoundId() : "";
+            this.completeSoundId = node.getCompleteSoundId() != null ? node.getCompleteSoundId() : "";
 
             this.childIds = new ArrayList<>();
             for (QuestNode child : node.getChildren()) {
@@ -334,7 +343,8 @@ public class S2CSyncQuestsPacket {
                       List<CompoundTag> tasksNbt, List<CompoundTag> rewardsNbt,
                       ResourceLocation linkTarget, String iconTexture, String shapeTexture,
                       String nodeSize, int sizeOverridePx, String iconFluid,
-                      String backgroundType, String externalScreenId) {
+                      String backgroundType, String externalScreenId, String unlockSoundId,
+                      String completeSoundId) {
             this.id = id;
             this.fullQuestData = new FullQuestData(title, description, null, new ArrayList<>(), new ArrayList<>());
             this.chapter = chapter;
@@ -369,6 +379,8 @@ public class S2CSyncQuestsPacket {
             this.iconFluid = iconFluid;
             this.backgroundType = backgroundType;
             this.externalScreenId = externalScreenId;
+            this.unlockSoundId = unlockSoundId;
+            this.completeSoundId = completeSoundId;
         }
     }
 
@@ -398,6 +410,8 @@ public class S2CSyncQuestsPacket {
                 node.setShapeTexture(snap.shapeTexture);
                 node.setBackgroundType(snap.backgroundType);
                 node.setExternalScreenId(snap.externalScreenId);
+                node.setUnlockSoundId(snap.unlockSoundId);
+                node.setCompleteSoundId(snap.completeSoundId);
                 try {
                     if (snap.nodeSize != null) node.setNodeSize(QuestNode.NodeSize.valueOf(snap.nodeSize));
                 } catch (Exception ignored) {}

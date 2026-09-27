@@ -130,7 +130,7 @@ Footnote example[^amps].
 
 ## Credits
 - Thanks to FTBQuests for some feature ideas and things to do a bit better.
-- Thanks to Omicron Industries (especially PlasmaticVoid) for their help in refining the project.
+- Thanks to PlasmaticVoid for their help in refining the project.
 - Thanks to [Jambon](https://github.com/Jambon123), FyreDrakon, and KaiTheExaminer
 for helping test out the mod and giving some suggestions.
 - Thanks to [Rose](https://github.com/Lilac-Rose) for adding porting over ftb quest player data. 

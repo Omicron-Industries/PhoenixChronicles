@@ -47,9 +47,9 @@ public class ChapterThemeScreen extends Screen {
     private static final int ADV_SCROLLBAR_W = 3;
 
     private static final int[] ROW_H_TABLE = { STRIDE + 10, STRIDE, STRIDE + 10, STRIDE + 10, STRIDE + 10,
-            STRIDE + 10 };
+            STRIDE + 10, STRIDE + 10, STRIDE + 10 };
     private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_NAME_COLOR = 2, ROW_CATEGORY = 3, ROW_PARENT = 4,
-            ROW_SIDEBAR_SHADER = 5;
+            ROW_SIDEBAR_SHADER = 5, ROW_UNLOCK_SOUND = 6, ROW_COMPLETE_SOUND = 7;
 
     private int panelH;
 
@@ -62,12 +62,16 @@ public class ChapterThemeScreen extends Screen {
     private String cachedSidebarShaderId;
     private String cachedDisplayName;
     private String cachedIcon;
+    private String cachedUnlockSoundId;
+    private String cachedCompleteSoundId;
 
     private final String originalDisplayName;
 
     private EditBox nameColorBox;
     private EditBox sidebarShaderBox;
     private EditBox nameBox;
+    private EditBox unlockSoundBox;
+    private EditBox completeSoundBox;
 
     private boolean categoryDropOpen = false;
     private boolean parentDropOpen = false;
@@ -103,6 +107,8 @@ public class ChapterThemeScreen extends Screen {
         this.cachedDisplayName = cfg.getDisplayName();
         this.originalDisplayName = this.cachedDisplayName;
         this.cachedIcon = cfg.getIcon();
+        this.cachedUnlockSoundId = cfg.getUnlockSoundId();
+        this.cachedCompleteSoundId = cfg.getCompleteSoundId();
         CategoryDefinition existingCategory = CategoryRegistry.categoryFor(chapter);
         this.cachedCategoryId = existingCategory != null ? existingCategory.id() : null;
         this.cachedParentChapter = cfg.getParentChapter();
@@ -127,7 +133,7 @@ public class ChapterThemeScreen extends Screen {
     }
 
     private int previewY() {
-        return rowTop(ROW_SIDEBAR_SHADER) + ROW_H_TABLE[ROW_SIDEBAR_SHADER] + PREVIEW_GAP;
+        return rowTop(ROW_COMPLETE_SOUND) + ROW_H_TABLE[ROW_COMPLETE_SOUND] + PREVIEW_GAP;
     }
 
     private int advancedToggleY() {
@@ -275,6 +281,42 @@ public class ChapterThemeScreen extends Screen {
                 }));
         }).bounds(fx + fw - browseW, sidebarShaderRowY + 11, browseW, FIELD_H).build());
 
+        int unlockSoundRowY = rowTop(ROW_UNLOCK_SOUND);
+        unlockSoundBox = new EditBox(font, fx, unlockSoundRowY + 11, fw - browseW - browseGap, FIELD_H,
+                Component.empty());
+        unlockSoundBox.setMaxLength(128);
+        unlockSoundBox.setHint(ChroniclesUIKit.lit("§8sound event id  (empty = quest/global default)"));
+        unlockSoundBox.setValue(cachedUnlockSoundId);
+        unlockSoundBox.setResponder(v -> cachedUnlockSoundId = v.trim());
+        addRenderableWidget(unlockSoundBox);
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit("Browse…"), b -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick unlock sound",
+                        net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getKeys(), id -> {
+                            cachedUnlockSoundId = id.toString();
+                            unlockSoundBox.setValue(cachedUnlockSoundId);
+                        }));
+            }
+        }).bounds(fx + fw - browseW, unlockSoundRowY + 11, browseW, FIELD_H).build());
+
+        int completeSoundRowY = rowTop(ROW_COMPLETE_SOUND);
+        completeSoundBox = new EditBox(font, fx, completeSoundRowY + 11, fw - browseW - browseGap, FIELD_H,
+                Component.empty());
+        completeSoundBox.setMaxLength(128);
+        completeSoundBox.setHint(ChroniclesUIKit.lit("§8sound event id  (empty = quest/global default)"));
+        completeSoundBox.setValue(cachedCompleteSoundId);
+        completeSoundBox.setResponder(v -> cachedCompleteSoundId = v.trim());
+        addRenderableWidget(completeSoundBox);
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit("Browse…"), b -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick complete sound",
+                        net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getKeys(), id -> {
+                            cachedCompleteSoundId = id.toString();
+                            completeSoundBox.setValue(cachedCompleteSoundId);
+                        }));
+            }
+        }).bounds(fx + fw - browseW, completeSoundRowY + 11, browseW, FIELD_H).build());
+
         int currentY = advancedToggleY() + SEC_HEADER_H;
 
         if (advancedOpen) {
@@ -421,6 +463,8 @@ public class ChapterThemeScreen extends Screen {
         cfg.setSidebarOverrides(existing.getSidebarOverrides());
         cfg.setDisplayName(cachedDisplayName);
         cfg.setIcon(cachedIcon);
+        cfg.setUnlockSoundId(cachedUnlockSoundId);
+        cfg.setCompleteSoundId(cachedCompleteSoundId);
         cfg.setParentChapter(cachedParentChapter);
         ChapterConfig.put(chapter, cfg);
         ChapterConfig.save();
@@ -482,6 +526,8 @@ public class ChapterThemeScreen extends Screen {
         g.drawString(font, "§8Display Name Color", fx, rowTop(ROW_NAME_COLOR), ChroniclesThemePalette.TEXT_FAINT);
 
         g.drawString(font, "§8Sidebar Row Shader", fx, rowTop(ROW_SIDEBAR_SHADER), ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Unlock Sound", fx, rowTop(ROW_UNLOCK_SOUND), ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Complete Sound", fx, rowTop(ROW_COMPLETE_SOUND), ChroniclesThemePalette.TEXT_FAINT);
         ChroniclesUIKit.drawShaderWarning(g, font, sidebarShaderBox,
                 DynamicShaderManager.lastCompileFailed(cachedSidebarShaderId));
         if (sidebarShaderBox.isMouseOver(mx, my)) {

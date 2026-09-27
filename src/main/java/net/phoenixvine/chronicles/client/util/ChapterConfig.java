@@ -93,6 +93,10 @@ public class ChapterConfig {
 
     private String icon = "";
 
+    private String unlockSoundId = "";
+
+    private String completeSoundId = "";
+
     private @NotNull String parentChapter = "";
 
     public BgStyle getStyle() {
@@ -187,6 +191,22 @@ public class ChapterConfig {
         return icon;
     }
 
+    public String getUnlockSoundId() {
+        return unlockSoundId;
+    }
+
+    public void setUnlockSoundId(@Nullable String id) {
+        this.unlockSoundId = id == null ? "" : id.trim();
+    }
+
+    public String getCompleteSoundId() {
+        return completeSoundId;
+    }
+
+    public void setCompleteSoundId(@Nullable String id) {
+        this.completeSoundId = id == null ? "" : id.trim();
+    }
+
     public String getParentChapter() {
         return parentChapter;
     }
@@ -263,6 +283,8 @@ public class ChapterConfig {
         }
         if (!displayName.isEmpty()) o.addProperty("display_name", displayName);
         if (!icon.isEmpty()) o.addProperty("icon", icon);
+        if (!unlockSoundId.isEmpty()) o.addProperty("unlock_sound", unlockSoundId);
+        if (!completeSoundId.isEmpty()) o.addProperty("complete_sound", completeSoundId);
         if (!parentChapter.isEmpty()) o.addProperty("parent", parentChapter);
         return o;
     }
@@ -319,6 +341,8 @@ public class ChapterConfig {
         }
         if (o.has("display_name")) cfg.displayName = o.get("display_name").getAsString();
         if (o.has("icon")) cfg.icon = o.get("icon").getAsString();
+        if (o.has("unlock_sound")) cfg.unlockSoundId = o.get("unlock_sound").getAsString();
+        if (o.has("complete_sound")) cfg.completeSoundId = o.get("complete_sound").getAsString();
         if (o.has("parent")) cfg.parentChapter = o.get("parent").getAsString().toUpperCase();
         return cfg;
     }

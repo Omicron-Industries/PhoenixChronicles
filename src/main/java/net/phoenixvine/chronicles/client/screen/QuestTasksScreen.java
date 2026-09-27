@@ -145,7 +145,7 @@ public class QuestTasksScreen extends Screen {
 
     public QuestTasksScreen(Screen parent, QuestNode node, FullQuestData content, PlayerQuestData playerData,
                             boolean startFullscreen) {
-        super(ChroniclesUIKit.lit("Quest Details"));
+        super(Component.translatable("phoenix_chronicles.screen.quest_tasks.title"));
         this.parent = parent;
         this.node = node;
         this.content = content;
@@ -1889,9 +1889,9 @@ public class QuestTasksScreen extends Screen {
         String detail = getTaskDetail(task);
         if (detail != null) lines.add(ChroniclesUIKit.lit("§8" + detail));
         String prog = taskProgressString(task);
-        if (prog != null && !done) lines.add(ChroniclesUIKit.lit("§7Progress: §f" + prog));
+        if (prog != null && !done) lines.add(Component.translatable("phoenix_chronicles.ui.progress_label", prog));
         ItemStack icon = getTaskIcon(task);
-        if (!icon.isEmpty()) lines.add(ChroniclesUIKit.lit("§8[Click to view in recipe browser]"));
+        if (!icon.isEmpty()) lines.add(Component.translatable("phoenix_chronicles.ui.recipe_browser_hint"));
         return lines;
     }
 
@@ -1899,22 +1899,24 @@ public class QuestTasksScreen extends Screen {
         java.util.List<Component> lines = new java.util.ArrayList<>();
         if (reward instanceof QuestReward.ItemReward ir) {
             ItemStack stack = rewardStack(ir);
-            lines.add(ChroniclesUIKit.lit("§fReward: " + stack.getHoverName().getString() + " §8×" + ir.getCount()));
+            lines.add(Component.translatable("phoenix_chronicles.ui.reward_line", stack.getHoverName(),
+                    ir.getCount()));
 
             java.util.List<Component> vanillaLines = stack.getTooltipLines(
                     minecraft != null ? minecraft.player : null,
                     net.minecraft.world.item.TooltipFlag.Default.NORMAL);
             for (int i = 1; i < vanillaLines.size(); i++) lines.add(vanillaLines.get(i));
-            lines.add(ChroniclesUIKit.lit("§8[Click to view in recipe browser]"));
+            lines.add(Component.translatable("phoenix_chronicles.ui.recipe_browser_hint"));
         } else if (reward instanceof QuestReward.ChoiceBoxReward box) {
             boolean resolved = playerData != null &&
                     playerData.isChoiceBoxResolved(node.getId(), content.effectiveRewards().indexOf(box));
             lines.add(reward.getSummary());
-            lines.add(ChroniclesUIKit.lit(resolved ? "§8(already opened)" :
+            lines.add(Component.translatable(resolved ? "phoenix_chronicles.ui.choice_box_opened" :
                     box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ?
-                            "§8[Click to open - random pick]" : "§8[Click to choose]"));
+                            "phoenix_chronicles.ui.choice_box_random_pick" :
+                            "phoenix_chronicles.ui.choice_box_choose"));
         } else {
-            lines.add(ChroniclesUIKit.lit("§f" + reward.getType().name() + " Reward"));
+            lines.add(Component.translatable("phoenix_chronicles.ui.generic_reward_line", reward.getType().name()));
         }
         return lines;
     }

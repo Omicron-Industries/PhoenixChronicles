@@ -57,10 +57,11 @@ public record RewardTable(String id, String displayName, List<WeightedReward> en
     public Component getSummary() {
         String name = displayName();
         if (pickCount > 0) {
-            return Component.literal("Table: " + name + " (" + pickCount + "/" + entries.size() + " weighted random)");
+            return Component.translatable("phoenix_chronicles.ui.reward_table_summary_pick", name, pickCount,
+                    entries.size());
         }
-        return Component
-                .literal("Table: " + name + " (" + entries.size() + " reward" + (entries.size() == 1 ? "" : "s") + ")");
+        return Component.translatable("phoenix_chronicles.ui.reward_table_summary_all", name, entries.size(),
+                entries.size() == 1 ? "reward" : "rewards");
     }
 
     public CompoundTag serializeNBT() {

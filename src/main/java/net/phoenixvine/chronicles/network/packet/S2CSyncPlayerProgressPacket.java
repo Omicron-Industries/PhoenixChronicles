@@ -81,16 +81,49 @@ public class S2CSyncPlayerProgressPacket {
                     if (newState == QuestState.UNLOCKED) {
                         QuestToastManager.get().push(node, QuestToastManager.ToastType.UNLOCKED);
 
-                        if (mc.player != null && playSounds)
-                            mc.player.playSound(net.minecraft.sounds.SoundEvents.EXPERIENCE_ORB_PICKUP, 0.5f, 1.4f);
+                        if (mc.player != null && playSounds) {
+                            net.minecraft.sounds.SoundEvent sound = resolveSound(node.getUnlockSoundId(),
+                                    node.getChapter(),
+                                    net.phoenixvine.chronicles.client.util.ChapterConfig::getUnlockSoundId,
+                                    net.minecraft.sounds.SoundEvents.EXPERIENCE_ORB_PICKUP);
+                            mc.player.playSound(sound, 0.5f, 1.4f);
+                        }
                     } else if (newState == QuestState.COMPLETED) {
                         QuestToastManager.get().push(node, QuestToastManager.ToastType.COMPLETED);
-                        if (mc.player != null && playSounds)
-                            mc.player.playSound(net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP, 0.6f, 1.0f);
+                        if (mc.player != null && playSounds) {
+                            net.minecraft.sounds.SoundEvent sound = resolveSound(node.getCompleteSoundId(),
+                                    node.getChapter(),
+                                    net.phoenixvine.chronicles.client.util.ChapterConfig::getCompleteSoundId,
+                                    net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP);
+                            mc.player.playSound(sound, 0.6f, 1.0f);
+                        }
                     }
                 }
             });
         }));
         ctx.get().setPacketHandled(true);
+    }
+
+    /**
+     * Resolves the sound to play for a quest event: the quest's own override, then its chapter's
+     * default override, then {@code fallback} (the vanilla sound this used to always play). An
+     * override that doesn't resolve to a registered sound event (typo, or a sound from a mod that
+     * isn't installed on this client) is treated as unset rather than crashing or silently muting.
+     */
+    private static net.minecraft.sounds.SoundEvent resolveSound(String nodeSoundId, String chapter,
+                                                                java.util.function.Function<net.phoenixvine.chronicles.client.util.ChapterConfig, String> chapterSoundGetter,
+                                                                net.minecraft.sounds.SoundEvent fallback) {
+        net.minecraft.sounds.SoundEvent resolved = lookupSound(nodeSoundId);
+        if (resolved != null) return resolved;
+        resolved = lookupSound(
+                chapterSoundGetter.apply(net.phoenixvine.chronicles.client.util.ChapterConfig.get(chapter)));
+        return resolved != null ? resolved : fallback;
+    }
+
+    @Nullable
+    private static net.minecraft.sounds.SoundEvent lookupSound(@Nullable String id) {
+        if (id == null || id.isBlank()) return null;
+        net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.tryParse(id.trim());
+        return rl != null ? net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getValue(rl) : null;
     }
 }

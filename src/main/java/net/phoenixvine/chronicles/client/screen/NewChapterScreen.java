@@ -34,7 +34,7 @@ public class NewChapterScreen extends Screen {
     private int panelLeft, panelTop;
 
     public NewChapterScreen(Screen parent, Consumer<String> onCreated) {
-        super(Component.literal("New Chapter"));
+        super(Component.translatable("phoenix_chronicles.screen.new_chapter.title"));
         this.parent = parent;
         this.onCreated = onCreated;
     }
@@ -49,16 +49,16 @@ public class NewChapterScreen extends Screen {
 
         nameBox = new EditBox(font, fx, y, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(32);
-        nameBox.setHint(Component.literal("§8e.g. Tutorial"));
+        nameBox.setHint(Component.translatable("phoenix_chronicles.screen.new_chapter.hint"));
         nameBox.setResponder(v -> name = v);
         addRenderableWidget(nameBox);
         setInitialFocus(nameBox);
 
         int btnY = panelTop + PANEL_H - 10 - 18;
         int half = (fw - 6) / 2;
-        addRenderableWidget(Button.builder(Component.literal("§aCreate"), b -> create())
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.create"), b -> create())
                 .bounds(fx, btnY, half, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("§7Cancel"),
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.cancel"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })

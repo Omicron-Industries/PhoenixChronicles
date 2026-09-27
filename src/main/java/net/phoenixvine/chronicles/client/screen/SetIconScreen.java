@@ -24,7 +24,7 @@ public class SetIconScreen extends Screen {
     private int panelLeft, panelTop, panelH;
 
     public SetIconScreen(ChronicleOverviewScreen parent, QuestNode node) {
-        super(Component.literal("Set Icon"));
+        super(Component.translatable("phoenix_chronicles.screen.set_icon.title"));
         this.parent = parent;
         this.node = node;
     }
@@ -39,7 +39,7 @@ public class SetIconScreen extends Screen {
         int fw = PANEL_W - MARGIN * 2;
         int y = panelTop + 26;
 
-        addRenderableWidget(Button.builder(Component.literal("§eItem…"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.item"), b -> {
             minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                 node.setIconItem(stack.getItem());
                 node.setIconTexture("");
@@ -52,7 +52,7 @@ public class SetIconScreen extends Screen {
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
-        addRenderableWidget(Button.builder(Component.literal("§bFluid…"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.fluid"), b -> {
             minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
                 node.setIconItem(null);
                 node.setIconTexture("");
@@ -66,7 +66,7 @@ public class SetIconScreen extends Screen {
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
-        addRenderableWidget(Button.builder(Component.literal("§dTexture…"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.texture"), b -> {
             minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
                 node.setIconItem(null);
                 node.setIconFluid("");
@@ -79,7 +79,7 @@ public class SetIconScreen extends Screen {
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
-        addRenderableWidget(Button.builder(Component.literal("§8Clear Icon"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.clear"), b -> {
             node.setIconItem(null);
             node.setIconTexture("");
             node.setIconFluid("");

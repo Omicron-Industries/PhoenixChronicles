@@ -406,6 +406,26 @@ public class QuestNode {
         this.externalScreenId = id == null ? "" : id.trim();
     }
 
+    private String unlockSoundId = "";
+
+    private String completeSoundId = "";
+
+    public String getUnlockSoundId() {
+        return unlockSoundId;
+    }
+
+    public void setUnlockSoundId(String id) {
+        this.unlockSoundId = id == null ? "" : id.trim();
+    }
+
+    public String getCompleteSoundId() {
+        return completeSoundId;
+    }
+
+    public void setCompleteSoundId(String id) {
+        this.completeSoundId = id == null ? "" : id.trim();
+    }
+
     public NodeSize getNodeSize() {
         return nodeSize;
     }

@@ -70,7 +70,7 @@ public class SearchOverlayScreen extends Screen {
         int panY = height / 10;
 
         searchBox = new EditBox(font, panX + 14, panY + 10, panW - 28, 20, Component.empty());
-        searchBox.setHint(Component.literal("§8Search quests…  §7(@chapter, task names, descriptions, items…)"));
+        searchBox.setHint(Component.translatable("phoenix_chronicles.screen.search.hint"));
         searchBox.setMaxLength(128);
         searchBox.setFocused(true);
         searchBox.setResponder(v -> {

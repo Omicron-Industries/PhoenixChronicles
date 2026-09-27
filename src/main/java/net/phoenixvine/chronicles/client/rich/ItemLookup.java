@@ -26,8 +26,7 @@ public final class ItemLookup {
 
         ItemStack stack = getInspectedItem(mc);
         if (stack.isEmpty()) {
-            mc.player.displayClientMessage(Component.literal("§7Hold or hover an item, then press the lookup key."),
-                    true);
+            mc.player.displayClientMessage(Component.translatable("phoenix_chronicles.ui.item_lookup_no_item"), true);
             return;
         }
 
@@ -36,8 +35,8 @@ public final class ItemLookup {
 
         List<QuestNode> matches = findQuestsRequiring(stack, itemId);
         if (matches.isEmpty()) {
-            mc.player.displayClientMessage(Component.literal(
-                    "§7No quest requires " + stack.getHoverName().getString() + "§7."), true);
+            mc.player.displayClientMessage(
+                    Component.translatable("phoenix_chronicles.ui.item_lookup_no_quest", stack.getHoverName()), true);
             return;
         }
 

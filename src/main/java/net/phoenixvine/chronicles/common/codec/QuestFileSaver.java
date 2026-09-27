@@ -165,6 +165,8 @@ public class QuestFileSaver {
         if (!node.getShapeTexture().isEmpty()) tag.putString("shape_texture", node.getShapeTexture());
         if (!node.getBackgroundType().isEmpty()) tag.putString("background", node.getBackgroundType());
         if (!node.getExternalScreenId().isEmpty()) tag.putString("external_screen", node.getExternalScreenId());
+        if (!node.getUnlockSoundId().isEmpty()) tag.putString("unlock_sound", node.getUnlockSoundId());
+        if (!node.getCompleteSoundId().isEmpty()) tag.putString("complete_sound", node.getCompleteSoundId());
 
         if (!node.getSubtitleRaw().isEmpty()) tag.putString("subtitle", node.getSubtitleRaw());
         tag.putString("visibility", node.getVisibility().name());

@@ -67,7 +67,7 @@ public class QuestJeiCategory implements IRecipeCategory<QuestNode> {
 
     @Override
     public Component getTitle() {
-        return Component.literal("Quests");
+        return Component.translatable("phoenix_chronicles.jei.category.quests");
     }
 
     @Override
@@ -190,7 +190,8 @@ public class QuestJeiCategory implements IRecipeCategory<QuestNode> {
     @Override
     public List<Component> getTooltipStrings(QuestNode recipe, IRecipeSlotsView recipeSlotsView,
                                              double mouseX, double mouseY) {
-        return isOverTitle(mouseX, mouseY) ? List.of(Component.literal("§7Click to open in Quest Book")) : List.of();
+        return isOverTitle(mouseX, mouseY) ?
+                List.of(Component.translatable("phoenix_chronicles.jei.click_to_open")) : List.of();
     }
 
     @Override

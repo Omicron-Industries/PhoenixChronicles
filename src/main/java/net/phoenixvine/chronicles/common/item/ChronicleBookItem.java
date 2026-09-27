@@ -25,7 +25,8 @@ public class ChronicleBookItem extends Item {
 
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> lines, TooltipFlag flag) {
-        lines.add(Component.literal("§7Right-click to open the quest book").withStyle(ChatFormatting.ITALIC));
+        lines.add(Component.translatable("phoenix_chronicles.item.chronicle_book.tooltip")
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }
 
     @Override

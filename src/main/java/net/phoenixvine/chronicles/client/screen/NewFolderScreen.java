@@ -35,7 +35,8 @@ public class NewFolderScreen extends Screen {
     }
 
     public NewFolderScreen(Screen parent, String renameCategoryId, String currentLabel, Consumer<String> onDone) {
-        super(Component.literal(renameCategoryId != null ? "Rename Category" : "New Category"));
+        super(Component.translatable(renameCategoryId != null ? "phoenix_chronicles.screen.new_folder.title_rename" :
+                "phoenix_chronicles.screen.new_folder.title_new"));
         this.parent = parent;
         this.renameCategoryId = renameCategoryId;
         this.onCreated = onDone;
@@ -52,7 +53,7 @@ public class NewFolderScreen extends Screen {
 
         nameBox = new EditBox(font, fx, y, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(40);
-        nameBox.setHint(Component.literal("§8e.g. Progression"));
+        nameBox.setHint(Component.translatable("phoenix_chronicles.screen.new_folder.hint"));
         nameBox.setValue(name);
         nameBox.setResponder(v -> name = v);
         addRenderableWidget(nameBox);
@@ -60,9 +61,11 @@ public class NewFolderScreen extends Screen {
 
         int btnY = panelTop + PANEL_H - 10 - 18;
         int half = (fw - 6) / 2;
-        addRenderableWidget(Button.builder(Component.literal(renameCategoryId != null ? "§aRename" : "§aCreate"),
+        addRenderableWidget(Button.builder(
+                Component.translatable(renameCategoryId != null ? "phoenix_chronicles.ui.rename" :
+                        "phoenix_chronicles.ui.create"),
                 b -> create()).bounds(fx, btnY, half, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("§7Cancel"),
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.cancel"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })

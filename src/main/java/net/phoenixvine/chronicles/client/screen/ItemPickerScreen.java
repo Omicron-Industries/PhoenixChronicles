@@ -61,7 +61,7 @@ public class ItemPickerScreen extends Screen {
     private final boolean hasJei;
 
     public ItemPickerScreen(Screen parent, Consumer<ItemStack> onPick) {
-        super(Component.literal("Pick Item"));
+        super(Component.translatable("phoenix_chronicles.screen.item_picker.title"));
         this.parent = parent;
         this.onPick = onPick;
         this.hasEmi = isModLoaded("emi");
@@ -77,10 +77,11 @@ public class ItemPickerScreen extends Screen {
         int tabY = panelTop + HEADER_H + 2;
         int tabW = 60;
 
-        addRenderableWidget(Button.builder(Component.literal("Registry"), b -> switchTab(SourceTab.REGISTRY))
-                .bounds(panelLeft + 2, tabY, tabW, 12).build());
-        addRenderableWidget(Button.builder(Component.literal("Inventory"), b -> switchTab(SourceTab.INVENTORY))
-                .bounds(panelLeft + 4 + tabW, tabY, tabW, 12).build());
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.item_picker.tab_registry"),
+                b -> switchTab(SourceTab.REGISTRY)).bounds(panelLeft + 2, tabY, tabW, 12).build());
+        addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.screen.item_picker.tab_inventory"),
+                        b -> switchTab(SourceTab.INVENTORY)).bounds(panelLeft + 4 + tabW, tabY, tabW, 12).build());
 
         String eiLabel = hasEmi ? "EMI" : hasJei ? "JEI" : "EMI/JEI";
         addRenderableWidget(Button.builder(Component.literal(eiLabel), b -> switchTab(SourceTab.EMI_JEI))
@@ -89,7 +90,7 @@ public class ItemPickerScreen extends Screen {
         int searchY = panelTop + HEADER_H + 16;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
-        searchBox.setHint(Component.literal("§8Search items…"));
+        searchBox.setHint(Component.translatable("phoenix_chronicles.screen.item_picker.search_hint"));
         searchBox.setValue(searchQuery);
         searchBox.setResponder(q -> {
             searchQuery = q;
@@ -98,10 +99,11 @@ public class ItemPickerScreen extends Screen {
         });
         addRenderableWidget(searchBox);
 
-        addRenderableWidget(Button.builder(Component.literal("§aSelect"), b -> confirmSelection())
-                .bounds(panelLeft + PANEL_W - 56, panelTop + PANEL_H - FOOTER_H + 3, 52, 14).build());
+        addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.ui.select"), b -> confirmSelection())
+                        .bounds(panelLeft + PANEL_W - 56, panelTop + PANEL_H - FOOTER_H + 3, 52, 14).build());
 
-        addRenderableWidget(Button.builder(Component.literal("§7Cancel"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.cancel"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(panelLeft + 4, panelTop + PANEL_H - FOOTER_H + 3, 52, 14).build());
 

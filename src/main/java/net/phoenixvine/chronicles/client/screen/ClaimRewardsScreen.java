@@ -35,7 +35,7 @@ public class ClaimRewardsScreen extends Screen {
     private List<Row> unclaimed = List.of();
 
     public ClaimRewardsScreen(Screen parent) {
-        super(Component.literal("Unclaimed Rewards"));
+        super(Component.translatable("phoenix_chronicles.screen.claim_rewards.title"));
         this.parent = parent;
     }
 
@@ -43,12 +43,13 @@ public class ClaimRewardsScreen extends Screen {
     protected void init() {
         refreshList();
 
-        addRenderableWidget(Button.builder(Component.literal("§a✔ Claim All"), b -> {
-            ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimAllRewardsPacket());
-            if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(parent));
-        }).bounds(MARGIN, height - FOOTER_H + 6, 110, 18).build());
+        addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.screen.claim_rewards.claim_all"), b -> {
+                    ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimAllRewardsPacket());
+                    if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(parent));
+                }).bounds(MARGIN, height - FOOTER_H + 6, 110, 18).build());
 
-        addRenderableWidget(Button.builder(Component.literal("§7‹ Back"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.back"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(width - MARGIN - 80, height - FOOTER_H + 6, 80, 18).build());
     }

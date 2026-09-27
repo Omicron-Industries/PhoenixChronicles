@@ -38,14 +38,14 @@ public class QuestTextInputScreen extends Screen {
             "**", "*", "# ", "- ", "[](url)", "[](tip:msg)", "{reset}", "\n---\n"
     };
     private static final String[] MD_TIPS = {
-            "Bold (**text**)",
-            "Italic (*text*)",
-            "Heading (# text)",
-            "Unordered List (- text)",
-            "Link ([label](url))",
-            "Tooltip ([label](tip:msg))",
-            "Reset Formatting ({reset})",
-            "Page Break (---) - splits into pages in-game instead of scrolling"
+            "phoenix_chronicles.screen.text_input.md_tip.bold",
+            "phoenix_chronicles.screen.text_input.md_tip.italic",
+            "phoenix_chronicles.screen.text_input.md_tip.heading",
+            "phoenix_chronicles.screen.text_input.md_tip.list",
+            "phoenix_chronicles.screen.text_input.md_tip.link",
+            "phoenix_chronicles.screen.text_input.md_tip.tooltip",
+            "phoenix_chronicles.screen.text_input.md_tip.reset",
+            "phoenix_chronicles.screen.text_input.md_tip.page_break"
     };
 
     private static final String[] MD2_LABELS = { "1.", "[x]", ">", "`c`", "```", "Tbl", "!", ":::" };
@@ -54,14 +54,14 @@ public class QuestTextInputScreen extends Screen {
             "\n| A | B |\n|---|---|\n| a | b |\n", ":::warning Title\n\n:::\n", ":::spoiler Title\n\n:::\n"
     };
     private static final String[] MD2_TIPS = {
-            "Numbered list (1. text)",
-            "Checklist item (- [ ] text, click in-game to toggle)",
-            "Blockquote (> text)",
-            "Inline code (`code`, click in-game to copy)",
-            "Code block (```)",
-            "Table",
-            "Warning callout (:::warning Title ... :::)",
-            "Spoiler / details, collapsed until clicked (:::spoiler Title ... :::)"
+            "phoenix_chronicles.screen.text_input.md2_tip.numbered_list",
+            "phoenix_chronicles.screen.text_input.md2_tip.checklist",
+            "phoenix_chronicles.screen.text_input.md2_tip.blockquote",
+            "phoenix_chronicles.screen.text_input.md2_tip.inline_code",
+            "phoenix_chronicles.screen.text_input.md2_tip.code_block",
+            "phoenix_chronicles.screen.text_input.md2_tip.table",
+            "phoenix_chronicles.screen.text_input.md2_tip.warning",
+            "phoenix_chronicles.screen.text_input.md2_tip.spoiler"
     };
 
     private final Screen parent;
@@ -105,7 +105,7 @@ public class QuestTextInputScreen extends Screen {
         int hexY = btnY - 36;
         hexBox = new EditBox(font, px + 8 + font.width("Hex: "), hexY, 58, 12, Component.empty());
         hexBox.setMaxLength(7);
-        hexBox.setHint(Component.literal("§8#RRGGBB"));
+        hexBox.setHint(Component.translatable("phoenix_chronicles.ui.hex_color_hint"));
         addRenderableWidget(hexBox);
     }
 
@@ -168,7 +168,7 @@ public class QuestTextInputScreen extends Screen {
             g.fill(bx, rowY, bx + btnW, rowY + 12, hov ? C_BTN_HOV : C_BTN);
             if (hov) {
                 g.fill(bx, rowY, bx + btnW, rowY + 1, C_ACCENT);
-                g.renderTooltip(font, Component.literal(MD_TIPS[i]), mx, my);
+                g.renderTooltip(font, Component.translatable(MD_TIPS[i]), mx, my);
             }
 
             String displayLabel = MD_LABELS[i];
@@ -188,7 +188,7 @@ public class QuestTextInputScreen extends Screen {
             g.fill(bx, rowY, bx + bw, rowY + 12, hov ? C_BTN_HOV : C_BTN);
             if (hov) {
                 g.fill(bx, rowY, bx + bw, rowY + 1, C_ACCENT);
-                g.renderTooltip(font, Component.literal(MD2_TIPS[i]), mx, my);
+                g.renderTooltip(font, Component.translatable(MD2_TIPS[i]), mx, my);
             }
             g.drawCenteredString(font, MD2_LABELS[i], bx + bw / 2, rowY + 2, hov ? 0xFFFFFFFF : 0xFFAAAAAA);
         }

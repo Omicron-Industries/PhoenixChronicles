@@ -81,7 +81,7 @@ public class EntityIdPickerScreen extends Screen {
         int searchY = panelTop + HEADER_H + 2;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
-        searchBox.setHint(Component.literal("§8Search…"));
+        searchBox.setHint(Component.translatable("phoenix_chronicles.ui.search_hint"));
         searchBox.setValue(searchQuery);
         searchBox.setResponder(q -> {
             searchQuery = q;

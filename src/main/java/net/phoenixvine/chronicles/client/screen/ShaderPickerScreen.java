@@ -36,7 +36,7 @@ public class ShaderPickerScreen extends Screen {
     private int hoveredIdx = -1;
 
     public ShaderPickerScreen(Screen parent, Consumer<String> onSelect) {
-        super(Component.literal("Shader Browser"));
+        super(Component.translatable("phoenix_chronicles.screen.shader_picker.title"));
         this.parent = parent;
         this.onSelect = onSelect;
     }
@@ -57,7 +57,7 @@ public class ShaderPickerScreen extends Screen {
         applyFilter();
 
         searchBox = new EditBox(font, width / 2 - 100, HEADER_H / 2 - 5, 200, 14, Component.empty());
-        searchBox.setHint(Component.literal("§8Search…"));
+        searchBox.setHint(Component.translatable("phoenix_chronicles.ui.search_hint"));
         searchBox.setResponder(q -> {
             query = q.toLowerCase();
             applyFilter();
@@ -128,11 +128,11 @@ public class ShaderPickerScreen extends Screen {
             String name = id;
             int nameW = font.width(name);
             if (nameW > THUMB) name = font.plainSubstrByWidth(name, THUMB - 4) + "…";
-            g.drawString(font, "§8" + name, tx, ty + THUMB + 2, C_FAINT, false);
+            g.drawString(font, name, tx, ty + THUMB + 2, C_FAINT, false);
 
             if (hov) {
-                Component tip = shader != null ? Component.literal("§f" + id) :
-                        Component.literal("§c" + id + " §7(failed to compile -- check the log)");
+                Component tip = shader != null ? Component.translatable("phoenix_chronicles.ui.shader_id_display", id) :
+                        Component.translatable("phoenix_chronicles.ui.shader_failed_tooltip", id);
                 g.renderTooltip(font, tip, mx, my);
             }
         }

@@ -55,7 +55,7 @@ public class ChapterMapScreen extends Screen {
     private static final SolidLineStyle LINE_STYLE = new SolidLineStyle(1.5f);
 
     public ChapterMapScreen(ChronicleOverviewScreen parent) {
-        super(Component.literal("Chapter Map"));
+        super(Component.translatable("phoenix_chronicles.screen.chapter_map.title"));
         this.parent = parent;
     }
 
@@ -65,7 +65,7 @@ public class ChapterMapScreen extends Screen {
         computeGraph();
         layoutBoxes();
 
-        addRenderableWidget(Button.builder(Component.literal("§7[ Close ]"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.close_bracketed"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(width / 2 - 50, height - 26, 100, 20).build());
     }

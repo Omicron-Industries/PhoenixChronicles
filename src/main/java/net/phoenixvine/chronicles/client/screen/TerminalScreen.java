@@ -40,7 +40,7 @@ public class TerminalScreen extends Screen {
     private static final int MAX_CMD_HISTORY = 50;
 
     public TerminalScreen(Screen parent) {
-        super(Component.literal("PHOENIX SYSTEM TERMINAL"));
+        super(Component.translatable("phoenix_chronicles.screen.terminal.title"));
         this.parent = parent;
 
         consoleHistory.add("§a[SYS] Initializing Core Terminal Protocol...");
@@ -52,9 +52,10 @@ public class TerminalScreen extends Screen {
     protected void init() {
         this.clearWidgets();
 
-        this.addRenderableWidget(Button.builder(Component.literal("§c[ DISCONNECT ]"), b -> {
-            if (this.minecraft != null) this.minecraft.setScreen(parent);
-        }).bounds(this.width - 115, this.height - 30, 100, 20).build());
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.screen.terminal.disconnect"), b -> {
+                    if (this.minecraft != null) this.minecraft.setScreen(parent);
+                }).bounds(this.width - 115, this.height - 30, 100, 20).build());
     }
 
     @Override

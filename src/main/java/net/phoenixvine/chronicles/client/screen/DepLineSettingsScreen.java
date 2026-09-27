@@ -58,9 +58,8 @@ public class DepLineSettingsScreen extends Screen {
     }
 
     public DepLineSettingsScreen(ChronicleOverviewScreen parent, String chapter, QuestNode focusNode) {
-        super(Component.literal(
-                focusNode != null ? "Dependencies: " + focusNode.getTitle().getString() :
-                        "Dependency Line Settings"));
+        super(focusNode != null ? Component.translatable("phoenix_chronicles.screen.dep_line_settings.title_focused",
+                focusNode.getTitle()) : Component.translatable("phoenix_chronicles.screen.dep_line_settings.title"));
         this.parent = parent;
         this.chapter = chapter;
         this.focusNodeId = focusNode != null ? focusNode.getId() : null;
@@ -95,8 +94,9 @@ public class DepLineSettingsScreen extends Screen {
         catOptionalMinDefault = ChapterPrereqDefaults.getOptionalMinCount(chapter);
 
         searchBox = new EditBox(font, MARGIN, HEADER_H + 3, width - MARGIN * 2, SEARCH_H - 6, Component.empty());
-        searchBox.setHint(Component.literal(
-                focusNodeId != null ? "§8Filter dependents…" : "§8Filter quests…"));
+        searchBox.setHint(Component.translatable(
+                focusNodeId != null ? "phoenix_chronicles.screen.dep_line_settings.filter_dependents" :
+                        "phoenix_chronicles.screen.dep_line_settings.filter_quests"));
         searchBox.setMaxLength(64);
         searchBox.setValue(searchQuery);
         searchBox.setResponder(v -> {

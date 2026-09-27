@@ -76,6 +76,8 @@ public class QuestFileLoader {
                                String iconFluid,
                                String backgroundType,
                                String externalScreenId,
+                               String unlockSoundId,
+                               String completeSoundId,
                                boolean optional,
                                Set<String> tags) {}
 
@@ -212,6 +214,8 @@ public class QuestFileLoader {
             node.setShapeTexture(rec.shapeTexture());
             node.setBackgroundType(rec.backgroundType());
             node.setExternalScreenId(rec.externalScreenId());
+            node.setUnlockSoundId(rec.unlockSoundId());
+            node.setCompleteSoundId(rec.completeSoundId());
             if (!rec.iconItemId().isEmpty()) node.setIconItemById(rec.iconItemId());
             node.setRepeatMode(rec.repeatMode());
             node.setRepeatCooldownHours(rec.repeatCooldownHours());
@@ -346,6 +350,8 @@ public class QuestFileLoader {
             String shapeTexture = tag.contains("shape_texture") ? tag.getString("shape_texture") : "";
             String backgroundType = tag.contains("background") ? tag.getString("background") : "";
             String externalScreenId = tag.contains("external_screen") ? tag.getString("external_screen") : "";
+            String unlockSoundId = tag.contains("unlock_sound") ? tag.getString("unlock_sound") : "";
+            String completeSoundId = tag.contains("complete_sound") ? tag.getString("complete_sound") : "";
             int posX = tag.contains("positionX") ? tag.getInt("positionX") : 40;
             int posY = tag.contains("positionY") ? tag.getInt("positionY") : 70;
 
@@ -490,7 +496,7 @@ public class QuestFileLoader {
                     hideDepLine, disabledBlocksChildren, shared, pooledProgress, tutorialSteps, autoClaimRewards,
                     rewardChoice, rewardChoiceCount, devNotes, nodeSize, sizeOverridePx, linkTarget, iconTexture,
                     shapeTexture, variants, previewMachineId, iconFluid, backgroundType, externalScreenId,
-                    optional, tags);
+                    unlockSoundId, completeSoundId, optional, tags);
 
         } catch (Exception e) {
             String msg = "Failed to parse '" + file.getFileName() + "': " + e.getMessage();

@@ -149,6 +149,8 @@ public class QuestCreatorScreen extends Screen {
     private String cachedDevNotes = "";
     private String cachedPreviewMachineId = "";
     private String cachedExternalScreenId = "";
+    private String cachedUnlockSoundId = "";
+    private String cachedCompleteSoundId = "";
     private int cachedPosX = 40;
     private int cachedPosY = 70;
 
@@ -234,6 +236,8 @@ public class QuestCreatorScreen extends Screen {
         cachedDevNotes = editingNode.getDevNotes();
         cachedPreviewMachineId = editingNode.getPreviewMachineId();
         cachedExternalScreenId = editingNode.getExternalScreenId();
+        cachedUnlockSoundId = editingNode.getUnlockSoundId();
+        cachedCompleteSoundId = editingNode.getCompleteSoundId();
 
         cachedPosX = editingNode.getCustomX();
         cachedPosY = editingNode.getCustomY();
@@ -258,7 +262,8 @@ public class QuestCreatorScreen extends Screen {
                 String.valueOf(cachedAutoClaimRewards), String.valueOf(cachedRewardChoice),
                 String.valueOf(cachedRewardChoiceCount), String.valueOf(cachedNodeSize),
                 String.valueOf(cachedSizeOverridePx), cachedDevNotes, cachedPreviewMachineId,
-                cachedExternalScreenId, String.valueOf(cachedPosX), String.valueOf(cachedPosY), prereqKey);
+                cachedExternalScreenId, cachedUnlockSoundId, cachedCompleteSoundId,
+                String.valueOf(cachedPosX), String.valueOf(cachedPosY), prereqKey);
     }
 
     private boolean hasUnsavedChanges() {
@@ -972,8 +977,8 @@ public class QuestCreatorScreen extends Screen {
         int screenPickW = 16;
         EditBox externalScreenBox = new EditBox(font, cx, rowY, cw - screenPickW - 2, FIELD_H, Component.empty());
         externalScreenBox.setMaxLength(128);
-        externalScreenBox.setHint(Component
-                .literal(
+        externalScreenBox.setHint(ChroniclesUIKit
+                .lit(
                         "§fRegistered external screen id (opens instead of the task viewer; used by \"Screen Opened\" tasks)"));
         externalScreenBox.setValue(cachedExternalScreenId);
         externalScreenBox.setResponder(v -> cachedExternalScreenId = v);
@@ -989,6 +994,52 @@ public class QuestCreatorScreen extends Screen {
             }
         }).bounds(cx + cw - screenPickW, rowY, screenPickW, FIELD_H)
                 .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse registered external screens")))
+                .build());
+        y = rowY + FIELD_H;
+
+        y += ROW_GAP;
+        rowY = y + LABEL_H + LABEL_GAP;
+        labels.add(new LabelEntry(cx, y, "§fUnlock Sound", C_TEXT_FAINT));
+        int soundPickW = 16;
+        EditBox unlockSoundBox = new EditBox(font, cx, rowY, cw - soundPickW - 2, FIELD_H, Component.empty());
+        unlockSoundBox.setMaxLength(128);
+        unlockSoundBox.setHint(ChroniclesUIKit.lit("§fSound played when this quest unlocks (blank = chapter/default)"));
+        unlockSoundBox.setValue(cachedUnlockSoundId);
+        unlockSoundBox.setResponder(v -> cachedUnlockSoundId = v);
+        addRenderableWidget(unlockSoundBox);
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick unlock sound",
+                        net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getKeys(), id -> {
+                            cachedUnlockSoundId = id.toString();
+                            unlockSoundBox.setValue(cachedUnlockSoundId);
+                        }));
+            }
+        }).bounds(cx + cw - soundPickW, rowY, soundPickW, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse registered sound events")))
+                .build());
+        y = rowY + FIELD_H;
+
+        y += ROW_GAP;
+        rowY = y + LABEL_H + LABEL_GAP;
+        labels.add(new LabelEntry(cx, y, "§fComplete Sound", C_TEXT_FAINT));
+        EditBox completeSoundBox = new EditBox(font, cx, rowY, cw - soundPickW - 2, FIELD_H, Component.empty());
+        completeSoundBox.setMaxLength(128);
+        completeSoundBox
+                .setHint(ChroniclesUIKit.lit("§fSound played when this quest completes (blank = chapter/default)"));
+        completeSoundBox.setValue(cachedCompleteSoundId);
+        completeSoundBox.setResponder(v -> cachedCompleteSoundId = v);
+        addRenderableWidget(completeSoundBox);
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick complete sound",
+                        net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getKeys(), id -> {
+                            cachedCompleteSoundId = id.toString();
+                            completeSoundBox.setValue(cachedCompleteSoundId);
+                        }));
+            }
+        }).bounds(cx + cw - soundPickW, rowY, soundPickW, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse registered sound events")))
                 .build());
         y = rowY + FIELD_H;
         return y;
@@ -1386,6 +1437,8 @@ public class QuestCreatorScreen extends Screen {
                 tag.putString("preview_machine_id", cachedPreviewMachineId.trim());
             if (!cachedExternalScreenId.isBlank())
                 tag.putString("external_screen_id", cachedExternalScreenId.trim());
+            if (!cachedUnlockSoundId.isBlank()) tag.putString("unlock_sound", cachedUnlockSoundId.trim());
+            if (!cachedCompleteSoundId.isBlank()) tag.putString("complete_sound", cachedCompleteSoundId.trim());
             if (!cachedIconItemId.isBlank()) tag.putString("icon_item", cachedIconItemId.trim());
             if (editingNode != null && !editingNode.getTasks().isEmpty()) {
                 net.minecraft.nbt.ListTag tl = new net.minecraft.nbt.ListTag();
@@ -1451,6 +1504,8 @@ public class QuestCreatorScreen extends Screen {
                 editingNode.setDevNotes(cachedDevNotes.trim());
                 editingNode.setPreviewMachineId(cachedPreviewMachineId.trim());
                 editingNode.setExternalScreenId(cachedExternalScreenId.trim());
+                editingNode.setUnlockSoundId(cachedUnlockSoundId.trim());
+                editingNode.setCompleteSoundId(cachedCompleteSoundId.trim());
                 editingNode.setCustomPosition(cachedPosX, cachedPosY);
                 if (!cachedIconItemId.isBlank()) editingNode.setIconItemById(cachedIconItemId.trim());
 
@@ -1493,6 +1548,8 @@ public class QuestCreatorScreen extends Screen {
                 node.setDevNotes(cachedDevNotes.trim());
                 node.setPreviewMachineId(cachedPreviewMachineId.trim());
                 node.setExternalScreenId(cachedExternalScreenId.trim());
+                node.setUnlockSoundId(cachedUnlockSoundId.trim());
+                node.setCompleteSoundId(cachedCompleteSoundId.trim());
                 node.setCustomPosition(cachedPosX, cachedPosY);
                 if (!cachedIconItemId.isBlank()) node.setIconItemById(cachedIconItemId.trim());
 

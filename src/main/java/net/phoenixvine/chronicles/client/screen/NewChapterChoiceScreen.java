@@ -21,7 +21,7 @@ public class NewChapterChoiceScreen extends Screen {
     private int panelLeft, panelTop;
 
     public NewChapterChoiceScreen(ChronicleOverviewScreen parent) {
-        super(Component.literal("New Chapter"));
+        super(Component.translatable("phoenix_chronicles.screen.new_chapter.title"));
         this.parent = parent;
     }
 
@@ -33,17 +33,21 @@ public class NewChapterChoiceScreen extends Screen {
         int fw = PANEL_W - MARGIN * 2;
 
         int btnY = panelTop + 32;
-        addRenderableWidget(Button.builder(Component.literal("§aNew Chapter"), b -> {
-            parent.openNewChapterForm();
-        }).bounds(fx, btnY, fw, 18).build());
+        addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.screen.new_chapter_choice.new_chapter"),
+                        b -> {
+                            parent.openNewChapterForm();
+                        }).bounds(fx, btnY, fw, 18).build());
 
-        addRenderableWidget(Button.builder(Component.literal("§bNew Category"), b -> {
-            if (minecraft != null) {
-                minecraft.setScreen(new NewFolderScreen(parent, id -> parent.rebuild()));
-            }
-        }).bounds(fx, btnY + 24, fw, 18).build());
+        addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.screen.new_chapter_choice.new_category"),
+                        b -> {
+                            if (minecraft != null) {
+                                minecraft.setScreen(new NewFolderScreen(parent, id -> parent.rebuild()));
+                            }
+                        }).bounds(fx, btnY + 24, fw, 18).build());
 
-        addRenderableWidget(Button.builder(Component.literal("§7Cancel"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.cancel"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(fx, btnY + 48, fw, 18).build());
     }

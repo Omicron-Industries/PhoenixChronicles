@@ -41,7 +41,7 @@ public class TextureBrowserScreen extends Screen {
     private int hoveredIdx = -1;
 
     public TextureBrowserScreen(Screen parent, Consumer<String> onSelect) {
-        super(Component.literal("Texture Browser"));
+        super(Component.translatable("phoenix_chronicles.screen.texture_browser.title"));
         this.parent = parent;
         this.onSelect = onSelect;
     }
@@ -62,7 +62,7 @@ public class TextureBrowserScreen extends Screen {
         applyFilter();
 
         searchBox = new EditBox(font, width / 2 - 100, HEADER_H / 2 - 5, 200, 14, Component.empty());
-        searchBox.setHint(Component.literal("§8Search…"));
+        searchBox.setHint(Component.translatable("phoenix_chronicles.ui.search_hint"));
         searchBox.setResponder(q -> {
             query = q.toLowerCase();
             applyFilter();

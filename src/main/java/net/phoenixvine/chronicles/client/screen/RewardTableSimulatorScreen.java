@@ -36,7 +36,7 @@ public class RewardTableSimulatorScreen extends Screen {
     private String statusLine = "";
 
     public RewardTableSimulatorScreen(Screen parent, String tableId) {
-        super(Component.literal("Simulate Reward Table"));
+        super(Component.translatable("phoenix_chronicles.screen.reward_simulator.title"));
         this.parent = parent;
         this.tableId = tableId;
     }
@@ -46,9 +46,10 @@ public class RewardTableSimulatorScreen extends Screen {
         this.clearWidgets();
         int midX = width / 2;
 
-        addRenderableWidget(Button.builder(Component.literal("§bRoll " + ROLLS + "x again"), b -> roll())
-                .bounds(midX - 100, height / 2 + 60, 200, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("§7[ Done ]"), b -> {
+        addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.screen.reward_simulator.roll_again", ROLLS),
+                        b -> roll()).bounds(midX - 100, height / 2 + 60, 200, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.done_bracketed_lower"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(midX - 50, height / 2 + 84, 100, 20).build());
 

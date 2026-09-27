@@ -30,14 +30,14 @@ public class ItemLookupResultsScreen extends Screen {
     private int scrollY = 0;
 
     public ItemLookupResultsScreen(ItemStack lookupStack, List<QuestNode> matches) {
-        super(Component.literal("Item Lookup"));
+        super(Component.translatable("phoenix_chronicles.screen.item_lookup.title"));
         this.lookupStack = lookupStack;
         this.matches = matches;
     }
 
     @Override
     protected void init() {
-        addRenderableWidget(Button.builder(Component.literal("§7‹ Close"),
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.close_arrow"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(null);
                 })

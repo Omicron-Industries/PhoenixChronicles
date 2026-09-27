@@ -121,29 +121,163 @@ public final class PhoenixQuestFlags {
         return evaluate(expression, server, (Player) null);
     }
 
+    /**
+     * Evaluates a flag/condition expression. Supports full boolean logic, not just OR-of-ANDs:
+     *
+     * <ul>
+     * <li>{@code !a} - NOT</li>
+     * <li>{@code a & b} (or the legacy alias {@code a, b}) - AND</li>
+     * <li>{@code a ^ b} - XOR</li>
+     * <li>{@code a | b} - OR</li>
+     * <li>{@code (...)} - grouping, for arbitrary nesting</li>
+     * </ul>
+     *
+     * <p>
+     * Precedence from loosest to tightest binding is OR, XOR, AND, NOT - the same as most
+     * languages (e.g. {@code a | b & c} means {@code a | (b & c)}) - and parentheses override it.
+     * NAND/NOR/XNOR aren't separate operators since they're just a negated AND/OR/XOR, e.g.
+     * {@code !(a & b)}.
+     *
+     * <p>
+     * The old flat "{@code a,b|c,!d}" syntax (comma-AND inside pipe-OR, no grouping) still
+     * evaluates identically to before - {@code ,} is kept as an AND alias specifically so every
+     * expression written before this parser existed keeps working unchanged.
+     *
+     * <p>
+     * A malformed expression (unbalanced parens, an operator with nothing on one side, etc.) is
+     * logged once and treated as true, matching this class's existing "unknown -&gt; default true"
+     * philosophy elsewhere, so a typo in one quest's condition can't hard-fail quest loading.
+     */
     public static boolean evaluate(@Nullable String expression, @Nullable MinecraftServer server,
                                    @Nullable Player player) {
         if (expression == null || expression.isBlank()) return true;
 
         String teamKey = player != null ? resolveScopeKey(player) : null;
-
-        for (String orClause : expression.split("\\|")) {
-            boolean andResult = true;
-            for (String part : orClause.split(",")) {
-                String term = part.trim();
-                if (!term.isEmpty() && !evaluateTerm(term, server, player, teamKey)) {
-                    andResult = false;
-                    break;
-                }
+        try {
+            ExpressionParser parser = new ExpressionParser(expression, server, player, teamKey);
+            boolean result = parser.parseOr();
+            parser.expectEnd();
+            return result;
+        } catch (ExpressionParser.ParseException e) {
+            String ctxSuffix = currentContext != null ? " [" + currentContext + "]" : "";
+            if (warnedUnknown.add("parse:" + expression + ctxSuffix)) {
+                System.err.println("[Phoenix Chronicles] Failed to parse flag expression '" + expression + "': " +
+                        e.getMessage() + " - defaulting to true." + ctxSuffix);
             }
-            if (andResult) return true;
+            return true;
         }
-        return false;
+    }
+
+    private static final class ExpressionParser {
+
+        private static final String OPERATOR_CHARS = "()!&|^,";
+
+        private final String src;
+        private final MinecraftServer server;
+        private final Player player;
+        private final String teamKey;
+        private int pos = 0;
+
+        ExpressionParser(String src, @Nullable MinecraftServer server, @Nullable Player player,
+                         @Nullable String teamKey) {
+            this.src = src;
+            this.server = server;
+            this.player = player;
+            this.teamKey = teamKey;
+        }
+
+        boolean parseOr() {
+            boolean result = parseXor();
+            skipWs();
+            while (peek() == '|') {
+                pos++;
+                boolean rhs = parseXor();
+                result = result || rhs;
+                skipWs();
+            }
+            return result;
+        }
+
+        private boolean parseXor() {
+            boolean result = parseAnd();
+            skipWs();
+            while (peek() == '^') {
+                pos++;
+                boolean rhs = parseAnd();
+                result = result ^ rhs;
+                skipWs();
+            }
+            return result;
+        }
+
+        private boolean parseAnd() {
+            boolean result = parseNot();
+            skipWs();
+            while (peek() == '&' || peek() == ',') {
+                pos++;
+                boolean rhs = parseNot();
+                result = result && rhs;
+                skipWs();
+            }
+            return result;
+        }
+
+        private boolean parseNot() {
+            skipWs();
+            if (peek() == '!') {
+                pos++;
+                return !parseNot();
+            }
+            return parseAtom();
+        }
+
+        private boolean parseAtom() {
+            skipWs();
+            if (peek() == '(') {
+                pos++;
+                boolean result = parseOr();
+                skipWs();
+                if (peek() != ')') throw new ParseException("expected ')' at position " + pos);
+                pos++;
+                return result;
+            }
+            String term = readTerm();
+            if (term.isEmpty()) throw new ParseException("expected a term at position " + pos);
+            return evaluateTerm(term, server, player, teamKey);
+        }
+
+        private String readTerm() {
+            int start = pos;
+            while (pos < src.length() && OPERATOR_CHARS.indexOf(src.charAt(pos)) < 0 &&
+                    !Character.isWhitespace(src.charAt(pos))) {
+                pos++;
+            }
+            return src.substring(start, pos);
+        }
+
+        private char peek() {
+            return pos < src.length() ? src.charAt(pos) : '\0';
+        }
+
+        private void skipWs() {
+            while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) pos++;
+        }
+
+        void expectEnd() {
+            skipWs();
+            if (pos < src.length()) throw new ParseException("unexpected '" + src.charAt(pos) + "' at position " + pos);
+        }
+
+        private static final class ParseException extends RuntimeException {
+
+            ParseException(String message) {
+                super(message);
+            }
+        }
     }
 
     private static boolean evaluateTerm(String term, @Nullable MinecraftServer server, @Nullable Player player,
                                         @Nullable String teamKey) {
-        if (term.startsWith("!")) return !evaluateTerm(term.substring(1), server, player, teamKey);
         int colon = term.indexOf(':');
         if (colon > 0) {
             String prefix = term.substring(0, colon);

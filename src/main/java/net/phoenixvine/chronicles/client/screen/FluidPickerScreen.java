@@ -47,7 +47,7 @@ public class FluidPickerScreen extends Screen {
     private int panelLeft, panelTop;
 
     public FluidPickerScreen(Screen parent, Consumer<String> onPick) {
-        super(Component.literal("Pick Fluid"));
+        super(Component.translatable("phoenix_chronicles.screen.fluid_picker.title"));
         this.parent = parent;
         this.onPick = onPick;
     }
@@ -61,7 +61,7 @@ public class FluidPickerScreen extends Screen {
         int searchY = panelTop + HEADER_H + 2;
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
-        searchBox.setHint(Component.literal("§8Search fluids…"));
+        searchBox.setHint(Component.translatable("phoenix_chronicles.screen.fluid_picker.search_hint"));
         searchBox.setValue(searchQuery);
         searchBox.setResponder(q -> {
             searchQuery = q;
@@ -70,9 +70,9 @@ public class FluidPickerScreen extends Screen {
         });
         addRenderableWidget(searchBox);
 
-        addRenderableWidget(Button.builder(Component.literal("§aSelect"), b -> confirm())
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.select"), b -> confirm())
                 .bounds(panelLeft + PANEL_W - 56, panelTop + PANEL_H - FOOTER_H + 3, 52, 14).build());
-        addRenderableWidget(Button.builder(Component.literal("§7Cancel"), b -> {
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.cancel"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(panelLeft + 4, panelTop + PANEL_H - FOOTER_H + 3, 52, 14).build());
 

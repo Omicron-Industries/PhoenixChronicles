@@ -37,7 +37,8 @@ public class ChronicleClientEvents {
                                             ensureTutorialTrackerInit();
                                             TutorialProgressTracker.resetAll();
                                             ctx.getSource().sendSuccess(
-                                                    () -> Component.literal("§aReset progress for all tutorials."),
+                                                    () -> Component.translatable(
+                                                            "phoenix_chronicles.command.tutorial_reset_all"),
                                                     false);
                                             return 1;
                                         })

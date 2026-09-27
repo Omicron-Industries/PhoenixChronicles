@@ -32,7 +32,7 @@ public class QuestbookTitleScreen extends Screen {
     private int panelLeft, panelTop;
 
     public QuestbookTitleScreen(Screen parent) {
-        super(Component.literal("Questbook Title"));
+        super(Component.translatable("phoenix_chronicles.screen.questbook_title.title"));
         this.parent = parent;
         QuestChroniclesSettings s = QuestChroniclesSettings.get();
         this.cachedName = s.getQuestbookName();
@@ -51,7 +51,7 @@ public class QuestbookTitleScreen extends Screen {
 
         nameBox = new EditBox(font, fx, currentY + 12, fw, COMPONENT_H, Component.empty());
         nameBox.setMaxLength(48);
-        nameBox.setHint(Component.literal("§8Quest Book"));
+        nameBox.setHint(Component.translatable("phoenix_chronicles.screen.questbook_title.hint"));
         nameBox.setValue(cachedName.equals("Quest Book") ? "" : cachedName);
         nameBox.setResponder(v -> cachedName = v.trim());
         addRenderableWidget(nameBox);
@@ -59,22 +59,23 @@ public class QuestbookTitleScreen extends Screen {
         currentY += 12 + COMPONENT_H + SECTION_GAP;
 
         int iconPreviewW = COMPONENT_H;
-        addRenderableWidget(Button.builder(Component.literal("§7Change icon…"),
-                b -> {
-                    if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
-                        cachedIcon = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem())
-                                .toString();
-                    }));
-                })
-                .bounds(fx + iconPreviewW + 8, currentY + 12, fw - iconPreviewW - 8, COMPONENT_H).build());
+        addRenderableWidget(
+                Button.builder(Component.translatable("phoenix_chronicles.screen.questbook_title.change_icon"),
+                        b -> {
+                            if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
+                                cachedIcon = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem())
+                                        .toString();
+                            }));
+                        })
+                        .bounds(fx + iconPreviewW + 8, currentY + 12, fw - iconPreviewW - 8, COMPONENT_H).build());
 
         int btnY = panelTop + PANEL_H - MARGIN - COMPONENT_H;
         int halfBtnW = (fw - 6) / 2;
 
-        addRenderableWidget(Button.builder(Component.literal("§aSave"), b -> save())
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.save"), b -> save())
                 .bounds(fx, btnY, halfBtnW, COMPONENT_H).build());
 
-        addRenderableWidget(Button.builder(Component.literal("§7Cancel"),
+        addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.cancel"),
                 b -> {
                     if (minecraft != null) minecraft.setScreen(parent);
                 })
