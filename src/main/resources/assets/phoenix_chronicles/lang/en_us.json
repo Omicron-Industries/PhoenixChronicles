@@ -20,6 +20,7 @@
   "emi.category.phoenix_chronicles.quests": "Chronicles Quests",
   "phoenix_chronicles.screen.search.hint": "§8Search quests…  §7(@chapter, task names, descriptions, items…)",
   "phoenix_chronicles.command.tutorial_reset_all": "§aReset progress for all tutorials.",
+  "phoenix_chronicles.command.tutorial_reset_specfic": "§aReset tutorial progress for §f",
   "phoenix_chronicles.item.chronicle_book.tooltip": "Right-click to open the quest book",
   "phoenix_chronicles.ui.reward_table_summary_pick": "Table: %s (%s/%s weighted random)",
   "phoenix_chronicles.ui.reward_table_summary_all": "Table: %s (%s %s)",
