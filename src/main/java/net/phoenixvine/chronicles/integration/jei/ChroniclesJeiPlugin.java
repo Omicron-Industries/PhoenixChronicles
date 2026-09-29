@@ -51,11 +51,6 @@ public class ChroniclesJeiPlugin implements IModPlugin {
                 .toList();
     }
 
-    /**
-     * Called when the quest tree changes (a save, or a file-watcher hot reload). JEI has no
-     * "replace all recipes of a type" call, only add/hide-by-value, so this hides exactly the
-     * set it previously registered and adds the fresh one -- bounded, no leaked duplicates.
-     */
     public static void refreshQuestRecipes() {
         if (runtime == null) return;
         IRecipeManager recipeManager = runtime.getRecipeManager();

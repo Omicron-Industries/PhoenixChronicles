@@ -110,8 +110,11 @@ public class FtbQuestsImporter {
         autoIncludeChaptersForDanglingDeps(chapters, globalIndex, outputDir, langMap, warnings, globalUsedPaths,
                 globalQuestsById);
 
-        chapters.sort(Comparator.comparingInt(
-                idx -> idx.chapter().contains("order_index") ? idx.chapter().getInt("order_index") : 0));
+        Map<String, Integer> groupOrder = loadChapterGroupOrder(cleanImportDir);
+        chapters.sort(Comparator
+                .comparingInt((ChapterIndex idx) -> groupOrder.getOrDefault(idx.ftbGroupId(), -1))
+                .thenComparingInt(
+                        idx -> idx.chapter().contains("order_index") ? idx.chapter().getInt("order_index") : 0));
 
         Map<String, Map<String, String>> localStandIns = buildLocalStandIns(chapters);
 
@@ -456,6 +459,35 @@ public class FtbQuestsImporter {
         }
     }
 
+    private static Map<String, Integer> loadChapterGroupOrder(Path importDir) {
+        Map<String, Integer> order = new HashMap<>();
+        List<Path> candidates = new ArrayList<>();
+        candidates.add(importDir.resolve("chapter_groups.snbt"));
+        if (importDir.getParent() != null) candidates.add(importDir.getParent().resolve("chapter_groups.snbt"));
+
+        Path found = null;
+        for (Path candidate : candidates) {
+            if (Files.exists(candidate)) {
+                found = candidate;
+                break;
+            }
+        }
+        if (found == null) return order;
+
+        try {
+            String snbt = Files.readString(found, StandardCharsets.UTF_8);
+            CompoundTag root = LenientSnbtParser.parse(snbt);
+            ListTag groups = root.getList("chapter_groups", Tag.TAG_COMPOUND);
+            for (int i = 0; i < groups.size(); i++) {
+                CompoundTag g = groups.getCompound(i);
+                if (!g.contains("id")) continue;
+                String id = tagAsString(g, "id").trim();
+                if (!id.isEmpty()) order.put(id, i);
+            }
+        } catch (Exception ignored) {}
+        return order;
+    }
+
     private static Map<String, String> loadChapterGroupTitles(Path importDir, Map<String, String> langMap,
                                                               List<String> warnings) {
         Map<String, String> titles = new HashMap<>();
@@ -546,9 +578,6 @@ public class FtbQuestsImporter {
             }
         }
 
-        // Chapters are normally discovered by scanning quests for their `chapter` field, so a
-        // chapter imported with zero quests would otherwise never appear in the chapter list --
-        // register it in the same categories.txt the "+ New Chapter" UI writes to.
         if (imported == 0) registerEmptyChapter(outputDir, idx.categorySlug());
 
         return new ImportResult(imported, skipped, idx.categorySlug(), warnings);
@@ -574,13 +603,6 @@ public class FtbQuestsImporter {
         } catch (IOException ignored) {}
     }
 
-    /**
-     * The sidebar reads a chapter's icon from ChapterConfig (config/phoenix_chronicles/chapters.json),
-     * not from the per-chapter category.json this importer also writes (that file is only ever
-     * consulted for a display-name fallback). Mirror ChapterConfig's JSON shape here directly rather
-     * than calling into it -- it's a client-only class, and this importer also runs from a server
-     * command handler.
-     */
     private static void registerChapterIcon(Path outputDir, String categorySlug, String iconItem) {
         if (iconItem == null || iconItem.isEmpty() || iconItem.equals("minecraft:air")) return;
         String id = categorySlug.trim().toUpperCase(Locale.ROOT);
@@ -703,7 +725,7 @@ public class FtbQuestsImporter {
         String subtitle = resolveText(rawSubtitle, langMap, warnings, false);
 
         String resolvedTitle = firstUsable(title, itemBasedFallbackTitle(q, langMap, warnings),
-                "Quest " + shortId(ftbId));
+                firstTaskTitle(q, langMap, warnings), "Quest " + shortId(ftbId));
         append(sb, "title", escape(resolvedTitle));
 
         if (isUsableTitle(subtitle) && !subtitle.equals(resolvedTitle)) {
@@ -856,6 +878,17 @@ public class FtbQuestsImporter {
         String itemId = firstTaskItemId(q);
         if (itemId.isEmpty()) return "";
         return "Obtain " + localizedItemName(itemId, langMap);
+    }
+
+    private static String firstTaskTitle(CompoundTag q, Map<String, String> langMap, List<String> warnings) {
+        ListTag tasks = q.getList("tasks", Tag.TAG_COMPOUND);
+        for (int i = 0; i < tasks.size(); i++) {
+            CompoundTag t = tasks.getCompound(i);
+            if (!t.contains("title")) continue;
+            String resolved = resolveText(t.get("title").getAsString(), langMap, warnings, false);
+            if (isUsableTitle(resolved)) return resolved;
+        }
+        return "";
     }
 
     private static String localizedItemName(String itemId, Map<String, String> langMap) {
@@ -1174,14 +1207,16 @@ public class FtbQuestsImporter {
                         "' imported as a live loot table reference - its contents are rolled fresh " +
                         "(with luck/looting bonuses) the moment each player claims the quest, not fixed at import.");
             }
-            case "choice" -> {
+            case "choice", "all_table" -> {
                 ChoiceOptions resolved = resolveChoiceOptions(r, questPath, warnings);
                 if (resolved == null) return;
 
-                warnings.add("Quest " + questPath + ": " + resolved.sourceLabel() +
-                        " is mixed with other unconditional rewards on this quest, which has no single-choice " +
-                        "equivalent - all " + resolved.options().size() +
-                        " option(s) will be granted instead of picking one.");
+                if (type.equals("choice")) {
+                    warnings.add("Quest " + questPath + ": " + resolved.sourceLabel() +
+                            " is mixed with other unconditional rewards on this quest, which has no single-choice " +
+                            "equivalent - all " + resolved.options().size() +
+                            " option(s) will be granted instead of picking one.");
+                }
                 for (int i = 0; i < resolved.options().size(); i++)
                     convertReward(resolved.options().getCompound(i), questPath, warnings, out);
             }

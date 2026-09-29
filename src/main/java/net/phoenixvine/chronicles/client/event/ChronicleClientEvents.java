@@ -56,7 +56,9 @@ public class ChronicleClientEvents {
                                                     String questId = StringArgumentType.getString(ctx, "quest");
                                                     TutorialProgressTracker.reset(questId);
                                                     ctx.getSource().sendSuccess(() -> Component
-                                                            .translatable("phoenix_chronicles.command.tutorial_reset_specfic" + questId),
+                                                            .translatable(
+                                                                    "phoenix_chronicles.command.tutorial_reset_specfic" +
+                                                                            questId),
                                                             false);
                                                     return 1;
                                                 })))));

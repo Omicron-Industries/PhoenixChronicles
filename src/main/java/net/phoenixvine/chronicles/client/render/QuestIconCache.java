@@ -55,7 +55,8 @@ public final class QuestIconCache {
     }
 
     public static void invalidate(String questPath) {
-        CACHE.remove(questPath);
+        ResourceLocation loc = CACHE.remove(questPath);
+        if (loc != null) Minecraft.getInstance().getTextureManager().release(loc);
         DIMS_CACHE.remove(questPath);
         MISS_CACHE.remove(questPath);
     }

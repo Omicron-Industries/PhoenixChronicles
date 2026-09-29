@@ -182,7 +182,7 @@ public class QuestEditOps {
             return;
         }
         Path base = mc.gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
-        Path importDir = base.resolve("ftb_import");
+        Path importDir = resolveFtbImportDir(mc, base);
 
         ftbImportInProgress = true;
         ctx.setFeedback("§7Importing FTB Quests… this may take a moment for large packs");
@@ -198,20 +198,47 @@ public class QuestEditOps {
             }
             FtbQuestsImporter.ImportResult finalResult = result;
             Exception finalError = error;
-            mc.execute(() -> finishFtbImport(finalResult, finalError));
+            mc.execute(() -> finishFtbImport(finalResult, finalError, importDir));
         }, "phoenix-chronicles-ftb-import");
         worker.setDaemon(true);
         worker.start();
     }
 
-    private void finishFtbImport(FtbQuestsImporter.@NotNull ImportResult r, @Nullable Exception error) {
+    private static Path resolveFtbImportDir(Minecraft mc, Path phoenixConfigBase) {
+        if (mc.hasSingleplayerServer() && mc.getSingleplayerServer() != null) {
+            try {
+                Path worldSpecific = mc.getSingleplayerServer()
+                        .getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                        .resolve("ftbquests").resolve("quests").resolve("chapters");
+                if (hasSnbtFiles(worldSpecific)) return worldSpecific;
+            } catch (Exception ignored) {}
+        }
+        Path global = mc.gameDirectory.toPath().resolve("config").resolve("ftbquests").resolve("quests")
+                .resolve("chapters");
+        if (hasSnbtFiles(global)) return global;
+
+        return phoenixConfigBase.resolve("ftb_import");
+    }
+
+    private static boolean hasSnbtFiles(Path dir) {
+        if (!java.nio.file.Files.isDirectory(dir)) return false;
+        try (var stream = java.nio.file.Files.list(dir)) {
+            return stream.anyMatch(p -> !java.nio.file.Files.isDirectory(p) &&
+                    p.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".snbt"));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private void finishFtbImport(FtbQuestsImporter.@NotNull ImportResult r, @Nullable Exception error,
+                                 Path importDir) {
         ftbImportInProgress = false;
         if (error != null) {
             ctx.setFeedback("§cFTB import error: %s", error.getMessage());
             return;
         }
         if (r.imported() == 0 && r.skipped() == 0) {
-            ctx.setFeedback("§eNo .snbt files found in config/phoenix_chronicles/ftb_import/");
+            ctx.setFeedback("§eNo .snbt files found in %s", importDir);
         } else {
             String skippedPart = r.skipped() > 0 ? " §c(%d skipped)".formatted(r.skipped()) : "";
             String warningsPart = r.warnings().isEmpty() ? "" :

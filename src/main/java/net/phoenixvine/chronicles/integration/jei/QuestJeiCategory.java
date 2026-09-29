@@ -14,11 +14,11 @@ import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.common.model.QuestNode;
-import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.common.tasks.CraftItemTask;
 import net.phoenixvine.chronicles.common.tasks.FluidRequirementTask;
 import net.phoenixvine.chronicles.common.tasks.ItemRequirementTask;
+import net.phoenixvine.chronicles.integration.QuestRewardDisplay;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
@@ -29,21 +29,10 @@ import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
-/**
- * JEI's counterpart to {@code integration/emi}'s QuestEmiCategory/QuestEmiRecipe -- same quest
- * data (tasks as inputs, rewards as outputs, click title to jump into the quest book), built on
- * JEI's slot-based layout API instead of EMI's free-form widget API. Only ever touched from
- * behind ChroniclesJeiPlugin, which JEI itself only loads when JEI is present.
- *
- * TODO: draw()/getTooltipStrings()/handleInput()/addTooltipCallback() are deprecated in favor of
- * a newer IRecipeExtrasBuilder-based widget API (createRecipeExtras/getTooltip/
- * addRichTooltipCallback) -- left as-is since they're still fully functional on the pinned JEI
- * 15.20.0 (1.20.1) and migrating is a real rewrite, not a quick swap. Worth doing if this ever
- * targets a JEI version where they're actually removed.
- */
 public class QuestJeiCategory implements IRecipeCategory<QuestNode> {
 
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "quests");
@@ -125,43 +114,41 @@ public class QuestJeiCategory implements IRecipeCategory<QuestNode> {
             }
         }
 
-        List<QuestReward> rewards = recipe.getRewards();
-        if (rewards == null || rewards.isEmpty()) {
+        List<QuestRewardDisplay.Entry> entries = QuestRewardDisplay.entries(recipe);
+        if (entries.isEmpty()) {
             builder.addSlot(RecipeIngredientRole.OUTPUT, rewardX, slotY)
                     .setStandardSlotBackground().addItemStack(new ItemStack(Items.BOOK));
             return;
         }
-        int i = 0;
-        for (QuestReward reward : rewards) {
-            if (i >= 3 || reward == null) continue;
-            builder.addSlot(RecipeIngredientRole.OUTPUT, rewardX + i * 18, slotY)
-                    .setStandardSlotBackground()
-                    .addItemStack(rewardIcon(reward))
-                    .addTooltipCallback((view, tooltip) -> tooltip.add(reward.getSummary()));
-            i++;
-        }
-    }
+        for (int r = 0; r < entries.size(); r++) {
+            QuestRewardDisplay.Entry entry = entries.get(r);
+            if (r < 3) {
+                var slot = builder.addSlot(RecipeIngredientRole.OUTPUT, rewardX + r * 18, slotY)
+                        .setStandardSlotBackground();
+                if (entry.isFluid()) {
+                    if (entry.fluidNbt() != null) slot.addFluidStack(entry.fluid(), entry.fluidAmountMb(),
+                            entry.fluidNbt());
+                    else slot.addFluidStack(entry.fluid(), entry.fluidAmountMb());
+                } else {
+                    slot.addItemStack(entry.stack());
+                }
+                if (!entry.tooltip().isEmpty()) {
+                    slot.addTooltipCallback((view, tooltip) -> tooltip.addAll(entry.tooltip()));
+                }
+            } else {
 
-    private static ItemStack rewardIcon(QuestReward reward) {
-        if (reward instanceof QuestReward.ItemReward ir) {
-            Item item = ir.getItem();
-            if (item != null && item != Items.AIR) return new ItemStack(item, ir.getCount());
-        } else if (reward instanceof QuestReward.XPReward xp) {
-            return new ItemStack(Items.EXPERIENCE_BOTTLE, Math.max(1, xp.getLevels()));
-        } else if (reward instanceof QuestReward.LootTableReward || reward instanceof QuestReward.RewardTableReward) {
-            return new ItemStack(Items.BUNDLE);
-        } else if (reward instanceof QuestReward.LootCrateReward) {
-            Item crate = ForgeRegistries.ITEMS
-                    .getValue(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "loot_crate"));
-            return new ItemStack(crate != null && crate != Items.AIR ? crate : Items.CHEST);
-        } else if (reward instanceof QuestReward.CommandReward || reward instanceof QuestReward.ScriptEventReward) {
-            return new ItemStack(Items.COMMAND_BLOCK);
+                var hidden = builder.addInvisibleIngredients(RecipeIngredientRole.OUTPUT);
+                if (entry.isFluid()) {
+                    assert entry.fluid() != null;
+                    hidden.addFluidStack(entry.fluid(), entry.fluidAmountMb());
+                } else hidden.addItemStack(entry.stack());
+            }
         }
-        return new ItemStack(Items.PAPER);
     }
 
     @Override
-    public void draw(QuestNode recipe, IRecipeSlotsView recipeSlotsView, GuiGraphics g, double mouseX, double mouseY) {
+    public void draw(QuestNode recipe, @NotNull IRecipeSlotsView recipeSlotsView, GuiGraphics g, double mouseX,
+                     double mouseY) {
         Font font = Minecraft.getInstance().font;
 
         List<FormattedCharSequence> titleLines = font.split(recipe.getTitle(), WIDTH - 8);
@@ -185,6 +172,9 @@ public class QuestJeiCategory implements IRecipeCategory<QuestNode> {
 
         g.drawString(font, "Tasks", 4, 81, 0x333333, false);
         g.drawString(font, "Rewards", 100, 81, 0x333333, false);
+
+        int extra = QuestRewardDisplay.entries(recipe).size() - 3;
+        if (extra > 0) g.drawString(font, "+" + extra + " more", 100, 112, 0x777777, false);
     }
 
     @Override

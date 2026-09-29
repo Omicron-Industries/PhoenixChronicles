@@ -33,18 +33,6 @@ public final class QuestAPI {
         }
     }
 
-    /**
-     * Opt-in registry so the "External Trigger" task's editor can offer a picker instead of a
-     * blank text box - purely for discoverability, not enforcement. {@link #fireExternalEvent}
-     * still matches any string regardless of whether it was registered here.
-     *
-     * <p>
-     * Registration is expected to happen from server-side (KubeJS server_scripts or a mod's
-     * own init), so this only reliably reflects what's registered when client and server share a
-     * JVM (singleplayer/dev) - a real remote multiplayer client won't see the server's
-     * registrations without a sync packet, which this doesn't build since it's a dev-only
-     * authoring convenience.
-     */
     private static final Map<String, String> REGISTERED_TRIGGERS = new ConcurrentHashMap<>();
 
     public static void registerExternalTrigger(String id, @Nullable String description) {

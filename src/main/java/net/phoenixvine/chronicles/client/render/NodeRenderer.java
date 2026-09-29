@@ -129,6 +129,9 @@ public class NodeRenderer {
             for (Map.Entry<ResourceLocation, int[]> entry : ctx.nodeScreenPos().entrySet()) {
                 QuestNode node = QuestTreeRegistry.getQuest(entry.getKey());
                 if (node == null) continue;
+
+                ChronicleOverviewScreen.NodeHitbox vb = state.nodeButtons().get(entry.getKey());
+                if (vb == null || !vb.visible) continue;
                 if (ctx.validationIssues(node).isEmpty()) continue;
                 int[] pos = entry.getValue();
                 int nsz = ctx.scaledNodeSize(node);

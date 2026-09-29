@@ -121,33 +121,6 @@ public final class PhoenixQuestFlags {
         return evaluate(expression, server, (Player) null);
     }
 
-    /**
-     * Evaluates a flag/condition expression. Supports full boolean logic, not just OR-of-ANDs:
-     *
-     * <ul>
-     * <li>{@code !a} - NOT</li>
-     * <li>{@code a & b} (or the legacy alias {@code a, b}) - AND</li>
-     * <li>{@code a ^ b} - XOR</li>
-     * <li>{@code a | b} - OR</li>
-     * <li>{@code (...)} - grouping, for arbitrary nesting</li>
-     * </ul>
-     *
-     * <p>
-     * Precedence from loosest to tightest binding is OR, XOR, AND, NOT - the same as most
-     * languages (e.g. {@code a | b & c} means {@code a | (b & c)}) - and parentheses override it.
-     * NAND/NOR/XNOR aren't separate operators since they're just a negated AND/OR/XOR, e.g.
-     * {@code !(a & b)}.
-     *
-     * <p>
-     * The old flat "{@code a,b|c,!d}" syntax (comma-AND inside pipe-OR, no grouping) still
-     * evaluates identically to before - {@code ,} is kept as an AND alias specifically so every
-     * expression written before this parser existed keeps working unchanged.
-     *
-     * <p>
-     * A malformed expression (unbalanced parens, an operator with nothing on one side, etc.) is
-     * logged once and treated as true, matching this class's existing "unknown -&gt; default true"
-     * philosophy elsewhere, so a typo in one quest's condition can't hard-fail quest loading.
-     */
     public static boolean evaluate(@Nullable String expression, @Nullable MinecraftServer server,
                                    @Nullable Player player) {
         if (expression == null || expression.isBlank()) return true;

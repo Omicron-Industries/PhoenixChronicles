@@ -49,11 +49,6 @@ public class BulkOpsPanel {
         moveCatOpen = false;
     }
 
-    /**
-     * Simulates clicking the first shape slot (SQUARE) -- lets the F9 smoke test exercise the
-     * batch-shape-change path through the real mouseClicked() dispatch without needing to
-     * duplicate this panel's pixel geometry from outside the class.
-     */
     public void testClickFirstShapeSlot(int cl) {
         int bx = cl + 4, by = ChronicleOverviewScreen.HEADER_H + 4;
         int slotW = 14, startX = bx + 6, slotY = by + 24;

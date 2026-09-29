@@ -291,9 +291,7 @@ public class SettingsScreen extends Screen {
                 rows.add(Row.toggle("§fDev Mode Enabled", () -> !settings.isDevModeDisabled(), on -> {
                     settings.setDevModeDisabled(!on);
                     if (on) {
-                        // Cascade to the other dev toggles below - but not Always-On Profiler or
-                        // Generate .md Sidecar Files, which are opt-in workflow/perf choices,
-                        // not things dev mode should force on.
+
                         settings.setShowDevInfoByDefault(true);
                         settings.setShowFlagDisabledChapters(true);
                         settings.setShowFlagDisabledQuests(true);

@@ -17,32 +17,6 @@ import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
-/**
- * The registry a third-party mod (or KubeJS pack) uses to add its own quest task types to
- * Chronicles. There's no separate addon API module -- this class, called directly, is the whole
- * surface. Three ways to hook in, roughly in order of how much code they need:
- *
- * <ol>
- * <li><b>No registration at all.</b> Reuse the built-in {@code external_trigger} task type and
- * call {@link net.phoenixvine.chronicles.QuestAPI#fireExternalEvent} from anywhere (a
- * block entity tick, an event handler, a script) with a trigger id matching what the pack
- * author put in the quest. Good for "something happened" completion with no custom UI.</li>
- * <li>{@link #registerScripted(String)} -- for a task whose completion/consume/progress logic
- * is supplied as callbacks (what KubeJS's task-type support is built on) rather than a real
- * Java class. See {@link ScriptTaskHandler} and the {@code Builder#onCompleted}/
- * {@code onConsume}/{@code progressString} methods.</li>
- * <li>{@link #register(String, Function)} -- for a real {@link QuestTask} subclass with its
- * own NBT (de)serialization and completion logic; see any entry in
- * {@link #registerBuiltins()} for the shape a deserializer function takes.</li>
- * </ol>
- *
- * Either way, call {@code register(...)}/{@code registerScripted(...)}.{@code register()} during
- * mod init (e.g. {@code FMLCommonSetupEvent}) -- Chronicles registers its own builtins and starts
- * deserializing quest files on {@code ServerStartingEvent}, so anything registered later won't be
- * recognized for quests that reference it. {@link Builder#requiresMod(String)} only gates whether
- * the type shows up in the in-game editor's type picker ({@link #getEditorTypes()}); it doesn't
- * affect deserializing quests that already reference the type.
- */
 public final class PhoenixTaskRegistry {
 
     public record FieldDef(String id, String label, FieldType type, @Nullable String hint) {
@@ -126,21 +100,10 @@ public final class PhoenixTaskRegistry {
     private static final List<TaskEntry> EDITOR_ORDER = new ArrayList<>();
     private static final Map<String, ScriptTaskHandler> SCRIPT_HANDLERS = new HashMap<>();
 
-    /**
-     * Registers a task type backed by a real {@link QuestTask} subclass. {@code deserializer}
-     * rebuilds an instance from the NBT written by {@link QuestTask#deserializeNBT}; call
-     * {@code .icon(...).label(...).tooltip(...).field(...)} then {@link Builder#register()} to
-     * finish. See the class doc for when this needs to run.
-     */
     public static Builder register(String typeId, Function<CompoundTag, Object> deserializer) {
         return new Builder(typeId, deserializer);
     }
 
-    /**
-     * Registers a task type driven entirely by callbacks (no dedicated {@link QuestTask}
-     * subclass) via {@link Builder#onCompleted}/{@code onConsume}/{@code progressString} -- what
-     * KubeJS's task-type support is built on. See the class doc for when this needs to run.
-     */
     public static Builder registerScripted(String typeId) {
         ScriptTaskHandler handler = new ScriptTaskHandler();
         SCRIPT_HANDLERS.put(typeId, handler);

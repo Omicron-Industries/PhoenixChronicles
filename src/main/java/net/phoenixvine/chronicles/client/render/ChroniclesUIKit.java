@@ -11,12 +11,6 @@ public final class ChroniclesUIKit {
 
     private ChroniclesUIKit() {}
 
-    /**
-     * Wraps {@link Component#literal(String)}, additionally remapping the legacy neutral-text
-     * color codes (see {@link ChroniclesThemePalette#adapt}) so light themes stay legible. Use this
-     * for ephemeral UI text (labels, hints, tooltips) - never for text that gets persisted, since
-     * the remap must be re-applied per viewer at render time, not baked in once at save time.
-     */
     public static Component lit(String raw) {
         return Component.literal(ChroniclesThemePalette.adapt(raw));
     }
@@ -47,11 +41,6 @@ public final class ChroniclesUIKit {
         g.drawCenteredString(font, text, x, y, color);
     }
 
-    /**
-     * Pass-through for already-split lines ({@code font.split(...)} results) - the source
-     * {@link Component} they were split from should already have gone through {@link #lit} (or
-     * {@link ChroniclesThemePalette#adapt}) before splitting, so no further remapping is needed here.
-     */
     public static void drawString(GuiGraphics g, Font font, net.minecraft.util.FormattedCharSequence text, int x,
                                   int y, int color) {
         g.drawString(font, text, x, y, color);

@@ -40,9 +40,7 @@ public class QuestTreeRegistry {
                 TASK_OWNER.put(task.getTaskId(), node);
             }
         }
-        // A QuestVariant can carry its own distinct task list (see QuestNode#getEffectiveTasks),
-        // swapped in for a player at tick time -- those tasks need indexing too, or
-        // TaskProgressAccess.getOrEmpty resolves a null owner for anything variant-specific.
+
         for (var variant : node.getVariants()) {
             if (variant.tasks == null) continue;
             for (var task : variant.tasks) {

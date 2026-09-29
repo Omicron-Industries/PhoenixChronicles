@@ -11,7 +11,6 @@ public class ChroniclesThemePalette {
     public static int NODE_LOCKED, NODE_UNLOCKED, NODE_ACTIVE, NODE_DONE;
     public static int NBORD_LOCKED, NBORD_UNLOCKED, NBORD_ACTIVE, NBORD_DONE, NBORD_DEV;
 
-    /** Whether the active theme's background is bright enough that white/light-gray text reads poorly on it. */
     public static boolean IS_LIGHT;
 
     public static void refresh(PhoenixTheme t) {
@@ -51,19 +50,6 @@ public class ChroniclesThemePalette {
         return (int) (0.299f * r + 0.587f * g + 0.114f * b);
     }
 
-    /**
-     * Swaps the legacy formatting codes we use as ad hoc "neutral text" tiers (§f white / primary,
-     * §7 gray / secondary, §8 dark gray / tertiary) so they stay legible when {@link #IS_LIGHT} is
-     * true, without touching the saturated/semantic codes (§a, §c, §e, etc.) that already read fine
-     * on either background.
-     *
-     * <p>
-     * A no-op unless the active theme is light and the string actually contains a legacy code, so
-     * it's safe to call on every bit of ephemeral UI text (button labels, hints, tooltips, drawn
-     * strings) regardless of theme. Do NOT use this on text meant to be persisted (quest titles,
-     * descriptions, markdown content, etc.) - it must only affect how a viewer's client currently
-     * displays text, never what gets saved to disk.
-     */
     public static String adapt(String raw) {
         if (!IS_LIGHT || raw == null || raw.indexOf('§') < 0) return raw;
         StringBuilder sb = new StringBuilder(raw.length());

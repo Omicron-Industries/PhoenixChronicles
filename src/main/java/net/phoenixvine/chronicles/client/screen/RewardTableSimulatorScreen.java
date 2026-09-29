@@ -18,17 +18,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-/**
- * Rolls a reward table many times and shows how often each entry actually came up -- lets a pack
- * author sanity-check weighted odds without doing the math by hand. Read-only: reward tables
- * themselves are datapack content (see RewardTableRegistry), not edited from this screen.
- */
 public class RewardTableSimulatorScreen extends Screen {
 
     private static final int ROLLS = 1000;
 
     private final Screen parent;
     private final String tableId;
+    private final RewardTable directTable;
 
     private record Result(String summary, int hits) {}
 
@@ -39,6 +35,14 @@ public class RewardTableSimulatorScreen extends Screen {
         super(Component.translatable("phoenix_chronicles.screen.reward_simulator.title"));
         this.parent = parent;
         this.tableId = tableId;
+        this.directTable = null;
+    }
+
+    public RewardTableSimulatorScreen(Screen parent, RewardTable table) {
+        super(Component.translatable("phoenix_chronicles.screen.reward_simulator.title"));
+        this.parent = parent;
+        this.tableId = null;
+        this.directTable = table;
     }
 
     @Override
@@ -57,7 +61,7 @@ public class RewardTableSimulatorScreen extends Screen {
     }
 
     private void roll() {
-        RewardTable table = RewardTableRegistry.get(tableId);
+        RewardTable table = directTable != null ? directTable : RewardTableRegistry.get(tableId);
         if (table == null) {
             statusLine = "§cTable '" + tableId + "' not found -- check the id and that it's loaded.";
             results = List.of();

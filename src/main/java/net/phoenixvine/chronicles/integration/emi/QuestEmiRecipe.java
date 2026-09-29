@@ -13,11 +13,11 @@ import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
 import net.phoenixvine.chronicles.common.model.QuestNode;
-import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.common.tasks.CraftItemTask;
 import net.phoenixvine.chronicles.common.tasks.FluidRequirementTask;
 import net.phoenixvine.chronicles.common.tasks.ItemRequirementTask;
+import net.phoenixvine.chronicles.integration.QuestRewardDisplay;
 
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
@@ -82,40 +82,20 @@ public class QuestEmiRecipe implements EmiRecipe {
     @Override
     public @NotNull List<EmiStack> getOutputs() {
         List<EmiStack> dynamicOutputs = new ArrayList<>();
-        if (node.getRewards() == null || node.getRewards().isEmpty()) {
-            dynamicOutputs.add(EmiStack.of(Items.BOOK));
-            return dynamicOutputs;
+        for (QuestRewardDisplay.Entry entry : QuestRewardDisplay.entries(node)) {
+            dynamicOutputs.add(toEmiStack(entry));
         }
-
-        for (QuestReward reward : node.getRewards()) {
-            if (reward == null) continue;
-
-            if (reward instanceof QuestReward.ItemReward ir) {
-                Item rewardItem = ir.getItem();
-                if (rewardItem != null && rewardItem != Items.AIR) {
-                    dynamicOutputs.add(EmiStack.of(rewardItem, ir.getCount()));
-                }
-            } else if (reward instanceof QuestReward.XPReward xp) {
-                dynamicOutputs.add(EmiStack.of(Items.EXPERIENCE_BOTTLE, xp.getLevels()));
-            } else
-                if (reward instanceof QuestReward.LootTableReward || reward instanceof QuestReward.RewardTableReward) {
-                    dynamicOutputs.add(EmiStack.of(Items.BUNDLE, 1));
-                } else if (reward instanceof QuestReward.LootCrateReward) {
-                    Item crate = ForgeRegistries.ITEMS
-                            .getValue(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", "loot_crate"));
-                    dynamicOutputs.add(EmiStack.of(crate != null && crate != Items.AIR ? crate : Items.CHEST, 1));
-                } else if (reward instanceof QuestReward.CommandReward ||
-                        reward instanceof QuestReward.ScriptEventReward) {
-                            dynamicOutputs.add(EmiStack.of(Items.COMMAND_BLOCK, 1));
-                        } else {
-                            dynamicOutputs.add(EmiStack.of(Items.PAPER, 1));
-                        }
-        }
-
         if (dynamicOutputs.isEmpty()) {
             dynamicOutputs.add(EmiStack.of(Items.BOOK));
         }
         return dynamicOutputs;
+    }
+
+    private static EmiStack toEmiStack(QuestRewardDisplay.Entry entry) {
+        if (entry.isFluid()) {
+            return EmiStack.of(entry.fluid(), entry.fluidNbt(), entry.fluidAmountMb());
+        }
+        return EmiStack.of(entry.stack());
     }
 
     @Override
@@ -171,24 +151,28 @@ public class QuestEmiRecipe implements EmiRecipe {
             widgets.addSlot(currentInputs.get(i), taskX + (i * 18), slotY).drawBack(true);
         }
 
-        List<EmiStack> currentOutputs = getOutputs();
-        if (!currentInputs.isEmpty() && !currentOutputs.isEmpty()) {
+        List<QuestRewardDisplay.Entry> rewardEntries = QuestRewardDisplay.entries(node);
+        if (!currentInputs.isEmpty()) {
             widgets.addTexture(EmiTexture.EMPTY_ARROW, 68, slotY + 1);
         }
 
         int rewardX = 100;
         widgets.addText(Component.literal("Rewards").getVisualOrderText(), rewardX, slotY - 11, 0x333333, false);
 
-        List<QuestReward> originalRewards = node.getRewards();
-        for (int i = 0; i < Math.min(currentOutputs.size(), 3); i++) {
-            SlotWidget slot = widgets.addSlot(currentOutputs.get(i), rewardX + (i * 18), slotY)
-                    .drawBack(true);
+        if (rewardEntries.isEmpty()) {
+            widgets.addSlot(EmiStack.of(Items.BOOK), rewardX, slotY).drawBack(true)
+                    .appendTooltip(Component.literal("§7Quest Completion Record"));
+            return;
+        }
 
-            if (originalRewards != null && i < originalRewards.size()) {
-                slot.appendTooltip(originalRewards.get(i).getSummary());
-            } else {
-                slot.appendTooltip(Component.literal("§7Quest Completion Record"));
-            }
+        for (int i = 0; i < Math.min(rewardEntries.size(), 3); i++) {
+            QuestRewardDisplay.Entry entry = rewardEntries.get(i);
+            SlotWidget slot = widgets.addSlot(toEmiStack(entry), rewardX + (i * 18), slotY).drawBack(true);
+            for (Component line : entry.tooltip()) slot.appendTooltip(line);
+        }
+        if (rewardEntries.size() > 3) {
+            widgets.addText(Component.literal("+" + (rewardEntries.size() - 3) + " more").getVisualOrderText(),
+                    rewardX, slotY + 20, 0x777777, false);
         }
     }
 

@@ -25,15 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-/**
- * A bird's-eye view of how chapters gate each other. There's no separate "chapter depends on
- * chapter" data in this mod -- this is purely an aggregation of the real quest-level prerequisite
- * graph, so it always reflects what's actually true rather than something a pack author has to
- * declare and keep in sync. Click a chapter box to jump the canvas straight to it.
- *
- * TODO: no pan/zoom beyond click-drag panning -- fine for the chapter counts seen so far, but a
- * pack with a very large number of chapters may want a proper zoom-to-fit at some point.
- */
 public class ChapterMapScreen extends Screen {
 
     private record Edge(String from, String to, int count) {}

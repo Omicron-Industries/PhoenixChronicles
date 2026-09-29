@@ -91,8 +91,10 @@ public class ChronicleOverviewScreen extends Screen
     private static final int[] GRID_SNAP_CYCLE = { 1, 4, 8, 16, 32, 64, 128 };
     public static final long OPEN_FADE_MS = 120;
     private static final long TOOLTIP_DELAY_MS = 0;
-    public static final int MIN_NODE_PX = 12;
-    public static final float MIN_NODE_FLOOR_FRACTION = 0.375f;
+    
+    public static final int MIN_NODE_PX = 8;
+    
+    public static final float MIN_NODE_FLOOR_FRACTION = 0.35f;
     public static final int GROUP_LABEL_BAR_H = 11;
     final Map<ResourceLocation, String> searchCache = new HashMap<>();
     private final SidebarPanel sidebarPanel = new SidebarPanel();
@@ -387,8 +389,15 @@ public class ChronicleOverviewScreen extends Screen
         return isAncestorGatedHidden(node);
     }
 
+    private final Map<ResourceLocation, Boolean> ancestorGatedCache = new HashMap<>();
+
     private boolean isAncestorGatedHidden(QuestNode node) {
-        return QuestChroniclesSettings.get().isCascadeHiddenQuests() && node.isAncestorGatedHidden(this::getState);
+        if (!QuestChroniclesSettings.get().isCascadeHiddenQuests()) return false;
+        Boolean cached = ancestorGatedCache.get(node.getId());
+        if (cached != null) return cached;
+        boolean result = node.isAncestorGatedHidden(this::getState);
+        ancestorGatedCache.put(node.getId(), result);
+        return result;
     }
 
     @Override
@@ -627,6 +636,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public void rebuild() {
         clearWidgets();
+        ancestorGatedCache.clear();
         nodeScreenPos.clear();
         nodeButtons.clear();
         searchCache.clear();
@@ -669,7 +679,10 @@ public class ChronicleOverviewScreen extends Screen
         }
 
         for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
-            if (catMatches(n)) placeNodeRecursive(n, cl, cr);
+            if (catMatches(n)) {
+                placeNodeRecursive(n, cl, cr);
+                net.phoenixvine.chronicles.client.render.QuestIconCache.get(n.getId().getPath());
+            }
         }
         buildLineCache();
 
@@ -962,24 +975,19 @@ public class ChronicleOverviewScreen extends Screen
         return false;
     }
 
-    /**
-     * Lets the player type an exact pixel size while in resize mode (right-click > Resize),
-     * instead of only being able to scroll to it - digits build up a value, Enter applies it,
-     * Backspace edits it. Scroll and drag still work as before; this is purely additive.
-     */
     private boolean tryHandleNodeSizeTypedInput(int key) {
         if (nodeSizeEditMode == null) return false;
-        if (key >= 48 && key <= 57) { // '0'-'9'
+        if (key >= 48 && key <= 57) { 
             if (nodeSizeTypedBuffer == null) nodeSizeTypedBuffer = new StringBuilder();
             if (nodeSizeTypedBuffer.length() < 3) nodeSizeTypedBuffer.append((char) key);
             return true;
         }
-        if (key == 259) { // Backspace
+        if (key == 259) { 
             if (nodeSizeTypedBuffer == null || nodeSizeTypedBuffer.isEmpty()) return false;
             nodeSizeTypedBuffer.deleteCharAt(nodeSizeTypedBuffer.length() - 1);
             return true;
         }
-        if (key == 257 || key == 335) { // Enter / numpad Enter
+        if (key == 257 || key == 335) { 
             if (nodeSizeTypedBuffer == null || nodeSizeTypedBuffer.isEmpty()) return false;
             try {
                 nodeSizeEditMode.setSizeOverridePx(Integer.parseInt(nodeSizeTypedBuffer.toString()));
@@ -1509,9 +1517,7 @@ public class ChronicleOverviewScreen extends Screen
                 boolean enteringPlace = editorState.activeTool != GraphEditorState.EditorTool.PLACE;
                 editorState.activeTool = enteringPlace ?
                         GraphEditorState.EditorTool.PLACE : GraphEditorState.EditorTool.SELECT;
-                // Fresh placement streak starts with a clean selection, so every node dropped
-                // this streak accumulates into one multi-selection ready for BulkOpsPanel --
-                // see placeQuickQuest.
+
                 if (enteringPlace) editorState.multiSelection.clear();
                 return true;
             }
@@ -1685,8 +1691,6 @@ public class ChronicleOverviewScreen extends Screen
                 }
             }
 
-            // Ctrl+click-drag on empty canvas box-selects instead of an immediate clear; don't
-            // start it over the sidebar.
             if (mx > sidebarW()) {
                 boxSelecting = true;
                 boxSelectStartX = boxSelectCurX = (int) mx;
@@ -2030,9 +2034,7 @@ public class ChronicleOverviewScreen extends Screen
         setFeedback("Placed quest -- click again to place more");
 
         ResourceLocation placedId = questId;
-        // Accumulates across a placement streak (cleared when Place mode is entered -- see
-        // tryHandleToolbarButtonClick) so BulkOpsPanel shows up ready to batch-set chapter/
-        // shape/size for the whole freshly-placed group without any extra Ctrl+click-ing.
+
         editorState.multiSelection.add(placedId);
         pushUndo("Undo: quest placed", () -> {
             QuestTreeRegistry.removeQuest(placedId);
@@ -3003,16 +3005,16 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public boolean catMatches(QuestNode n) {
         MinecraftServer server = minecraft != null ? minecraft.getSingleplayerServer() : null;
-        QuestNode.Visibility vis = n.getEffectiveVisibility(server, minecraft.player);
 
         if (n.isFlagDisabled(server)) return isDevMode && QuestChroniclesSettings.get().isShowFlagDisabledQuests();
 
+        if (!selectedChapter.equals(n.getChapter())) return false;
+
         if (!isDevMode) {
+            QuestNode.Visibility vis = n.getEffectiveVisibility(server, minecraft.player);
             if (vis == QuestNode.Visibility.HIDDEN && getState(n) == QuestState.LOCKED) return false;
             if (isAncestorGatedHidden(n)) return false;
         }
-
-        if (!selectedChapter.equals(n.getChapter())) return false;
 
         if (!stateFilter.equals("ALL")) {
             QuestState st = getState(n);
@@ -3316,9 +3318,7 @@ public class ChronicleOverviewScreen extends Screen
         QuestNode.NodeSize startSize = nodeSizeEditStartSize;
         int startOverridePx = nodeSizeEditStartOverridePx, startX = nodeSizeEditStartX, startY = nodeSizeEditStartY;
         int endOverridePx = node.getSizeOverridePx(), endX = node.getCustomX(), endY = node.getCustomY();
-        // Resizing only touches layout, never tasks/rewards, so there's nothing for EMI/JEI to
-        // refresh - doing it anyway rebuilds their entire recipe catalog and is what caused the
-        // hang on finishing a resize.
+
         QuestFileSaver.saveOneQuestToDisk(node, false);
         if (startOverridePx != endOverridePx || startX != endX || startY != endY) {
             pushUndo("Undo: node resize reverted", () -> {
@@ -3880,6 +3880,7 @@ public class ChronicleOverviewScreen extends Screen
         int v = S2CSyncPlayerProgressPacket.getVersion();
         if (v != lastSeenProgressVersion) {
             lastSeenProgressVersion = v;
+            ancestorGatedCache.clear();
             progressCache.clear();
             attentionCache.clear();
             rewardsCache.clear();

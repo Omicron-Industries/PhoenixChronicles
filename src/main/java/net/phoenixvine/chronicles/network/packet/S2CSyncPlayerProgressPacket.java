@@ -104,12 +104,6 @@ public class S2CSyncPlayerProgressPacket {
         ctx.get().setPacketHandled(true);
     }
 
-    /**
-     * Resolves the sound to play for a quest event: the quest's own override, then its chapter's
-     * default override, then {@code fallback} (the vanilla sound this used to always play). An
-     * override that doesn't resolve to a registered sound event (typo, or a sound from a mod that
-     * isn't installed on this client) is treated as unset rather than crashing or silently muting.
-     */
     private static net.minecraft.sounds.SoundEvent resolveSound(String nodeSoundId, String chapter,
                                                                 java.util.function.Function<net.phoenixvine.chronicles.client.util.ChapterConfig, String> chapterSoundGetter,
                                                                 net.minecraft.sounds.SoundEvent fallback) {

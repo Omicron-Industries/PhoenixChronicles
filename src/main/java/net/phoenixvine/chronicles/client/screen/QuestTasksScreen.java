@@ -778,8 +778,7 @@ public class QuestTasksScreen extends Screen {
 
         boolean pinned = playerData != null && playerData.isPinned(node.getId());
         int pinX = width - 20;
-        // Collapse the edit button's slot when it's not shown, instead of leaving a fixed-size
-        // gap in the button row.
+
         int editX = pinX - (isEditMode ? 18 : 0);
         int fsX = editX - 20;
         int usesX = fsX - 20;
@@ -1677,6 +1676,7 @@ public class QuestTasksScreen extends Screen {
                     case LOOT_TABLE -> "Loot Table";
                     case SCRIPT_EVENT -> "Script Event";
                     case REWARD_TABLE -> "Reward Table";
+                    case FLUID -> display.getSummary().getString();
                     default -> display.getType().name();
                 };
             }
@@ -2652,6 +2652,8 @@ public class QuestTasksScreen extends Screen {
             case LOOT_TABLE -> "📦";
             case SCRIPT_EVENT -> "✦";
             case REWARD_TABLE -> "⊞";
+            case FLUID -> "💧";
+            case OPEN_SCREEN -> "🖥";
             default -> "?";
         };
     }

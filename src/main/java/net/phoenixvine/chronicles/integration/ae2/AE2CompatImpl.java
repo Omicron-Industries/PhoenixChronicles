@@ -1,5 +1,6 @@
 package net.phoenixvine.chronicles.integration.ae2;
 
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -95,6 +96,23 @@ final class AE2CompatImpl {
         if (extracted < amount) return false;
         storage.extract(key, amount, Actionable.MODULATE, source);
         return true;
+    }
+
+    static long insert(@NotNull Player player, @NotNull ItemStack template, long amount) {
+        return insert(player, AEItemKey.of(template), amount);
+    }
+
+    static long insert(@NotNull Player player, @NotNull Fluid fluid, @Nullable CompoundTag tag, long amountMb) {
+        return insert(player, AEFluidKey.of(fluid, tag), amountMb);
+    }
+
+    private static long insert(@NotNull Player player, @Nullable AEKey key, long amount) {
+        if (key == null || amount <= 0) return Math.max(0, amount);
+        IGrid grid = getLinkedGrid(player);
+        if (grid == null) return amount;
+        MEStorage storage = grid.getStorageService().getInventory();
+        long inserted = storage.insert(key, amount, Actionable.MODULATE, IActionSource.ofPlayer(player));
+        return amount - inserted;
     }
 
     static long getStoredAmount(@NotNull Player player, @NotNull IItemFilter filter) {

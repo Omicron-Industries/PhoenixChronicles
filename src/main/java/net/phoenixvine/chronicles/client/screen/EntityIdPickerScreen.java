@@ -24,16 +24,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/**
- * Like {@link RegistryIdPickerScreen}, but for entity-type ids specifically - renders a small
- * live mob preview to the left of each row instead of just text, since these ids are otherwise
- * hard to tell apart at a glance (e.g. all the zombie variants).
- *
- * <p>
- * Preview entities are created lazily per row (only once visible) and cached for the screen's
- * lifetime; they're never added to a level, just held for {@link InventoryScreen#renderEntityInInventory}
- * to pose and draw, matching the pattern used by {@code CutsceneScreen} in PhoenixCore.
- */
 public class EntityIdPickerScreen extends Screen {
 
     private static final int COL_HOVER = 0xFF1E1E2A;
@@ -180,7 +170,6 @@ public class EntityIdPickerScreen extends Screen {
         g.pose().popPose();
     }
 
-    /** Draws a small live entity preview centered at (x, bottomY), matching the row's icon slot. */
     private void renderIcon(GuiGraphics g, LivingEntity entity, int x, int bottomY) {
         float scale = Math.min(16f, 16f / Math.max(1f, entity.getBbHeight()));
         PoseStack pose = g.pose();

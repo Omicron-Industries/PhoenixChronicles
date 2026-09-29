@@ -11,17 +11,25 @@ public final class QuestEngineConfig {
     private QuestEngineConfig() {}
 
     private static boolean ae2StorageForItemFluidTasks = true;
+    private static boolean ae2PushRewards = true;
 
     public static void load(Path configDir) {
         ae2StorageForItemFluidTasks = true;
+        ae2PushRewards = true;
         Path file = configDir.resolve("engine_settings.snbt");
-        if (!Files.exists(file)) return;
+        if (!Files.exists(file)) {
+            writeDefaults(file);
+            return;
+        }
 
         try {
             String content = Files.readString(file);
             CompoundTag root = TagParser.parseTag(content);
             if (root.contains("ae2_storage_for_item_fluid_tasks")) {
                 ae2StorageForItemFluidTasks = root.getBoolean("ae2_storage_for_item_fluid_tasks");
+            }
+            if (root.contains("ae2_push_rewards")) {
+                ae2PushRewards = root.getBoolean("ae2_push_rewards");
             }
         } catch (Exception e) {
             System.err.println("[Phoenix Chronicles] Failed to load engine_settings.snbt: " + e.getMessage());
@@ -30,5 +38,23 @@ public final class QuestEngineConfig {
 
     public static boolean isAe2StorageForItemFluidTasksEnabled() {
         return ae2StorageForItemFluidTasks;
+    }
+
+    public static boolean isAe2PushRewardsEnabled() {
+        return ae2PushRewards;
+    }
+
+    private static void writeDefaults(Path file) {
+        try {
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, """
+                    {
+                        ae2_storage_for_item_fluid_tasks: 1b,
+                        ae2_push_rewards: 1b
+                    }
+                    """);
+        } catch (Exception e) {
+            System.err.println("[Phoenix Chronicles] Failed to write default engine_settings.snbt: " + e.getMessage());
+        }
     }
 }

@@ -15,13 +15,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * A single-select "pick an id from this list" screen, for task target fields whose candidates
- * come straight from a vanilla/Forge registry's key set rather than needing item/fluid-specific
- * icon rendering - enchantments, biomes, structures, dimensions, stats, and similar. Click a row
- * to pick it and close immediately; there's no separate confirm step since these are single-value
- * fields, not ANY-match lists.
- */
 public class RegistryIdPickerScreen extends Screen {
 
     private static final int COL_HOVER = 0xFF1E1E2A;

@@ -36,13 +36,6 @@ public class QuestFileSaver {
         saveOneQuestToDisk(node, true);
     }
 
-    /**
-     * @param refreshRecipeViewers whether to tell EMI/JEI about the change. Callers doing
-     *                             rapid-fire saves (e.g. Place mode dropping a batch of bare
-     *                             nodes, or a bulk layout operation) should pass false and rely
-     *                             on the next "real" save (from the quest config dialog) to
-     *                             refresh recipe viewers instead.
-     */
     public static void saveOneQuestToDisk(QuestNode node, boolean refreshRecipeViewers) {
         QuestFileWatcher.suppressNextReload();
         Path base = Minecraft.getInstance().gameDirectory.toPath()

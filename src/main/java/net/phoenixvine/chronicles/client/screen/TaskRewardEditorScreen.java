@@ -30,6 +30,7 @@ import net.phoenixvine.chronicles.common.item.ItemFilterTokenItem;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.model.RewardTable;
 import net.phoenixvine.chronicles.common.registry.PhoenixTaskRegistry;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.registry.RewardTableRegistry;
@@ -114,6 +115,7 @@ public class TaskRewardEditorScreen extends Screen {
     private String pendingRewardCount = "", pendingRewardCommand = "", pendingRewardEventData = "";
 
     private String rewardType = "item";
+    private boolean rewardPushAe2 = true;
     private boolean rewardTypeDropOpen = false;
     private ItemStack rewardPickedItem = null;
     private EditBox rewardCountBox, rewardCommandBox;
@@ -148,7 +150,7 @@ public class TaskRewardEditorScreen extends Screen {
     private final UndoRedoManager undoRedo = new UndoRedoManager(msg -> {});
 
     private static final String[] REWARD_TYPES = { "item", "xp", "command", "loot_table", "script_event",
-            "reward_table", "choice_box" };
+            "reward_table", "choice_box", "fluid", "open_screen" };
 
     private static String rewardTypeLabel(String type) {
         return switch (type) {
@@ -159,6 +161,8 @@ public class TaskRewardEditorScreen extends Screen {
             case "script_event" -> "Script Event";
             case "reward_table" -> "Reward Table";
             case "choice_box" -> "Choice Box";
+            case "fluid" -> "Fluid";
+            case "open_screen" -> "Open Screen";
             default -> type;
         };
     }
@@ -607,6 +611,7 @@ public class TaskRewardEditorScreen extends Screen {
 
         String rewardTypeTooltip = switch (rewardType) {
             case "item" -> "Give the player one or more items";
+            case "fluid" -> "Give the player a fluid (delivered to their linked AE2 network; buckets otherwise)";
             case "xp" -> "Award experience levels";
             case "command" -> "Run a server command (%player% = player name)";
             case "loot_table" -> "Roll a loot table and give all resulting items";
@@ -614,6 +619,7 @@ public class TaskRewardEditorScreen extends Screen {
             case "reward_table" -> "Reference a named reward table (config/phoenix_chronicles/reward_tables/)";
             case "choice_box" -> "A single slot the player resolves themselves - Menu mode lets them " +
                     "pick one of the options below, Lootbox mode grants a random one instantly";
+            case "open_screen" -> "Opens a registered external screen for the player when they claim this reward";
             default -> "Choose a reward type";
         };
         addRenderableWidget(Button.builder(
@@ -640,6 +646,42 @@ public class TaskRewardEditorScreen extends Screen {
             rewardCountBox.setMaxLength(4);
             rewardCountBox.setValue(rCountVal);
             addRenderableWidget(rewardCountBox);
+            if (AE2Compat.isAvailable()) {
+                rfy += FIELD_H + FIELD_GAP;
+                addRenderableWidget(rewardAe2Button(rx, rfy, colW, "items"));
+            }
+        } else if (rewardType.equals("fluid")) {
+            rewardCommandBox = new EditBox(font, rx, rfy, colW - 62, FIELD_H, Component.empty());
+            rewardCommandBox.setHint(ChroniclesUIKit.lit("§8Fluid id  (e.g. gtceu:oxygen)"));
+            rewardCommandBox.setMaxLength(128);
+            rewardCommandBox.setValue(rCommandVal);
+            addRenderableWidget(rewardCommandBox);
+            addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§3⊞"), b -> {
+                if (minecraft != null) minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
+                    pendingRewardCommand = fluidId;
+                    pendingRewardCount = rewardCountBox != null ? rewardCountBox.getValue() : pendingRewardCount;
+                    forcePendingRewardValues = true;
+                    rebuildWidgets();
+                }));
+            }).bounds(rx + colW - 60, rfy, 16, FIELD_H)
+                    .tooltip(Tooltip.create(ChroniclesUIKit.lit("Pick a fluid")))
+                    .build());
+            rewardCountBox = new EditBox(font, rx + colW - 42, rfy, 42, FIELD_H, Component.empty());
+            rewardCountBox.setHint(ChroniclesUIKit.lit("§8mB"));
+            rewardCountBox.setMaxLength(8);
+            rewardCountBox.setValue(rCountVal);
+            addRenderableWidget(rewardCountBox);
+            rfy += FIELD_H + FIELD_GAP;
+            if (AE2Compat.isAvailable()) {
+                addRenderableWidget(rewardAe2Button(rx, rfy, colW, "fluid"));
+            } else {
+                addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§8No AE2: whole buckets only"), b -> {})
+                        .bounds(rx, rfy, colW, FIELD_H)
+                        .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                                "Without Applied Energistics 2 installed, fluid rewards are delivered as whole\n" +
+                                        "buckets (if the fluid has a bucket item).")))
+                        .build());
+            }
         } else if (rewardType.equals("xp")) {
             rewardCountBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
             rewardCountBox.setHint(ChroniclesUIKit.lit("§8XP levels to award"));
@@ -728,6 +770,20 @@ public class TaskRewardEditorScreen extends Screen {
                     .build());
             rfy += FIELD_H + FIELD_GAP;
 
+            if (boxMode == QuestReward.ChoiceBoxReward.Mode.LOOTBOX && !boxOptions.isEmpty()) {
+                addRenderableWidget(Button.builder(ChroniclesUIKit.lit("🎲 Simulate rolls"), b -> {
+                    java.util.List<QuestReward.WeightedReward> weighted = boxOptions.stream()
+                            .map(r -> new QuestReward.WeightedReward(r, 1)).toList();
+                    RewardTable preview = new RewardTable("preview", "Lootbox preview", weighted, 1);
+                    if (minecraft != null) minecraft.setScreen(new RewardTableSimulatorScreen(this, preview));
+                }).bounds(rx, rfy, colW, FIELD_H)
+                        .tooltip(Tooltip.create(
+                                ChroniclesUIKit
+                                        .lit("Roll this lootbox many times to see how often each option comes up")))
+                        .build());
+                rfy += FIELD_H + FIELD_GAP;
+            }
+
             boxOptionsListX = rx;
             boxOptionsListY = rfy;
             boxOptionsListW = colW;
@@ -735,6 +791,25 @@ public class TaskRewardEditorScreen extends Screen {
             int visibleRows = Math.max(1, (boxOptionsListBottom - boxOptionsListY) / BOX_OPTION_ROW_H);
             int maxScroll = Math.max(0, boxOptions.size() - visibleRows);
             boxOptionsScroll = Math.max(0, Math.min(boxOptionsScroll, maxScroll));
+        } else if (rewardType.equals("open_screen")) {
+            rewardCommandBox = new EditBox(font, rx, rfy, colW - 20, FIELD_H, Component.empty());
+            rewardCommandBox.setHint(ChroniclesUIKit.lit("§8Registered external screen id"));
+            rewardCommandBox.setMaxLength(128);
+            rewardCommandBox.setValue(rCommandVal);
+            addRenderableWidget(rewardCommandBox);
+            addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+                java.util.Collection<ResourceLocation> ids = net.phoenixvine.chronicles.client.registry.ExternalScreenRegistry
+                        .registeredIds();
+                if (minecraft != null && !ids.isEmpty()) {
+                    minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick external screen", ids, id -> {
+                        pendingRewardCommand = id.toString();
+                        forcePendingRewardValues = true;
+                        rebuildWidgets();
+                    }));
+                }
+            }).bounds(rx + colW - 18, rfy, 18, FIELD_H)
+                    .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse registered external screens")))
+                    .build());
         } else {
 
             String hint = rewardType.equals("loot_table") ? "§8Loot table id  (e.g. minecraft:chests/simple_dungeon)" :
@@ -754,6 +829,24 @@ public class TaskRewardEditorScreen extends Screen {
                         "Save changes to this reward (right-click it again to cancel)" :
                         "Add this reward to the quest (Ctrl+Z to undo)")))
                 .build());
+    }
+
+    private Button rewardAe2Button(int x, int y, int w, String what) {
+        return Button.builder(
+                ChroniclesUIKit.lit(rewardPushAe2 ? "§bAE2: push to network" : "§8AE2: off (inventory)"),
+                b -> {
+                    if (rewardCountBox != null) pendingRewardCount = rewardCountBox.getValue();
+                    if (rewardCommandBox != null) pendingRewardCommand = rewardCommandBox.getValue();
+                    forcePendingRewardValues = true;
+                    rewardPushAe2 = !rewardPushAe2;
+                    rebuildWidgets();
+                })
+                .bounds(x, y, w, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                        "ON (default when AE2 is installed): insert the " + what + " straight into the player's\n" +
+                                "linked Applied Energistics 2 ME network. Anything that doesn't fit, or a player\n" +
+                                "with no linked terminal, gets it in their inventory instead.")))
+                .build();
     }
 
     private List<QuestTask> dragBeforeTasks;
@@ -831,10 +924,6 @@ public class TaskRewardEditorScreen extends Screen {
         applyPickedItemFilter(minecraft.player.getOffhandItem());
     }
 
-    /**
-     * Candidate ids for {@link RegistryIdPickerScreen}, or null if the registry isn't reachable
-     * right now (e.g. a dynamic registry with no loaded level).
-     */
     @Nullable
     private java.util.Collection<ResourceLocation> registryIdsFor(String taskType) {
         return switch (taskType) {
@@ -853,14 +942,6 @@ public class TaskRewardEditorScreen extends Screen {
         };
     }
 
-    /**
-     * Some datapack registries (notably {@code worldgen/structure}) aren't sent to the client at
-     * all in vanilla multiplayer, so {@code level.registryAccess().registryOrThrow(...)} throws
-     * an {@link IllegalStateException} ("Missing registry") rather than returning something
-     * empty. Falls back to the integrated server's registry access, which is complete, when
-     * we're in singleplayer - matching the singleplayer/dev-only caveat already documented on
-     * {@link net.phoenixvine.chronicles.QuestAPI#registerExternalTrigger}.
-     */
     @Nullable
     private <T> java.util.Collection<ResourceLocation> registryKeysOrNull(
                                                                           net.minecraft.resources.ResourceKey<? extends net.minecraft.core.Registry<T>> key) {
@@ -876,11 +957,6 @@ public class TaskRewardEditorScreen extends Screen {
         return null;
     }
 
-    /**
-     * Candidate ids for {@link StringIdPickerScreen} - other mods' own plain-string content ids,
-     * not vanilla/Forge registries, so {@link #registryIdsFor} doesn't cover them. Null if that
-     * mod isn't installed.
-     */
     @Nullable
     private java.util.Collection<String> stringIdsFor(String taskType) {
         return switch (taskType) {
@@ -1301,7 +1377,16 @@ public class TaskRewardEditorScreen extends Screen {
 
         QuestReward reward = switch (rewardType) {
             case "item" -> rewardPickedItem != null ?
-                    new QuestReward.ItemReward(rewardPickedItem.getItem(), count, rewardPickedItem.getTag()) : null;
+                    new QuestReward.ItemReward(rewardPickedItem.getItem(), count, rewardPickedItem.getTag(),
+                            rewardPushAe2) :
+                    null;
+            case "fluid" -> {
+                String fid = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
+                ResourceLocation frl = fid.isEmpty() ? null : ResourceLocation.tryParse(fid);
+                net.minecraft.world.level.material.Fluid fl = frl != null ? ForgeRegistries.FLUIDS.getValue(frl) : null;
+                yield (fl == null || fl == net.minecraft.world.level.material.Fluids.EMPTY) ? null :
+                        new QuestReward.FluidReward(fl, count, null, rewardPushAe2);
+            }
             case "xp" -> new QuestReward.XPReward(count);
             case "command" -> {
                 String cmd = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
@@ -1328,6 +1413,12 @@ public class TaskRewardEditorScreen extends Screen {
             }
             case "choice_box" -> boxOptions.isEmpty() ? null :
                     new QuestReward.ChoiceBoxReward(new ArrayList<>(boxOptions), boxMode);
+            case "open_screen" -> {
+                String sid = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
+                if (sid.isEmpty()) yield null;
+                ResourceLocation srl = ResourceLocation.tryParse(sid);
+                yield srl == null ? null : new QuestReward.OpenScreenReward(srl);
+            }
             default -> null;
         };
 
@@ -1341,6 +1432,7 @@ public class TaskRewardEditorScreen extends Screen {
                 editingRewardIndex = -1;
             });
             rewardPickedItem = null;
+            rewardPushAe2 = true;
             rewardTypeDropOpen = false;
             pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
             boxOptions.clear();
@@ -1356,6 +1448,7 @@ public class TaskRewardEditorScreen extends Screen {
         if (idx < 0 || idx >= rewards.size()) return;
         QuestReward r = rewards.get(idx);
         rewardPickedItem = null;
+        rewardPushAe2 = true;
         pendingRewardCount = "1";
         pendingRewardCommand = "";
         pendingRewardEventData = "";
@@ -1364,8 +1457,15 @@ public class TaskRewardEditorScreen extends Screen {
         editingBoxOptionIndex = -1;
         boxOptionPickedItem = null;
 
-        if (r instanceof QuestReward.ItemReward ir) {
+        if (r instanceof QuestReward.FluidReward fr) {
+            rewardType = "fluid";
+            rewardPushAe2 = fr.isPushToAe2();
+            ResourceLocation fid = ForgeRegistries.FLUIDS.getKey(fr.getFluid());
+            pendingRewardCommand = fid != null ? fid.toString() : "";
+            pendingRewardCount = String.valueOf(fr.getAmountMb());
+        } else if (r instanceof QuestReward.ItemReward ir) {
             rewardType = "item";
+            rewardPushAe2 = ir.isPushToAe2();
             rewardPickedItem = new ItemStack(ir.getItem(), ir.getCount());
             if (ir.getNbt() != null) rewardPickedItem.setTag(ir.getNbt().copy());
             pendingRewardCount = String.valueOf(ir.getCount());
@@ -1389,6 +1489,9 @@ public class TaskRewardEditorScreen extends Screen {
             rewardType = "choice_box";
             boxMode = box.getMode();
             boxOptions.addAll(box.getOptions());
+        } else if (r instanceof QuestReward.OpenScreenReward osr) {
+            rewardType = "open_screen";
+            pendingRewardCommand = osr.getScreenId() != null ? osr.getScreenId().toString() : "";
         } else {
             return;
         }
@@ -1403,6 +1506,7 @@ public class TaskRewardEditorScreen extends Screen {
     private void cancelRewardEdit() {
         editingRewardIndex = -1;
         rewardPickedItem = null;
+        rewardPushAe2 = true;
         pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
         boxOptions.clear();
         boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
@@ -1444,7 +1548,10 @@ public class TaskRewardEditorScreen extends Screen {
             } catch (Exception ignored) {}
         }
 
-        boxOptions.set(editingBoxOptionIndex, new QuestReward.ItemReward(boxOptionPickedItem.getItem(), count, nbt));
+        boolean keepPush = !(boxOptions.get(editingBoxOptionIndex) instanceof QuestReward.ItemReward old) ||
+                old.isPushToAe2();
+        boxOptions.set(editingBoxOptionIndex,
+                new QuestReward.ItemReward(boxOptionPickedItem.getItem(), count, nbt, keepPush));
         cancelBoxOptionEdit();
     }
 
@@ -1634,6 +1741,7 @@ public class TaskRewardEditorScreen extends Screen {
                     case LOOT_TABLE -> "§d❋";
                     case SCRIPT_EVENT -> "§e⚡";
                     case REWARD_TABLE -> "§6⊞";
+                    case FLUID -> "§3💧";
                     default -> "§8?";
                 };
                 String typeLine = switch (reward.getType()) {
@@ -1642,6 +1750,7 @@ public class TaskRewardEditorScreen extends Screen {
                     case LOOT_TABLE -> "§8loot table";
                     case SCRIPT_EVENT -> "§8script event";
                     case REWARD_TABLE -> "§8reward table";
+                    case FLUID -> "§8fluid";
                     default -> "§8reward";
                 };
                 int rmaxW = (vw - MARGIN - (hov ? 16 : 6)) - rewardTextX - font.width(icon) - 4;

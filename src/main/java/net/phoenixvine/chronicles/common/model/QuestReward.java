@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
@@ -17,7 +18,9 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.common.event.PhoenixQuestScriptRewardEvent;
 import net.phoenixvine.chronicles.common.item.ChronicleLootCrateItem;
+import net.phoenixvine.chronicles.common.registry.QuestEngineConfig;
 import net.phoenixvine.chronicles.common.registry.RewardTableRegistry;
+import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +38,8 @@ public abstract class QuestReward {
         LOOT_CRATE,
         CONFLUX_UNLOCK,
         OPEN_SCREEN,
-        CHOICE_BOX
+        CHOICE_BOX,
+        FLUID
     }
 
     public abstract RewardType getType();
@@ -75,7 +79,23 @@ public abstract class QuestReward {
     }
 
     public static void giveItem(ServerPlayer player, Item item, int count, CompoundTag nbt) {
+        giveItem(player, item, count, nbt, false);
+    }
+
+    public static void giveItem(ServerPlayer player, Item item, int count, CompoundTag nbt, boolean pushToAe2) {
         if (player == null || item == null || item == Items.AIR || count <= 0) return;
+        int remaining = count;
+
+        if (pushToAe2 && QuestEngineConfig.isAe2PushRewardsEnabled() && AE2Compat.isAvailable()) {
+            ItemStack template = new ItemStack(item, 1);
+            if (nbt != null && !nbt.isEmpty()) template.setTag(nbt.copy());
+            remaining = (int) Math.min(Integer.MAX_VALUE, AE2Compat.insert(player, template, count));
+            if (remaining <= 0) return;
+        }
+        giveItemToPlayer(player, item, remaining, nbt);
+    }
+
+    private static void giveItemToPlayer(ServerPlayer player, Item item, int count, CompoundTag nbt) {
         int remaining = count;
         int maxStack = Math.max(1, item.getMaxStackSize());
         while (remaining > 0) {
@@ -105,6 +125,7 @@ public abstract class QuestReward {
             case "conflux_unlock" -> ConfluxUnlockReward.fromNBT(tag);
             case "open_screen" -> OpenScreenReward.fromNBT(tag);
             case "choice_box" -> ChoiceBoxReward.fromNBT(tag);
+            case "fluid" -> FluidReward.fromNBT(tag);
             default -> null;
         };
     }
@@ -114,15 +135,25 @@ public abstract class QuestReward {
         private final Item item;
         private final int count;
         private final CompoundTag nbt;
+        private final boolean pushToAe2;
 
         public ItemReward(Item item, int count) {
             this(item, count, null);
         }
 
         public ItemReward(Item item, int count, CompoundTag nbt) {
+            this(item, count, nbt, true);
+        }
+
+        public ItemReward(Item item, int count, CompoundTag nbt, boolean pushToAe2) {
             this.item = item;
             this.count = Math.max(1, count);
             this.nbt = (nbt != null && !nbt.isEmpty()) ? nbt.copy() : null;
+            this.pushToAe2 = pushToAe2;
+        }
+
+        public boolean isPushToAe2() {
+            return pushToAe2;
         }
 
         public Item getItem() {
@@ -150,7 +181,7 @@ public abstract class QuestReward {
 
         @Override
         public void grant(ServerPlayer player) {
-            giveItem(player, item, count, nbt);
+            giveItem(player, item, count, nbt, pushToAe2);
         }
 
         @Override
@@ -161,6 +192,7 @@ public abstract class QuestReward {
             tag.putString("item_id", id != null ? id.toString() : "minecraft:air");
             tag.putInt("count", count);
             if (nbt != null && !nbt.isEmpty()) tag.put("nbt", nbt.copy());
+            tag.putBoolean("push_to_ae2", pushToAe2);
             return tag;
         }
 
@@ -176,7 +208,112 @@ public abstract class QuestReward {
 
             int count = tag.contains("count") ? tag.getInt("count") : 1;
             CompoundTag nbt = tag.contains("nbt") ? tag.getCompound("nbt") : null;
-            return new ItemReward(item, count, nbt);
+            boolean push = !tag.contains("push_to_ae2") || tag.getBoolean("push_to_ae2");
+            return new ItemReward(item, count, nbt, push);
+        }
+    }
+
+    public static class FluidReward extends QuestReward {
+
+        private static final int BUCKET_MB = 1000;
+
+        private final Fluid fluid;
+        private final int amountMb;
+        private final CompoundTag nbt;
+        private final boolean pushToAe2;
+
+        public FluidReward(Fluid fluid, int amountMb) {
+            this(fluid, amountMb, null);
+        }
+
+        public FluidReward(Fluid fluid, int amountMb, CompoundTag nbt) {
+            this(fluid, amountMb, nbt, true);
+        }
+
+        public FluidReward(Fluid fluid, int amountMb, CompoundTag nbt, boolean pushToAe2) {
+            this.fluid = fluid;
+            this.amountMb = Math.max(1, amountMb);
+            this.nbt = (nbt != null && !nbt.isEmpty()) ? nbt.copy() : null;
+            this.pushToAe2 = pushToAe2;
+        }
+
+        public boolean isPushToAe2() {
+            return pushToAe2;
+        }
+
+        public Fluid getFluid() {
+            return fluid;
+        }
+
+        public int getAmountMb() {
+            return amountMb;
+        }
+
+        public CompoundTag getNbt() {
+            return nbt;
+        }
+
+        @Override
+        public RewardType getType() {
+            return RewardType.FLUID;
+        }
+
+        @Override
+        public Component getSummary() {
+            if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY)
+                return Component.literal(amountMb + " mB Unknown Fluid");
+            return Component.literal(amountMb + " mB ").append(fluid.getFluidType().getDescription());
+        }
+
+        @Override
+        public void grant(ServerPlayer player) {
+            if (player == null || fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY) return;
+
+            long remaining = amountMb;
+            if (pushToAe2 && QuestEngineConfig.isAe2PushRewardsEnabled() && AE2Compat.isAvailable()) {
+                remaining = AE2Compat.insert(player, fluid, nbt, amountMb);
+                if (remaining <= 0) return;
+            }
+
+            Item bucket = fluid.getBucket();
+            if (bucket != null && bucket != Items.AIR && (nbt == null || nbt.isEmpty())) {
+                int buckets = (int) (remaining / BUCKET_MB);
+                if (buckets > 0) {
+                    giveItemToPlayer(player, bucket, buckets, null);
+                    remaining -= (long) buckets * BUCKET_MB;
+                }
+            }
+
+            if (remaining > 0) {
+                player.sendSystemMessage(Component.literal("§eCould not deliver " + remaining + " mB of ")
+                        .append(fluid.getFluidType().getDescription())
+                        .append(Component
+                                .literal("§e - link a wireless terminal to an AE2 network to receive fluid rewards.")));
+                player.sendSystemMessage(Component.literal("§7(Only whole buckets can be delivered without AE2.)"));
+            }
+        }
+
+        @Override
+        public CompoundTag serializeNBT() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString("type", "fluid");
+            ResourceLocation id = ForgeRegistries.FLUIDS.getKey(fluid);
+            tag.putString("fluid_id", id != null ? id.toString() : "minecraft:empty");
+            tag.putInt("amount", amountMb);
+            if (nbt != null && !nbt.isEmpty()) tag.put("nbt", nbt.copy());
+            tag.putBoolean("push_to_ae2", pushToAe2);
+            return tag;
+        }
+
+        public static FluidReward fromNBT(CompoundTag tag) {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("fluid_id"));
+            if (id == null) return null;
+            Fluid fluid = ForgeRegistries.FLUIDS.getValue(id);
+            if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY) return null;
+            int amount = tag.contains("amount") ? tag.getInt("amount") : BUCKET_MB;
+            CompoundTag nbt = tag.contains("nbt") ? tag.getCompound("nbt") : null;
+            boolean push = !tag.contains("push_to_ae2") || tag.getBoolean("push_to_ae2");
+            return new FluidReward(fluid, amount, nbt, push);
         }
     }
 

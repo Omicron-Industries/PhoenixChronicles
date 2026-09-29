@@ -69,10 +69,8 @@ class PhoenixQuestFlagsTest {
         PhoenixQuestFlags.setFlag("c", false);
         PhoenixQuestFlags.setFlag("d", false);
 
-        // Without grouping, AND binds tighter than OR: a | b & c & d -> a | (b & c & d) -> true (a is true).
         assertTrue(eval("a | b & c & d"));
 
-        // With grouping, (a | b) & c & d -> true & false & false -> false.
         assertFalse(eval("(a | b) & c & d"));
     }
 
@@ -81,11 +79,10 @@ class PhoenixQuestFlagsTest {
         PhoenixQuestFlags.setFlag("a", true);
         PhoenixQuestFlags.setFlag("b", true);
 
-        // NAND: not both true.
         assertFalse(eval("!(a & b)"));
-        // NOR: neither true.
+
         assertFalse(eval("!(a | b)"));
-        // XNOR: both the same.
+
         assertTrue(eval("!(a ^ b)"));
 
         PhoenixQuestFlags.setFlag("b", false);
@@ -101,7 +98,6 @@ class PhoenixQuestFlagsTest {
         PhoenixQuestFlags.setFlag("c", true);
         PhoenixQuestFlags.setFlag("d", false);
 
-        // !((a ^ b) & (c | d)) -> !((true) & (true)) -> !true -> false.
         assertFalse(eval("!((a ^ b) & (c | d))"));
     }
 

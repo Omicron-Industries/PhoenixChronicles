@@ -14,12 +14,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * Same shape as {@link RegistryIdPickerScreen}, but for candidates that are plain string ids
- * rather than {@link net.minecraft.resources.ResourceLocation}s - other mods' own content ids
- * (Phantasia machine/scene/guide ids, Phoenix-Archive entry ids) that don't come from a
- * vanilla/Forge registry and aren't guaranteed to be namespace:path formatted.
- */
 public class StringIdPickerScreen extends Screen {
 
     private static final int COL_HOVER = 0xFF1E1E2A;

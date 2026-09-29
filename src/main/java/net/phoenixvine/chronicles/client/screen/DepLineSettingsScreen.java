@@ -747,10 +747,7 @@ public class DepLineSettingsScreen extends Screen {
             s.setLineAnimSpeed(lineAnimSpeed);
             s.setShowLineArrows(lineArrows);
             s.save();
-            // saveChapterPrereqDefaults() already calls parent.rebuildFromExternal(), which
-            // rebuilds the line cache as its own last step - doing it again here was a redundant
-            // full rebuild on every save, which is what caused the flicker/hang on larger quest
-            // books.
+
             saveChapterPrereqDefaults();
         }
         if (minecraft != null) minecraft.setScreen(parent);

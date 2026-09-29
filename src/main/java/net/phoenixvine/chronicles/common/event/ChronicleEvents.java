@@ -933,9 +933,9 @@ public class ChronicleEvents {
         java.nio.file.Path configDir = resolveConfigDir(server);
         java.nio.file.Path resolvedImportDir = configDir.resolve(subfolder);
 
-        if ("ftb_import".equals(subfolder) && !hasSnbtFiles(resolvedImportDir)) {
+        if ("ftb_import".equals(subfolder)) {
             java.nio.file.Path autoDetected = resolveFtbQuestsChaptersDir(server);
-            if (hasSnbtFiles(autoDetected)) resolvedImportDir = autoDetected;
+            resolvedImportDir = hasSnbtFiles(autoDetected) ? autoDetected : resolvedImportDir;
         }
         final java.nio.file.Path importDir = resolvedImportDir;
 

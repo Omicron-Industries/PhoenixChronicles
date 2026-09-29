@@ -61,13 +61,14 @@ public class GraphLayoutEngine {
 
     public int scaledNodeSize(QuestNode node) {
         int pixelSize = node.getNodePixelSize();
+
         int floor = Math.max(4, Math.round(pixelSize * ChronicleOverviewScreen.MIN_NODE_FLOOR_FRACTION));
-        return Math.max(floor, (int) (pixelSize * ctx.posZoom()));
+        return Math.max(floor, Math.round(pixelSize * ctx.posZoom()));
     }
 
     public int scaledNodeSize() {
         return Math.max(ChronicleOverviewScreen.MIN_NODE_PX,
-                (int) (ChronicleOverviewScreen.NODE_SIZE * ctx.posZoom()));
+                Math.round(ChronicleOverviewScreen.NODE_SIZE * ctx.posZoom()));
     }
 
     public void autoArrangeChapter() {

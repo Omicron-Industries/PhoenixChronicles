@@ -1,7 +1,9 @@
 package net.phoenixvine.chronicles.integration.ae2;
 
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fml.ModList;
 import net.phoenixvine.chronicles.common.filter.IFluidFilter;
@@ -31,6 +33,15 @@ public final class AE2Compat {
 
     public static boolean tryConsume(Player player, Fluid fluid, long amount) {
         return isAvailable() && AE2CompatImpl.tryConsume(player, fluid, amount);
+    }
+
+    public static long insert(Player player, ItemStack template, long amount) {
+        return isAvailable() ? AE2CompatImpl.insert(player, template, amount) : amount;
+    }
+
+    public static long insert(Player player, Fluid fluid, @org.jetbrains.annotations.Nullable CompoundTag tag,
+                              long amountMb) {
+        return isAvailable() ? AE2CompatImpl.insert(player, fluid, tag, amountMb) : amountMb;
     }
 
     public static long getStoredAmount(Player player, IItemFilter filter) {
