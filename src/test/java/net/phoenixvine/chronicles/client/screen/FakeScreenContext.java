@@ -58,6 +58,11 @@ class FakeScreenContext implements ScreenContext {
     }
 
     @Override
+    public float rawZoom() {
+        return posZoom;
+    }
+
+    @Override
     public boolean isDevMode() {
         return devMode;
     }

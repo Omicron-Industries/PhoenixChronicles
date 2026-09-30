@@ -101,7 +101,6 @@
   "phoenix_chronicles.ui.item_lookup_no_item": "§7Hold or hover an item, then press the lookup key.",
   "phoenix_chronicles.ui.item_lookup_no_quest": "§7No quest requires %s§7.",
   "phoenix_chronicles.screen.quest_tasks.title": "Quest Details",
-  "phoenix_chronicles.screen.chapter_map.title": "Chapter Map",
   "phoenix_chronicles.screen.item_lookup.title": "Item Lookup",
   "phoenix_chronicles.screen.terminal.title": "PHOENIX SYSTEM TERMINAL",
   "phoenix_chronicles.screen.terminal.disconnect": "§c[ DISCONNECT ]",

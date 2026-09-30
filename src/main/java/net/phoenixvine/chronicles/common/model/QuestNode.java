@@ -452,7 +452,7 @@ public class QuestNode {
             case SMALL -> 18;
             case LARGE -> 48;
             case HUGE -> 64;
-            default -> 32;
+            default -> 40;
         };
     }
 

@@ -91,6 +91,25 @@ public final class CategoryRegistry {
         return Collections.unmodifiableList(standaloneOrder);
     }
 
+    /**
+     * Appends any chapter id not already tracked in the standalone order, in the given order -
+     * used right after importing a batch of chapters so newly-added standalone (ungrouped) ones
+     * land in their intended sequence instead of falling through to "unknown, append at the very
+     * end" in {@code SidebarPanel.applyStandaloneOrder}. Chapters already tracked keep their
+     * existing position - this only fills gaps, it never reorders what a user has already arranged.
+     */
+    public static synchronized void ensureStandaloneOrder(List<String> orderedChapterIds) {
+        boolean changed = false;
+        for (String id : orderedChapterIds) {
+            String upper = id.toUpperCase(java.util.Locale.ROOT);
+            if (!standaloneOrder.contains(upper)) {
+                standaloneOrder.add(upper);
+                changed = true;
+            }
+        }
+        if (changed) saveUiState();
+    }
+
     public static synchronized void reorderStandaloneChapter(String chapId, String targetId,
                                                              List<String> currentOrder) {
         List<String> order = new ArrayList<>(currentOrder);

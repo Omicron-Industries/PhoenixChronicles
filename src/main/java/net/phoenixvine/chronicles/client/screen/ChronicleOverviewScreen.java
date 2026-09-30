@@ -81,6 +81,18 @@ public class ChronicleOverviewScreen extends Screen
     private static final float ZOOM_MIN = 0.12f;
     private static final float ZOOM_MAX = 2.5f;
     private static final float ZOOM_STEP = 0.12f;
+
+    /**
+     * Node positions scale with {@link #posZoom()}, which below 100% zoom is raised to a power
+     * less than 1 - since raising a fraction to a power less than 1 moves it closer to 1, this
+     * makes canvas-space distances shrink slower than the raw scroll-wheel zoom would, opening up
+     * extra breathing room between nodes the further out you zoom. It only kicks in below 100%
+     * zoom (past that point positions already track zoom 1:1, matching how the layout looks at the
+     * default zoom level), and it leaves node SIZE untouched - {@link GraphLayoutEngine} scales
+     * size off {@link #rawZoom()} instead, so nodes keep shrinking at the normal rate while the
+     * gaps between them shrink more slowly.
+     */
+    private static final float POSITION_ZOOM_EXPONENT = 0.75f;
     private static final long POST_MOVE_UNDO_WINDOW_MS = 1000;
     private static final float PIC_EDIT_MIN_SIZE = 4f, PIC_EDIT_MAX_SIZE = 4096f;
     public static final int CTX_ROW = 16;
@@ -91,10 +103,9 @@ public class ChronicleOverviewScreen extends Screen
     private static final int[] GRID_SNAP_CYCLE = { 1, 4, 8, 16, 32, 64, 128 };
     public static final long OPEN_FADE_MS = 120;
     private static final long TOOLTIP_DELAY_MS = 0;
-    
+
     public static final int MIN_NODE_PX = 8;
-    
-    public static final float MIN_NODE_FLOOR_FRACTION = 0.35f;
+
     public static final int GROUP_LABEL_BAR_H = 11;
     final Map<ResourceLocation, String> searchCache = new HashMap<>();
     private final SidebarPanel sidebarPanel = new SidebarPanel();
@@ -354,7 +365,16 @@ public class ChronicleOverviewScreen extends Screen
 
     @Override
     public float posZoom() {
+        return zoom < 1f ? (float) Math.pow(zoom, POSITION_ZOOM_EXPONENT) : zoom;
+    }
+
+    @Override
+    public float rawZoom() {
         return zoom;
+    }
+
+    private static float effectiveToRawZoom(float effective) {
+        return effective < 1f ? (float) Math.pow(effective, 1f / POSITION_ZOOM_EXPONENT) : effective;
     }
 
     private void recomputeHiddenByCollapse() {
@@ -925,7 +945,12 @@ public class ChronicleOverviewScreen extends Screen
             btn.visible = nx + nsz > cl && nx < cr && ny + nsz > HEADER_H && ny < height;
         }
 
-        depLineRenderer.panShift(dx, dy);
+        // A plain shift of the already-cached line geometry (the old approach here) leaves any
+        // edge that was outside the cache's viewport-culled bounds before the pan still missing
+        // after it - as the view keeps moving during a fast pan, that produces visibly torn/
+        // popping lines. Rebuilding is the same cost rescaleForZoom() already pays every frame
+        // while zooming, so paying it every frame while panning too is consistent, not new overhead.
+        buildLineCache();
     }
 
     private void openWiki() {
@@ -977,17 +1002,17 @@ public class ChronicleOverviewScreen extends Screen
 
     private boolean tryHandleNodeSizeTypedInput(int key) {
         if (nodeSizeEditMode == null) return false;
-        if (key >= 48 && key <= 57) { 
+        if (key >= 48 && key <= 57) {
             if (nodeSizeTypedBuffer == null) nodeSizeTypedBuffer = new StringBuilder();
             if (nodeSizeTypedBuffer.length() < 3) nodeSizeTypedBuffer.append((char) key);
             return true;
         }
-        if (key == 259) { 
+        if (key == 259) {
             if (nodeSizeTypedBuffer == null || nodeSizeTypedBuffer.isEmpty()) return false;
             nodeSizeTypedBuffer.deleteCharAt(nodeSizeTypedBuffer.length() - 1);
             return true;
         }
-        if (key == 257 || key == 335) { 
+        if (key == 257 || key == 335) {
             if (nodeSizeTypedBuffer == null || nodeSizeTypedBuffer.isEmpty()) return false;
             try {
                 nodeSizeEditMode.setSizeOverridePx(Integer.parseInt(nodeSizeTypedBuffer.toString()));
@@ -1430,7 +1455,7 @@ public class ChronicleOverviewScreen extends Screen
         if (my < 0 || my >= TOOLBAR_Y) return false;
 
         int[][] layout = computeHeaderBarLayout(cr);
-        int[] claimBtn = layout[0], gridBtn = layout[1], subgraphBtn = layout[2], chapterMapBtn = layout[3];
+        int[] claimBtn = layout[0], gridBtn = layout[1], subgraphBtn = layout[2];
 
         if (claimBtn != null && hitsRect(claimBtn, mx, my)) {
             if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(this));
@@ -1450,11 +1475,6 @@ public class ChronicleOverviewScreen extends Screen
         if (subgraphBtn != null && hitsRect(subgraphBtn, mx, my)) {
             editorState.subgraphMode = !editorState.subgraphMode;
             if (editorState.subgraphMode) rebuildSubgraph();
-            return true;
-        }
-
-        if (chapterMapBtn != null && hitsRect(chapterMapBtn, mx, my) && minecraft != null) {
-            minecraft.setScreen(new ChapterMapScreen(this));
             return true;
         }
 
@@ -1487,20 +1507,14 @@ public class ChronicleOverviewScreen extends Screen
         int[] gridBtn = { gpx2 - 3, 3, gpx2 + gw2 + 5, 16 };
 
         int[] subgraphBtn = null;
-        int[] chapterMapBtn = null;
         if (isDevMode) {
             String sgLabel2 = editorState.subgraphMode ? "Subgraph: " + subgraphNodes.size() : "Subgraph";
             int sgw2 = font.width(sgLabel2);
             int sgx2 = gpx2 - sgw2 - 18;
             subgraphBtn = new int[] { sgx2 - 3, 3, sgx2 + sgw2 + 5, 16 };
-
-            String cmLabel2 = "🗺 Chapters";
-            int cmw2 = font.width(cmLabel2);
-            int cmx2 = sgx2 - cmw2 - 18;
-            chapterMapBtn = new int[] { cmx2 - 3, 3, cmx2 + cmw2 + 5, 16 };
         }
 
-        return new int[][] { claimBtn, gridBtn, subgraphBtn, chapterMapBtn };
+        return new int[][] { claimBtn, gridBtn, subgraphBtn };
     }
 
     private boolean tryHandleToolbarButtonClick(double mx, double my) {
@@ -2609,16 +2623,6 @@ public class ChronicleOverviewScreen extends Screen
                         ChroniclesUIKit.lit("§8pill (or press G) to toggle it on/off.")), mx, my));
             }
 
-            String cmLabel = "§8🗺 Chapters";
-            int cmw = font.width(StringUtil.stripColor(cmLabel));
-            int cmx = sgx - cmw - 18, cmy = 3;
-            boolean cmHov = mx >= cmx - 3 && mx < cmx + cmw + 5 && my >= cmy && my < cmy + 13;
-            g.fill(cmx - 3, cmy, cmx + cmw + 5, cmy + 13, cmHov ? 0x44FFFFFF : 0x22FFFFFF);
-            ChroniclesUIKit.drawString(g, font, cmLabel, cmx, cmy + 3, palette.textDim, false);
-            if (cmHov) {
-                pendingDeferredDraws.add(() -> g.renderTooltip(font,
-                        ChroniclesUIKit.lit("§7See how chapters gate each other"), mx, my));
-            }
         }
 
         g.enableScissor(0, TOOLBAR_Y, width, HEADER_H);
@@ -3692,9 +3696,8 @@ public class ChronicleOverviewScreen extends Screen
         if (minX == Integer.MAX_VALUE) return false;
         int canvasW = cr - cl - 20, canvasH = height - HEADER_H - 20;
         int contentW = maxX - minX, contentH = maxY - minY;
-        zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(
-                (float) canvasW / contentW,
-                (float) canvasH / contentH)));
+        float targetEffectiveZoom = Math.min((float) canvasW / contentW, (float) canvasH / contentH);
+        zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, effectiveToRawZoom(targetEffectiveZoom)));
         viewOffX = (int) (canvasW / 2f - (minX + contentW / 2f) * posZoom()) + 10;
         viewOffY = (int) (canvasH / 2f - (minY + contentH / 2f) * posZoom()) + 10;
         return true;

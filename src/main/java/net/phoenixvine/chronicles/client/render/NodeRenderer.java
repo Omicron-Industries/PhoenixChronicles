@@ -522,10 +522,13 @@ public class NodeRenderer {
 
         int borderThickness = ChronicleOverviewScreen.nodeBorderThickness(sz);
         int fillSz = Math.max(1, sz - borderThickness * 2);
+        String iconShape = displaySource.getShapeType() != null ? displaySource.getShapeType().toUpperCase() :
+                "SQUARE";
+        float shapeIconScale = NodeShapeRenderer.iconInsetScale(iconShape);
         if (customIcon != null && sz >= 8) {
             int[] dims = QuestIconCache.getDimensions(questPath);
             int pad = Math.max(2, fillSz / 8);
-            int iconSz = Math.max(1, fillSz - pad * 2);
+            int iconSz = Math.max(1, Math.round((fillSz - pad * 2) * shapeIconScale));
             int off = (sz - iconSz) / 2;
             g.blit(customIcon, x + off, y + off, 0, 0, iconSz, iconSz, dims[0], dims[1]);
             if (sz >= 20) {
@@ -536,7 +539,7 @@ public class NodeRenderer {
             state.setDbgCustomIconCount(state.dbgCustomIconCount() + 1);
         } else if (pickedTexture != null && sz >= 8) {
             int pad = Math.max(2, fillSz / 8);
-            int iconSz = Math.max(1, fillSz - pad * 2);
+            int iconSz = Math.max(1, Math.round((fillSz - pad * 2) * shapeIconScale));
             int off = (sz - iconSz) / 2;
             g.blit(pickedTexture, x + off, y + off, 0, 0, iconSz, iconSz, iconSz, iconSz);
             if (sz >= 20) {
@@ -548,7 +551,7 @@ public class NodeRenderer {
         } else if (pickedFluid != null && sz >= 8) {
 
             int pad = Math.max(2, fillSz / 8);
-            int iconSz = Math.max(1, fillSz - pad * 2);
+            int iconSz = Math.max(1, Math.round((fillSz - pad * 2) * shapeIconScale));
             int off = (sz - iconSz) / 2;
             int col = net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(pickedFluid)
                     .getTintColor() | 0xFF000000;
@@ -573,7 +576,7 @@ public class NodeRenderer {
 
             if (icon != null && icon != Items.AIR && sz >= 6) {
 
-                float scale = fillSz / 16f * 0.75f;
+                float scale = fillSz / 16f * 0.75f * shapeIconScale;
                 float cx = x + sz / 2f, cy = y + sz / 2f;
                 ItemStack iconStack = iconTask != null ? state.nbtAwareIconStack(iconTask, icon) :
                         state.cachedIconStack(icon);

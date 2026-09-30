@@ -23,6 +23,8 @@ public interface ScreenContext {
 
     float posZoom();
 
+    float rawZoom();
+
     boolean isDevMode();
 
     boolean isRenderingAsBackdrop();

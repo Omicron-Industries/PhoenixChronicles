@@ -248,6 +248,9 @@ public class DependencyLineRenderer {
             case "DIAMOND" -> 3;
             case "PENTAGON" -> 4;
             case "CIRCLE" -> 5;
+            case "TRIANGLE" -> 6;
+            case "SHIELD" -> 7;
+            case "CROSS" -> 8;
             default -> 0;
         };
     }
@@ -271,17 +274,6 @@ public class DependencyLineRenderer {
 
             LineGeometry geo = buildLineGeometry(ln, settings, zoom);
             if (i < lineGeometryCache.size()) lineGeometryCache.set(i, geo);
-        }
-    }
-
-    public void panShift(int dx, int dy) {
-        for (int i = 0; i < lineCache.size(); i++) {
-            int[] line = lineCache.get(i);
-            line[0] += dx;
-            line[1] += dy;
-            line[2] += dx;
-            line[3] += dy;
-            if (i < lineGeometryCache.size()) lineGeometryCache.get(i).shiftBy(dx, dy);
         }
     }
 
@@ -342,21 +334,6 @@ public class DependencyLineRenderer {
             this.arrowPeriodMs = arrowPeriodMs;
             this.arcT = arcT;
         }
-
-        void shiftBy(float dx, float dy) {
-            for (int i = 0; i < quads.length; i += 2) {
-                quads[i] += dx;
-                quads[i + 1] += dy;
-            }
-            xa += dx;
-            ya += dy;
-            cp1x += dx;
-            cp1y += dy;
-            cp2x += dx;
-            cp2y += dy;
-            xb += dx;
-            yb += dy;
-        }
     }
 
     private static float lerp(float a, float b, float t) {
@@ -367,7 +344,7 @@ public class DependencyLineRenderer {
 
     private static float shapeBoundaryRadius(int shapeKind, float angle, float size) {
         return switch (shapeKind) {
-            case 1 -> starBoundaryRadius(angle, size / 2f - 1f);
+            case 1 -> concaveVisualFloor(starBoundaryRadius(angle, size / 2f - 1f), size / 2f - 1f);
 
             case 2 -> regularPolygonBoundaryRadius(angle, (size / 2f - 1f) * HEX_TIP_SCALE, 6,
                     (float) (Math.PI / 6));
@@ -376,8 +353,74 @@ public class DependencyLineRenderer {
 
             case 4 -> regularPolygonBoundaryRadius(angle, size / 2f - 1f, 5, (float) (-Math.PI / 2));
             case 5 -> size / 2f - 0.5f;
+            case 6 -> triangleBoundaryRadius(angle, size / 2f - 1f);
+            case 7 -> shieldBoundaryRadius(angle, size / 2f - 1f);
+            case 8 -> concaveVisualFloor(crossBoundaryRadius(angle, size / 2f - 1f), size / 2f - 1f);
             default -> size / 2f;
         };
+    }
+
+    /**
+     * STAR and CROSS are concave enough that a line approaching through one of their notches (the
+     * gap between two star points, or the diagonal gap between two cross arms) computes a true
+     * boundary radius close to the shape's inner waist. Trimming the line to exactly that point is
+     * geometrically correct but looks wrong - the line stops well short of any actually-drawn pixel
+     * and appears to float, disconnected, in the visual gap next to the shape rather than touching
+     * it. Flooring the radius at a fraction of the outer extent keeps spike/arm-tip angles
+     * (already near outerR) unaffected while pulling notch-angle endpoints back out to where the
+     * shape's silhouette actually reads as "solid" to the eye.
+     */
+    private static float concaveVisualFloor(float trueRadius, float outerR) {
+        return Math.max(trueRadius, outerR * 0.6f);
+    }
+
+    /**
+     * Ray-casts from the node's center at {@code angle} against an arbitrary polygon (given as
+     * center-relative vertices) and returns the distance to the edge it exits through - the same
+     * technique {@link #starBoundaryRadius}/{@link #regularPolygonBoundaryRadius} use for shapes
+     * whose vertices sit at known, evenly-spaced angles, generalized for shapes (triangle, shield,
+     * cross) whose vertices aren't evenly spaced so can't be looked up by angle sector alone.
+     */
+    private static float polygonBoundaryRadius(float angle, float[] vx, float[] vy, float fallback) {
+        float dirX = (float) Math.cos(angle), dirY = (float) Math.sin(angle);
+        int n = vx.length;
+        for (int i = 0; i < n; i++) {
+            int j = (i + 1) % n;
+            float x1 = vx[i], y1 = vy[i];
+            float edgeDx = vx[j] - x1, edgeDy = vy[j] - y1;
+            float cross = x1 * edgeDy - y1 * edgeDx;
+            float denom = dirX * edgeDy - dirY * edgeDx;
+            if (Math.abs(denom) < 1e-5f) continue;
+            float r = cross / denom;
+            if (r < 0f) continue;
+            float px = dirX * r, py = dirY * r;
+            float t = Math.abs(edgeDx) > Math.abs(edgeDy) ? (px - x1) / edgeDx : (py - y1) / edgeDy;
+            if (t >= -0.01f && t <= 1.01f) return r;
+        }
+        return fallback;
+    }
+
+    /** Matches {@link NodeShapeRenderer#fillTriangle} - apex straight up, flat base at the bottom. */
+    private static float triangleBoundaryRadius(float angle, float r) {
+        float[] vx = { 0f, -r, r };
+        float[] vy = { -r, r, r };
+        return polygonBoundaryRadius(angle, vx, vy, r);
+    }
+
+    /** Matches {@link NodeShapeRenderer#fillShield} - flat top, straight sides to 2/3 height, then a point. */
+    private static float shieldBoundaryRadius(float angle, float r) {
+        float waist = r / 3f;
+        float[] vx = { -r, r, r, 0f, -r };
+        float[] vy = { -r, -r, waist, r, waist };
+        return polygonBoundaryRadius(angle, vx, vy, r);
+    }
+
+    /** Matches {@link NodeShapeRenderer#fillCross} - a plus sign with arm width sz/3. */
+    private static float crossBoundaryRadius(float angle, float r) {
+        float half = r / 3f;
+        float[] vx = { -half, half, half, r, r, half, half, -half, -half, -r, -r, -half };
+        float[] vy = { -r, -r, -half, -half, half, half, r, r, half, half, -half, -half };
+        return polygonBoundaryRadius(angle, vx, vy, r);
     }
 
     private static float regularPolygonBoundaryRadius(float angle, float radius, int points, float rotationOffset) {

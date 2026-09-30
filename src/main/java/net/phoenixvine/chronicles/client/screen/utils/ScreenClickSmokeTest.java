@@ -169,15 +169,6 @@ public final class ScreenClickSmokeTest {
                 int[] subgraphBtn2 = screen.computeHeaderBarLayout(screen.width())[2];
                 clickRectCenter(screen, subgraphBtn2);
             });
-
-            probe(results, "header: chapter map (open + back)", () -> {
-                int[] chapterMapBtn = screen.computeHeaderBarLayout(screen.width())[3];
-                if (chapterMapBtn == null) {
-                    throw new IllegalStateException("Chapter map header button unexpectedly absent in dev mode");
-                }
-                clickRectCenter(screen, chapterMapBtn);
-                returnToScreen(screen);
-            });
         }
 
         if (screen.unclaimedRewardCount() > 0) {

@@ -59,16 +59,25 @@ public class GraphLayoutEngine {
         }
     }
 
+    /**
+     * A flat, size-independent pixel floor - not a fraction of the node's own preferred size. A
+     * fraction-based floor (the old approach) gives a HUGE node a much bigger floor than a TINY
+     * one, so the biggest nodes are also the ones that overlap their neighbors worst once zoomed
+     * out far enough to hit the floor. A flat floor bottoms every node out at the same small, still
+     * legible size, so any residual overlap at extreme zoom-out is minor and uniform instead of
+     * worst for exactly the nodes that were already the biggest.
+     */
+    private static final int MIN_NODE_FLOOR_PX = 12;
+
     public int scaledNodeSize(QuestNode node) {
         int pixelSize = node.getNodePixelSize();
-
-        int floor = Math.max(4, Math.round(pixelSize * ChronicleOverviewScreen.MIN_NODE_FLOOR_FRACTION));
-        return Math.max(floor, Math.round(pixelSize * ctx.posZoom()));
+        float zoom = ctx.rawZoom();
+        return Math.max(MIN_NODE_FLOOR_PX, Math.round(pixelSize * zoom));
     }
 
     public int scaledNodeSize() {
         return Math.max(ChronicleOverviewScreen.MIN_NODE_PX,
-                Math.round(ChronicleOverviewScreen.NODE_SIZE * ctx.posZoom()));
+                Math.round(ChronicleOverviewScreen.NODE_SIZE * ctx.rawZoom()));
     }
 
     public void autoArrangeChapter() {

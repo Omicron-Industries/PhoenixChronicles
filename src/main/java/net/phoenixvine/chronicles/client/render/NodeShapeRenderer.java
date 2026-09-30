@@ -146,6 +146,25 @@ public final class NodeShapeRenderer {
         return 4.0;
     }
 
+    /**
+     * How much of a node's square bounding box a shape's actual visible body fills, used to shrink
+     * an icon so it sits inside the shape's silhouette instead of a flat 1/8-size inset that
+     * assumes a roughly square/circular body. Without this, an icon on e.g. a STAR (whose visible
+     * body is a slim waist between the points - see {@link #fillStar}'s {@code innerR = outerR*0.4})
+     * or a CROSS overflows past the shape's outline or looks disproportionately large relative to
+     * what's actually drawn.
+     */
+    public static float iconInsetScale(String shapeType) {
+        String shape = shapeType != null ? shapeType.toUpperCase() : "SQUARE";
+        return switch (shape) {
+            case "STAR", "CROSS" -> 0.55f;
+            case "DIAMOND", "TRIANGLE" -> 0.6f;
+            case "SHIELD" -> 0.75f;
+            case "HEXAGON", "PENTAGON" -> 0.85f;
+            default -> 1.0f;
+        };
+    }
+
     public static void fillCircle(GuiGraphics g, int x, int y, int sz, int color) {
         double gs = guiScale();
         float s = (float) (1.0 / gs);

@@ -41,12 +41,7 @@ public class SetIconScreen extends Screen {
 
         addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.item"), b -> {
             minecraft.setScreen(new ItemPickerScreen(this, stack -> {
-                node.setIconItem(stack.getItem());
-                node.setIconTexture("");
-                node.setIconFluid("");
-                QuestFileSaver.updateNodeIconAll(node);
-                parent.setFeedback("Icon → " + stack.getHoverName().getString());
-                parent.rebuild();
+                applyIcon(stack.getItem(), "", "", "Icon → " + stack.getHoverName().getString());
                 close();
             }));
         }).bounds(fx, y, fw, BTN_H).build());
@@ -54,13 +49,8 @@ public class SetIconScreen extends Screen {
 
         addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.fluid"), b -> {
             minecraft.setScreen(new FluidPickerScreen(this, fluidId -> {
-                node.setIconItem(null);
-                node.setIconTexture("");
-                node.setIconFluid(fluidId);
-                QuestFileSaver.updateNodeIconAll(node);
                 ResourceLocation rl = ResourceLocation.tryParse(fluidId);
-                parent.setFeedback("Icon → " + (rl != null ? rl.getPath() : fluidId) + " (fluid)");
-                parent.rebuild();
+                applyIcon(null, "", fluidId, "Icon → " + (rl != null ? rl.getPath() : fluidId) + " (fluid)");
                 close();
             }));
         }).bounds(fx, y, fw, BTN_H).build());
@@ -68,26 +58,47 @@ public class SetIconScreen extends Screen {
 
         addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.texture"), b -> {
             minecraft.setScreen(new TextureBrowserScreen(this, rl -> {
-                node.setIconItem(null);
-                node.setIconFluid("");
-                node.setIconTexture(rl);
-                QuestFileSaver.updateNodeIconAll(node);
-                parent.setFeedback("Icon texture → " + rl);
-                parent.rebuild();
+                applyIcon(null, rl, "", "Icon texture → " + rl);
                 close();
             }));
         }).bounds(fx, y, fw, BTN_H).build());
         y += BTN_H + GAP;
 
         addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.screen.set_icon.clear"), b -> {
-            node.setIconItem(null);
-            node.setIconTexture("");
-            node.setIconFluid("");
-            QuestFileSaver.updateNodeIconAll(node);
-            parent.setFeedback("Icon cleared");
-            parent.rebuild();
+            applyIcon(null, "", "", "Icon cleared");
             close();
         }).bounds(fx, y, fw, BTN_H).build());
+    }
+
+    /**
+     * Snapshots the node's current icon (item/texture/fluid are mutually exclusive, so all three
+     * always need saving/restoring together) before applying the new one, so the change is
+     * undoable/redoable like every other quest edit.
+     */
+    private void applyIcon(net.minecraft.world.item.@org.jetbrains.annotations.Nullable Item newItem,
+                           String newTexture, String newFluid, String feedback) {
+        net.minecraft.world.item.Item oldItem = node.getIconItem();
+        String oldTexture = node.getIconTexture();
+        String oldFluid = node.getIconFluid();
+
+        Runnable apply = () -> {
+            node.setIconItem(newItem);
+            node.setIconTexture(newTexture);
+            node.setIconFluid(newFluid);
+            QuestFileSaver.updateNodeIconAll(node);
+            parent.rebuild();
+        };
+        Runnable revert = () -> {
+            node.setIconItem(oldItem);
+            node.setIconTexture(oldTexture);
+            node.setIconFluid(oldFluid);
+            QuestFileSaver.updateNodeIconAll(node);
+            parent.rebuild();
+        };
+
+        apply.run();
+        parent.setFeedback(feedback);
+        parent.pushUndo("Undo: change quest icon", revert, apply);
     }
 
     private void close() {
