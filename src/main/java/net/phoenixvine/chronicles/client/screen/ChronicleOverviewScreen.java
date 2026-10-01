@@ -82,16 +82,6 @@ public class ChronicleOverviewScreen extends Screen
     private static final float ZOOM_MAX = 2.5f;
     private static final float ZOOM_STEP = 0.12f;
 
-    /**
-     * Node positions scale with {@link #posZoom()}, which below 100% zoom is raised to a power
-     * less than 1 - since raising a fraction to a power less than 1 moves it closer to 1, this
-     * makes canvas-space distances shrink slower than the raw scroll-wheel zoom would, opening up
-     * extra breathing room between nodes the further out you zoom. It only kicks in below 100%
-     * zoom (past that point positions already track zoom 1:1, matching how the layout looks at the
-     * default zoom level), and it leaves node SIZE untouched - {@link GraphLayoutEngine} scales
-     * size off {@link #rawZoom()} instead, so nodes keep shrinking at the normal rate while the
-     * gaps between them shrink more slowly.
-     */
     private static final float POSITION_ZOOM_EXPONENT = 0.75f;
     private static final long POST_MOVE_UNDO_WINDOW_MS = 1000;
     private static final float PIC_EDIT_MIN_SIZE = 4f, PIC_EDIT_MAX_SIZE = 4096f;
@@ -945,11 +935,6 @@ public class ChronicleOverviewScreen extends Screen
             btn.visible = nx + nsz > cl && nx < cr && ny + nsz > HEADER_H && ny < height;
         }
 
-        // A plain shift of the already-cached line geometry (the old approach here) leaves any
-        // edge that was outside the cache's viewport-culled bounds before the pan still missing
-        // after it - as the view keeps moving during a fast pan, that produces visibly torn/
-        // popping lines. Rebuilding is the same cost rescaleForZoom() already pays every frame
-        // while zooming, so paying it every frame while panning too is consistent, not new overhead.
         buildLineCache();
     }
 

@@ -5,6 +5,8 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.event.GameShuttingDownEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.phoenixvine.chronicles.PhoenixChronicles;
@@ -18,6 +20,8 @@ import net.phoenixvine.chronicles.common.tracker.TutorialProgressTracker;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import org.jetbrains.annotations.NotNull;
+
+import java.nio.file.Path;
 
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class ChronicleClientEvents {
@@ -66,13 +70,13 @@ public class ChronicleClientEvents {
 
     private static void ensureTutorialTrackerInit() {
         if (TutorialProgressTracker.isInitialized()) return;
-        java.nio.file.Path cfg = Minecraft.getInstance().gameDirectory.toPath()
+        Path cfg = Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("config").resolve(PhoenixChronicles.MOD_ID);
         TutorialProgressTracker.init(cfg);
     }
 
     @SubscribeEvent
-    public static void onPlayerLogout(net.minecraftforge.event.entity.player.PlayerEvent.@NotNull PlayerLoggedOutEvent event) {
+    public static void onPlayerLogout(PlayerEvent.@NotNull PlayerLoggedOutEvent event) {
         if (Minecraft.getInstance().player != null && event.getEntity() == Minecraft.getInstance().player) {
             QuestFileSaver.saveAllQuestsToDisk();
             LangSyncScheduler.flushNow();
@@ -81,7 +85,7 @@ public class ChronicleClientEvents {
     }
 
     @SubscribeEvent
-    public static void onClientStopping(net.minecraftforge.event.GameShuttingDownEvent event) {
+    public static void onClientStopping(GameShuttingDownEvent event) {
         QuestFileSaver.saveAllQuestsToDisk();
         LangSyncScheduler.flushNow();
     }

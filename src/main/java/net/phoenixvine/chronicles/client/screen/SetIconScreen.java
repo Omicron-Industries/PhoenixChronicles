@@ -70,11 +70,6 @@ public class SetIconScreen extends Screen {
         }).bounds(fx, y, fw, BTN_H).build());
     }
 
-    /**
-     * Snapshots the node's current icon (item/texture/fluid are mutually exclusive, so all three
-     * always need saving/restoring together) before applying the new one, so the change is
-     * undoable/redoable like every other quest edit.
-     */
     private void applyIcon(net.minecraft.world.item.@org.jetbrains.annotations.Nullable Item newItem,
                            String newTexture, String newFluid, String feedback) {
         net.minecraft.world.item.Item oldItem = node.getIconItem();

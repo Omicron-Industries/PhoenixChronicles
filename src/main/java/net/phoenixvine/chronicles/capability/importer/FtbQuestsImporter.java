@@ -425,11 +425,6 @@ public class FtbQuestsImporter {
 
     private static void importChapterGroups(List<ChapterIndex> chapters, Path importDir,
                                             Map<String, String> langMap, List<String> warnings) {
-        // Chapters is already sorted (group order, then order_index within group) by the caller,
-        // so grouped chapters land in the right category below, and ungrouped ones here keep that
-        // same relative order - without this, a newly-imported standalone chapter (e.g. an intro
-        // chapter meant to sit first) would fall through to SidebarPanel's "unknown chapter,
-        // append at the very end" fallback instead.
         List<String> standaloneChapters = new ArrayList<>();
         Map<String, List<String>> groupIdToChapters = new LinkedHashMap<>();
         for (ChapterIndex idx : chapters) {
