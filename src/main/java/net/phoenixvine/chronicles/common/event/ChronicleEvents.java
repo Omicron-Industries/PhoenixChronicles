@@ -5,7 +5,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -91,6 +90,7 @@ public class ChronicleEvents {
         ChronicleDataMigration.migrate(configDir);
         ChapterFlagRegistry.load(configDir);
         ChapterPrereqDefaults.load(configDir);
+        ChapterEmergencyItems.load(configDir);
         QuestEngineConfig.load(configDir);
         RewardTableRegistry.load(configDir);
         CategoryRegistry.load(configDir);
@@ -192,7 +192,7 @@ public class ChronicleEvents {
                     boolean changed = false;
                     for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
                         if (task instanceof KillEntityTask killTask) {
-                            killTask.onEntityKilled(player, entityId);
+                            killTask.onEntityKilled(player, event.getEntity().getType());
                             changed = true;
                         }
                     }
@@ -416,27 +416,14 @@ public class ChronicleEvents {
                                         ctx.getSource().sendFailure(Component.literal("Quest not found: " + qStr));
                                         return 0;
                                     }
-                                    QuestState state = sp.getCapability(
-                                            QuestCapabilityProvider.PLAYER_QUESTS)
-                                            .map(d -> d.getQuestState(questId, QuestState.LOCKED))
-                                            .orElse(QuestState.LOCKED);
-                                    if (state != QuestState.ACTIVE) {
-                                        ctx.getSource().sendFailure(Component.literal(
-                                                "Emergency items are only available while the quest is active."));
+                                    QuestProgressTracker.EmergencyResult result = QuestProgressTracker
+                                            .claimEmergencyItems(sp, node);
+                                    if (!result.success()) {
+                                        ctx.getSource().sendFailure(Component.literal(result.message()));
                                         return 0;
-                                    }
-                                    List<ItemStack> items = node.getEmergencyItems();
-                                    if (items.isEmpty()) {
-                                        ctx.getSource().sendFailure(
-                                                Component.literal("This quest has no emergency items configured."));
-                                        return 0;
-                                    }
-                                    for (ItemStack stack : items) {
-                                        if (!sp.addItem(stack.copy())) sp.drop(stack.copy(), false);
                                     }
                                     ctx.getSource().sendSuccess(
-                                            () -> Component.literal("§aGave " + items.size() + " emergency item(s)."),
-                                            false);
+                                            () -> Component.literal("§a" + result.message()), false);
                                     return 1;
                                 })))
 
@@ -514,6 +501,7 @@ public class ChronicleEvents {
                             QuestTreeRegistry.clearConfigQuests();
                             ChapterFlagRegistry.load(configDir);
                             ChapterPrereqDefaults.load(configDir);
+                            ChapterEmergencyItems.load(configDir);
                             QuestEngineConfig.load(configDir);
                             RewardTableRegistry.load(configDir);
                             CategoryRegistry.load(configDir);
@@ -970,6 +958,7 @@ public class ChronicleEvents {
                 QuestTreeRegistry.clearConfigQuests();
                 ChapterFlagRegistry.load(configDir);
                 ChapterPrereqDefaults.load(configDir);
+                ChapterEmergencyItems.load(configDir);
                 QuestEngineConfig.load(configDir);
                 RewardTableRegistry.load(configDir);
                 CategoryRegistry.load(configDir);

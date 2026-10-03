@@ -65,7 +65,7 @@ public final class QuestRewardDisplay {
             List<Component> tip = new ArrayList<>();
             tip.add(box.getSummary());
 
-            if (box.getMode() == QuestReward.ChoiceBoxReward.Mode.MENU) {
+            if (box.getMode() != QuestReward.ChoiceBoxReward.Mode.LOOTBOX) {
                 int shown = 0;
                 for (QuestReward opt : box.getOptions()) {
                     if (shown++ >= MAX_LISTED_OPTIONS) {

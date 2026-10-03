@@ -37,6 +37,8 @@ public interface ScreenContext {
 
     QuestState getState(QuestNode node);
 
+    boolean isHiddenFromPlayer(QuestNode node);
+
     String friendly(String chapterKey);
 
     List<String> buildChapterList();

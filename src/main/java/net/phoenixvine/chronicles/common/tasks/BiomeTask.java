@@ -9,25 +9,36 @@ import net.phoenixvine.chronicles.common.model.QuestTask;
 
 public class BiomeTask extends QuestTask {
 
-    private ResourceLocation biomeId;
+    private TaskIdMatcher matcher;
 
     public BiomeTask(ResourceLocation taskId, Component description, ResourceLocation biomeId) {
         super(taskId, description);
-        this.biomeId = biomeId;
+        this.matcher = TaskIdMatcher.of(biomeId);
+    }
+
+    public BiomeTask(ResourceLocation taskId, Component description, String biomeSpec) {
+        super(taskId, description);
+        this.matcher = TaskIdMatcher.parse(biomeSpec);
     }
 
     public ResourceLocation getBiomeId() {
-        return biomeId;
+        return matcher.firstId();
+    }
+
+    public TaskIdMatcher getMatcher() {
+        return matcher;
+    }
+
+    public String getSpec() {
+        return matcher.spec();
     }
 
     @Override
     public void onTick(Player player) {
-        if (player.level().isClientSide || biomeId == null) return;
+        if (player.level().isClientSide || matcher.isEmpty()) return;
         if (isCompletedFor(player)) return;
 
-        ResourceLocation current = player.level().getBiome(player.blockPosition())
-                .unwrapKey().map(k -> k.location()).orElse(null);
-        if (biomeId.equals(current)) {
+        if (matcher.matchesBiome(player.level().getBiome(player.blockPosition()))) {
             TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
         }
     }
@@ -41,12 +52,15 @@ public class BiomeTask extends QuestTask {
     public CompoundTag serializeNBT() {
         CompoundTag tag = new CompoundTag();
         tag.putString("type", "biome");
-        tag.putString("biome_id", biomeId != null ? biomeId.toString() : "minecraft:plains");
+        tag.putString("biome_id", matcher.isEmpty() ? "minecraft:plains" : matcher.spec());
         return tag;
     }
 
     @Override
     public void deserializeNBT(CompoundTag nbt) {
-        if (nbt.contains("biome_id")) biomeId = ResourceLocation.parse(nbt.getString("biome_id"));
+        if (nbt.contains("biome_id")) {
+            TaskIdMatcher parsed = TaskIdMatcher.parse(nbt.getString("biome_id"));
+            if (!parsed.isEmpty()) matcher = parsed;
+        }
     }
 }

@@ -1417,6 +1417,7 @@ public class FtbQuestsImporter {
             case "diamond" -> "DIAMOND";
             case "hexagon" -> "HEXAGON";
             case "pentagon" -> "PENTAGON";
+            case "none" -> "NONE";
             default -> "SQUARE";
         };
     }

@@ -112,6 +112,7 @@ public final class QuestFileWatcher {
             QuestTreeRegistry.clearConfigQuests();
             ChapterFlagRegistry.load(configDir);
             ChapterPrereqDefaults.load(configDir);
+            ChapterEmergencyItems.load(configDir);
             QuestEngineConfig.load(configDir);
             RewardTableRegistry.load(configDir);
             CategoryRegistry.load(configDir);

@@ -140,5 +140,12 @@ public class ChronicleNetwork {
                 S2CSyncTeamKeyPacket::new,
                 S2CSyncTeamKeyPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+
+        CHANNEL.registerMessage(id++,
+                C2SRequestEmergencyItemsPacket.class,
+                C2SRequestEmergencyItemsPacket::encode,
+                C2SRequestEmergencyItemsPacket::new,
+                C2SRequestEmergencyItemsPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

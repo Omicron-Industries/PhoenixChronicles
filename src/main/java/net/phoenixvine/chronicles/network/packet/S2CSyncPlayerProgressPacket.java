@@ -38,7 +38,21 @@ public class S2CSyncPlayerProgressPacket {
     }
 
     public S2CSyncPlayerProgressPacket(PlayerQuestData data, boolean initialSync) {
-        this.progressNbt = data.serializeNBT();
+        CompoundTag nbt = data.serializeNBT();
+        net.minecraft.nbt.ListTag withItems = new net.minecraft.nbt.ListTag();
+        for (QuestNode q : QuestTreeRegistry.getAllQuests().values()) {
+            if (!q.getEffectiveEmergencyItems().isEmpty()) {
+                withItems.add(net.minecraft.nbt.StringTag.valueOf(q.getId().toString()));
+            }
+        }
+        nbt.put(net.phoenixvine.chronicles.client.util.ClientEmergencyState.AVAILABLE_KEY, withItems);
+        nbt.putBoolean(net.phoenixvine.chronicles.client.util.ClientEmergencyState.REPEATABLE_KEY,
+                net.phoenixvine.chronicles.common.registry.QuestEngineConfig.isEmergencyRepeatable());
+        nbt.putInt(net.phoenixvine.chronicles.client.util.ClientEmergencyState.COOLDOWN_KEY,
+                net.phoenixvine.chronicles.common.registry.QuestEngineConfig.getEmergencyCooldownSeconds());
+        nbt.putLong(net.phoenixvine.chronicles.client.util.ClientEmergencyState.SERVER_NOW_KEY,
+                System.currentTimeMillis());
+        this.progressNbt = nbt;
         this.initialSync = initialSync;
     }
 
@@ -56,6 +70,8 @@ public class S2CSyncPlayerProgressPacket {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || progressNbt == null) return;
+
+            net.phoenixvine.chronicles.client.util.ClientEmergencyState.update(progressNbt);
 
             mc.player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(data -> {
                 if (initialSync) {

@@ -144,8 +144,7 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                                 addedTask = new CraftItemTask(taskId, taskDesc, itemId, count);
                             }
                             case "kill_entity" -> {
-                                ResourceLocation entityId = ResourceLocation
-                                        .parse(taskJson.get("entity_id").getAsString());
+                                String entityId = targetSpec(taskJson.get("entity_id"));
                                 int required = taskJson.has("required") ? taskJson.get("required").getAsInt() : 1;
                                 boolean consume = taskJson.has("consume") && taskJson.get("consume").getAsBoolean();
                                 addedTask = new KillEntityTask(taskId, taskDesc, entityId, required, consume);
@@ -162,14 +161,11 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
                                 addedTask = new ExperienceTask(taskId, taskDesc, level);
                             }
                             case "biome" -> {
-                                ResourceLocation biomeId = ResourceLocation
-                                        .parse(taskJson.get("biome_id").getAsString());
-                                addedTask = new BiomeTask(taskId, taskDesc, biomeId);
+                                addedTask = new BiomeTask(taskId, taskDesc, targetSpec(taskJson.get("biome_id")));
                             }
                             case "structure" -> {
-                                ResourceLocation structureId = ResourceLocation
-                                        .parse(taskJson.get("structure_id").getAsString());
-                                addedTask = new StructureTask(taskId, taskDesc, structureId);
+                                addedTask = new StructureTask(taskId, taskDesc,
+                                        targetSpec(taskJson.get("structure_id")));
                             }
                             case "checkmark" -> addedTask = new CheckmarkTask(taskId, taskDesc);
                             case "tag_item" -> {
@@ -253,5 +249,15 @@ public class ChronicleDataLoader extends SimpleJsonResourceReloadListener {
             java.nio.file.Path configDir = ChronicleEvents.resolveConfigDir(server);
             QuestFileLoader.loadAdditiveFromDisk(configDir);
         }
+    }
+
+    private static String targetSpec(com.google.gson.JsonElement el) {
+        if (el == null || el.isJsonNull()) return "";
+        if (el.isJsonArray()) {
+            java.util.List<String> parts = new java.util.ArrayList<>();
+            for (com.google.gson.JsonElement e : el.getAsJsonArray()) parts.add(e.getAsString());
+            return String.join(", ", parts);
+        }
+        return el.getAsString();
     }
 }

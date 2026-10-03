@@ -884,6 +884,11 @@ public class QuestNode {
         return Collections.unmodifiableList(emergencyItems);
     }
 
+    public List<ItemStack> getEffectiveEmergencyItems() {
+        if (!emergencyItems.isEmpty()) return Collections.unmodifiableList(emergencyItems);
+        return net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems.get(chapter);
+    }
+
     public void addEmergencyItem(ItemStack stack) {
         if (stack != null && !stack.isEmpty()) emergencyItems.add(stack.copy());
     }

@@ -39,7 +39,8 @@ public abstract class QuestReward {
         CONFLUX_UNLOCK,
         OPEN_SCREEN,
         CHOICE_BOX,
-        FLUID
+        FLUID,
+        QUEST_ACTION
     }
 
     public abstract RewardType getType();
@@ -126,6 +127,7 @@ public abstract class QuestReward {
             case "open_screen" -> OpenScreenReward.fromNBT(tag);
             case "choice_box" -> ChoiceBoxReward.fromNBT(tag);
             case "fluid" -> FluidReward.fromNBT(tag);
+            case "quest_action" -> QuestActionReward.fromNBT(tag);
             default -> null;
         };
     }
@@ -359,10 +361,22 @@ public abstract class QuestReward {
 
     public static class CommandReward extends QuestReward {
 
+        public static final int DEFAULT_PERMISSION_LEVEL = 4;
+
         private final String command;
+        private final int permissionLevel;
 
         public CommandReward(String command) {
+            this(command, DEFAULT_PERMISSION_LEVEL);
+        }
+
+        public CommandReward(String command, int permissionLevel) {
             this.command = command != null ? command : "";
+            this.permissionLevel = Math.max(0, Math.min(4, permissionLevel));
+        }
+
+        public int getPermissionLevel() {
+            return permissionLevel;
         }
 
         public String getCommand() {
@@ -383,12 +397,25 @@ public abstract class QuestReward {
         @Override
         public void grant(ServerPlayer player) {
             if (player == null || command.isBlank()) return;
-            String resolved = command.replace("%player%", player.getName().getString());
+            String resolved = resolvePlaceholders(player);
             if (player.getServer() != null) {
                 player.getServer().getCommands().performPrefixedCommand(
-                        player.createCommandSourceStack().withSuppressedOutput().withMaximumPermission(4),
+                        player.createCommandSourceStack().withSuppressedOutput().withPermission(permissionLevel),
                         resolved);
             }
+        }
+
+        private String resolvePlaceholders(ServerPlayer player) {
+            String name = player.getName().getString();
+            net.minecraft.core.BlockPos pos = player.blockPosition();
+            return command
+                    .replace("%player%", name)
+                    .replace("{p}", name)
+                    .replace("{uuid}", player.getUUID().toString())
+                    .replace("{x}", Integer.toString(pos.getX()))
+                    .replace("{y}", Integer.toString(pos.getY()))
+                    .replace("{z}", Integer.toString(pos.getZ()))
+                    .replace("{dim}", player.level().dimension().location().toString());
         }
 
         @Override
@@ -396,12 +423,111 @@ public abstract class QuestReward {
             CompoundTag tag = new CompoundTag();
             tag.putString("type", "command");
             tag.putString("command", command);
+            if (permissionLevel != DEFAULT_PERMISSION_LEVEL) tag.putInt("permission_level", permissionLevel);
             return tag;
         }
 
         public static CommandReward fromNBT(CompoundTag tag) {
             if (!tag.contains("command")) return null;
-            return new CommandReward(tag.getString("command"));
+            return new CommandReward(tag.getString("command"),
+                    tag.contains("permission_level") ? tag.getInt("permission_level") : DEFAULT_PERMISSION_LEVEL);
+        }
+    }
+
+    public static class QuestActionReward extends QuestReward {
+
+        public enum Action {
+            COMPLETE,
+            RESET
+        }
+
+        private final String questId;
+        private final Action action;
+
+        public QuestActionReward(String questId, Action action) {
+            this.questId = questId != null ? questId.trim() : "";
+            this.action = action != null ? action : Action.COMPLETE;
+        }
+
+        public String getQuestId() {
+            return questId;
+        }
+
+        public Action getAction() {
+            return action;
+        }
+
+        private ResourceLocation resolveId() {
+            if (questId.isEmpty()) return null;
+            return questId.indexOf(':') >= 0 ? ResourceLocation.tryParse(questId) :
+                    ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", questId);
+        }
+
+        public boolean targets(ResourceLocation id) {
+            ResourceLocation target = resolveId();
+            return target != null && target.equals(id);
+        }
+
+        @Override
+        public RewardType getType() {
+            return RewardType.QUEST_ACTION;
+        }
+
+        @Override
+        public Component getSummary() {
+            ResourceLocation id = resolveId();
+            QuestNode target = id != null ? net.phoenixvine.chronicles.common.registry.QuestTreeRegistry.getQuest(id) :
+                    null;
+            Component name = target != null ? target.getTitle() :
+                    Component.literal(questId.isEmpty() ? "unknown" : questId);
+            return Component.literal(action == Action.COMPLETE ? "§bComplete quest: " : "§7Reset quest: ").append(name);
+        }
+
+        @Override
+        public void grant(ServerPlayer player) {
+            ResourceLocation id = resolveId();
+            if (player == null || id == null) return;
+            QuestNode target = net.phoenixvine.chronicles.common.registry.QuestTreeRegistry.getQuest(id);
+            if (target == null) return;
+
+            if (action == Action.COMPLETE) {
+                net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.changeQuestState(player, target,
+                        QuestState.COMPLETED);
+                return;
+            }
+
+            java.util.List<ResourceLocation> taskIds = new ArrayList<>();
+            for (QuestTask t : target.getTasks()) taskIds.add(t.getTaskId());
+            player.getCapability(net.phoenixvine.chronicles.capability.QuestCapabilityProvider.PLAYER_QUESTS)
+                    .ifPresent(data -> {
+                        data.resetQuestProgress(id, taskIds);
+                        if (net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.prereqsSatisfied(target,
+                                data, player.getServer())) {
+                            net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.changeQuestState(player,
+                                    target, QuestState.UNLOCKED);
+                        }
+                    });
+            net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.sendProgressSync(player);
+        }
+
+        @Override
+        public CompoundTag serializeNBT() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString("type", "quest_action");
+            tag.putString("quest", questId);
+            tag.putString("action", action.name());
+            return tag;
+        }
+
+        public static QuestActionReward fromNBT(CompoundTag tag) {
+            if (!tag.contains("quest")) return null;
+            Action a;
+            try {
+                a = Action.valueOf(tag.getString("action"));
+            } catch (IllegalArgumentException e) {
+                a = Action.COMPLETE;
+            }
+            return new QuestActionReward(tag.getString("quest"), a);
         }
     }
 
@@ -772,7 +898,9 @@ public abstract class QuestReward {
 
         public enum Mode {
             MENU,
-            LOOTBOX
+            LOOTBOX,
+
+            ALL
         }
 
         private final List<QuestReward> options;
@@ -798,13 +926,18 @@ public abstract class QuestReward {
 
         @Override
         public Component getSummary() {
-            return mode == Mode.LOOTBOX ?
-                    Component.literal("§d? Mystery reward") :
-                    Component.literal("§d? Choose 1 of " + options.size());
+            return switch (mode) {
+                case LOOTBOX -> Component.literal("§d? Mystery reward");
+                case ALL -> Component.literal("§d★ All of these (" + options.size() + ")");
+                default -> Component.literal("§d? Choose 1 of " + options.size());
+            };
         }
 
         @Override
-        public void grant(ServerPlayer player) {}
+        public void grant(ServerPlayer player) {
+            if (mode != Mode.ALL) return;
+            for (QuestReward option : options) option.grant(player);
+        }
 
         @Override
         public CompoundTag serializeNBT() {

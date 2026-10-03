@@ -698,7 +698,67 @@ public class QuestTasksScreen extends Screen {
         if (pct > 0) g.fill(x, barY, x + (int) (w * pct), barY + 3, done ? C_DONE : C_ACTIVE);
     }
 
+    private long emergencyArmedUntilMs = 0;
+
+    private boolean emergencyShown() {
+        if (playerData == null) return false;
+        return playerData.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.ACTIVE &&
+                net.phoenixvine.chronicles.client.util.ClientEmergencyState.hasEmergencyItems(node.getId());
+    }
+
+    private boolean emergencyUsedUp() {
+        return playerData != null && playerData.hasUsedEmergency(node.getId()) &&
+                !net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable();
+    }
+
+    private long emergencyCooldownRemainingMs() {
+        if (playerData == null || !playerData.hasUsedEmergency(node.getId())) return 0;
+        if (!net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable()) return 0;
+        long ends = playerData.getEmergencyUsedAt(node.getId()) +
+                net.phoenixvine.chronicles.client.util.ClientEmergencyState.getCooldownSeconds() * 1000L;
+        return Math.max(0, ends - net.phoenixvine.chronicles.client.util.ClientEmergencyState.serverNow());
+    }
+
+    private void drawEmergencyButton(GuiGraphics g, int x, int y, int w, int h, int mx, int my) {
+        if (!emergencyShown()) return;
+        boolean used = emergencyUsedUp();
+        long cooldownMs = emergencyCooldownRemainingMs();
+        boolean blocked = used || cooldownMs > 0;
+        boolean armed = System.currentTimeMillis() < emergencyArmedUntilMs;
+        boolean hov = mx >= x && mx < x + w && my >= y && my < y + h;
+        int fill = blocked ? 0xFF1A1A1A : armed ? 0xFF4A3A1A : hov ? 0xFF3A3220 : 0xFF2A2418;
+        g.fill(x, y, x + w, y + h, fill);
+        g.fill(x, y, x + w, y + 1, blocked ? 0xFF333333 : 0xFFB08A2E);
+        ChroniclesUIKit.drawCenteredString(g, font, blocked ? "§8⚠" : armed ? "§e⚠?" : "§6⚠", x + w / 2,
+                y + (h - 8) / 2, C_TEXT);
+        if (hov) {
+            hoveredHeaderTooltip = used ? "Emergency items already used" :
+                    cooldownMs > 0 ? "Emergency items available again in " +
+                            net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.formatDuration(cooldownMs) :
+                            armed ? "Click again to confirm" :
+                                    net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable() ?
+                                            "Lost a required item? Get fallback items" :
+                                            "Lost a required item? Get fallback items (one use)";
+        }
+    }
+
+    private boolean clickEmergencyButton(int x, int y, int w, int h, double mx, double my) {
+        if (!emergencyShown() || mx < x || mx >= x + w || my < y || my >= y + h) return false;
+        if (emergencyUsedUp() || emergencyCooldownRemainingMs() > 0) return true;
+        long now = System.currentTimeMillis();
+        boolean repeatable = net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable();
+        if (!repeatable && now >= emergencyArmedUntilMs) {
+            emergencyArmedUntilMs = now + 3000;
+            return true;
+        }
+        emergencyArmedUntilMs = 0;
+        ChronicleNetwork.CHANNEL.sendToServer(
+                new net.phoenixvine.chronicles.network.packet.C2SRequestEmergencyItemsPacket(node.getId()));
+        return true;
+    }
+
     private void renderCompactFooter(GuiGraphics g, int cardX, int cy, int cardW, int h, int mx, int my) {
+        drawEmergencyButton(g, cardX + 4, cy + 1, 22, h - 2, mx, my);
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
         boolean canClaim = state == QuestState.COMPLETED && !rewardsClaimed() && !content.effectiveRewards().isEmpty();
@@ -1231,6 +1291,10 @@ public class QuestTasksScreen extends Screen {
 
     private void openLink(String url) {
         if (url == null || url.isEmpty()) return;
+        if (url.regionMatches(true, 0, "quest:", 0, 6)) {
+            openQuestLink(url.substring(6));
+            return;
+        }
         if (url.startsWith("wiki:")) {
             String spec = url.substring(5);
             String pageId = null;
@@ -1253,6 +1317,28 @@ public class QuestTasksScreen extends Screen {
         } catch (Exception e) {
             net.phoenixvine.chronicles.PhoenixChronicles.LOGGER.warn("Chronicles: failed to open link '{}'", url, e);
         }
+    }
+
+    private void openQuestLink(String spec) {
+        String raw = spec == null ? "" : spec.trim();
+        if (raw.isEmpty() || minecraft == null) return;
+
+        ResourceLocation id = raw.indexOf(':') >= 0 ? ResourceLocation.tryParse(raw) :
+                ResourceLocation.tryParse(net.phoenixvine.chronicles.PhoenixChronicles.MOD_ID + ":" + raw);
+        QuestNode target = id != null ? QuestTreeRegistry.getQuest(id) : null;
+
+        if (!(parent instanceof ChronicleOverviewScreen overview)) {
+            net.phoenixvine.chronicles.PhoenixChronicles.LOGGER
+                    .warn("Chronicles: quest link '{}' ignored, no overview screen to open it from", raw);
+            return;
+        }
+        if (target == null) {
+            overview.setFeedback("§cBroken quest link: %s", raw);
+            return;
+        }
+        if (target == node) return;
+
+        overview.onNodeClicked(target);
     }
 
     private boolean isConditionMet(String type, String value) {
@@ -1727,6 +1813,7 @@ public class QuestTasksScreen extends Screen {
         int footerY = height - FOOTER_H;
         g.fill(0, footerY, width, height, C_HEADER);
         g.fill(0, footerY, width, footerY + 1, C_BORDER);
+        drawEmergencyButton(g, 6, footerY + 2, 22, FOOTER_H - 4, mx, my);
 
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
@@ -1911,10 +1998,14 @@ public class QuestTasksScreen extends Screen {
             boolean resolved = playerData != null &&
                     playerData.isChoiceBoxResolved(node.getId(), content.effectiveRewards().indexOf(box));
             lines.add(reward.getSummary());
-            lines.add(Component.translatable(resolved ? "phoenix_chronicles.ui.choice_box_opened" :
-                    box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ?
-                            "phoenix_chronicles.ui.choice_box_random_pick" :
-                            "phoenix_chronicles.ui.choice_box_choose"));
+            if (box.getMode() == QuestReward.ChoiceBoxReward.Mode.ALL) {
+                for (QuestReward opt : box.getOptions()) lines.add(Component.literal("§7• ").append(opt.getSummary()));
+            } else {
+                lines.add(Component.translatable(resolved ? "phoenix_chronicles.ui.choice_box_opened" :
+                        box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ?
+                                "phoenix_chronicles.ui.choice_box_random_pick" :
+                                "phoenix_chronicles.ui.choice_box_choose"));
+            }
         } else {
             lines.add(Component.translatable("phoenix_chronicles.ui.generic_reward_line", reward.getType().name()));
         }
@@ -2169,6 +2260,7 @@ public class QuestTasksScreen extends Screen {
         }
 
         int footerY = cardY + cardH - 18;
+        if (clickEmergencyButton(cardX + 4, footerY + 1, 22, 16, mx, my)) return true;
         if (my >= footerY && my < footerY + 18) {
             QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                     QuestState.LOCKED;
@@ -2327,6 +2419,7 @@ public class QuestTasksScreen extends Screen {
         }
 
         int footerY = height - FOOTER_H;
+        if (clickEmergencyButton(6, footerY + 2, 22, FOOTER_H - 4, mx, my)) return true;
         if (my >= footerY + 2 && my < footerY + 20) {
             QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                     QuestState.LOCKED;
@@ -2654,6 +2747,7 @@ public class QuestTasksScreen extends Screen {
             case REWARD_TABLE -> "⊞";
             case FLUID -> "💧";
             case OPEN_SCREEN -> "🖥";
+            case QUEST_ACTION -> "✔";
             default -> "?";
         };
     }
@@ -2664,7 +2758,7 @@ public class QuestTasksScreen extends Screen {
         if (state != QuestState.COMPLETED || content.effectiveRewards().isEmpty()) return false;
 
         QuestReward.ChoiceBoxReward box = boxAt(rewardIndex);
-        if (box != null) {
+        if (box != null && box.getMode() != QuestReward.ChoiceBoxReward.Mode.ALL) {
             if (playerData != null && playerData.isChoiceBoxResolved(node.getId(), rewardIndex)) return false;
             if (box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX) {
                 ChronicleNetwork.CHANNEL.sendToServer(new C2SResolveChoiceBoxPacket(node.getId(), rewardIndex, -1));

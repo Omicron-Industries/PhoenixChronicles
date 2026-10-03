@@ -98,6 +98,7 @@ public class QuestCreatorScreen extends Screen {
             new ShapeMeta("TRIANGLE", "▲"), new ShapeMeta("STAR", "★"),
             new ShapeMeta("PENTAGON", "⬠"), new ShapeMeta("SHIELD", "❖"),
             new ShapeMeta("CROSS", "✚"), new ShapeMeta("CUSTOM", "▩"),
+            new ShapeMeta("NONE", "◌"),
     };
 
     private static final QuestNode.NodeSize[] NODE_SIZES = QuestNode.NodeSize.values();
@@ -636,11 +637,25 @@ public class QuestCreatorScreen extends Screen {
                 (pendingWorkingNode != null ? pendingWorkingNode.getRewards().size() : 0);
         labels.add(new LabelEntry(cx, y,
                 "§f" + taskCount + " task(s)  ·  " + rewardCount + " reward(s)", C_TEXT_FAINT));
+        int emergencyW = 96;
         addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§f⊞ Open Tasks & Rewards Editor"), b -> {
             chapterDropdownOpen = false;
             visibilityDropdownOpen = false;
             Minecraft.getInstance().setScreen(new TaskRewardEditorScreen(this, resolveWorkingNode()));
-        }).bounds(cx, rowY, cw, FIELD_H).build());
+        }).bounds(cx, rowY, cw - emergencyW - COL_GAP, FIELD_H).build());
+        int emergencyCount = resolveWorkingNode().getEmergencyItems().size();
+        addRenderableWidget(Button.builder(
+                ChroniclesUIKit.lit("§f⚠ Emergency" + (emergencyCount > 0 ? " (" + emergencyCount + ")" : "")), b -> {
+                    chapterDropdownOpen = false;
+                    visibilityDropdownOpen = false;
+                    Minecraft.getInstance()
+                            .setScreen(new EmergencyItemsScreen(this, resolveWorkingNode(), () -> cachedChapter));
+                })
+                .bounds(cx + cw - emergencyW, rowY, emergencyW, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                        "Fallback items a player can claim once (/chronicles emergency) while this quest is\n" +
+                                "active, e.g. if they lost an item the quest needs. Also edits the chapter default.")))
+                .build());
         return rowY + FIELD_H;
     }
 
@@ -1587,6 +1602,8 @@ public class QuestCreatorScreen extends Screen {
                     for (QuestTask t : pendingWorkingNode.getTasks()) node.addTask(t);
                     for (QuestReward r : pendingWorkingNode.getRewards()) node.addReward(r);
                     for (QuestNode.QuestVariant v : pendingWorkingNode.getVariants()) node.addVariant(v);
+                    if (!pendingWorkingNode.getEmergencyItems().isEmpty())
+                        node.deserializeEmergencyItems(pendingWorkingNode.serializeEmergencyItems());
                 }
 
                 if (editingNode == null) {

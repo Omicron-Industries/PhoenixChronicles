@@ -401,6 +401,14 @@ public class ChronicleOverviewScreen extends Screen
 
     private final Map<ResourceLocation, Boolean> ancestorGatedCache = new HashMap<>();
 
+    @Override
+    public boolean isHiddenFromPlayer(QuestNode n) {
+        if (minecraft == null || minecraft.player == null) return false;
+        MinecraftServer server = minecraft.getSingleplayerServer();
+        QuestNode.Visibility vis = n.getEffectiveVisibility(server, minecraft.player);
+        return (vis == QuestNode.Visibility.HIDDEN && getState(n) == QuestState.LOCKED) || isAncestorGatedHidden(n);
+    }
+
     private boolean isAncestorGatedHidden(QuestNode node) {
         if (!QuestChroniclesSettings.get().isCascadeHiddenQuests()) return false;
         Boolean cached = ancestorGatedCache.get(node.getId());
@@ -1192,7 +1200,7 @@ public class ChronicleOverviewScreen extends Screen
             return true;
         }
 
-        if (ChronicleKeyBindings.TOGGLE_STATS.matches(key, scan) && isDevMode) {
+        if (ChronicleKeyBindings.TOGGLE_STATS.matches(key, scan)) {
             toggleStatsPanel();
             return true;
         }
@@ -1246,6 +1254,7 @@ public class ChronicleOverviewScreen extends Screen
         if (tryHandleMoveCatDropdownScroll(mx, my, delta)) return true;
         if (tryHandleNodeSizeEditScroll(delta)) return true;
         if (tryHandlePictureEditScroll(delta)) return true;
+        if (statsPanel.isVisible(this) && statsPanel.mouseScrolled(mx, my, delta)) return true;
 
         int cl = sidebarW(), cr = width;
         if (mx <= cl && my > HEADER_H) {
@@ -1540,6 +1549,10 @@ public class ChronicleOverviewScreen extends Screen
             }
             if (hitsToolbarBtn("map", mx, my)) {
                 minimapOpen = !minimapOpen;
+                return true;
+            }
+            if (hitsToolbarBtn("stats", mx, my)) {
+                toggleStatsPanel();
                 return true;
             }
         }
@@ -2898,7 +2911,8 @@ public class ChronicleOverviewScreen extends Screen
 
     private void renderToolbar(GuiGraphics g, int mx, int my, int cl, int cr) {
         toolbarPanel.render(g, font, mx, my, width, cl, cr, TOOLBAR_Y, TOOLBAR_H, toolbarColors(), stateFilter,
-                hideCompleted, minimapOpen, isDevMode, editorState.activeTool, pendingDeferredDraws::add);
+                hideCompleted, minimapOpen, statsPanel.isOpen(), isDevMode, editorState.activeTool,
+                pendingDeferredDraws::add);
     }
 
     private boolean hitsToolbarBtn(String key, double mx, double my) {

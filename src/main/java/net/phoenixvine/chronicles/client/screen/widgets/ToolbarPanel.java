@@ -16,6 +16,14 @@ public class ToolbarPanel {
 
     private static final String[] FILTER_KEYS = { "ALL", "AVAILABLE", "ACTIVE", "COMPLETE", "LOCKED" };
     private static final String[] FILTER_GLYPHS = { "◉", "○", "◑", "✔", "🔒" };
+    private static final String[] FILTER_TIPS = {
+            "Show all quests", "Show available quests", "Show quests in progress", "Show completed quests",
+            "Show locked quests"
+    };
+
+    private static final String G_FIT = "⊞", G_CONNECT = "🔗", G_PLACE = "✛", G_SELECT = "⬚", G_SETTINGS = "⚙",
+            G_WIKI = "?", G_HIDE = "⊘", G_MAP = "⊡", G_STATS = "∑";
+    private static final int MIN_BTN_W = 18;
     private static final int[] FILTER_COLORS = {
             0xFFAAAAAA,
             0xFF55BBFF,
@@ -31,48 +39,50 @@ public class ToolbarPanel {
     public void render(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int width, int cl, int cr,
                        int toolbarY, int toolbarH,
                        @NotNull Colors colors, @NotNull String stateFilter, boolean hideCompleted, boolean minimapOpen,
-                       boolean devMode, @NotNull EditorTool activeTool,
+                       boolean statsOpen, boolean devMode, @NotNull EditorTool activeTool,
                        @NotNull Consumer<Runnable> deferDraw) {
         int ty = toolbarY;
         g.fill(0, ty, width, ty + toolbarH, colors.panelDark());
         g.fill(0, ty + toolbarH - 1, width, ty + toolbarH, colors.border());
 
         int rightClusterW = rightClusterWidth(font, devMode);
-        drawFilterPills(g, font, mx, my, cl, toolbarY, toolbarH, stateFilter, cr - rightClusterW);
+        drawFilterPills(g, font, mx, my, cl, toolbarY, toolbarH, stateFilter, cr - rightClusterW, deferDraw);
 
         int rx = cr - 4;
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "⊞ Fit", "fit", "Fit all quests to view",
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, G_FIT, "fit", "Fit all quests to view", deferDraw);
+        rx -= 2;
+        if (devMode) {
+            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors,
+                    (activeTool == EditorTool.CONNECT ? "§a" : "§8") + G_CONNECT, "toolConnect",
+                    "Connect mode: drag between two quests to link them, no Alt needed", deferDraw);
+            rx -= 2;
+            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors,
+                    (activeTool == EditorTool.PLACE ? "§a" : "§8") + G_PLACE, "toolPlace",
+                    "Place mode: click empty canvas to drop a bare quest, stays active for more", deferDraw);
+            rx -= 2;
+            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors,
+                    (activeTool == EditorTool.SELECT ? "§a" : "§8") + G_SELECT, "toolSelect",
+                    "Select mode: the normal click/drag/multi-select behavior", deferDraw);
+            rx -= 2;
+        }
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, G_SETTINGS, "settings", "Settings", deferDraw);
+        if (devMode) {
+            rx -= 2;
+            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, G_WIKI, "wiki", "Open dev wiki", deferDraw);
+        }
+        rx -= 2;
+
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, (hideCompleted ? "§a" : "§8") + G_HIDE, "hideDone",
+                hideCompleted ? "Completed quests hidden (click to show)" : "Hide completed quests from the canvas",
                 deferDraw);
         rx -= 2;
-        if (devMode) {
-            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors,
-                    activeTool == EditorTool.CONNECT ? "§a🔗 Connect" : "§8🔗 Connect", "toolConnect",
-                    "Connect mode -- drag between two quests to link them, no Alt needed", deferDraw);
-            rx -= 2;
-            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors,
-                    activeTool == EditorTool.PLACE ? "§a✛ Place" : "§8✛ Place", "toolPlace",
-                    "Place mode -- click empty canvas to drop a bare quest, stays active for more",
-                    deferDraw);
-            rx -= 2;
-            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors,
-                    activeTool == EditorTool.SELECT ? "§a⬚ Select" : "§8⬚ Select", "toolSelect",
-                    "Select mode -- the normal click/drag/multi-select behavior", deferDraw);
-            rx -= 2;
-        }
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "⚙", "settings", "Settings", deferDraw);
-        if (devMode) {
-            rx -= 2;
-            rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, "?", "wiki", "Open dev wiki", deferDraw);
-        }
+
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, (minimapOpen ? "§a" : "§8") + G_MAP, "map",
+                "Toggle minimap", deferDraw);
         rx -= 2;
 
-        String hideLabel = hideCompleted ? "§a✔ Hide done" : "§8✔ Hide done";
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, hideLabel, "hideDone",
-                "Hide completed quests from the canvas", deferDraw);
-        rx -= 2;
-
-        String mmLabel = minimapOpen ? "§a⊡ Map" : "§8⊡ Map";
-        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, mmLabel, "map", "Toggle minimap", deferDraw);
+        rx = drawBtnR(g, font, mx, my, rx, ty, toolbarH, colors, (statsOpen ? "§a" : "§8") + G_STATS, "stats",
+                "Quest completion by chapter", deferDraw);
         rx -= 2;
 
         if (devMode) {
@@ -84,33 +94,41 @@ public class ToolbarPanel {
         }
     }
 
+    private static int btnW(Font font, String glyph) {
+        return Math.max(MIN_BTN_W, font.width(glyph) + 10);
+    }
+
     private int rightClusterWidth(@NotNull Font font, boolean devMode) {
         int w = 4;
-        w += font.width("⊞ Fit") + 10 + 2;
+        w += btnW(font, G_FIT) + 2;
         if (devMode) {
-            w += font.width("🔗 Connect") + 10 + 2;
-            w += font.width("✛ Place") + 10 + 2;
-            w += font.width("⬚ Select") + 10 + 2;
+            w += btnW(font, G_CONNECT) + 2;
+            w += btnW(font, G_PLACE) + 2;
+            w += btnW(font, G_SELECT) + 2;
         }
-        w += font.width("⚙") + 10 + 2;
-        if (devMode) w += font.width("?") + 10 + 2;
-        w += font.width("✔ Hide done") + 10 + 2;
-        w += font.width("⊡ Map") + 10 + 2;
+        w += btnW(font, G_SETTINGS) + 2;
+        if (devMode) w += btnW(font, G_WIKI) + 2;
+        w += btnW(font, G_HIDE) + 2;
+        w += btnW(font, G_MAP) + 2;
+        w += btnW(font, G_STATS) + 2;
         if (devMode) w += font.width("DEV") + 8 + 12;
         return w;
     }
 
+    private static int pillW(Font font, String glyph) {
+        return Math.max(MIN_BTN_W, font.width(glyph) + 8);
+    }
+
     private void drawFilterPills(@NotNull GuiGraphics g, @NotNull Font font, int mx, int my, int cl, int toolbarY,
                                  int toolbarH,
-                                 @NotNull String stateFilter, int maxX) {
+                                 @NotNull String stateFilter, int maxX, @NotNull Consumer<Runnable> deferDraw) {
         int px = cl + 4;
         int py = toolbarY + 2;
         int ph = toolbarH - 4;
 
         for (int i = 0; i < FILTER_KEYS.length; i++) {
-            String label = FILTER_GLYPHS[i] + " " +
-                    (FILTER_KEYS[i].charAt(0) + FILTER_KEYS[i].substring(1).toLowerCase());
-            int pw = font.width(label) + 8;
+            String label = FILTER_GLYPHS[i];
+            int pw = pillW(font, label);
             if (px + pw > maxX) break;
 
             boolean sel = stateFilter.equals(FILTER_KEYS[i]);
@@ -122,7 +140,12 @@ public class ToolbarPanel {
             if (sel) g.fill(px, py + ph - 1, px + pw, py + ph, FILTER_COLORS[i]);
 
             int col = sel ? FILTER_COLORS[i] : (hov ? 0xFFCCCCCC : 0xFF666677);
-            g.drawString(font, label, px + 4, py + 2, col, false);
+            g.drawString(font, label, px + (pw - font.width(label)) / 2, py + 2, col, false);
+
+            if (hov) {
+                final String tip = FILTER_TIPS[i];
+                deferDraw.accept(() -> g.renderTooltip(font, Component.literal("§7" + tip), mx, my));
+            }
 
             px += pw + 4;
         }
@@ -134,9 +157,8 @@ public class ToolbarPanel {
         int py = toolbarY + 2, ph = toolbarH - 4;
         int[][] bounds = new int[FILTER_KEYS.length][4];
         for (int i = 0; i < FILTER_KEYS.length; i++) {
-            String label = FILTER_GLYPHS[i] + " " +
-                    (FILTER_KEYS[i].charAt(0) + FILTER_KEYS[i].substring(1).toLowerCase());
-            int pw = font.width(label) + 8;
+            String label = FILTER_GLYPHS[i];
+            int pw = pillW(font, label);
             if (px + pw > maxX) {
                 bounds[i] = new int[] { 0, 0, 0, 0 };
                 continue;
@@ -159,13 +181,14 @@ public class ToolbarPanel {
                          @NotNull Colors colors,
                          @NotNull String label, String key, @Nullable String tooltip,
                          @NotNull Consumer<Runnable> deferDraw) {
-        int tw = font.width(label.replaceAll("§.", "")) + 10;
+        int labelW = font.width(label.replaceAll("§.", ""));
+        int tw = Math.max(MIN_BTN_W, labelW + 10);
 
         int th = toolbarH - 4;
         int bx = rx - tw, by = ty + 2;
         boolean hov = mx >= bx && mx < bx + tw && my >= by && my < by + th;
         if (hov) g.fill(bx, by, bx + tw, by + th, 0x22FFFFFF);
-        g.drawString(font, label, bx + 5, by + 2, hov ? colors.text() : colors.textDim(), false);
+        g.drawString(font, label, bx + (tw - labelW) / 2, by + 2, hov ? colors.text() : colors.textDim(), false);
         btnBounds.put(key, new int[] { bx, by, bx + tw, by + th });
         if (hov && tooltip != null) {
             deferDraw.accept(() -> g.renderTooltip(font, Component.literal("§7" + tooltip), mx, my));

@@ -531,6 +531,10 @@ public class QuestProgressTracker {
         for (int i = 0; i < rewards.size(); i++) {
             QuestReward reward = rewards.get(i);
             if (reward instanceof QuestReward.ChoiceBoxReward box) {
+                if (box.getMode() == QuestReward.ChoiceBoxReward.Mode.ALL) {
+                    for (QuestReward option : box.getOptions()) grantFor(player, node, option);
+                    continue;
+                }
 
                 if (box.getMode() == QuestReward.ChoiceBoxReward.Mode.LOOTBOX &&
                         !data.isChoiceBoxResolved(node.getId(), i)) {
@@ -538,11 +542,57 @@ public class QuestProgressTracker {
                 }
                 continue;
             }
-            reward.grant(player);
+            grantFor(player, node, reward);
         }
         consumeTaskProgress(player, node);
         data.markRewardsClaimed(node.getId());
         sendProgressSync(player);
+    }
+
+    private static void grantFor(ServerPlayer player, QuestNode owner, QuestReward reward) {
+        if (reward instanceof QuestReward.QuestActionReward qa && qa.targets(owner.getId())) return;
+        reward.grant(player);
+    }
+
+    public record EmergencyResult(boolean success, String message) {}
+
+    public static String formatDuration(long ms) {
+        long total = Math.max(0, (ms + 999) / 1000);
+        long h = total / 3600, m = (total % 3600) / 60, s = total % 60;
+        if (h > 0) return h + "h " + m + "m";
+        if (m > 0) return m + "m " + s + "s";
+        return s + "s";
+    }
+
+    public static EmergencyResult claimEmergencyItems(ServerPlayer player, QuestNode node) {
+        PlayerQuestData data = resolveData(player);
+        if (data == null || node == null) return new EmergencyResult(false, "Quest data unavailable.");
+        if (data.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.ACTIVE) {
+            return new EmergencyResult(false, "Emergency items are only available while the quest is active.");
+        }
+        List<net.minecraft.world.item.ItemStack> items = node.getEffectiveEmergencyItems();
+        if (items.isEmpty()) {
+            return new EmergencyResult(false, "This quest has no emergency items configured.");
+        }
+        if (data.hasUsedEmergency(node.getId())) {
+            if (!net.phoenixvine.chronicles.common.registry.QuestEngineConfig.isEmergencyRepeatable()) {
+                return new EmergencyResult(false, "You've already used this quest's emergency items.");
+            }
+            long cooldownMs = net.phoenixvine.chronicles.common.registry.QuestEngineConfig
+                    .getEmergencyCooldownSeconds() * 1000L;
+            long remaining = data.getEmergencyUsedAt(node.getId()) + cooldownMs - System.currentTimeMillis();
+            if (cooldownMs > 0 && remaining > 0) {
+                return new EmergencyResult(false,
+                        "Emergency items are on cooldown: " + formatDuration(remaining) + " remaining.");
+            }
+        }
+        for (net.minecraft.world.item.ItemStack stack : items) {
+            net.minecraft.world.item.ItemStack give = stack.copy();
+            if (!player.addItem(give)) player.drop(give, false);
+        }
+        data.markEmergencyUsed(node.getId());
+        sendProgressSync(player);
+        return new EmergencyResult(true, "Gave " + items.size() + " emergency item(s).");
     }
 
     private static void consumeTaskProgress(ServerPlayer player, QuestNode node) {
@@ -575,7 +625,7 @@ public class QuestProgressTracker {
         if (choiceIndex < 0 || choiceIndex >= effectiveRewards.size()) return;
         if (data.hasChosenRewardIndex(node.getId(), choiceIndex)) return;
 
-        effectiveRewards.get(choiceIndex).grant(player);
+        grantFor(player, node, effectiveRewards.get(choiceIndex));
         data.addChosenRewardIndex(node.getId(), choiceIndex);
 
         int quota = Math.min(node.getRewardChoiceCount(), effectiveRewards.size());
@@ -606,7 +656,7 @@ public class QuestProgressTracker {
                 player.getRandom().nextInt(options.size()) : requestedOptionIndex;
         if (chosenIndex < 0 || chosenIndex >= options.size()) return;
 
-        options.get(chosenIndex).grant(player);
+        grantFor(player, node, options.get(chosenIndex));
         data.resolveChoiceBox(node.getId(), boxIndex, chosenIndex);
         sendProgressSync(player);
     }

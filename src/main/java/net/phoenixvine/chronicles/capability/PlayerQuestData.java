@@ -17,6 +17,7 @@ public class PlayerQuestData {
     private final Map<ResourceLocation, Set<Integer>> chosenRewardIndices = new HashMap<>();
     private final Map<ResourceLocation, Map<Integer, Integer>> resolvedChoiceBoxes = new HashMap<>();
     private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
+    private final Map<ResourceLocation, Long> emergencyUsed = new HashMap<>();
 
     public QuestState getQuestState(ResourceLocation questId, QuestState defaultState) {
         return questStates.getOrDefault(questId, defaultState);
@@ -104,6 +105,19 @@ public class PlayerQuestData {
         claimedRewards.remove(questId);
         chosenRewardIndices.remove(questId);
         resolvedChoiceBoxes.remove(questId);
+        emergencyUsed.remove(questId);
+    }
+
+    public boolean hasUsedEmergency(ResourceLocation questId) {
+        return emergencyUsed.containsKey(questId);
+    }
+
+    public long getEmergencyUsedAt(ResourceLocation questId) {
+        return emergencyUsed.getOrDefault(questId, 0L);
+    }
+
+    public void markEmergencyUsed(ResourceLocation questId) {
+        emergencyUsed.put(questId, System.currentTimeMillis());
     }
 
     public Set<ResourceLocation> getPinnedQuestIds() {
@@ -197,6 +211,15 @@ public class PlayerQuestData {
         }
         root.put("PinnedQuests", pinnedList);
 
+        var emergencyList = new ListTag();
+        emergencyUsed.forEach((id, time) -> {
+            var e = new CompoundTag();
+            e.putString("id", id.toString());
+            e.putLong("time", time);
+            emergencyList.add(e);
+        });
+        root.put("EmergencyUsed", emergencyList);
+
         return root;
     }
 
@@ -208,6 +231,7 @@ public class PlayerQuestData {
         chosenRewardIndices.clear();
         resolvedChoiceBoxes.clear();
         pinnedQuestIds.clear();
+        emergencyUsed.clear();
 
         readCompoundList(root, "Quests", tag -> {
             ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
@@ -230,6 +254,11 @@ public class PlayerQuestData {
             if (id != null) {
                 lastCompleted.put(id, tag.getLong("time"));
             }
+        });
+
+        readCompoundList(root, "EmergencyUsed", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) emergencyUsed.put(id, tag.getLong("time"));
         });
 
         readCompoundList(root, "ClaimedRewards", tag -> {

@@ -116,6 +116,8 @@ public class TaskRewardEditorScreen extends Screen {
 
     private String rewardType = "item";
     private boolean rewardPushAe2 = true;
+    private int rewardPermLevel = QuestReward.CommandReward.DEFAULT_PERMISSION_LEVEL;
+    private QuestReward.QuestActionReward.Action rewardQuestAction = QuestReward.QuestActionReward.Action.COMPLETE;
     private boolean rewardTypeDropOpen = false;
     private ItemStack rewardPickedItem = null;
     private EditBox rewardCountBox, rewardCommandBox;
@@ -150,7 +152,7 @@ public class TaskRewardEditorScreen extends Screen {
     private final UndoRedoManager undoRedo = new UndoRedoManager(msg -> {});
 
     private static final String[] REWARD_TYPES = { "item", "xp", "command", "loot_table", "script_event",
-            "reward_table", "choice_box", "fluid", "open_screen" };
+            "reward_table", "choice_box", "fluid", "open_screen", "quest_action" };
 
     private static String rewardTypeLabel(String type) {
         return switch (type) {
@@ -163,6 +165,7 @@ public class TaskRewardEditorScreen extends Screen {
             case "choice_box" -> "Choice Box";
             case "fluid" -> "Fluid";
             case "open_screen" -> "Open Screen";
+            case "quest_action" -> "Quest Action";
             default -> type;
         };
     }
@@ -314,15 +317,15 @@ public class TaskRewardEditorScreen extends Screen {
 
         if (needsTarget) {
             String hint = isInfo ? "§8Body text shown to the player" : switch (taskType) {
-                case "kill_entity" -> "§8Entity id  (e.g. minecraft:zombie)";
+                case "kill_entity" -> "§8Entity id, list, or #tag  (e.g. minecraft:zombie, #minecraft:skeletons)";
                 case "item_check", "craft_item" -> "§8Item id  (e.g. minecraft:iron_ingot)";
                 case "location_terminal" -> "§8Terminal id";
                 case "advancement" -> "§8Advancement id";
                 case "block_interact" -> "§8Block id";
                 case "fluid_check" -> "§8Fluid id";
                 case "stat" -> "§8Stat id  (e.g. minecraft:jump)";
-                case "biome" -> "§8Biome id";
-                case "structure" -> "§8Structure id";
+                case "biome" -> "§8Biome id, list, or #tag  (e.g. minecraft:plains, #minecraft:is_forest)";
+                case "structure" -> "§8Structure id, list, or #tag  (e.g. minecraft:village_plains, #minecraft:village)";
                 case "tag_item" -> "§8Item tag  (e.g. c:ores/iron)";
                 case "energy_check" -> "§8FE / EU / ANY";
                 case "filter_item" -> "§8Item id(s), semicolon-separated: ANY match  (e.g. wire;cable)";
@@ -613,8 +616,9 @@ public class TaskRewardEditorScreen extends Screen {
             case "item" -> "Give the player one or more items";
             case "fluid" -> "Give the player a fluid (delivered to their linked AE2 network; buckets otherwise)";
             case "xp" -> "Award experience levels";
-            case "command" -> "Run a server command (%player% = player name)";
+            case "command" -> "Run a server command. Placeholders: {p}/%player%, {uuid}, {x} {y} {z}, {dim}";
             case "loot_table" -> "Roll a loot table and give all resulting items";
+            case "quest_action" -> "Complete or reset another quest for the player (never the quest being claimed)";
             case "script_event" -> "Fire a Forge event for KubeJS or Java handlers";
             case "reward_table" -> "Reference a named reward table (config/phoenix_chronicles/reward_tables/)";
             case "choice_box" -> "A single slot the player resolves themselves - Menu mode lets them " +
@@ -748,16 +752,24 @@ public class TaskRewardEditorScreen extends Screen {
         } else if (rewardType.equals("choice_box")) {
             addRenderableWidget(Button.builder(
                     ChroniclesUIKit.lit("§8Mode: §7" +
-                            (boxMode == QuestReward.ChoiceBoxReward.Mode.LOOTBOX ? "Lootbox" : "Menu") + " §8▾"),
+                            (switch (boxMode) {
+                                case LOOTBOX -> "Lootbox";
+                                case ALL -> "All";
+                                default -> "Menu";
+                            }) + " §8▾"),
                     b -> {
-                        boxMode = boxMode == QuestReward.ChoiceBoxReward.Mode.MENU ?
-                                QuestReward.ChoiceBoxReward.Mode.LOOTBOX : QuestReward.ChoiceBoxReward.Mode.MENU;
+                        boxMode = switch (boxMode) {
+                            case MENU -> QuestReward.ChoiceBoxReward.Mode.LOOTBOX;
+                            case LOOTBOX -> QuestReward.ChoiceBoxReward.Mode.ALL;
+                            default -> QuestReward.ChoiceBoxReward.Mode.MENU;
+                        };
                         rebuildWidgets();
                     })
                     .bounds(rx, rfy, colW - 76, FIELD_H)
                     .tooltip(Tooltip.create(ChroniclesUIKit.lit(
                             "Menu: player clicks the box and picks which option they get.\n" +
-                                    "Lootbox: player clicks the box and the server grants a random option.")))
+                                    "Lootbox: player clicks the box and the server grants a random option.\n" +
+                                    "All: every option is granted when the quest is claimed.")))
                     .build());
             addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§a+ Item"), b -> {
                 if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
@@ -813,12 +825,36 @@ public class TaskRewardEditorScreen extends Screen {
         } else {
 
             String hint = rewardType.equals("loot_table") ? "§8Loot table id  (e.g. minecraft:chests/simple_dungeon)" :
-                    "§8/give %player% …";
-            rewardCommandBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
+                    rewardType.equals("quest_action") ? "§8Quest id  (e.g. my_quest or phoenix_chronicles:my_quest)" :
+                            "§8/give {p} …";
+            boolean questPicker = rewardType.equals("quest_action");
+            rewardCommandBox = new EditBox(font, rx, rfy, questPicker ? colW - 22 : colW, FIELD_H, Component.empty());
             rewardCommandBox.setHint(ChroniclesUIKit.lit(hint));
             rewardCommandBox.setMaxLength(256);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
+            if (questPicker) {
+                addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+                    if (rewardCommandBox != null) pendingRewardCommand = rewardCommandBox.getValue();
+                    if (minecraft != null) {
+                        minecraft.setScreen(ParentSelectorScreen.singleSelect(this, questNode, picked -> {
+                            pendingRewardCommand = picked.getId().toString();
+                            forcePendingRewardValues = true;
+                            rebuildWidgets();
+                        }));
+                    }
+                }).bounds(rx + colW - 18, rfy, 18, FIELD_H)
+                        .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                                "Pick a quest (starts in this quest's chapter; use the dropdown for others)")))
+                        .build());
+            }
+            if (rewardType.equals("command")) {
+                rfy += FIELD_H + FIELD_GAP;
+                addRenderableWidget(rewardPermButton(rx, rfy, colW));
+            } else if (rewardType.equals("quest_action")) {
+                rfy += FIELD_H + FIELD_GAP;
+                addRenderableWidget(rewardQuestActionButton(rx, rfy, colW));
+            }
         }
 
         addRenderableWidget(Button.builder(
@@ -829,6 +865,52 @@ public class TaskRewardEditorScreen extends Screen {
                         "Save changes to this reward (right-click it again to cancel)" :
                         "Add this reward to the quest (Ctrl+Z to undo)")))
                 .build());
+    }
+
+    private static String permLabel(int level) {
+        return switch (level) {
+            case 0 -> "0 · everyone";
+            case 1 -> "1 · moderator";
+            case 2 -> "2 · gamemaster";
+            case 3 -> "3 · admin";
+            default -> "4 · owner (full)";
+        };
+    }
+
+    private Button rewardQuestActionButton(int x, int y, int w) {
+        boolean complete = rewardQuestAction == QuestReward.QuestActionReward.Action.COMPLETE;
+        return Button.builder(
+                ChroniclesUIKit.lit("§7Action: §f" + (complete ? "Complete quest" : "Reset progress")),
+                b -> {
+                    if (rewardCommandBox != null) pendingRewardCommand = rewardCommandBox.getValue();
+                    forcePendingRewardValues = true;
+                    rewardQuestAction = complete ? QuestReward.QuestActionReward.Action.RESET :
+                            QuestReward.QuestActionReward.Action.COMPLETE;
+                    rebuildWidgets();
+                })
+                .bounds(x, y, w, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                        "Complete: marks the quest done for the player (children unlock as normal).\n" +
+                                "Reset: clears the quest's progress so it can be done again.")))
+                .build();
+    }
+
+    private Button rewardPermButton(int x, int y, int w) {
+        return Button.builder(
+                ChroniclesUIKit.lit("§7Runs as: §f" + permLabel(rewardPermLevel)),
+                b -> {
+                    if (rewardCommandBox != null) pendingRewardCommand = rewardCommandBox.getValue();
+                    forcePendingRewardValues = true;
+                    rewardPermLevel = (rewardPermLevel + 1) % 5;
+                    rebuildWidgets();
+                })
+                .bounds(x, y, w, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                        "Permission level the command runs with (click to cycle).\n" +
+                                "Lower levels limit what a quest author can make the server run.\n" +
+                                "Note: target selectors (@p, @a, @e, @s) need level 2 or higher;\n" +
+                                "use {p} for the claiming player at levels 0-1.")))
+                .build();
     }
 
     private Button rewardAe2Button(int x, int y, int w, String what) {
@@ -1025,8 +1107,10 @@ public class TaskRewardEditorScreen extends Screen {
         QuestTask task = null;
         try {
             task = switch (taskType) {
-                case "kill_entity" -> new KillEntityTask(taskId, descComp, ResourceLocation.parse(target), count,
-                        taskConsume);
+                case "kill_entity" -> {
+                    var m = net.phoenixvine.chronicles.common.tasks.TaskIdMatcher.parse(target);
+                    yield m.isEmpty() ? null : new KillEntityTask(taskId, descComp, m.spec(), count, taskConsume);
+                }
                 case "item_check" -> {
                     Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(target));
                     if (item == null) yield null;
@@ -1104,11 +1188,17 @@ public class TaskRewardEditorScreen extends Screen {
                         taskConsume);
                 case "dimension" -> {
                     String dim = second.isEmpty() ? "minecraft:overworld" : second;
-                    yield new DimensionTask(taskId, descComp,
-                            ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(dim)));
+                    var m = net.phoenixvine.chronicles.common.tasks.TaskIdMatcher.parse(dim, false);
+                    yield m.isEmpty() ? null : new DimensionTask(taskId, descComp, m.spec());
                 }
-                case "biome" -> new BiomeTask(taskId, descComp, ResourceLocation.parse(target));
-                case "structure" -> new StructureTask(taskId, descComp, ResourceLocation.parse(target));
+                case "biome" -> {
+                    var m = net.phoenixvine.chronicles.common.tasks.TaskIdMatcher.parse(target);
+                    yield m.isEmpty() ? null : new BiomeTask(taskId, descComp, m.spec());
+                }
+                case "structure" -> {
+                    var m = net.phoenixvine.chronicles.common.tasks.TaskIdMatcher.parse(target);
+                    yield m.isEmpty() ? null : new StructureTask(taskId, descComp, m.spec());
+                }
                 case "checkmark" -> new CheckmarkTask(taskId, descComp);
                 case "timer" -> new TimerTask(taskId, descComp, count);
                 case "tag_item" -> new TagItemTask(taskId, descComp, ItemTags.create(ResourceLocation.parse(target)),
@@ -1202,7 +1292,7 @@ public class TaskRewardEditorScreen extends Screen {
         pendingTaskNbt = "";
 
         if (t instanceof KillEntityTask kt) {
-            pendingTaskTarget = kt.getEntityId().toString();
+            pendingTaskTarget = kt.getSpec();
             pendingTaskCount = String.valueOf(kt.getRequiredCount());
             taskConsume = kt.shouldConsume();
         } else if (t instanceof ItemRequirementTask it) {
@@ -1241,11 +1331,11 @@ public class TaskRewardEditorScreen extends Screen {
             pendingTaskCount = String.valueOf(st.getTargetValue());
             taskConsume = st.shouldConsume();
         } else if (t instanceof DimensionTask dt) {
-            pendingTaskSecondary = dt.getTargetDimension().location().toString();
+            pendingTaskSecondary = dt.getSpec();
         } else if (t instanceof BiomeTask biot) {
-            pendingTaskTarget = biot.getBiomeId().toString();
+            pendingTaskTarget = biot.getSpec();
         } else if (t instanceof StructureTask strt) {
-            pendingTaskTarget = strt.getStructureId().toString();
+            pendingTaskTarget = strt.getSpec();
         } else if (t instanceof TagItemTask tit) {
             pendingTaskTarget = tit.getTag().location().toString();
             pendingTaskCount = String.valueOf(tit.getRequired());
@@ -1390,11 +1480,15 @@ public class TaskRewardEditorScreen extends Screen {
             case "xp" -> new QuestReward.XPReward(count);
             case "command" -> {
                 String cmd = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
-                yield cmd.isEmpty() ? null : new QuestReward.CommandReward(cmd);
+                yield cmd.isEmpty() ? null : new QuestReward.CommandReward(cmd, rewardPermLevel);
             }
             case "loot_table" -> {
                 String lt = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
                 yield lt.isEmpty() ? null : new QuestReward.LootTableReward(ResourceLocation.parse(lt));
+            }
+            case "quest_action" -> {
+                String qid = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
+                yield qid.isEmpty() ? null : new QuestReward.QuestActionReward(qid, rewardQuestAction);
             }
             case "reward_table" -> {
                 String tid = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
@@ -1433,6 +1527,8 @@ public class TaskRewardEditorScreen extends Screen {
             });
             rewardPickedItem = null;
             rewardPushAe2 = true;
+            rewardPermLevel = QuestReward.CommandReward.DEFAULT_PERMISSION_LEVEL;
+            rewardQuestAction = QuestReward.QuestActionReward.Action.COMPLETE;
             rewardTypeDropOpen = false;
             pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
             boxOptions.clear();
@@ -1449,6 +1545,8 @@ public class TaskRewardEditorScreen extends Screen {
         QuestReward r = rewards.get(idx);
         rewardPickedItem = null;
         rewardPushAe2 = true;
+        rewardPermLevel = QuestReward.CommandReward.DEFAULT_PERMISSION_LEVEL;
+        rewardQuestAction = QuestReward.QuestActionReward.Action.COMPLETE;
         pendingRewardCount = "1";
         pendingRewardCommand = "";
         pendingRewardEventData = "";
@@ -1475,9 +1573,14 @@ public class TaskRewardEditorScreen extends Screen {
         } else if (r instanceof QuestReward.CommandReward cr) {
             rewardType = "command";
             pendingRewardCommand = cr.getCommand();
+            rewardPermLevel = cr.getPermissionLevel();
         } else if (r instanceof QuestReward.LootTableReward lr) {
             rewardType = "loot_table";
             pendingRewardCommand = lr.getLootTableId().toString();
+        } else if (r instanceof QuestReward.QuestActionReward qar) {
+            rewardType = "quest_action";
+            pendingRewardCommand = qar.getQuestId();
+            rewardQuestAction = qar.getAction();
         } else if (r instanceof QuestReward.RewardTableReward rtr) {
             rewardType = "reward_table";
             pendingRewardCommand = rtr.getTableId();
@@ -1507,6 +1610,8 @@ public class TaskRewardEditorScreen extends Screen {
         editingRewardIndex = -1;
         rewardPickedItem = null;
         rewardPushAe2 = true;
+        rewardPermLevel = QuestReward.CommandReward.DEFAULT_PERMISSION_LEVEL;
+        rewardQuestAction = QuestReward.QuestActionReward.Action.COMPLETE;
         pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
         boxOptions.clear();
         boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
@@ -1742,6 +1847,7 @@ public class TaskRewardEditorScreen extends Screen {
                     case SCRIPT_EVENT -> "§e⚡";
                     case REWARD_TABLE -> "§6⊞";
                     case FLUID -> "§3💧";
+                    case QUEST_ACTION -> "§b✔";
                     default -> "§8?";
                 };
                 String typeLine = switch (reward.getType()) {
@@ -1751,6 +1857,7 @@ public class TaskRewardEditorScreen extends Screen {
                     case SCRIPT_EVENT -> "§8script event";
                     case REWARD_TABLE -> "§8reward table";
                     case FLUID -> "§8fluid";
+                    case QUEST_ACTION -> "§8quest action";
                     default -> "§8reward";
                 };
                 int rmaxW = (vw - MARGIN - (hov ? 16 : 6)) - rewardTextX - font.width(icon) - 4;
@@ -2159,7 +2266,7 @@ public class TaskRewardEditorScreen extends Screen {
                     t.getItemId().toString();
         }
         if (task instanceof KillEntityTask t)
-            return t.getEntityId().getPath().replace('_', ' ') + " ×" + t.getRequiredCount();
+            return t.getMatcher().displayName() + " ×" + t.getRequiredCount();
         if (task instanceof FluidRequirementTask t)
             return t.getFluidId().getPath().replace('_', ' ') + "  " + t.getRequiredAmount() + " mB";
         if (task instanceof ExperienceTask t) return "Level " + t.getRequiredLevel();

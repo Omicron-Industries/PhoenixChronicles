@@ -334,6 +334,9 @@ public class NodeRenderer {
                         NodeShapeRenderer.blitCustomShape(g, shapeTex, x + 2, y + 2, sz, sz, 0x44000000);
                     else NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
                 }
+                case "NONE" -> {
+
+                }
                 default -> NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
             }
         }
@@ -345,7 +348,7 @@ public class NodeRenderer {
 
         boolean hasBackground = false;
         String backgroundType = node.getBackgroundType();
-        if (backgroundType != null && !backgroundType.isEmpty()) {
+        if (backgroundType != null && !backgroundType.isEmpty() && !"NONE".equals(shape)) {
             net.phoenixvine.chronicles.client.render.IQuestBackground background = QuestBackgroundRegistry
                     .get(backgroundType);
             if (background != null) {
@@ -386,6 +389,9 @@ public class NodeRenderer {
             case "CROSS" -> {
                 if (!hasBackground) NodeShapeRenderer.fillCross(g, fx, fy, fsz, fill);
                 NodeShapeRenderer.outlineCross(g, x, y, sz, border, thickness);
+            }
+            case "NONE" -> {
+
             }
             case "CUSTOM" -> {
                 if (shapeTex != null) {
