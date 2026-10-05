@@ -147,5 +147,12 @@ public class ChronicleNetwork {
                 C2SRequestEmergencyItemsPacket::new,
                 C2SRequestEmergencyItemsPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                C2SSubmitItemTaskPacket.class,
+                C2SSubmitItemTaskPacket::encode,
+                C2SSubmitItemTaskPacket::new,
+                C2SSubmitItemTaskPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

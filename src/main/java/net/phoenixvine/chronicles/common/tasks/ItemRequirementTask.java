@@ -101,11 +101,60 @@ public class ItemRequirementTask extends QuestTask {
 
     @Override
     public boolean dependsOnInventory() {
-        return !checksAe2Storage();
+        
+        return !consume && !checksAe2Storage();
+    }
+
+    private boolean isSubmitted(Player player) {
+        return TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed");
+    }
+
+    private long countInventory(Player player) {
+        long found = 0;
+        for (ItemStack stack : allSlots(player)) {
+            if (stackMatches(stack)) found += stack.getCount();
+        }
+        return found;
+    }
+
+    public boolean hasRequiredItems(Player player) {
+        if (item == null || requiredCount <= 0) return false;
+        long found = countInventory(player);
+        if (found >= requiredCount) return true;
+        return checksAe2Storage() && found + AE2Compat.getStoredAmount(player, item) >= requiredCount;
+    }
+
+    public boolean usesAe2Storage() {
+        return checksAe2Storage();
+    }
+
+    public boolean submit(Player player) {
+        if (!consume || item == null || requiredCount <= 0) return false;
+        if (isSubmitted(player)) return false;
+
+        int fromInventory = (int) Math.min(countInventory(player), requiredCount);
+        int fromAe2 = requiredCount - fromInventory;
+        if (fromAe2 > 0) {
+            if (!checksAe2Storage() || !AE2Compat.tryConsume(player, item, fromAe2)) return false;
+        }
+
+        int remaining = fromInventory;
+        for (ItemStack stack : allSlots(player)) {
+            if (remaining <= 0) break;
+            if (!stackMatches(stack)) continue;
+            int take = Math.min(remaining, stack.getCount());
+            stack.shrink(take);
+            remaining -= take;
+        }
+        player.getInventory().setChanged();
+
+        TaskProgressAccess.with(player, getTaskId(), nbt -> nbt.putBoolean("completed", true));
+        return true;
     }
 
     @Override
     public boolean isCompletedFor(Player player) {
+        if (consume) return isSubmitted(player);
         if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed")) return true;
         if (item == null || requiredCount <= 0) return false;
         long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, item) : 0;
@@ -126,28 +175,11 @@ public class ItemRequirementTask extends QuestTask {
     }
 
     @Override
-    public void tryConsume(Player player) {
-        if (item == null || !consume) return;
-        int remaining = requiredCount;
-
-        for (ItemStack stack : allSlots(player)) {
-            if (!stackMatches(stack)) continue;
-            int take = Math.min(remaining, stack.getCount());
-            stack.shrink(take);
-            remaining -= take;
-            if (remaining <= 0) break;
-        }
-        player.getInventory().setChanged();
-
-        if (remaining > 0 && checksAe2Storage()) {
-            AE2Compat.tryConsume(player, item, remaining);
-        }
-    }
+    public void tryConsume(Player player) {}
 
     @Override
     public String getProgressString(Player player) {
-        if (sticky && TaskProgressAccess.getOrEmpty(player, getTaskId()).getBoolean("completed"))
-            return requiredCount + "/" + requiredCount;
+        if ((sticky || consume) && isSubmitted(player)) return requiredCount + "/" + requiredCount;
         if (item == null) return "0/" + requiredCount;
         long found = checksAe2Storage() ? AE2Compat.getStoredAmount(player, item) : 0;
         for (ItemStack stack : allSlots(player)) {

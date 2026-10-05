@@ -837,11 +837,14 @@ public class FtbQuestsImporter {
             sb.append("    repeat_mode: \"INFINITE\",\n");
         }
 
+        boolean chapterConsumeDefault = readTristate(idx.chapter().get("consume_items"), false);
+
         ListTag ftbTasks = q.getList("tasks", Tag.TAG_COMPOUND);
         if (!ftbTasks.isEmpty()) {
             sb.append("    tasks: [\n");
             for (int i = 0; i < ftbTasks.size(); i++) {
-                String taskSnbt = convertTask(ftbTasks.getCompound(i), path, i, langMap, warnings, langOut);
+                String taskSnbt = convertTask(ftbTasks.getCompound(i), path, i, chapterConsumeDefault, langMap,
+                        warnings, langOut);
                 if (taskSnbt != null) sb.append("        ").append(taskSnbt).append(",\n");
             }
             sb.append("    ],\n");
@@ -931,7 +934,7 @@ public class FtbQuestsImporter {
         return "";
     }
 
-    private static String convertTask(CompoundTag t, String questPath, int idx,
+    private static String convertTask(CompoundTag t, String questPath, int idx, boolean consumeDefault,
                                       Map<String, String> langMap, List<String> warnings,
                                       Map<String, String> langOut) {
         String type = t.getString("type");
@@ -941,7 +944,8 @@ public class FtbQuestsImporter {
         String rawTaskTitle = t.contains("title") ? t.get("title").getAsString() : "";
 
         return switch (type) {
-            case "item" -> convertItemTask(t, taskId, optional, rawTaskTitle, langMap, warnings, langOut);
+            case "item" -> convertItemTask(t, taskId, optional, consumeDefault, rawTaskTitle, langMap, warnings,
+                    langOut);
             case "fluid" -> convertFluidTask(t, taskId, optional, rawTaskTitle, langMap, warnings, langOut);
             case "checkmark" -> {
                 String desc = taskDesc(taskId, rawTaskTitle, "Complete Checkmark", langMap, warnings, langOut);
@@ -1058,11 +1062,12 @@ public class FtbQuestsImporter {
                 "}";
     }
 
-    private static String convertItemTask(CompoundTag t, String taskId, boolean optional, String rawTaskTitle,
-                                          Map<String, String> langMap, List<String> warnings,
+    private static String convertItemTask(CompoundTag t, String taskId, boolean optional, boolean consumeDefault,
+                                          String rawTaskTitle, Map<String, String> langMap, List<String> warnings,
                                           Map<String, String> langOut) {
         Tag itemTag = t.get("item");
-        long count = t.contains("count") ? t.getLong("count") : 1L;
+        long count = t.contains("count") ? t.getLong("count") : stackCount(itemTag);
+        boolean consume = readTristate(t.get("consume_items"), consumeDefault);
 
         String tagValue = findTagFilterValue(itemTag, 0);
         if (tagValue != null && !tagValue.isEmpty()) {
@@ -1083,7 +1088,8 @@ public class FtbQuestsImporter {
             CompoundTag itemNbt = matchedEntry != null ?
                     extractItemNbt(matchedEntry, "Task " + taskId, warnings) : null;
             return "{type: \"item_check\", task_id: \"" + taskId + "\", item_id: \"" + itemId + "\"" +
-                    ", count: " + (count <= 0 ? 1 : count) + ", consume: false" + (optional ? ", optional: true" : "") +
+                    ", count: " + (count <= 0 ? 1 : count) + ", consume: " + consume +
+                    (optional ? ", optional: true" : "") +
                     (itemNbt != null && !itemNbt.isEmpty() ? ", nbt_filter: " + itemNbt : "") +
                     ", description: " + componentJsonSnbt(desc) + "}";
         }
@@ -1170,7 +1176,8 @@ public class FtbQuestsImporter {
                     warnings.add("Quest " + questPath + ": item reward had no resolvable item id - dropped.");
                     return;
                 }
-                int count = r.contains("count") ? r.getInt("count") : 1;
+                int count = r.contains("count") ? r.getInt("count") : (int) Math.min(Integer.MAX_VALUE,
+                        stackCount(r.get("item")));
                 CompoundTag itemNbt = extractItemNbt(r.get("item"), "Quest " + questPath + " item reward", warnings,
                         false);
                 out.add("{type: \"item\", item_id: \"" + itemId + "\", count: " + (count <= 0 ? 1 : count) +
@@ -1214,6 +1221,28 @@ public class FtbQuestsImporter {
                         "' imported as a live loot table reference - its contents are rolled fresh " +
                         "(with luck/looting bonuses) the moment each player claims the quest, not fixed at import.");
             }
+            case "random" -> {
+                ChoiceOptions resolved = resolveChoiceOptions(r, questPath, warnings);
+                if (resolved == null) return;
+
+                List<String> optionSnbts = new ArrayList<>();
+                Set<Integer> weights = new HashSet<>();
+                for (int i = 0; i < resolved.options().size(); i++) {
+                    CompoundTag option = resolved.options().getCompound(i);
+                    weights.add(option.contains("weight") ? option.getInt("weight") : 1);
+                    convertReward(option, questPath, warnings, optionSnbts);
+                }
+                if (optionSnbts.isEmpty()) {
+                    warnings.add("Quest " + questPath + ": random reward had no convertible options - dropped.");
+                    return;
+                }
+                if (weights.size() > 1) {
+                    warnings.add("Quest " + questPath + ": " + resolved.sourceLabel() + " uses unequal weights; the " +
+                            "imported lootbox picks uniformly between its " + optionSnbts.size() + " option(s).");
+                }
+                out.add("{type: \"choice_box\", mode: \"LOOTBOX\", options: [" + String.join(", ", optionSnbts) +
+                        "]}");
+            }
             case "choice", "all_table" -> {
                 ChoiceOptions resolved = resolveChoiceOptions(r, questPath, warnings);
                 if (resolved == null) return;
@@ -1231,6 +1260,23 @@ public class FtbQuestsImporter {
                     "Quest " + questPath + ": reward type '" + type +
                             "' has no PhoenixChronicles equivalent - dropped.");
         }
+    }
+
+    private static boolean readTristate(Tag tag, boolean fallback) {
+        if (tag == null) return fallback;
+        if (tag instanceof NumericTag n) return n.getAsByte() != 0;
+        return switch (tag.getAsString().trim().toLowerCase(Locale.ROOT)) {
+            case "true", "1" -> true;
+            case "false", "0" -> false;
+            default -> fallback;
+        };
+    }
+
+    private static long stackCount(Tag itemTag) {
+        if (itemTag instanceof CompoundTag ct && ct.contains("Count", Tag.TAG_ANY_NUMERIC)) {
+            return Math.max(1, ct.getInt("Count"));
+        }
+        return 1L;
     }
 
     private static double numeric(Tag tag) {

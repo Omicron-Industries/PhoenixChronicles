@@ -335,7 +335,7 @@ public class NodeRenderer {
                     else NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
                 }
                 case "NONE" -> {
-
+                    
                 }
                 default -> NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
             }
@@ -391,7 +391,7 @@ public class NodeRenderer {
                 NodeShapeRenderer.outlineCross(g, x, y, sz, border, thickness);
             }
             case "NONE" -> {
-
+                
             }
             case "CUSTOM" -> {
                 if (shapeTex != null) {
@@ -537,22 +537,12 @@ public class NodeRenderer {
             int iconSz = Math.max(1, Math.round((fillSz - pad * 2) * shapeIconScale));
             int off = (sz - iconSz) / 2;
             g.blit(customIcon, x + off, y + off, 0, 0, iconSz, iconSz, dims[0], dims[1]);
-            if (sz >= 20) {
-                FrameProfiler.begin("node:icon:badge");
-                renderStateBadge(g, x, y, sz, st);
-                FrameProfiler.end("node:icon:badge");
-            }
             state.setDbgCustomIconCount(state.dbgCustomIconCount() + 1);
         } else if (pickedTexture != null && sz >= 8) {
             int pad = Math.max(2, fillSz / 8);
             int iconSz = Math.max(1, Math.round((fillSz - pad * 2) * shapeIconScale));
             int off = (sz - iconSz) / 2;
             g.blit(pickedTexture, x + off, y + off, 0, 0, iconSz, iconSz, iconSz, iconSz);
-            if (sz >= 20) {
-                FrameProfiler.begin("node:icon:badge");
-                renderStateBadge(g, x, y, sz, st);
-                FrameProfiler.end("node:icon:badge");
-            }
             state.setDbgPickedTextureIconCount(state.dbgPickedTextureIconCount() + 1);
         } else if (pickedFluid != null && sz >= 8) {
 
@@ -562,11 +552,6 @@ public class NodeRenderer {
             int col = net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(pickedFluid)
                     .getTintColor() | 0xFF000000;
             g.fill(x + off, y + off, x + off + iconSz, y + off + iconSz, col);
-            if (sz >= 20) {
-                FrameProfiler.begin("node:icon:badge");
-                renderStateBadge(g, x, y, sz, st);
-                FrameProfiler.end("node:icon:badge");
-            }
             state.setDbgFluidIconCount(state.dbgFluidIconCount() + 1);
         } else {
             Item icon = displaySource.getIconItem();
@@ -602,9 +587,6 @@ public class NodeRenderer {
                 }
                 FrameProfiler.end("node:icon3d");
 
-                FrameProfiler.begin("node:icon:badge");
-                renderStateBadge(g, x, y, sz, st);
-                FrameProfiler.end("node:icon:badge");
                 state.setDbgFull3DIconCount(state.dbgFull3DIconCount() + 1);
             } else if (sz >= 10) {
                 String glyph = switch (st) {
@@ -792,19 +774,6 @@ public class NodeRenderer {
         }
 
         g.pose().popPose();
-    }
-
-    public void renderStateBadge(GuiGraphics g, int nx, int ny, int sz, QuestState st) {
-        int badgeSz = Math.min(8, Math.max(4, sz / 5));
-        int bx = nx + sz - badgeSz - 1, by = ny + sz - badgeSz - 1;
-        int bc = switch (st) {
-            case COMPLETED -> ctx.colorNodeBorderDone();
-            case ACTIVE -> state.colorNodeBorderActive();
-            case LOCKED -> state.colorNodeBorderLocked();
-            default -> 0xFF4488FF;
-        };
-        NodeShapeRenderer.queueFillRect(g, bx - 1, by - 1, bx + badgeSz + 1, by + badgeSz + 1, 0xAA0B0B0F);
-        NodeShapeRenderer.queueFillRect(g, bx, by, bx + badgeSz, by + badgeSz, bc);
     }
 
     public void renderNodeTooltip(GuiGraphics g, QuestNode node, int mx, int my) {

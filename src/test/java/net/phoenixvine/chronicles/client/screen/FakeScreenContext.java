@@ -171,4 +171,9 @@ class FakeScreenContext implements ScreenContext {
     public int colorNodeBorderDone() {
         return 0;
     }
+
+    @Override
+    public boolean isHiddenFromPlayer(QuestNode node) {
+        return false;
+    }
 }

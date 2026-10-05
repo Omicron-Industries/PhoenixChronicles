@@ -26,6 +26,8 @@ public class PaletteState {
     public int lineLocked = 0x38FFFFFF;
     public int lineDone = 0x9900CC66;
     public int lineActive = 0x88FFAA00;
+    
+    public int lineAlmost = 0xAAFFEE33;
     public int text = 0xFFD8D8E4;
     public int textDim = 0xFF7A7A8A;
     public int textFaint = 0xFF404050;
@@ -68,6 +70,8 @@ public class PaletteState {
         lineLocked = 0x38000000 | (t.locked.getColor() & 0x00FFFFFF);
         lineDone = 0x99000000 | (t.done.getColor() & 0x00FFFFFF);
         lineActive = 0x88000000 | (t.activeColor.getColor() & 0x00FFFFFF);
+        lineAlmost = 0xAA000000 |
+                (ChronicleOverviewScreen.blendColor(t.activeColor.getColor(), t.done.getColor(), 0.5f) & 0x00FFFFFF);
     }
 
     private static int luma(int color) {

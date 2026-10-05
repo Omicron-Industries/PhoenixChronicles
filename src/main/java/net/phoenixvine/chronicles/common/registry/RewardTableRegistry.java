@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.common.registry;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
+import net.phoenixvine.chronicles.common.codec.QuestFileWatcher;
 import net.phoenixvine.chronicles.common.model.RewardTable;
 
 import org.jetbrains.annotations.Nullable;
@@ -16,9 +17,32 @@ import java.util.stream.Stream;
 public class RewardTableRegistry {
 
     private static final Map<String, RewardTable> TABLES = new LinkedHashMap<>();
+    private static final Map<String, Path> FILES = new HashMap<>();
 
     public static void clear() {
         TABLES.clear();
+        FILES.clear();
+    }
+
+    @Nullable
+    public static Path getFile(String id) {
+        return FILES.get(id);
+    }
+
+    public static Path save(Path configDir, RewardTable table) throws IOException {
+        Path file = FILES.get(table.id());
+        if (file == null) file = configDir.resolve("reward_tables").resolve(table.id() + ".snbt");
+        Files.createDirectories(file.getParent());
+
+        QuestFileWatcher.suppressNextReload();
+        if (Files.exists(file)) {
+            Files.copy(file, file.resolveSibling(file.getFileName() + ".bak"),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        Files.writeString(file, table.serializeNBT().toString(), StandardCharsets.UTF_8);
+        TABLES.put(table.id(), table);
+        FILES.put(table.id(), file);
+        return file;
     }
 
     @Nullable
@@ -32,6 +56,7 @@ public class RewardTableRegistry {
 
     public static void load(Path configDir) {
         TABLES.clear();
+        FILES.clear();
         Path tablesDir = configDir.resolve("reward_tables");
         if (!Files.exists(tablesDir)) return;
 
@@ -50,6 +75,7 @@ public class RewardTableRegistry {
                             RewardTable table = RewardTable.deserialize(tag);
                             if (table != null) {
                                 TABLES.put(table.id(), table);
+                                FILES.put(table.id(), file);
                             }
                         } catch (Exception e) {
                             System.err.println("[Phoenix Chronicles] Failed to load reward table '" +

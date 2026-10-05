@@ -1,4 +1,191 @@
-# Potential Features
+# Architecture.
+Phoenix Chronicles is a questbook mod with integrations into many mods, purposeful design to work with the rest of the
+PhoenixSuite, a focus on showing off documentation style information to players but still allowing much visual power, 
+and a focus on a good Developer Experience. 
+
+This page will explain what mods are included in the architecture, why some nessecary mods are needed, a fine grained list
+of Chronicle's features, a graph of it's file system, and why some decisions were made.
+
+## Sidecar mods.
+Chronicles has compat into the following mods with more planned in the future.
+- Curios: Allowing Chronicles to see items inside Curios slots.
+- AE2: Allowing Chronicles to see inside ae2 networks and to insert items/fluids into ae2.
+- Phoenix Archives: Allowing Chronicles to link to Archive entries, create Archive entries, and share some of itself.
+- Conflux of Research: Allowing Chronicles to know when a Conflux node is complete.
+- Emi/Jei: Allowing Chronicles to jump to the installed recipe viewer and make custom questbook entries into the recipe viewer.
+- GTCEu: Allows Chronicles to know when a multiblock is formed and using EU in the energy task.
+- KubeJS: Allows Chronicle packdevs to use it's API in KubeJS and not just Java.
+- Phantasia: Allows Chronicles to know when a guide/script/scene is viewed by a player.
+- Text Animator: Allows Chronicles to not overwrite TextAnimator's effects.
+- Phoenix's Chromatic Codes: Allows Chronicles to not overwrite its codes.
+- Phoenix Guilds: Allows Chronicles to use its Guilds for shared questbook progress.
+- FTBTeams: Allows Chronicles to use its Teams for pooled progress.
+
+Along with the compat mods, a few mods are required.
+
+Chronicles needs a team system: without FTBTeams or Phoenix Guilds it defaults to scoreboard teams.
+
+Chronicles needs PhoenixWiki to run as it provides the theming, markdown rendering/parsing, and Chronicle's in game wiki.
+
+## File System Graph
+<img src="https://raw.githubusercontent.com/P-H-O-E-N-I-X-PackForge/PhoenixChronicles/main/src/main/resources/assets/phoenix_chronicles/images/chronicles-dep-chart.png" width="400" alt="Roadmap Chart">
+
+`PhoenixChronicles` is the main mod file where everything eventually goes through.
+`ChroniclesGTAddon` is the main gt addon file for Chronicle's GTCEu support. 
+It is not technically nessecary to have right now but is included for the future.
+`QuestAPI` is the main entry point for addons to hook into Chronicle's API.
+
+The **Capability** package holds the player nbt based `PlayerQuestData` system as well as a sub-package
+for the *FTBQuests* importer. 
+
+The **Client** package holds the rendering, screens, client side registry, canvas profiler, and the shader support.
+
+The **Common** package holds the item registry, file handling, filtering system, gametests, flag/variance system,
+quest progress tracking, the data for handling the quest tree, the quest tree data itself, and task registry.
+
+The **Integration** package holds the integrations into AE2, EMI, JEI, Phoenix Archives, Conflux of Research, Curios, 
+KubeJS, GTCEu, and Phantasia compat.
+
+The **Mixin** package holds an example mixin, Chronicle's mixin plugin, and a mixin into GTCEu's 
+`MultiblockWorldSavedData` class.
+
+The **Network** package holds the network class and the packets. 
+
+## List of features.
+An extensive list of features, to be extended as they come in.
+
+### Quest rendering.
+Icon Rendering
+Custom Node shapes
+Built in node shapes
+"None" node shape
+Sizing
+choosable text location
+
+### Player qol
+checking ae2 for items/fluids
+saving progress as you go
+checking what you have in your hand
+checking what you just crafted
+player stats screen
+fullscreen and compact quest viewer screens
+pinning quests
+resizing the fullscreen quest viewer
+checking a quest's unlock path
+questbook item to open the questbook
+keybind to open the questbook
+visiblity buttons
+ingame settings
+fit all quests to view button
+
+
+### Dependencies.
+Spline/Straight dep lines
+Themable Dep lines.
+Addon custom dep lines.
+Parent selector screen.
+Handling deps
+
+### Quest Authoring.
+Quest creator screen
+Quest editor screen
+Quest flags
+Quest Variants
+Markdown in quest descriptions
+Quest descriptions
+Quest subitltes
+Quest titles
+Quest hiding
+Quest disabling
+Quest deleting
+Quest Variants.
+Item filters
+Fluid filters
+quest groups
+importing from ftbq
+resetting/deleting quests/chapters/categories.
+toast designer
+linked quests
+moving quests
+choiced/lootbox rewards
+test rolling a bunch of lootbox runs
+ingame settings
+hidden/complete/active/disabled/optional quests
+chapter minimap
+chapter subgraph
+lang editor
+dev notes
+extensive api
+kubejs plugin
+conditioanl backgrounds/sidebar shaders
+auto arranging quests
+rotating entire chapters 90 degrees
+manual coord placement
+enable if (conditonal quests)
+grid based movement (can be turned off)
+advancement task
+phoenix archive entry task
+biome task (id or tag)
+dimension task
+block break/interact task
+conflux task
+checkmark task
+readme task
+craft item task
+enchant task
+energy task
+expereicne task
+external task 
+filter fluid/item task
+fluid task
+kill mob task
+location task
+screen opened task
+script task
+stat tracker task
+structure task
+tag item task
+timer task
+view guide/script/scene task (phantasia)
+vein gtm machine forming task
+repeatable quests
+ability to have a quest go straight to a custom screen on click (scren must be registered)
+preview of a machine's script in a quest through phantasia's api
+choosing of unlock/complete sound per quest
+choosing whether rewards on a quest get autoclaimed
+undo/redo stack for most dev actions
+toolbar buttons for common actions
+the ability to move the sidebar tabs via click and drag
+bulk placing quests mode
+bulk connecting quests mode
+command rewards
+external rewards (custom)
+archives lore entry reward
+item reward
+fluid reward
+option to have fluid/item rewards to go directly into ae2
+open screen reward
+quest mutation reward
+the ability to jump to an archives entry in quests
+
+### Lang Features
+Questbook wide searching
+automatic lang handling
+
+## Chapter/Category Authoring.
+Add chapter/category screen
+Naming the questbook
+Selecting icons for chapters/categories/qb
+
+
+## Pure Visuals.
+Theming
+Quest shaders.
+Canvas background shaders.
+Chapter/Category sidebar shaders.
+
+
+## Potential Features
 Ideas that made us go, "Yeah, these make a lot of sense."
 
 Potential: Name of Feature

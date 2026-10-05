@@ -61,6 +61,12 @@ public class DependencyLineRenderer {
 
     public void rebuildFromGraph(ScreenContext ctx, int sidebarVisualW, Predicate<QuestNode> catMatches,
                                  int lineLockedColor, QuestChroniclesSettings settings) {
+        rebuildFromGraph(ctx, sidebarVisualW, catMatches, lineLockedColor, 0x9900CC66, 0x88FFAA00, settings);
+    }
+
+    public void rebuildFromGraph(ScreenContext ctx, int sidebarVisualW, Predicate<QuestNode> catMatches,
+                                 int lineLockedColor, int lineDoneColor, int lineActiveColor,
+                                 QuestChroniclesSettings settings) {
         List<int[]> edges = new ArrayList<>();
         List<ResourceLocation[]> edgeNodes = new ArrayList<>();
 
@@ -115,14 +121,15 @@ public class DependencyLineRenderer {
                         col = ps == QuestState.COMPLETED ? 0xFFAA2222 : 0xFF661111;
                         style = ps == QuestState.COMPLETED ? 6 : 5;
                     } else if (isCosmeticEdge) {
-                        col = 0x1AFFFFFF;
+                        col = withAlpha(lineLockedColor, 0x1A);
                         style = 10;
                     } else if (isLinkEdge) {
-                        col = ps == QuestState.COMPLETED ? 0x6600AA55 :
-                                ps == QuestState.ACTIVE ? 0x66FFAA00 : 0x26FFFFFF;
+                        col = ps == QuestState.COMPLETED ? withAlpha(lineDoneColor, 0x66) :
+                                ps == QuestState.ACTIVE ? withAlpha(lineActiveColor, 0x66) :
+                                        withAlpha(lineLockedColor, 0x26);
                         style = ps == QuestState.ACTIVE ? 9 : (ps == QuestState.COMPLETED ? 8 : 7);
                     } else if (isOptionalPrereq) {
-                        col = ps == QuestState.COMPLETED ? 0xFF336644 : 0xFF2A2A3A;
+                        col = ps == QuestState.COMPLETED ? dimmed(lineDoneColor, 0.5f) : dimmed(lineLockedColor, 0.5f);
                         style = ps == QuestState.COMPLETED ? 4 : 3;
                     } else {
 
@@ -190,14 +197,16 @@ public class DependencyLineRenderer {
                         col = prereqState == QuestState.COMPLETED ? 0xFFAA2222 : 0xFF661111;
                         style = prereqState == QuestState.COMPLETED ? 6 : 5;
                     } else if (isCosmeticEdge) {
-                        col = 0x1AFFFFFF;
+                        col = withAlpha(lineLockedColor, 0x1A);
                         style = 10;
                     } else if (isLinkEdge) {
-                        col = prereqState == QuestState.COMPLETED ? 0x6600AA55 :
-                                prereqState == QuestState.ACTIVE ? 0x66FFAA00 : 0x26FFFFFF;
+                        col = prereqState == QuestState.COMPLETED ? withAlpha(lineDoneColor, 0x66) :
+                                prereqState == QuestState.ACTIVE ? withAlpha(lineActiveColor, 0x66) :
+                                        withAlpha(lineLockedColor, 0x26);
                         style = prereqState == QuestState.ACTIVE ? 9 : (prereqState == QuestState.COMPLETED ? 8 : 7);
                     } else if (isOptional) {
-                        col = prereqState == QuestState.COMPLETED ? 0xFF336644 : 0xFF2A2A3A;
+                        col = prereqState == QuestState.COMPLETED ? dimmed(lineDoneColor, 0.5f) :
+                                dimmed(lineLockedColor, 0.5f);
                         style = prereqState == QuestState.COMPLETED ? 4 : 3;
                     } else {
 
@@ -1280,6 +1289,17 @@ public class DependencyLineRenderer {
 
             openLineSettings.accept(parentNode);
         }
+    }
+
+    private static int withAlpha(int argb, int alpha) {
+        return (alpha << 24) | (argb & 0x00FFFFFF);
+    }
+
+    private static int dimmed(int argb, float factor) {
+        int r = Math.round(((argb >> 16) & 0xFF) * factor);
+        int g = Math.round(((argb >> 8) & 0xFF) * factor);
+        int b = Math.round((argb & 0xFF) * factor);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     private static int plainEdgeAccentColor(ResourceLocation sourceId, ResourceLocation destId,

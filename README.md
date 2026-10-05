@@ -28,8 +28,14 @@ It has compat for
 - Phantasia
 - PhoenixCore
 - FTBTeams
+- AE2
+- Curios
+- Phoenix Archives
+- EMI/JEI
+- KubeJS
+- Phoenix's Chromatic Codes
 
-It also depends on PhoenixWiki for the shared theming with the rest of the PhoenixSuite 
+It also depends on PhoenixWiki for the shared theming, ingame wiki, and rich text/markdown it provides. 
 
 Made to be an alternative to **FTBQuests** (or ftbq) but still have its own unique feel and cadence. 
 There is a built-in **FTBQuests** importer that can handle importing 
@@ -40,7 +46,7 @@ Though `filter tasks` will have to be remade since those use a seperate mod not 
 We have a small in progress wiki for all PhoenixSuite mods, if it is missing any important info or you would like to help,
 feel free to ping me on discord by the username of Phoenixvine.
 
-[Wiki](https://omicron-industries.github.io/PhoenixSuite/wiki/) 
+[Wiki](https://p-h-o-e-n-i-x-packforge.github.io/PhoenixSuite/wiki/) 
 
 ## Getting started as a dev and/or packdev.
 You will need the minecraft development plugin and the mermaid plugin.
@@ -49,26 +55,34 @@ Checking the wiki is also very helpful as well as there being some more resource
 And ofc last but not least feel free to ask for help in the discord
 
 ## Major feature list.
-Below is a chart of the major features and how they compare to other mods in Chronicle's niche.
-There is also a chart of what we do better or at parity to what others do.
+Below is a short explanation of the major features in Chronicles.
 For more information on any of the features, check the wiki (or if that doesn't exist) ping Phoenixvine on discord.
 
-> NOTE. All comparisons are against **base FTB Quests on 1.20.1**. 
+> NOTE. All FTBQ comparisons are against **base FTB Quests on 1.20.1**. 
 > These comparisons do not cover FTBQ addons or the 1.21.1 version of FTB Quests.
 
-### Legend: PR = At Parity, AA = Advantage, PA = Partial, N/A = Not freely applicable but still important.
+Chronicles prides itself on its 
+- Automatic lang handling.
+- Visual Customization.
+- Quest authoring.
+- Rich/Markdown text rendering.
+- Questbook searcher.
+- Overall visual feel.
+- Task/Reward selection.
+- Custom Tasks.
+- In-House filtering system.
+- Open community.
+- Open licensing.
+- Player and Packdev QOL.
+- FTBImporter.
+- Ingame settings.
 
+And last but not least, we are really focused on learning and improving consistently.
+We manage a lot of mods and interconnected systems, so all feedback/usage is greatly appreciated!
 
-| Feature                           | Chronicles | FTB Quests | Parity / Advantage |
-|:----------------------------------|:-----------|:-----------|:-------------------|
-| **GregTech Integration**          | B          | B          | **N/A**            |
-| **Quest Editor Gui**              | L          | L          | **PA**             |
-| **Custom External tasks**         | C          | C          | **AA**             |
-| **Filtering**                     | O          | O          | **AA**             |
-| **Third-Party Mod Compatibility** | D          | D          | **PA**             |
-
-
-
+### What does chronicles do better than FTBQuests?
+We believe Chronicles handles visuals, filtering, customization, 
+external mod compat, community openness, quest variance, and lang better than 1.20.1 FTB Quests.
 
 ## Roadmap
 Below is a loose roadmap of what we plan to do in the future.

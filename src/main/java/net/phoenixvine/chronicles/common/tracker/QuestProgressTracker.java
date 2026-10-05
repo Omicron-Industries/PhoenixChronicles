@@ -160,7 +160,7 @@ public class QuestProgressTracker {
                 QuestState state = data.getQuestState(node.getId(), QuestState.LOCKED);
 
                 if (state == QuestState.COMPLETED && node.isRepeatable()) {
-                    if (canRepeatNow(node, data)) {
+                    if (canRepeatNow(node, data) && rewardsSettled(player, node, data)) {
                         resetForRepeat(player, node, data);
                         state = data.getQuestState(node.getId(), QuestState.LOCKED);
                     }
@@ -252,12 +252,14 @@ public class QuestProgressTracker {
         int minCount = node.getTaskMinCount();
 
         boolean complete;
+        boolean evaluatedUnsatisfied = false;
         if (minCount > 0) {
 
             int done = 0;
             for (QuestTask task : tasks) {
                 if (skipInventoryScan(task, player, invChanged)) continue;
                 if (task.isCompletedFor(player)) done++;
+                else if (!task.isOptional()) evaluatedUnsatisfied = true;
             }
             complete = done >= minCount;
         } else if (tasks.isEmpty()) {
@@ -280,13 +282,15 @@ public class QuestProgressTracker {
                     break;
                 }
                 if (!task.isCompletedFor(player)) {
+                    evaluatedUnsatisfied = true;
                     complete = false;
                     break;
                 }
             }
         }
 
-        if (complete && (state == QuestState.UNLOCKED || state == QuestState.ACTIVE)) {
+        boolean holdAllows = repeatHoldAllows(data, node, complete, evaluatedUnsatisfied);
+        if (complete && holdAllows && (state == QuestState.UNLOCKED || state == QuestState.ACTIVE)) {
             changeQuestState(player, node, QuestState.COMPLETED);
         }
     }
@@ -305,11 +309,13 @@ public class QuestProgressTracker {
         int minCount = node.getTaskMinCount();
 
         boolean complete;
+        boolean evaluatedUnsatisfied = false;
         if (minCount > 0) {
 
             int done = 0;
             for (int i = 0; i < tasks.size(); i++) {
                 if (!taskSkipped[i] && taskDone[i]) done++;
+                else if (!taskSkipped[i] && !tasks.get(i).isOptional()) evaluatedUnsatisfied = true;
             }
             complete = done >= minCount;
         } else if (tasks.isEmpty()) {
@@ -327,19 +333,29 @@ public class QuestProgressTracker {
             complete = true;
             for (int i = 0; i < tasks.size(); i++) {
                 if (tasks.get(i).isOptional()) continue;
-                if (taskSkipped[i] || !taskDone[i]) {
+                if (taskSkipped[i]) {
+                    complete = false;
+                    break;
+                }
+                if (!taskDone[i]) {
+                    evaluatedUnsatisfied = true;
                     complete = false;
                     break;
                 }
             }
         }
 
-        if (complete && (state == QuestState.UNLOCKED || state == QuestState.ACTIVE)) {
+        boolean holdAllows = repeatHoldAllows(data, node, complete, evaluatedUnsatisfied);
+        if (complete && holdAllows && (state == QuestState.UNLOCKED || state == QuestState.ACTIVE)) {
             changeQuestState(player, node, QuestState.COMPLETED);
         }
     }
 
     public static void changeQuestState(Player player, QuestNode node, QuestState newState) {
+        changeQuestState(player, node, newState, true);
+    }
+
+    private static void changeQuestState(Player player, QuestNode node, QuestState newState, boolean evaluateTasks) {
         PlayerQuestData data = resolveData(player);
         if (data == null) return;
 
@@ -358,10 +374,11 @@ public class QuestProgressTracker {
                 propagateSharedCompletion(sp, node);
             if (node.isAutoClaimRewards() && player instanceof ServerPlayer sp)
                 grantRewards(sp, node);
-        } else if (newState == QuestState.UNLOCKED && !node.getEffectiveTasks(player.getServer(), player).isEmpty()) {
+        } else if (newState == QuestState.UNLOCKED && evaluateTasks &&
+                !node.getEffectiveTasks(player.getServer(), player).isEmpty()) {
 
-            checkAndTryComplete(player, node);
-        }
+                    checkAndTryComplete(player, node);
+                }
 
         sendProgressSync(player);
     }
@@ -489,13 +506,20 @@ public class QuestProgressTracker {
         }
     }
 
+    private static final long MIN_REPEAT_GAP_MS = 1500;
+
+    private static boolean rewardsSettled(Player player, QuestNode node, PlayerQuestData data) {
+        return data.hasClaimedRewards(node.getId()) ||
+                node.getEffectiveRewards(player.getServer(), player).isEmpty();
+    }
+
     public static boolean canRepeatNow(QuestNode node, PlayerQuestData data) {
         long last = data.getLastCompletedTime(node.getId());
         if (last == 0) return true;
 
         return switch (node.getRepeatMode()) {
             case NONE -> false;
-            case INFINITE -> true;
+            case INFINITE -> System.currentTimeMillis() - last >= MIN_REPEAT_GAP_MS;
             case DAILY -> !isSameDay(last, System.currentTimeMillis());
             case COOLDOWN -> System.currentTimeMillis() - last >=
                     TimeUnit.HOURS.toMillis(node.getRepeatCooldownHours());
@@ -517,8 +541,9 @@ public class QuestProgressTracker {
         data.clearClaimedRewards(node.getId());
         data.clearChosenRewardIndices(node.getId());
         data.clearChoiceBoxes(node.getId());
+        data.markRepeatHold(node.getId());
 
-        changeQuestState(player, node, QuestState.UNLOCKED);
+        changeQuestState(player, node, QuestState.UNLOCKED, false);
     }
 
     public static void grantRewards(ServerPlayer player, QuestNode node) {
@@ -552,6 +577,13 @@ public class QuestProgressTracker {
     private static void grantFor(ServerPlayer player, QuestNode owner, QuestReward reward) {
         if (reward instanceof QuestReward.QuestActionReward qa && qa.targets(owner.getId())) return;
         reward.grant(player);
+    }
+
+    private static boolean repeatHoldAllows(PlayerQuestData data, QuestNode node, boolean complete,
+                                            boolean evaluatedUnsatisfied) {
+        if (!data.hasRepeatHold(node.getId())) return true;
+        if (!complete && evaluatedUnsatisfied) data.clearRepeatHold(node.getId());
+        return false;
     }
 
     public record EmergencyResult(boolean success, String message) {}

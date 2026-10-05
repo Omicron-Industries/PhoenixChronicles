@@ -18,6 +18,7 @@ public class PlayerQuestData {
     private final Map<ResourceLocation, Map<Integer, Integer>> resolvedChoiceBoxes = new HashMap<>();
     private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
     private final Map<ResourceLocation, Long> emergencyUsed = new HashMap<>();
+    private final Set<ResourceLocation> repeatHold = new HashSet<>();
 
     public QuestState getQuestState(ResourceLocation questId, QuestState defaultState) {
         return questStates.getOrDefault(questId, defaultState);
@@ -106,6 +107,19 @@ public class PlayerQuestData {
         chosenRewardIndices.remove(questId);
         resolvedChoiceBoxes.remove(questId);
         emergencyUsed.remove(questId);
+        repeatHold.remove(questId);
+    }
+
+    public boolean hasRepeatHold(ResourceLocation questId) {
+        return repeatHold.contains(questId);
+    }
+
+    public void markRepeatHold(ResourceLocation questId) {
+        repeatHold.add(questId);
+    }
+
+    public void clearRepeatHold(ResourceLocation questId) {
+        repeatHold.remove(questId);
     }
 
     public boolean hasUsedEmergency(ResourceLocation questId) {
@@ -220,6 +234,14 @@ public class PlayerQuestData {
         });
         root.put("EmergencyUsed", emergencyList);
 
+        var holdList = new ListTag();
+        for (var id : repeatHold) {
+            var e = new CompoundTag();
+            e.putString("id", id.toString());
+            holdList.add(e);
+        }
+        root.put("RepeatHold", holdList);
+
         return root;
     }
 
@@ -232,6 +254,7 @@ public class PlayerQuestData {
         resolvedChoiceBoxes.clear();
         pinnedQuestIds.clear();
         emergencyUsed.clear();
+        repeatHold.clear();
 
         readCompoundList(root, "Quests", tag -> {
             ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
@@ -254,6 +277,11 @@ public class PlayerQuestData {
             if (id != null) {
                 lastCompleted.put(id, tag.getLong("time"));
             }
+        });
+
+        readCompoundList(root, "RepeatHold", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) repeatHold.add(id);
         });
 
         readCompoundList(root, "EmergencyUsed", tag -> {

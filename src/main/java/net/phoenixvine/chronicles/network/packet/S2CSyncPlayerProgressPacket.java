@@ -80,6 +80,13 @@ public class S2CSyncPlayerProgressPacket {
                     return;
                 }
 
+                if (data.getAllStates().isEmpty()) {
+
+                    data.deserializeNBT(progressNbt);
+                    version++;
+                    return;
+                }
+
                 Map<ResourceLocation, QuestState> oldStates = new HashMap<>();
                 for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
                     oldStates.put(node.getId(), data.getQuestState(node.getId(), QuestState.LOCKED));
@@ -94,7 +101,10 @@ public class S2CSyncPlayerProgressPacket {
                     if (oldState == newState) continue;
                     boolean playSounds = QuestChroniclesSettings.get()
                             .isPlayToastSounds();
+                    if (!shouldNotify(node, newState)) continue;
                     if (newState == QuestState.UNLOCKED) {
+                        
+                        if (oldState == QuestState.COMPLETED) continue;
                         QuestToastManager.get().push(node, QuestToastManager.ToastType.UNLOCKED);
 
                         if (mc.player != null && playSounds) {
@@ -118,6 +128,19 @@ public class S2CSyncPlayerProgressPacket {
             });
         }));
         ctx.get().setPacketHandled(true);
+    }
+
+    private static final Map<String, Long> LAST_NOTIFIED = new HashMap<>();
+    private static final long NOTIFY_COOLDOWN_MS = 4000;
+
+    private static boolean shouldNotify(QuestNode node, QuestState state) {
+        if (state != QuestState.UNLOCKED && state != QuestState.COMPLETED) return true;
+        long now = System.currentTimeMillis();
+        String key = node.getId() + "|" + state;
+        Long last = LAST_NOTIFIED.get(key);
+        if (last != null && now - last < NOTIFY_COOLDOWN_MS) return false;
+        LAST_NOTIFIED.put(key, now);
+        return true;
     }
 
     private static net.minecraft.sounds.SoundEvent resolveSound(String nodeSoundId, String chapter,

@@ -27,6 +27,7 @@ import net.phoenixvine.chronicles.common.flag.PhoenixQuestFlags;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestState;
 import net.phoenixvine.chronicles.common.model.QuestTask;
+import net.phoenixvine.chronicles.common.model.RewardTable;
 import net.phoenixvine.chronicles.common.registry.*;
 import net.phoenixvine.chronicles.common.tasks.*;
 import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
@@ -522,6 +523,52 @@ public class ChronicleEvents {
                             return 1;
                         }))
 
+                .then(Commands.literal("rewardtable")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.literal("export")
+                                .then(Commands
+                                        .argument("table", com.mojang.brigadier.arguments.StringArgumentType.word())
+                                        .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider
+                                                .suggest(RewardTableRegistry.getAll().keySet(), b))
+                                        .executes(ctx -> {
+                                            net.minecraft.server.level.ServerPlayer sp = ctx.getSource()
+                                                    .getPlayerOrException();
+                                            String id = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx,
+                                                    "table");
+                                            RewardTable table = RewardTableRegistry.get(id);
+                                            if (table == null) {
+                                                ctx.getSource().sendFailure(
+                                                        Component.literal("No reward table '" + id + "'."));
+                                                return 0;
+                                            }
+                                            net.minecraft.world.Container box = RewardTableChest.targetContainer(sp);
+                                            if (box == null) {
+                                                ctx.getSource().sendFailure(Component.literal(
+                                                        "Look at a chest, barrel, or other container (within 6 blocks)."));
+                                                return 0;
+                                            }
+                                            RewardTableChest.Result r = RewardTableChest.export(table, box);
+                                            if (!r.ok()) {
+                                                ctx.getSource().sendFailure(Component.literal(r.message()));
+                                                return 0;
+                                            }
+                                            ctx.getSource().sendSuccess(() -> Component.literal("§a✔ " + r.message()),
+                                                    false);
+                                            return 1;
+                                        })))
+                        .then(Commands.literal("import")
+                                .then(Commands
+                                        .argument("table", com.mojang.brigadier.arguments.StringArgumentType.word())
+                                        .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider
+                                                .suggest(RewardTableRegistry.getAll().keySet(), b))
+                                        .executes(ctx -> doRewardTableImport(ctx, null))
+                                        .then(Commands
+                                                .argument("pick",
+                                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(0))
+                                                .executes(ctx -> doRewardTableImport(ctx,
+                                                        com.mojang.brigadier.arguments.IntegerArgumentType
+                                                                .getInteger(ctx, "pick")))))))
+
                 .then(Commands.literal("export")
                         .requires(src -> src.hasPermission(2))
                         .executes(ctx -> {
@@ -857,6 +904,36 @@ public class ChronicleEvents {
             ctx.getSource().sendSuccess(() -> Component.literal("§e⚠ " + w), false);
         }
         return result.ported();
+    }
+
+    private static int doRewardTableImport(
+                                           com.mojang.brigadier.context.CommandContext<net.minecraft.commands.CommandSourceStack> ctx,
+                                           Integer pick) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        net.minecraft.server.level.ServerPlayer sp = ctx.getSource().getPlayerOrException();
+        String id = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "table");
+        if (!RewardTableChest.isValidId(id)) {
+            ctx.getSource().sendFailure(Component.literal(
+                    "Table ids can use letters, digits, '_', '-' and '.', and must not start with '.'."));
+            return 0;
+        }
+        MinecraftServer server = getCachedServer();
+        if (server == null) {
+            ctx.getSource().sendFailure(Component.literal("Server not available."));
+            return 0;
+        }
+        net.minecraft.world.Container box = RewardTableChest.targetContainer(sp);
+        if (box == null) {
+            ctx.getSource()
+                    .sendFailure(Component.literal("Look at a chest, barrel, or other container (within 6 blocks)."));
+            return 0;
+        }
+        RewardTableChest.Result r = RewardTableChest.importInto(resolveConfigDir(server), id, pick, box);
+        if (!r.ok()) {
+            ctx.getSource().sendFailure(Component.literal(r.message()));
+            return 0;
+        }
+        ctx.getSource().sendSuccess(() -> Component.literal("§a✔ " + r.message()), true);
+        return 1;
     }
 
     private static int doImport(com.mojang.brigadier.context.CommandContext<net.minecraft.commands.CommandSourceStack> ctx,

@@ -69,7 +69,6 @@ public class ChronicleOverviewScreen extends Screen
     public static final int TOOLBAR_H = 16;
     public static final int NODE_SIZE = 32;
     public static final int C_NBORD_SEL = 0xFF6688FF;
-    private static final int C_LINE_ALMOST = 0xAAFFEE33;
 
     public static final int C_CTX_BG = 0xFF1A1A22;
     public static final int C_CTX_HOVER = 0xFF252532;
@@ -630,6 +629,22 @@ public class ChronicleOverviewScreen extends Screen
         softRebuild();
     }
 
+    private int lineThemeSignature = 0;
+    private boolean lineThemeSignatureKnown = false;
+
+    private void rebuildLinesIfThemeChanged() {
+        int sig = java.util.Objects.hash(palette.lineLocked, palette.lineDone, palette.lineActive);
+        if (!lineThemeSignatureKnown) {
+            lineThemeSignatureKnown = true;
+            lineThemeSignature = sig;
+            return;
+        }
+        if (sig != lineThemeSignature) {
+            lineThemeSignature = sig;
+            buildLineCache();
+        }
+    }
+
     private void refreshPalette() {
         PhoenixTheme t = PhoenixTheme.current();
         ChroniclesThemePalette.refresh(t);
@@ -881,7 +896,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public void buildLineCache() {
         depLineRenderer.rebuildFromGraph(this, sidebarVisualW(), this::catMatches, palette.lineLocked,
-                QuestChroniclesSettings.get());
+                palette.lineDone, palette.lineActive, QuestChroniclesSettings.get());
     }
 
     private void softRebuild() {
@@ -2452,6 +2467,7 @@ public class ChronicleOverviewScreen extends Screen
         FrameProfiler.begin("TOTAL render()");
 
         refreshPalette();
+        rebuildLinesIfThemeChanged();
         pendingDeferredDraws.clear();
         updateSidebarHoverPeek(mx, my);
 
@@ -2715,7 +2731,7 @@ public class ChronicleOverviewScreen extends Screen
         FrameProfiler.setCounter("nodes", nodeButtons.size());
         FrameProfiler.setCounter("zoom%", Math.round(zoom * 100));
         depLineRenderer.render(g, animTick, hoveredNodeId, this::getState, palette.lineActive, palette.lineDone,
-                C_LINE_ALMOST,
+                palette.lineAlmost,
                 palette.lineLocked);
 
         if (linkDragSource != null) {
@@ -2999,10 +3015,6 @@ public class ChronicleOverviewScreen extends Screen
         }
         g.flush();
         RenderSystem.disableScissor();
-    }
-
-    private void renderStateBadge(GuiGraphics g, int nx, int ny, int sz, QuestState st) {
-        nodeRenderer.renderStateBadge(g, nx, ny, sz, st);
     }
 
     @Override

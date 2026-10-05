@@ -264,8 +264,8 @@ public class QuestTasksScreen extends Screen {
     }
 
     private java.util.List<net.minecraft.util.FormattedCharSequence> buildAllDescLines(
-                                                                                       List<QuestTask> tasks,
-                                                                                       java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines) {
+            List<QuestTask> tasks,
+            java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines) {
         java.util.List<net.minecraft.util.FormattedCharSequence> all = new java.util.ArrayList<>();
         for (QuestTask task : tasks) {
             if (task instanceof InfoTask info) {
@@ -627,7 +627,9 @@ public class QuestTasksScreen extends Screen {
             drawIconSlot(g, rix, iy, sz, bg, border, hov);
             int off = (sz - 16) / 2;
             if (display instanceof QuestReward.ItemReward ir) {
-                g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), rix + off, iy + off);
+                ItemStack rewardStack = new ItemStack(ir.getItem(), ir.getCount());
+                g.renderItem(rewardStack, rix + off, iy + off);
+                g.renderItemDecorations(font, rewardStack, rix + off, iy + off);
                 if (picked) g.fill(rix, iy, rix + sz, iy + sz, 0x55CC8800);
             } else {
                 ChroniclesUIKit.drawCenteredString(g, font, "§7" + rewardGlyph(display), rix + sz / 2, iy + sz / 2 - 4,
@@ -1082,7 +1084,9 @@ public class QuestTasksScreen extends Screen {
 
             int off = (sz - 16) / 2;
             if (display instanceof QuestReward.ItemReward ir) {
-                g.renderItem(new ItemStack(ir.getItem(), ir.getCount()), rIconX + off, iconY + off);
+                ItemStack rewardStack = new ItemStack(ir.getItem(), ir.getCount());
+                g.renderItem(rewardStack, rIconX + off, iconY + off);
+                g.renderItemDecorations(font, rewardStack, rIconX + off, iconY + off);
                 if (picked) g.fill(rIconX, iconY, rIconX + sz, iconY + sz, 0x55CC8800);
             } else {
                 ChroniclesUIKit.drawCenteredString(g, font, "§7" + rewardGlyph(display), rIconX + sz / 2,
@@ -1203,7 +1207,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> resolveConditionals(
-                                                                                           java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> blocks) {
+            java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> blocks) {
         java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> out = new java.util.ArrayList<>(blocks.size());
         for (net.phoenixvine.wiki.client.rich.RichBlock b : blocks) {
             if (b instanceof net.phoenixvine.chronicles.client.rich.ChroniclesConditionalSection cs) {
@@ -1250,7 +1254,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private java.util.List<net.phoenixvine.wiki.client.rich.RichSpan> resolveSpans(
-                                                                                   java.util.List<net.phoenixvine.wiki.client.rich.RichSpan> spans) {
+            java.util.List<net.phoenixvine.wiki.client.rich.RichSpan> spans) {
         boolean anyConditional = false;
         for (net.phoenixvine.wiki.client.rich.RichSpan s : spans) {
             if (s instanceof net.phoenixvine.wiki.client.rich.RichSpan.ConditionalTip) {
@@ -1269,7 +1273,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private net.phoenixvine.wiki.client.rich.RichSpan resolveConditionalTip(
-                                                                            net.phoenixvine.wiki.client.rich.RichSpan.ConditionalTip ct) {
+            net.phoenixvine.wiki.client.rich.RichSpan.ConditionalTip ct) {
         for (net.phoenixvine.wiki.client.rich.RichSpan.TipCandidate candidate : ct.candidates()) {
             String expr = candidate.conditionExpr();
             if (expr == null || expr.isBlank()) {
@@ -1903,8 +1907,14 @@ public class QuestTasksScreen extends Screen {
                 if (t.getNbtFilter() != null && !t.getNbtFilter().isEmpty()) display.setTag(t.getNbtFilter().copy());
                 name = display.getHoverName().getString();
             }
-            return name + (t.getRequiredCount() > 1 ? "  ×" + t.getRequiredCount() : "") +
-                    (t.shouldConsume() ? "  (consumed)" : "");
+            String suffix = "";
+            if (t.shouldConsume()) {
+                boolean done = minecraft != null && minecraft.player != null && t.isCompletedFor(minecraft.player);
+                boolean ready = !done && minecraft != null && minecraft.player != null &&
+                        t.hasRequiredItems(minecraft.player);
+                suffix = done ? "  (handed in)" : ready ? "  §a▶ click to hand in" : "  (consumed)";
+            }
+            return name + (t.getRequiredCount() > 1 ? "  ×" + t.getRequiredCount() : "") + suffix;
         }
         if (task instanceof CraftItemTask t) {
             Item item = t.getItemId() != null ? ForgeRegistries.ITEMS.getValue(t.getItemId()) : null;
@@ -1913,7 +1923,9 @@ public class QuestTasksScreen extends Screen {
             return "Craft: " + name + (t.getRequiredCount() > 1 ? " ×" + t.getRequiredCount() : "");
         }
         if (task instanceof KillEntityTask t) {
-            String entity = t.getEntityId() != null ? prettifyId(t.getEntityId()) : "entity";
+            var m = t.getMatcher();
+            String entity = m.isEmpty() ? "entity" :
+                    (m.ids().size() == 1 && m.tags().isEmpty()) ? prettifyId(m.firstId()) : m.displayName();
             return "Kill: " + entity + " ×" + t.getRequiredCount();
         }
         if (task instanceof FluidRequirementTask t) {
@@ -2240,7 +2252,7 @@ public class QuestTasksScreen extends Screen {
         }
 
         if (hoveredTask != null) {
-            if (tryCompleteCheckmark(hoveredTask)) return true;
+            if (tryCompleteCheckmark(hoveredTask) || (btn == 0 && trySubmitItemTask(hoveredTask))) return true;
             if (net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.canOpenForTask(hoveredTask)) {
                 net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.openForTask(hoveredTask, this);
                 return true;
@@ -2323,7 +2335,7 @@ public class QuestTasksScreen extends Screen {
         }
 
         if (btn == 0 && hoveredStripTask != null) {
-            if (tryCompleteCheckmark(hoveredStripTask)) return true;
+            if (tryCompleteCheckmark(hoveredStripTask) || trySubmitItemTask(hoveredStripTask)) return true;
             inspectorTab = InspTab.TASKS;
             inspectorScrollY = 0;
             return true;
@@ -2400,7 +2412,7 @@ public class QuestTasksScreen extends Screen {
         }
 
         if (hoveredTaskFs != null) {
-            if (tryCompleteCheckmark(hoveredTaskFs)) return true;
+            if (tryCompleteCheckmark(hoveredTaskFs) || (btn == 0 && trySubmitItemTask(hoveredTaskFs))) return true;
             if (net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.canOpenForTask(hoveredTaskFs)) {
                 net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.openForTask(hoveredTaskFs, this);
                 return true;
@@ -2788,6 +2800,24 @@ public class QuestTasksScreen extends Screen {
     private void resetTaskProgress(QuestTask task) {
         if (minecraft == null || minecraft.player == null || task == null) return;
         minecraft.player.connection.sendCommand("chronicles resettask " + task.getTaskId().getPath());
+    }
+
+    private boolean trySubmitItemTask(QuestTask task) {
+        if (!(task instanceof ItemRequirementTask it) || !it.shouldConsume() || minecraft == null ||
+                minecraft.player == null) {
+            return false;
+        }
+        if (it.isCompletedFor(minecraft.player)) return false;
+
+        QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
+                QuestState.LOCKED;
+        if (state != QuestState.UNLOCKED && state != QuestState.ACTIVE) return false;
+
+        if (!it.hasRequiredItems(minecraft.player) && !it.usesAe2Storage()) return false;
+
+        ChronicleNetwork.CHANNEL.sendToServer(
+                new net.phoenixvine.chronicles.network.packet.C2SSubmitItemTaskPacket(task.getTaskId()));
+        return true;
     }
 
     private boolean tryCompleteCheckmark(QuestTask task) {
