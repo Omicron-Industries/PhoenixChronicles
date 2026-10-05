@@ -101,7 +101,6 @@ public class ItemRequirementTask extends QuestTask {
 
     @Override
     public boolean dependsOnInventory() {
-        
         return !consume && !checksAe2Storage();
     }
 

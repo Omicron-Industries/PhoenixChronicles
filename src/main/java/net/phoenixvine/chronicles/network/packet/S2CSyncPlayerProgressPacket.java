@@ -103,7 +103,7 @@ public class S2CSyncPlayerProgressPacket {
                             .isPlayToastSounds();
                     if (!shouldNotify(node, newState)) continue;
                     if (newState == QuestState.UNLOCKED) {
-                        
+
                         if (oldState == QuestState.COMPLETED) continue;
                         QuestToastManager.get().push(node, QuestToastManager.ToastType.UNLOCKED);
 

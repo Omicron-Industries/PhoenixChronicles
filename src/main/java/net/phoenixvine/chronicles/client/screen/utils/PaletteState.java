@@ -26,7 +26,7 @@ public class PaletteState {
     public int lineLocked = 0x38FFFFFF;
     public int lineDone = 0x9900CC66;
     public int lineActive = 0x88FFAA00;
-    
+
     public int lineAlmost = 0xAAFFEE33;
     public int text = 0xFFD8D8E4;
     public int textDim = 0xFF7A7A8A;

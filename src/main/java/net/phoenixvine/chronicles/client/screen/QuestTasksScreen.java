@@ -264,8 +264,8 @@ public class QuestTasksScreen extends Screen {
     }
 
     private java.util.List<net.minecraft.util.FormattedCharSequence> buildAllDescLines(
-            List<QuestTask> tasks,
-            java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines) {
+                                                                                       List<QuestTask> tasks,
+                                                                                       java.util.List<net.minecraft.util.FormattedCharSequence> questDescLines) {
         java.util.List<net.minecraft.util.FormattedCharSequence> all = new java.util.ArrayList<>();
         for (QuestTask task : tasks) {
             if (task instanceof InfoTask info) {
@@ -1207,7 +1207,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> resolveConditionals(
-            java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> blocks) {
+                                                                                           java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> blocks) {
         java.util.List<net.phoenixvine.wiki.client.rich.RichBlock> out = new java.util.ArrayList<>(blocks.size());
         for (net.phoenixvine.wiki.client.rich.RichBlock b : blocks) {
             if (b instanceof net.phoenixvine.chronicles.client.rich.ChroniclesConditionalSection cs) {
@@ -1254,7 +1254,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private java.util.List<net.phoenixvine.wiki.client.rich.RichSpan> resolveSpans(
-            java.util.List<net.phoenixvine.wiki.client.rich.RichSpan> spans) {
+                                                                                   java.util.List<net.phoenixvine.wiki.client.rich.RichSpan> spans) {
         boolean anyConditional = false;
         for (net.phoenixvine.wiki.client.rich.RichSpan s : spans) {
             if (s instanceof net.phoenixvine.wiki.client.rich.RichSpan.ConditionalTip) {
@@ -1273,7 +1273,7 @@ public class QuestTasksScreen extends Screen {
     }
 
     private net.phoenixvine.wiki.client.rich.RichSpan resolveConditionalTip(
-            net.phoenixvine.wiki.client.rich.RichSpan.ConditionalTip ct) {
+                                                                            net.phoenixvine.wiki.client.rich.RichSpan.ConditionalTip ct) {
         for (net.phoenixvine.wiki.client.rich.RichSpan.TipCandidate candidate : ct.candidates()) {
             String expr = candidate.conditionExpr();
             if (expr == null || expr.isBlank()) {

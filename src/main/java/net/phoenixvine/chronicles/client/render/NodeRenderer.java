@@ -335,7 +335,7 @@ public class NodeRenderer {
                     else NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
                 }
                 case "NONE" -> {
-                    
+
                 }
                 default -> NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
             }
@@ -391,7 +391,7 @@ public class NodeRenderer {
                 NodeShapeRenderer.outlineCross(g, x, y, sz, border, thickness);
             }
             case "NONE" -> {
-                
+
             }
             case "CUSTOM" -> {
                 if (shapeTex != null) {
