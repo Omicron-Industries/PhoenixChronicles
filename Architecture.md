@@ -193,46 +193,13 @@ Description of the feature
 Estimated amount of work
 Why it was deffered/chosen as important/labeled as never.
 
-Auto claim rewards
-Auto claim needs to be choosable per player and control of what gets auto claimed (loot tables, loot boxes, choice boxes, command rewards, item rewards).
-Moderate, needs changes to the settings system and needs either config or an imgame UI for setting up auto-claim settings.
-The way other mods handle auto-claim rewards annoyed me as a player so I want Chronicles to have more power here.
-
-Chest authoring import/exporting.
-Chest authored loot tables/choiced rewards.
-Small, just needs a command to see the container of the chest and bring the ItemStack of each item into the list.
-Small packdev qol that some people have asked for.
-
 
 Hide Reward/Task portions.
 Hiding specific parts of rewards/tasks. Useful for example showing needing iron but not showing the amount until you actually get what was needed.
 Moderate, needs changes to the reward/task editor and the quest viewer card rendering.
 Specific asked for feature I feel Chronicles would do well to have.
 
-Image rotation.
-Allowing rotation of images inside Chronicles. 
-Moderate, requires changing how images are handled in the canvas/quest viewers.
-It's important for visuals and it was missed in the original design.
 
-Setting whole chapters/categories as dependencies. 
-Allowing quests to use entire chapters/categories being complete as a dependency.
-Small, just needs to allow a reference to a chapter's ID/add them to the parent selector screen.
-Good qol for more strict packs and not too much effort.
-
-Emergency Items
-Per chapter and/or per chapter emergency items that can be repeatable and/or timed. Currently in progress but not complete.
-High, requires changes to quest nodes, chapters, a bunch of rendering, and a new screen for collecting them (mostly piggybacking off of the collect rewards screen).
-It's an expectation of questbook mods and has certainly saved me as a player in some cases.
-
-Themable line colors.
-Allowing the dep line colors (inactive, hovered, complete) to be different per theme.
-Small, it's mostly implemented but has a bug which makes it currently not work.
-Imo important visual design that is currently bugged.
-
-Recipe tasks.
-Allowing packdevs to require players to do a gt/otherwise recipe a set number of times. 
-Small, just needs a small reuse of the existing picker screens and a new task type.
-A nessecary sister to the crafting table quest.
 
 Narrated quests.
 Voice line/audio quests. This would probably be a system of setting voice lines to auto start or be clicked by players for the chronicles side and have support in the wiki side
@@ -246,10 +213,7 @@ Having the ability to say multi select collect item tasks to give some authoring
 High, risky touches of the internal undo/redo stack along with edge cases of many task/reward types.
 Highly requested feature that does help packdevs.
 
-Typewriter text.
-Adding the ability to add typewriting text for more mysterious information with control of the speed and reveal per action. Would be built into Wiki
-Moderate, a new rich text entry with some wacky edge cases with phcc/text animator.
-Its something I want to use for a lot of my own quests.
+
 
 Archive entry reward type.
 Adding the ability to autogen an archive entry through chronicles. 
@@ -286,11 +250,6 @@ Allowing people to get rewards for the partial completion of a task.
 High, balance, UI work, and state design questions that all need a lookover from a server owner.
 Deferred due to not really having any multiplayer users yet.
 
-Chat links.
-Clicking a button in the quest viewer to paste a link to the quest in chat.
-Small, small button that pastes the usage of the previously built "jump to quest" links.
-Deferred due to no demand.
-
 Per player progress.
 Being able to see what you contributed to a team's shared progress of a task/the qb as a whole.
 High, state managment of multiple players, making sure that the changes didnt break pooled progress as a whole, and some real visual noise into an already small space.
@@ -301,10 +260,6 @@ A config to handle turning off pooled progress when being in an team or guild.
 Small, a config to tell TeamProgress to not count it on them. Would have to be server side though.
 Deferred due to no current demand and the multiplayer aspect.
 
-Disable toasts config.
-A config to disable toasts for completing/reward claims.
-Small, a single value.
-Deferred due to being multiplayer and no demand yet.
 
 Global Rewards
 The ability to mark a reward as only certain amount of people who can claim it.
@@ -315,11 +270,6 @@ Image click actions beyond links.
 Pretty much archives hotspot images.
 Moderate, requiries a rework of images.
 Deffered due to lack of demand and difficulty.
-
-Place block/create structure tasks.
-Placing block/making a structure task types, would include making a gt multi/making an nbt structure.
-Moderate, requires parsing more file stuff.
-Deffered due to no demand.
 
 Adaptive quests.
 Quests that scale with the progress a team/player has towards a goal.
@@ -351,11 +301,6 @@ Adding support for parallax in the canvas/quest veiwers.
 High, performance and visual concerns.
 Deferred due to difficulty.
 
-Chapter completion stamp.
-Nice little visual indicator of a chapter being complete.
-Small, the art portion is the difficult part.
-Deferred due to not having the art.
-
 Personal notes.
 We have dev notes but these would be player facing.
 Moderate, adding an ui section for holding them and persisting them
@@ -365,11 +310,6 @@ Shareable completion cards.
 Packdev defined completion cards that can be exported into images and shared.
 High, it's a lot of work on both chronicles and the packdevs
 Deferred due to difficulty.
-
-Personal Stats.
-A screen showing quests per session, longest streak, rarest rewards, time per chapter, total quest progress.
-Moderate, a redesign of the existing page.
-Deferred due to no demand
 
 ## Chronicles took a different path
 Ideas that were good solutions to real problems in other mods that we already solved differently.

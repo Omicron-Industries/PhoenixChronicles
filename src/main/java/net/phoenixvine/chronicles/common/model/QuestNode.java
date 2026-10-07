@@ -1,13 +1,9 @@
 package net.phoenixvine.chronicles.common.model;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.event.ClientTextOverrides;
@@ -167,6 +163,35 @@ public class QuestNode {
         this.pooledProgress = v;
     }
 
+    /**
+     * Whole chapters and categories this quest waits on: it stays locked until every counted quest in each is
+     * complete. They apply on top of the quest's own prerequisites, never instead of them.
+     */
+    private final java.util.Set<String> chapterPrereqs = new java.util.LinkedHashSet<>();
+    private final java.util.Set<String> categoryPrereqs = new java.util.LinkedHashSet<>();
+
+    public java.util.Set<String> getChapterPrereqs() {
+        return java.util.Collections.unmodifiableSet(chapterPrereqs);
+    }
+
+    public void setChapterPrereqs(java.util.Collection<String> chapters) {
+        chapterPrereqs.clear();
+        if (chapters == null) return;
+        for (String c : chapters) {
+            if (c != null && !c.isBlank()) chapterPrereqs.add(c.trim().toUpperCase(java.util.Locale.ROOT));
+        }
+    }
+
+    public java.util.Set<String> getCategoryPrereqs() {
+        return java.util.Collections.unmodifiableSet(categoryPrereqs);
+    }
+
+    public void setCategoryPrereqs(java.util.Collection<String> categories) {
+        categoryPrereqs.clear();
+        if (categories == null) return;
+        for (String c : categories) if (c != null && !c.isBlank()) categoryPrereqs.add(c.trim());
+    }
+
     private boolean autoClaimRewards = false;
 
     public boolean isAutoClaimRewards() {
@@ -248,7 +273,7 @@ public class QuestNode {
 
     private Integer optionalPrereqMinCount = null;
 
-    private final List<ItemStack> emergencyItems = new ArrayList<>();
+    private EmergencyKit emergencyKit = new EmergencyKit();
 
     private final List<TutorialStep> tutorialSteps = new ArrayList<>();
 
@@ -416,6 +441,16 @@ public class QuestNode {
 
     public void setUnlockSoundId(String id) {
         this.unlockSoundId = id == null ? "" : id.trim();
+    }
+
+    private QuestAudio audio = QuestAudio.NONE;
+
+    public QuestAudio getAudio() {
+        return audio;
+    }
+
+    public void setAudio(QuestAudio audio) {
+        this.audio = audio == null ? QuestAudio.NONE : audio;
     }
 
     public String getCompleteSoundId() {
@@ -880,37 +915,26 @@ public class QuestNode {
         return (v != null && v.subtitle != null && !v.subtitle.isBlank()) ? v.subtitle : getSubtitle();
     }
 
-    public List<ItemStack> getEmergencyItems() {
-        return Collections.unmodifiableList(emergencyItems);
+    /** This quest's own emergency kit (live object, edited in place). */
+    public EmergencyKit getEmergencyKit() {
+        return emergencyKit;
     }
 
-    public List<ItemStack> getEffectiveEmergencyItems() {
-        if (!emergencyItems.isEmpty()) return Collections.unmodifiableList(emergencyItems);
-        return net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems.get(chapter);
+    public void setEmergencyKit(EmergencyKit kit) {
+        this.emergencyKit = kit != null ? kit.copy() : new EmergencyKit();
     }
 
-    public void addEmergencyItem(ItemStack stack) {
-        if (stack != null && !stack.isEmpty()) emergencyItems.add(stack.copy());
+    /** Chapter and questbook kits are claimed separately from any quest, so a quest only ever uses its own. */
+    public EmergencyKit getEffectiveEmergencyKit() {
+        return emergencyKit;
     }
 
-    public void clearEmergencyItems() {
-        emergencyItems.clear();
+    public boolean isEmergencyRepeatable() {
+        return emergencyKit.resolveRepeatable(EmergencyKit.Repeat.INHERIT);
     }
 
-    public ListTag serializeEmergencyItems() {
-        ListTag list = new ListTag();
-        for (ItemStack stack : emergencyItems) list.add(stack.save(new CompoundTag()));
-        return list;
-    }
-
-    public void deserializeEmergencyItems(ListTag list) {
-        emergencyItems.clear();
-        for (Tag t : list) {
-            if (t instanceof CompoundTag ct) {
-                ItemStack stack = ItemStack.of(ct);
-                if (!stack.isEmpty()) emergencyItems.add(stack);
-            }
-        }
+    public int getEmergencyCooldownSeconds() {
+        return emergencyKit.resolveCooldownSeconds(EmergencyKit.INHERIT_COOLDOWN);
     }
 
     private static class ClientLangLookup {

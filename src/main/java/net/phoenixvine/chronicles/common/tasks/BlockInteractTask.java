@@ -14,6 +14,17 @@ public class BlockInteractTask extends QuestTask {
 
     private Block targetBlock;
     private String mode;
+    private int required = 1;
+
+    public BlockInteractTask(ResourceLocation taskId, Component description, Block targetBlock, String mode,
+                             int required) {
+        this(taskId, description, targetBlock, mode);
+        this.required = Math.max(1, required);
+    }
+
+    public int getRequired() {
+        return required;
+    }
 
     public BlockInteractTask(ResourceLocation taskId, Component description, Block targetBlock, String mode) {
         super(taskId, description);
@@ -31,7 +42,15 @@ public class BlockInteractTask extends QuestTask {
 
     @Override
     public boolean isCompletedFor(Player player) {
-        return TaskProgressAccess.getOrEmpty(player, this.getTaskId()).getBoolean("completed");
+        CompoundTag progress = TaskProgressAccess.getOrEmpty(player, this.getTaskId());
+        return progress.getBoolean("completed") || (required > 1 && progress.getInt("current") >= required);
+    }
+
+    @Override
+    public String getProgressString(Player player) {
+        if (required <= 1) return null;
+        int current = TaskProgressAccess.getOrEmpty(player, getTaskId()).getInt("current");
+        return Math.min(current, required) + "/" + required;
     }
 
     public void onBlockEvent(Player player, Block block, String action) {
@@ -39,9 +58,10 @@ public class BlockInteractTask extends QuestTask {
 
         if (block == targetBlock && this.mode.equalsIgnoreCase(action)) {
             TaskProgressAccess.with(player, this.getTaskId(), taskNbt -> {
-                if (!taskNbt.getBoolean("completed")) {
-                    taskNbt.putBoolean("completed", true);
-                }
+                if (taskNbt.getBoolean("completed")) return;
+                int current = taskNbt.getInt("current") + 1;
+                taskNbt.putInt("current", Math.min(current, required));
+                if (current >= required) taskNbt.putBoolean("completed", true);
             });
         }
     }
@@ -53,6 +73,7 @@ public class BlockInteractTask extends QuestTask {
         ResourceLocation id = ForgeRegistries.BLOCKS.getKey(targetBlock);
         tag.putString("block_id", id != null ? id.toString() : "minecraft:air");
         tag.putString("mode", mode != null ? mode : "PLACE");
+        if (required > 1) tag.putInt("required", required);
 
         return tag;
     }
@@ -65,5 +86,6 @@ public class BlockInteractTask extends QuestTask {
             this.targetBlock = Blocks.AIR;
         }
         this.mode = nbt.getString("mode").toUpperCase();
+        this.required = nbt.contains("required") ? Math.max(1, nbt.getInt("required")) : 1;
     }
 }

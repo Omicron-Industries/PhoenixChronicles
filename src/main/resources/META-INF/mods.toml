@@ -11,7 +11,6 @@ license = "${mod_license}"
     modId = "${mod_id}"
     version = "${version}"
     displayName = "${mod_name}"
-    mixinConfigs = "phoenix_chronicles.mixins.json"
     displayURL = "${mod_url}"
     # This will be displayed as your mod's logo in the Mods panel.
     # logoFile="icon.png" #optional

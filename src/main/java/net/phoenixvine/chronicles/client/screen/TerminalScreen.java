@@ -367,7 +367,7 @@ public class TerminalScreen extends Screen {
         consoleHistory.add("§aProgress for: §f" + node.getTitle().getString());
         for (QuestTask task : node.getTasks()) {
             boolean done = task.isCompletedFor(mc.player);
-            String prog = task.getProgressString(mc.player);
+            String prog = task.hidesAmount() && !done ? "?" : task.getProgressString(mc.player);
             String desc = task.getDescription().getString();
             consoleHistory
                     .add("  " + (done ? "§a✔" : "§c✗") + " §f" + desc +

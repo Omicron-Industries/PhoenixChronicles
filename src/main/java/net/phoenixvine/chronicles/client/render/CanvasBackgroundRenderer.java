@@ -46,7 +46,7 @@ public final class CanvasBackgroundRenderer {
             case HEX_GRID -> drawHexGrid(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY, gridSnap);
             case DIAGONAL_LINES -> drawDiagonalLines(g, x1, y1, x2, y2, zoom, viewOffX, viewOffY, gridSnap);
             case SOLID -> {}
-            case CUSTOM -> drawCustomBg(g, x1, y1, x2, y2, eff.texture);
+            case CUSTOM -> drawCustomBg(g, x1, y1, x2, y2, eff.texture, cfg.getBgParallax(), viewOffX, viewOffY);
             case SHADER -> drawShaderBg(g, x1, y1, x2, y2, eff.shaderId);
         }
 
@@ -196,13 +196,27 @@ public final class CanvasBackgroundRenderer {
         }
     }
 
-    private static void drawCustomBg(GuiGraphics g, int x1, int y1, int x2, int y2, String textureLoc) {
+    private static void drawCustomBg(GuiGraphics g, int x1, int y1, int x2, int y2, String textureLoc,
+                                     float parallax, int viewOffX, int viewOffY) {
         if (textureLoc == null || textureLoc.isBlank()) return;
         try {
             ResourceLocation loc = CustomTextureCache.resolve(
                     ResourceLocation.parse(textureLoc));
             int w = x2 - x1, h = y2 - y1;
-            g.blit(loc, x1, y1, 0, 0, w, h, w, h);
+            if (parallax <= 0f || w <= 0 || h <= 0) {
+                g.blit(loc, x1, y1, 0, 0, w, h, w, h);
+                return;
+            }
+            // Tiled and shifted by a fraction of the pan, so the background drifts behind the quests.
+            int ox = Math.floorMod(Math.round(viewOffX * parallax), w);
+            int oy = Math.floorMod(Math.round(viewOffY * parallax), h);
+            g.enableScissor(x1, y1, x2, y2);
+            for (int tx = -1; tx <= 0; tx++) {
+                for (int ty = -1; ty <= 0; ty++) {
+                    g.blit(loc, x1 + ox + tx * w, y1 + oy + ty * h, 0, 0, w, h, w, h);
+                }
+            }
+            g.disableScissor();
         } catch (Exception ignored) {}
     }
 

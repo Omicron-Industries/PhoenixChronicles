@@ -7,6 +7,7 @@ import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.math.Axis;
 
 public final class BackgroundPictureRenderer {
 
@@ -20,8 +21,14 @@ public final class BackgroundPictureRenderer {
         g.enableScissor(cl, top, cr, bottom);
         for (BackgroundPictureConfig.Picture pic : BackgroundPictureConfig.get(chapter)) {
             int[] rect = screenRect(pic, cl, top, zoom, viewOffX, viewOffY);
-            if (rect[2] < cl || rect[0] > cr || rect[3] < top || rect[1] > bottom) continue;
             if (pic.texture == null || pic.texture.isBlank()) continue;
+            int reach = pic.rotation == 0f ? 0 : (int) Math.ceil(
+                    (Math.hypot(rect[2] - rect[0], rect[3] - rect[1]) -
+                            Math.max(rect[2] - rect[0], rect[3] - rect[1])) /
+                            2.0);
+            if (rect[2] + reach < cl || rect[0] - reach > cr || rect[3] + reach < top || rect[1] - reach > bottom) {
+                continue;
+            }
 
             ResourceLocation loc;
             try {
@@ -42,7 +49,15 @@ public final class BackgroundPictureRenderer {
                 RenderSystem.setShaderColor(tr, tg, tb, Math.max(0f, Math.min(1f, pic.opacity)));
             }
             try {
-                g.blit(loc, rect[0], rect[1], 0, 0, w, h, w, h);
+                if (pic.rotation == 0f) {
+                    g.blit(loc, rect[0], rect[1], 0, 0, w, h, w, h);
+                } else {
+                    g.pose().pushPose();
+                    g.pose().translate((rect[0] + rect[2]) / 2f, (rect[1] + rect[3]) / 2f, 0f);
+                    g.pose().mulPose(Axis.ZP.rotationDegrees(pic.rotation));
+                    g.blit(loc, -w / 2, -h / 2, 0, 0, w, h, w, h);
+                    g.pose().popPose();
+                }
             } finally {
 
                 if (tinted) {
@@ -57,11 +72,38 @@ public final class BackgroundPictureRenderer {
         FrameProfiler.end("background:pictures");
     }
 
+    /** Whether a screen point is on the picture, allowing for its rotation. */
+    public static boolean contains(BackgroundPictureConfig.Picture pic, double mx, double my, int cl, int top,
+                                   float zoom, int viewOffX, int viewOffY) {
+        int[] rect = screenRect(pic, cl, top, zoom, viewOffX, viewOffY);
+        double dx = mx - (rect[0] + rect[2]) / 2.0, dy = my - (rect[1] + rect[3]) / 2.0;
+        if (pic.rotation != 0f) {
+            double theta = Math.toRadians(pic.rotation);
+            double cos = Math.cos(theta), sin = Math.sin(theta);
+            double lx = dx * cos + dy * sin;
+            double ly = -dx * sin + dy * cos;
+            dx = lx;
+            dy = ly;
+        }
+        return Math.abs(dx) <= (rect[2] - rect[0]) / 2.0 && Math.abs(dy) <= (rect[3] - rect[1]) / 2.0;
+    }
+
+    /** The zoom a picture is drawn at: it follows the canvas zoom only as far as its parallax factor allows. */
+    public static float parallaxZoom(BackgroundPictureConfig.Picture pic, float zoom) {
+        return 1f + (zoom - 1f) * pic.parallax;
+    }
+
+    /** The pan a picture sees: the canvas offset scaled by its parallax factor. */
+    public static int parallaxOffset(BackgroundPictureConfig.Picture pic, int viewOff) {
+        return Math.round(viewOff * pic.parallax);
+    }
+
     public static int[] screenRect(BackgroundPictureConfig.Picture pic, int cl, int top,
                                    float zoom, int viewOffX, int viewOffY) {
-        int cx = (int) (pic.x * zoom) + viewOffX + cl;
-        int cy = (int) (pic.y * zoom) + viewOffY + top;
-        int hw = (int) (pic.w * zoom / 2f), hh = (int) (pic.h * zoom / 2f);
+        float pz = parallaxZoom(pic, zoom);
+        int cx = (int) (pic.x * pz) + parallaxOffset(pic, viewOffX) + cl;
+        int cy = (int) (pic.y * pz) + parallaxOffset(pic, viewOffY) + top;
+        int hw = (int) (pic.w * pz / 2f), hh = (int) (pic.h * pz / 2f);
         return new int[] { cx - hw, cy - hh, cx + hw, cy + hh };
     }
 }

@@ -45,6 +45,7 @@ public class ItemPickerScreen extends Screen {
 
     private final Screen parent;
     private final Consumer<ItemStack> onPick;
+    private Consumer<List<ItemStack>> onPickMany;
 
     private final List<ItemStack> displayItems = new ArrayList<>();
     private int scrollOffset = 0;
@@ -66,6 +67,15 @@ public class ItemPickerScreen extends Screen {
         this.onPick = onPick;
         this.hasEmi = isModLoaded("emi");
         this.hasJei = isModLoaded("jei");
+    }
+
+    /**
+     * Receives every item of a multi-selection at once instead of one {@code onPick} call per item, so a caller can
+     * turn a multi-select into a batch (one task or reward per item). A single pick still goes through onPick.
+     */
+    public ItemPickerScreen withBulk(Consumer<List<ItemStack>> onPickMany) {
+        this.onPickMany = onPickMany;
+        return this;
     }
 
     @Override
@@ -252,10 +262,19 @@ public class ItemPickerScreen extends Screen {
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, footerY + 1, ChroniclesThemePalette.BORDER);
         g.fill(panelLeft, footerY, panelLeft + PANEL_W, panelTop + PANEL_H, ChroniclesThemePalette.PANEL_DARK);
 
+        int labelX = panelLeft + 62;
+        int labelMaxW = (panelLeft + PANEL_W - 56 - 4) - labelX;
         String countLabel = "§8" + displayItems.size() + " items";
-        if (!multiSelected.isEmpty())
-            countLabel += "  §9(" + multiSelected.size() + " selected, right-click to toggle)";
-        g.drawString(font, countLabel, panelLeft + 62, footerY + 7, ChroniclesThemePalette.TEXT_FAINT);
+        if (!multiSelected.isEmpty()) {
+            countLabel += "  §9" + multiSelected.size() + " selected";
+            // The right-click hint only fits when there is room; it must never run under the Select button.
+            String withHint = countLabel + " §8(right-click to toggle)";
+            if (font.width(withHint.replaceAll("§.", "")) <= labelMaxW) countLabel = withHint;
+        }
+        if (font.width(countLabel.replaceAll("§.", "")) > labelMaxW) {
+            countLabel = font.plainSubstrByWidth(countLabel, labelMaxW);
+        }
+        g.drawString(font, countLabel, labelX, footerY + 7, ChroniclesThemePalette.TEXT_FAINT);
 
         super.render(g, mx, my, partial);
 
@@ -375,9 +394,15 @@ public class ItemPickerScreen extends Screen {
 
     private void confirmSelection() {
         if (!multiSelected.isEmpty()) {
-            for (Item item : multiSelected) onPick.accept(new ItemStack(item));
+            List<ItemStack> all = new ArrayList<>();
+            for (Item item : multiSelected) all.add(new ItemStack(item));
             if (selectedStack != null && !multiSelected.contains(selectedStack.getItem())) {
-                onPick.accept(selectedStack.copy());
+                all.add(selectedStack.copy());
+            }
+            if (onPickMany != null && all.size() > 1) {
+                onPickMany.accept(all);
+            } else {
+                for (ItemStack stack : all) onPick.accept(stack);
             }
         } else if (selectedStack != null) {
             onPick.accept(selectedStack.copy());

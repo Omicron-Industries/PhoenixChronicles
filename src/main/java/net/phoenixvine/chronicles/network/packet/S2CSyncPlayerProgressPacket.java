@@ -39,21 +39,46 @@ public class S2CSyncPlayerProgressPacket {
 
     public S2CSyncPlayerProgressPacket(PlayerQuestData data, boolean initialSync) {
         CompoundTag nbt = data.serializeNBT();
-        net.minecraft.nbt.ListTag withItems = new net.minecraft.nbt.ListTag();
+        net.minecraft.nbt.ListTag emergencyQuests = new net.minecraft.nbt.ListTag();
         for (QuestNode q : QuestTreeRegistry.getAllQuests().values()) {
-            if (!q.getEffectiveEmergencyItems().isEmpty()) {
-                withItems.add(net.minecraft.nbt.StringTag.valueOf(q.getId().toString()));
-            }
+            if (!q.getEffectiveEmergencyKit().hasRewards()) continue;
+            CompoundTag entry = new CompoundTag();
+            entry.putString("id", q.getId().toString());
+            entry.putBoolean("repeatable", q.isEmergencyRepeatable());
+            entry.putInt("cooldown_seconds", q.getEmergencyCooldownSeconds());
+            emergencyQuests.add(entry);
         }
-        nbt.put(net.phoenixvine.chronicles.client.util.ClientEmergencyState.AVAILABLE_KEY, withItems);
-        nbt.putBoolean(net.phoenixvine.chronicles.client.util.ClientEmergencyState.REPEATABLE_KEY,
-                net.phoenixvine.chronicles.common.registry.QuestEngineConfig.isEmergencyRepeatable());
-        nbt.putInt(net.phoenixvine.chronicles.client.util.ClientEmergencyState.COOLDOWN_KEY,
-                net.phoenixvine.chronicles.common.registry.QuestEngineConfig.getEmergencyCooldownSeconds());
+        for (String chapter : net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems.chaptersWithKits()) {
+            addEmergencyStation(emergencyQuests, net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems
+                    .chapterStation(chapter),
+                    net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems
+                            .get(chapter));
+        }
+        net.phoenixvine.chronicles.common.model.EmergencyKit questbookKit = net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems
+                .getQuestbook();
+        if (questbookKit.hasRewards()) {
+            addEmergencyStation(emergencyQuests,
+                    net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems.QUESTBOOK_STATION, questbookKit);
+        }
+        nbt.put(net.phoenixvine.chronicles.client.util.ClientEmergencyState.QUESTS_KEY, emergencyQuests);
         nbt.putLong(net.phoenixvine.chronicles.client.util.ClientEmergencyState.SERVER_NOW_KEY,
                 System.currentTimeMillis());
         this.progressNbt = nbt;
         this.initialSync = initialSync;
+    }
+
+    /** A station carries its own label and rewards, since the client has no quest to read them from. */
+    private static void addEmergencyStation(net.minecraft.nbt.ListTag out, net.minecraft.resources.ResourceLocation id,
+                                            net.phoenixvine.chronicles.common.model.EmergencyKit kit) {
+        CompoundTag entry = new CompoundTag();
+        entry.putString("id", id.toString());
+        entry.putBoolean("repeatable", kit.resolveRepeatable(
+                net.phoenixvine.chronicles.common.model.EmergencyKit.Repeat.INHERIT));
+        entry.putInt("cooldown_seconds", kit.resolveCooldownSeconds(
+                net.phoenixvine.chronicles.common.model.EmergencyKit.INHERIT_COOLDOWN));
+        entry.putString("label", net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems.stationLabel(id));
+        entry.put("kit", kit.serializeNBT());
+        out.add(entry);
     }
 
     public S2CSyncPlayerProgressPacket(FriendlyByteBuf buf) {

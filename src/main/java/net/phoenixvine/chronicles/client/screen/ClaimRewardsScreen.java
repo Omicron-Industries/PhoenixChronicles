@@ -31,7 +31,10 @@ public class ClaimRewardsScreen extends Screen {
     private record Row(QuestNode node, boolean pendingBoxOnly) {}
 
     private final Screen parent;
+    private static final int REFRESH_INTERVAL_TICKS = 5;
+
     private int scrollY = 0;
+    private int refreshTicks = 0;
     private List<Row> unclaimed = List.of();
 
     public ClaimRewardsScreen(Screen parent) {
@@ -46,12 +49,28 @@ public class ClaimRewardsScreen extends Screen {
         addRenderableWidget(
                 Button.builder(Component.translatable("phoenix_chronicles.screen.claim_rewards.claim_all"), b -> {
                     ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimAllRewardsPacket());
-                    if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(parent));
                 }).bounds(MARGIN, height - FOOTER_H + 6, 110, 18).build());
+
+        addRenderableWidget(Button.builder(Component.literal("§e⚡ Auto-claim…"), b -> {
+            if (minecraft != null) minecraft.setScreen(new AutoClaimSettingsScreen(this));
+        }).bounds(MARGIN + 116, height - FOOTER_H + 6, 100, 18).build());
 
         addRenderableWidget(Button.builder(Component.translatable("phoenix_chronicles.ui.back"), b -> {
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(width - MARGIN - 80, height - FOOTER_H + 6, 80, 18).build());
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        // The claimed state arrives from the server a moment after a claim is sent, so re-reading the list here
+        // (rather than reopening the screen right away, which showed the stale pre-claim list) picks it up.
+        if (++refreshTicks >= REFRESH_INTERVAL_TICKS) {
+            refreshTicks = 0;
+            refreshList();
+            int maxScroll = Math.max(0, unclaimed.size() * ROW_H - (listBottom() - listTop()));
+            scrollY = Math.min(scrollY, maxScroll);
+        }
     }
 
     private void refreshList() {
@@ -76,6 +95,19 @@ public class ClaimRewardsScreen extends Screen {
             list.add(new Row(node, data.hasClaimedRewards(node.getId())));
         }
         unclaimed = list;
+    }
+
+    /** The quest's rewards minus the ones auto-claim has already granted. */
+    private List<QuestReward> remainingRewards(QuestNode node) {
+        List<QuestReward> all = node.getRewards();
+        PlayerQuestData data = minecraft != null && minecraft.player != null ?
+                minecraft.player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).orElse(null) : null;
+        if (data == null) return all;
+        List<QuestReward> remaining = new ArrayList<>();
+        for (int i = 0; i < all.size(); i++) {
+            if (!data.isRewardIndexClaimed(node.getId(), i)) remaining.add(all.get(i));
+        }
+        return remaining;
     }
 
     private boolean hasPendingMenuBox(QuestNode node, PlayerQuestData data) {
@@ -132,14 +164,15 @@ public class ClaimRewardsScreen extends Screen {
                     g.fill(MARGIN, ty, MARGIN + 2, ty + ROW_H, row.pendingBoxOnly() ? 0xFFCC88FF : 0xFF44CC88);
 
                     String title = node.getTitle().getString();
+                    List<QuestReward> remaining = remainingRewards(node);
                     int maxTitleW = rowW - 3 - 60 -
-                            (unclaimed.size() > 0 ? node.getRewards().size() * (ICON_SZ + 2) : 0) - 70;
+                            (unclaimed.size() > 0 ? remaining.size() * (ICON_SZ + 2) : 0) - 70;
                     if (font.width(title) > Math.max(20, maxTitleW))
                         title = font.plainSubstrByWidth(title, Math.max(20, maxTitleW) - 6) + "…";
                     g.drawString(font, "§f" + title, MARGIN + 6, ty + (ROW_H - 8) / 2, text, false);
 
-                    int ix = MARGIN + rowW - 66 - node.getRewards().size() * (ICON_SZ + 2);
-                    for (QuestReward reward : node.getRewards()) {
+                    int ix = MARGIN + rowW - 66 - remaining.size() * (ICON_SZ + 2);
+                    for (QuestReward reward : remaining) {
                         drawRewardIcon(g, reward, ix, ty + (ROW_H - ICON_SZ) / 2);
                         ix += ICON_SZ + 2;
                     }
@@ -214,7 +247,6 @@ public class ClaimRewardsScreen extends Screen {
                             }
                         } else {
                             ChronicleNetwork.CHANNEL.sendToServer(new C2SClaimQuestRewardPacket(node.getId(), -1));
-                            if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(parent));
                         }
                         return true;
                     }

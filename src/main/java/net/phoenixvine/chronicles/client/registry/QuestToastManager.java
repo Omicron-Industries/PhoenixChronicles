@@ -56,7 +56,10 @@ public class QuestToastManager {
     private final List<ActiveToast> active = new ArrayList<>();
 
     public void push(QuestNode node, ToastType type) {
-        if (!QuestChroniclesSettings.get().isShowToasts()) return;
+        QuestChroniclesSettings settings = QuestChroniclesSettings.get();
+        if (!settings.isShowToasts()) return;
+        if (type == ToastType.UNLOCKED && !settings.isShowUnlockToasts()) return;
+        if (type == ToastType.COMPLETED && !settings.isShowCompleteToasts()) return;
         queue.addLast(new ToastEntry(node, type));
     }
 

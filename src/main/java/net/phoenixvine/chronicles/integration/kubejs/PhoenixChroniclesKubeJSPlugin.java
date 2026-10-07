@@ -41,6 +41,10 @@ public class PhoenixChroniclesKubeJSPlugin extends KubeJSPlugin {
         filter.allow(PhoenixTaskRegistry.Builder.class);
         filter.allow(PhoenixTaskRegistry.FieldDef.class);
         filter.allow(PhoenixQuestFlags.class);
+        filter.allow(net.phoenixvine.chronicles.common.registry.PhoenixRewardRegistry.class);
+        filter.allow(net.phoenixvine.chronicles.common.registry.PhoenixRewardRegistry.Builder.class);
+        filter.allow(net.phoenixvine.chronicles.integration.archive.ArchiveEntries.class);
+        filter.allow(net.phoenixvine.chronicles.integration.archive.ArchiveEntries.Builder.class);
 
         if (FMLEnvironment.dist.isClient()) {
             filter.allow(QuestBackgroundRegistry.class);
@@ -59,6 +63,8 @@ public class PhoenixChroniclesKubeJSPlugin extends KubeJSPlugin {
         event.add("QuestAPI", QuestAPI.class);
         event.add("PhoenixTaskRegistry", PhoenixTaskRegistry.class);
         event.add("PhoenixQuestFlags", PhoenixQuestFlags.class);
+        event.add("PhoenixRewardRegistry", net.phoenixvine.chronicles.common.registry.PhoenixRewardRegistry.class);
+        event.add("ArchiveEntries", net.phoenixvine.chronicles.integration.archive.ArchiveEntries.class);
 
         if (FMLEnvironment.dist.isClient()) {
             event.add("QuestBackgroundRegistry", QuestBackgroundRegistry.class);

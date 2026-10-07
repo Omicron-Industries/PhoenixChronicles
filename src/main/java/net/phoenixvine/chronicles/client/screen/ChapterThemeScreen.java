@@ -47,9 +47,9 @@ public class ChapterThemeScreen extends Screen {
     private static final int ADV_SCROLLBAR_W = 3;
 
     private static final int[] ROW_H_TABLE = { STRIDE + 10, STRIDE, STRIDE + 10, STRIDE + 10, STRIDE + 10,
-            STRIDE + 10, STRIDE + 10, STRIDE + 10 };
+            STRIDE + 10, STRIDE + 10, STRIDE + 10, STRIDE + 10, STRIDE + 10 };
     private static final int ROW_NAME = 0, ROW_ICON = 1, ROW_NAME_COLOR = 2, ROW_CATEGORY = 3, ROW_PARENT = 4,
-            ROW_SIDEBAR_SHADER = 5, ROW_UNLOCK_SOUND = 6, ROW_COMPLETE_SOUND = 7;
+            ROW_SIDEBAR_SHADER = 5, ROW_UNLOCK_SOUND = 6, ROW_COMPLETE_SOUND = 7, ROW_MUSIC = 8, ROW_PARALLAX = 9;
 
     private int panelH;
 
@@ -64,6 +64,10 @@ public class ChapterThemeScreen extends Screen {
     private String cachedIcon;
     private String cachedUnlockSoundId;
     private String cachedCompleteSoundId;
+    private String cachedMusicId;
+    private String cachedParallaxPct;
+    private String cachedMusicVolumePct;
+    private String cachedMusicFadeSec;
 
     private final String originalDisplayName;
 
@@ -109,6 +113,10 @@ public class ChapterThemeScreen extends Screen {
         this.cachedIcon = cfg.getIcon();
         this.cachedUnlockSoundId = cfg.getUnlockSoundId();
         this.cachedCompleteSoundId = cfg.getCompleteSoundId();
+        this.cachedMusicId = cfg.getMusicId();
+        this.cachedParallaxPct = String.valueOf(Math.round(cfg.getBgParallax() * 100));
+        this.cachedMusicVolumePct = String.valueOf(Math.round(cfg.getMusicVolume() * 100));
+        this.cachedMusicFadeSec = String.valueOf(cfg.getMusicFadeMs() / 1000f);
         CategoryDefinition existingCategory = CategoryRegistry.categoryFor(chapter);
         this.cachedCategoryId = existingCategory != null ? existingCategory.id() : null;
         this.cachedParentChapter = cfg.getParentChapter();
@@ -125,6 +133,7 @@ public class ChapterThemeScreen extends Screen {
             h += ADV_TOGGLE_GAP + visibleRows * ADV_BLOCK_H + FIELD_H + ADV_BOTTOM_PAD;
         }
         h += 8;
+        h += 18 + 6;
         if (parent instanceof ChronicleOverviewScreen) {
             h += 18 + 6;
         }
@@ -133,7 +142,7 @@ public class ChapterThemeScreen extends Screen {
     }
 
     private int previewY() {
-        return rowTop(ROW_COMPLETE_SOUND) + ROW_H_TABLE[ROW_COMPLETE_SOUND] + PREVIEW_GAP;
+        return rowTop(ROW_PARALLAX) + ROW_H_TABLE[ROW_PARALLAX] + PREVIEW_GAP;
     }
 
     private int advancedToggleY() {
@@ -226,7 +235,6 @@ public class ChapterThemeScreen extends Screen {
 
         nameBox = new EditBox(font, fx, rowTop(ROW_NAME) + 11, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(64);
-        nameBox.setHint(Component.literal("§8" + defaultFriendlyName()));
         nameBox.setValue(cachedDisplayName);
         nameBox.setResponder(v -> cachedDisplayName = v.replace('&', '§').trim());
         nameBox.setTooltip(Tooltip.create(Component.literal(
@@ -246,7 +254,7 @@ public class ChapterThemeScreen extends Screen {
 
         nameColorBox = new EditBox(font, fx, rowTop(ROW_NAME_COLOR) + 11, fw, FIELD_H, Component.empty());
         nameColorBox.setMaxLength(7);
-        nameColorBox.setHint(Component.literal("§8#RRGGBB  (empty = use canvas accent color)"));
+        nameColorBox.setTooltip(Tooltip.create(Component.literal("#RRGGBB  (empty = use canvas accent color)")));
         nameColorBox.setValue(cachedNameColor != 0 ? ChroniclesUIKit.formatHexColor(cachedNameColor) : "");
         nameColorBox.setResponder(v -> cachedNameColor = ChroniclesUIKit.parseHexColor(v, 0));
         addRenderableWidget(nameColorBox);
@@ -268,7 +276,7 @@ public class ChapterThemeScreen extends Screen {
         sidebarShaderBox = new EditBox(font, fx, sidebarShaderRowY + 11, fw - browseW - browseGap, FIELD_H,
                 Component.empty());
         sidebarShaderBox.setMaxLength(64);
-        sidebarShaderBox.setHint(Component.literal("§8shader id  (empty = none)"));
+        sidebarShaderBox.setTooltip(Tooltip.create(Component.literal("shader id  (empty = none)")));
         sidebarShaderBox.setValue(cachedSidebarShaderId);
         sidebarShaderBox.setResponder(v -> cachedSidebarShaderId = v.trim());
         addRenderableWidget(sidebarShaderBox);
@@ -285,7 +293,8 @@ public class ChapterThemeScreen extends Screen {
         unlockSoundBox = new EditBox(font, fx, unlockSoundRowY + 11, fw - browseW - browseGap, FIELD_H,
                 Component.empty());
         unlockSoundBox.setMaxLength(128);
-        unlockSoundBox.setHint(ChroniclesUIKit.lit("§8sound event id  (empty = quest/global default)"));
+        unlockSoundBox
+                .setTooltip(Tooltip.create(ChroniclesUIKit.lit("sound event id  (empty = quest/global default)")));
         unlockSoundBox.setValue(cachedUnlockSoundId);
         unlockSoundBox.setResponder(v -> cachedUnlockSoundId = v.trim());
         addRenderableWidget(unlockSoundBox);
@@ -303,7 +312,8 @@ public class ChapterThemeScreen extends Screen {
         completeSoundBox = new EditBox(font, fx, completeSoundRowY + 11, fw - browseW - browseGap, FIELD_H,
                 Component.empty());
         completeSoundBox.setMaxLength(128);
-        completeSoundBox.setHint(ChroniclesUIKit.lit("§8sound event id  (empty = quest/global default)"));
+        completeSoundBox
+                .setTooltip(Tooltip.create(ChroniclesUIKit.lit("sound event id  (empty = quest/global default)")));
         completeSoundBox.setValue(cachedCompleteSoundId);
         completeSoundBox.setResponder(v -> cachedCompleteSoundId = v.trim());
         addRenderableWidget(completeSoundBox);
@@ -316,6 +326,52 @@ public class ChapterThemeScreen extends Screen {
                         }));
             }
         }).bounds(fx + fw - browseW, completeSoundRowY + 11, browseW, FIELD_H).build());
+
+        int musicRowY = rowTop(ROW_MUSIC);
+        int musicNumW = 30;
+        int musicNumGap = 2;
+        EditBox musicBox = new EditBox(font, fx, musicRowY + 11,
+                fw - browseW - browseGap - (musicNumW + musicNumGap) * 2, FIELD_H, Component.empty());
+        musicBox.setMaxLength(128);
+        musicBox.setTooltip(Tooltip.create(ChroniclesUIKit.lit("music sound event id  (empty = none)")));
+        musicBox.setValue(cachedMusicId);
+        musicBox.setResponder(v -> cachedMusicId = v.trim());
+        addRenderableWidget(musicBox);
+        int musicBrowseX = fx + fw - browseW - (musicNumW + musicNumGap) * 2;
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit("Browse…"), b -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick chapter music",
+                        net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getKeys(), id -> {
+                            cachedMusicId = id.toString();
+                            musicBox.setValue(cachedMusicId);
+                        }));
+            }
+        }).bounds(musicBrowseX, musicRowY + 11, browseW, FIELD_H).build());
+        EditBox musicVolBox = new EditBox(font, fx + fw - (musicNumW + musicNumGap) * 2 + musicNumGap + 2,
+                musicRowY + 11, musicNumW, FIELD_H, Component.empty());
+        musicVolBox.setMaxLength(3);
+        musicVolBox.setValue(cachedMusicVolumePct);
+        musicVolBox.setResponder(v -> cachedMusicVolumePct = v.trim());
+        musicVolBox.setTooltip(Tooltip.create(ChroniclesUIKit.lit("Music volume, 0-100%")));
+        addRenderableWidget(musicVolBox);
+        EditBox musicFadeBox = new EditBox(font, fx + fw - musicNumW, musicRowY + 11, musicNumW, FIELD_H,
+                Component.empty());
+        musicFadeBox.setMaxLength(5);
+        musicFadeBox.setValue(cachedMusicFadeSec);
+        musicFadeBox.setResponder(v -> cachedMusicFadeSec = v.trim());
+        musicFadeBox.setTooltip(Tooltip.create(ChroniclesUIKit.lit("Fade in / out time in seconds")));
+        addRenderableWidget(musicFadeBox);
+
+        int parallaxRowY = rowTop(ROW_PARALLAX);
+        EditBox parallaxBox = new EditBox(font, fx, parallaxRowY + 11, 60, FIELD_H, Component.empty());
+        parallaxBox.setMaxLength(3);
+        parallaxBox.setValue(cachedParallaxPct);
+        parallaxBox.setResponder(v -> cachedParallaxPct = v.trim());
+        parallaxBox.setTooltip(Tooltip.create(ChroniclesUIKit.lit(
+                "How much a custom texture background follows panning, in percent.\n0 keeps it fixed; " +
+                        "e.g. 30 makes it drift slowly behind the quests.\nThe texture tiles, so a seamless " +
+                        "image looks best.")));
+        addRenderableWidget(parallaxBox);
 
         int currentY = advancedToggleY() + SEC_HEADER_H;
 
@@ -330,7 +386,7 @@ public class ChapterThemeScreen extends Screen {
 
                 EditBox condBox = new EditBox(font, fx, currentY, fw - removeW - 4, FIELD_H, Component.empty());
                 condBox.setMaxLength(128);
-                condBox.setHint(Component.literal("§8condition: e.g. config:pack_mode=expert"));
+                condBox.setTooltip(Tooltip.create(Component.literal("condition: e.g. config:pack_mode=expert")));
                 condBox.setValue(ov.condition);
                 condBox.setResponder(v -> overrides.get(idx).condition = v.trim());
                 addRenderableWidget(condBox);
@@ -355,7 +411,7 @@ public class ChapterThemeScreen extends Screen {
 
                 EditBox texBox = new EditBox(font, fx, currentY, fw, FIELD_H, Component.empty());
                 texBox.setMaxLength(256);
-                texBox.setHint(Component.literal("§8modid:texture.png  (CUSTOM only)"));
+                texBox.setTooltip(Tooltip.create(Component.literal("modid:texture.png  (CUSTOM only)")));
                 texBox.setValue(ov.texture);
                 texBox.setResponder(v -> overrides.get(idx).texture = v.trim());
                 addRenderableWidget(texBox);
@@ -365,7 +421,7 @@ public class ChapterThemeScreen extends Screen {
 
                 EditBox shBox = new EditBox(font, fx, currentY, fw, FIELD_H, Component.empty());
                 shBox.setMaxLength(64);
-                shBox.setHint(Component.literal("§8shader id  (SHADER only)"));
+                shBox.setTooltip(Tooltip.create(Component.literal("shader id  (SHADER only)")));
                 shBox.setValue(ov.shaderId);
                 shBox.setResponder(v -> overrides.get(idx).shaderId = v.trim());
                 addRenderableWidget(shBox);
@@ -386,6 +442,20 @@ public class ChapterThemeScreen extends Screen {
         }
 
         currentY += 8;
+
+        int emergencyCount = net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems.get(chapter)
+                .getRewards().size();
+        addRenderableWidget(Button.builder(
+                Component.literal("§6⚠ §fEmergency Items" + (emergencyCount > 0 ? " §7(" + emergencyCount + ")" : "")),
+                b -> {
+                    if (minecraft != null) minecraft.setScreen(new EmergencyItemsScreen(this, chapter));
+                })
+                .bounds(fx, currentY, fw, 18)
+                .tooltip(Tooltip.create(Component.literal(
+                        "Fallback items for every quest in this chapter that has no emergency list of its own.\n" +
+                                "Players claim them from the \u26a0 button in the header while one of these quests is active.")))
+                .build());
+        currentY += 18 + 6;
 
         if (parent instanceof ChronicleOverviewScreen cos) {
             int questCount = cos.chapterQuestCount(chapter);
@@ -465,6 +535,18 @@ public class ChapterThemeScreen extends Screen {
         cfg.setIcon(cachedIcon);
         cfg.setUnlockSoundId(cachedUnlockSoundId);
         cfg.setCompleteSoundId(cachedCompleteSoundId);
+        float musicVolume = 1f;
+        int musicFadeMs = net.phoenixvine.chronicles.common.model.QuestAudio.DEFAULT_FADE_MS;
+        try {
+            musicVolume = Integer.parseInt(cachedMusicVolumePct) / 100f;
+        } catch (NumberFormatException ignored) {}
+        try {
+            musicFadeMs = Math.round(Float.parseFloat(cachedMusicFadeSec) * 1000f);
+        } catch (NumberFormatException ignored) {}
+        cfg.setMusic(cachedMusicId, musicVolume, musicFadeMs);
+        try {
+            cfg.setBgParallax(Integer.parseInt(cachedParallaxPct) / 100f);
+        } catch (NumberFormatException ignored) {}
         cfg.setParentChapter(cachedParentChapter);
         ChapterConfig.put(chapter, cfg);
         ChapterConfig.save();
@@ -528,6 +610,10 @@ public class ChapterThemeScreen extends Screen {
         g.drawString(font, "§8Sidebar Row Shader", fx, rowTop(ROW_SIDEBAR_SHADER), ChroniclesThemePalette.TEXT_FAINT);
         g.drawString(font, "§8Unlock Sound", fx, rowTop(ROW_UNLOCK_SOUND), ChroniclesThemePalette.TEXT_FAINT);
         g.drawString(font, "§8Complete Sound", fx, rowTop(ROW_COMPLETE_SOUND), ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Chapter Music  §8(volume %  /  fade s)", fx, rowTop(ROW_MUSIC),
+                ChroniclesThemePalette.TEXT_FAINT);
+        g.drawString(font, "§8Background Parallax %  §8(custom texture, 0 = fixed)", fx, rowTop(ROW_PARALLAX),
+                ChroniclesThemePalette.TEXT_FAINT);
         ChroniclesUIKit.drawShaderWarning(g, font, sidebarShaderBox,
                 DynamicShaderManager.lastCompileFailed(cachedSidebarShaderId));
         if (sidebarShaderBox.isMouseOver(mx, my)) {

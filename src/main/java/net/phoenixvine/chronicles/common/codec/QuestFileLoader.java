@@ -45,7 +45,7 @@ public class QuestFileLoader {
                                Boolean requireAllPrereqs,
                                List<QuestReward> rewards,
                                List<QuestTask> tasks,
-                               net.minecraft.nbt.ListTag emergencyItems,
+                               net.phoenixvine.chronicles.common.model.EmergencyKit emergencyKit,
                                Map<String, Boolean> prereqRequired,
                                Integer optionalPrereqMinCount,
                                String enableIf,
@@ -63,6 +63,8 @@ public class QuestFileLoader {
                                boolean pooledProgress,
                                List<TutorialStep> tutorialSteps,
                                boolean autoClaimRewards,
+                               List<String> chapterPrereqs,
+                               List<String> categoryPrereqs,
                                boolean rewardChoice,
                                int rewardChoiceCount,
                                String devNotes,
@@ -78,6 +80,7 @@ public class QuestFileLoader {
                                String externalScreenId,
                                String unlockSoundId,
                                String completeSoundId,
+                               net.phoenixvine.chronicles.common.model.QuestAudio audio,
                                boolean optional,
                                Set<String> tags) {}
 
@@ -197,6 +200,8 @@ public class QuestFileLoader {
             node.setShared(rec.shared());
             node.setPooledProgress(rec.pooledProgress());
             node.setAutoClaimRewards(rec.autoClaimRewards());
+            node.setChapterPrereqs(rec.chapterPrereqs());
+            node.setCategoryPrereqs(rec.categoryPrereqs());
             node.setRewardChoice(rec.rewardChoice());
             node.setRewardChoiceCount(rec.rewardChoiceCount());
             node.setDevNotes(rec.devNotes());
@@ -216,6 +221,7 @@ public class QuestFileLoader {
             node.setExternalScreenId(rec.externalScreenId());
             node.setUnlockSoundId(rec.unlockSoundId());
             node.setCompleteSoundId(rec.completeSoundId());
+            node.setAudio(rec.audio());
             if (!rec.iconItemId().isEmpty()) node.setIconItemById(rec.iconItemId());
             node.setRepeatMode(rec.repeatMode());
             node.setRepeatCooldownHours(rec.repeatCooldownHours());
@@ -224,7 +230,7 @@ public class QuestFileLoader {
             for (QuestReward r : rec.rewards()) node.addReward(r);
             for (QuestTask t : rec.tasks()) node.addTask(t);
             for (QuestNode.QuestVariant v : rec.variants()) node.addVariant(v);
-            if (rec.emergencyItems() != null) node.deserializeEmergencyItems(rec.emergencyItems());
+            if (rec.emergencyKit() != null) node.setEmergencyKit(rec.emergencyKit());
             for (TutorialStep step : rec.tutorialSteps()) node.addTutorialStep(step);
             QuestTreeRegistry.registerBareQuestNode(node);
         }
@@ -352,6 +358,9 @@ public class QuestFileLoader {
             String externalScreenId = tag.contains("external_screen") ? tag.getString("external_screen") : "";
             String unlockSoundId = tag.contains("unlock_sound") ? tag.getString("unlock_sound") : "";
             String completeSoundId = tag.contains("complete_sound") ? tag.getString("complete_sound") : "";
+            net.phoenixvine.chronicles.common.model.QuestAudio audio = tag.contains("audio") ?
+                    net.phoenixvine.chronicles.common.model.QuestAudio.fromTag(tag.getCompound("audio")) :
+                    net.phoenixvine.chronicles.common.model.QuestAudio.NONE;
             int posX = tag.contains("positionX") ? tag.getInt("positionX") : 40;
             int posY = tag.contains("positionY") ? tag.getInt("positionY") : 70;
 
@@ -407,8 +416,14 @@ public class QuestFileLoader {
                 }
             }
 
-            net.minecraft.nbt.ListTag emergencyTag = tag.contains("emergency_items") ?
-                    tag.getList("emergency_items", Tag.TAG_COMPOUND) : null;
+            net.phoenixvine.chronicles.common.model.EmergencyKit emergencyKit = null;
+            if (tag.contains("emergency_kit", Tag.TAG_COMPOUND)) {
+                emergencyKit = net.phoenixvine.chronicles.common.model.EmergencyKit
+                        .fromNBT(tag.getCompound("emergency_kit"));
+            } else if (tag.contains("emergency_items")) {
+                emergencyKit = net.phoenixvine.chronicles.common.model.EmergencyKit
+                        .fromLegacyItems(tag.getList("emergency_items", Tag.TAG_COMPOUND));
+            }
 
             Map<String, Boolean> prereqRequired = new LinkedHashMap<>();
             Set<String> prereqForbidden = new java.util.LinkedHashSet<>();
@@ -450,6 +465,10 @@ public class QuestFileLoader {
             boolean shared = tag.contains("shared") && tag.getBoolean("shared");
             boolean pooledProgress = tag.contains("pooled_progress") && tag.getBoolean("pooled_progress");
             boolean autoClaimRewards = tag.contains("auto_claim_rewards") && tag.getBoolean("auto_claim_rewards");
+            List<String> chapterPrereqs = new java.util.ArrayList<>();
+            for (Tag t : tag.getList("chapter_prereqs", Tag.TAG_STRING)) chapterPrereqs.add(t.getAsString());
+            List<String> categoryPrereqs = new java.util.ArrayList<>();
+            for (Tag t : tag.getList("category_prereqs", Tag.TAG_STRING)) categoryPrereqs.add(t.getAsString());
             boolean rewardChoice = tag.contains("reward_choice") && tag.getBoolean("reward_choice");
             int rewardChoiceCount = tag.contains("reward_choice_count") ? tag.getInt("reward_choice_count") : 1;
             String devNotes = tag.contains("dev_notes") ? tag.getString("dev_notes") : "";
@@ -490,13 +509,14 @@ public class QuestFileLoader {
             return new QuestRecord(id, title, desc, subtitle, chapter.toUpperCase(), shape.toUpperCase(),
                     labelPosition.toUpperCase(),
                     iconItem, posX, posY, positionIsCenter, visibility, taskMinCount, parentId,
-                    repeatMode, repeatCooldownHours, requireAllPrereqs, rewards, tasks, emergencyTag,
+                    repeatMode, repeatCooldownHours, requireAllPrereqs, rewards, tasks, emergencyKit,
                     prereqRequired, optionalPrereqMinCount, enableIf, prereqForbidden, prereqLink, prereqCosmetic,
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, prereqLineStyleId,
                     hideDepLine, disabledBlocksChildren, shared, pooledProgress, tutorialSteps, autoClaimRewards,
+                    chapterPrereqs, categoryPrereqs,
                     rewardChoice, rewardChoiceCount, devNotes, nodeSize, sizeOverridePx, linkTarget, iconTexture,
                     shapeTexture, variants, previewMachineId, iconFluid, backgroundType, externalScreenId,
-                    unlockSoundId, completeSoundId, optional, tags);
+                    unlockSoundId, completeSoundId, audio, optional, tags);
 
         } catch (Exception e) {
             String msg = "Failed to parse '" + file.getFileName() + "': " + e.getMessage();

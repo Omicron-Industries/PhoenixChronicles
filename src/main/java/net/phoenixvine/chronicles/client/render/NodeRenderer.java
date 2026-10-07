@@ -14,6 +14,7 @@ import net.phoenixvine.chronicles.client.screen.utils.GraphEditorState;
 import net.phoenixvine.chronicles.client.screen.utils.NodeRendererState;
 import net.phoenixvine.chronicles.client.screen.utils.ScreenContext;
 import net.phoenixvine.chronicles.client.screen.widgets.BulkOpsPanel;
+import net.phoenixvine.chronicles.client.util.AnimatedTexture;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
@@ -335,7 +336,7 @@ public class NodeRenderer {
                     else NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
                 }
                 case "NONE" -> {
-
+                    // No frame, so no drop shadow either.
                 }
                 default -> NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
             }
@@ -391,7 +392,7 @@ public class NodeRenderer {
                 NodeShapeRenderer.outlineCross(g, x, y, sz, border, thickness);
             }
             case "NONE" -> {
-
+                // Icon-only node: no fill and no border. The icon is drawn by the caller.
             }
             case "CUSTOM" -> {
                 if (shapeTex != null) {
@@ -399,7 +400,11 @@ public class NodeRenderer {
                     int pad = Math.max(1, thickness);
                     NodeShapeRenderer.blitCustomShape(g, shapeTex, x - pad, y - pad, sz + pad * 2, sz + pad * 2,
                             border);
-                    if (!hasBackground) NodeShapeRenderer.blitCustomShape(g, shapeTex, x, y, sz, sz, fill);
+                    // The state fill colors are very dark, and the texture is multiplied by whatever tint it gets,
+                    // so using the fill left custom shapes almost black. A lightened state color keeps the artwork
+                    // readable and still carries the state hue.
+                    int textureTint = ChronicleOverviewScreen.blendColor(border, 0xFFFFFFFF, 0.7f);
+                    if (!hasBackground) NodeShapeRenderer.blitCustomShape(g, shapeTex, x, y, sz, sz, textureTint);
                 } else {
 
                     if (!hasBackground) NodeShapeRenderer.queueFillRect(g, x, y, x + sz, y + sz, fill);
@@ -438,6 +443,33 @@ public class NodeRenderer {
         }
     }
 
+    /**
+     * Fills the node's own outline instead of its bounding square, so dimming overlays follow the shape. A square
+     * overlay left a visible translucent box around stars, circles, and the other non-square shapes.
+     */
+    private void fillNodeOutline(GuiGraphics g, QuestNode node, int x, int y, int sz, int color) {
+        String shape = node.getShapeType() != null ? node.getShapeType().toUpperCase() : "SQUARE";
+        switch (shape) {
+            case "CIRCLE" -> NodeShapeRenderer.fillCircle(g, x, y, sz, color);
+            case "DIAMOND" -> NodeShapeRenderer.fillDiamond(g, x, y, sz, color);
+            case "HEXAGON" -> NodeShapeRenderer.fillHexagon(g, x, y, sz, color);
+            case "TRIANGLE" -> NodeShapeRenderer.fillTriangle(g, x, y, sz, color);
+            case "STAR" -> NodeShapeRenderer.fillStar(g, x, y, sz, color);
+            case "PENTAGON" -> NodeShapeRenderer.fillPentagon(g, x, y, sz, color);
+            case "SHIELD" -> NodeShapeRenderer.fillShield(g, x, y, sz, color);
+            case "CROSS" -> NodeShapeRenderer.fillCross(g, x, y, sz, color);
+            case "NONE" -> {
+                // No frame to dim.
+            }
+            case "CUSTOM" -> {
+                ResourceLocation tex = resolveShapeTexture(node);
+                if (tex != null) NodeShapeRenderer.blitCustomShape(g, tex, x, y, sz, sz, color);
+                else NodeShapeRenderer.queueFillRect(g, x, y, x + sz, y + sz, color);
+            }
+            default -> NodeShapeRenderer.queueFillRect(g, x, y, x + sz, y + sz, color);
+        }
+    }
+
     public void renderNodeDetails(GuiGraphics g, QuestNode node, int x, int y, int sz,
                                   boolean hovered, boolean selected) {
         QuestNode linkTargetNode = state.resolveLinkTarget(node);
@@ -449,7 +481,7 @@ public class NodeRenderer {
         MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
 
         if (node.getEffectiveVisibility(server, Minecraft.getInstance().player) == QuestNode.Visibility.DISABLED) {
-            g.fill(x + 1, y + 1, x + sz - 1, y + sz - 1, 0xBB0B0B0F);
+            fillNodeOutline(g, node, x + 1, y + 1, sz - 2, 0xBB0B0B0F);
             g.drawCenteredString(ctx.font(), "§8✕", x + sz / 2, y + sz / 2 - 4, 0xFF444444);
         }
 
@@ -463,17 +495,7 @@ public class NodeRenderer {
         }
 
         if (st == QuestState.LOCKED && !ctx.isDevMode()) {
-            NodeShapeRenderer.queueFillRect(g, x + 1, y + 1, x + sz - 1, y + sz - 1, 0x440B0B0F);
-
-            int w = sz - 2;
-            for (int d = -sz; d < sz; d += 6) {
-                int lxStart = Math.max(0, -d);
-                int lxEnd = Math.min(w, w - d);
-                if (lxEnd <= lxStart) continue;
-                float sx = x + 1 + lxStart, sy = y + 1 + lxStart + d;
-                float ex = x + 1 + lxEnd - 1, ey = y + 1 + lxEnd - 1 + d;
-                NodeShapeRenderer.queueThinLine(g, sx, sy, ex, ey, 0.5f, 0x160B0B0F);
-            }
+            fillNodeOutline(g, node, x + 1, y + 1, sz - 2, 0x440B0B0F);
         }
         FrameProfiler.end("node:overlays");
 
@@ -542,7 +564,7 @@ public class NodeRenderer {
             int pad = Math.max(2, fillSz / 8);
             int iconSz = Math.max(1, Math.round((fillSz - pad * 2) * shapeIconScale));
             int off = (sz - iconSz) / 2;
-            g.blit(pickedTexture, x + off, y + off, 0, 0, iconSz, iconSz, iconSz, iconSz);
+            AnimatedTexture.blit(g, pickedTexture, x + off, y + off, iconSz, iconSz);
             state.setDbgPickedTextureIconCount(state.dbgPickedTextureIconCount() + 1);
         } else if (pickedFluid != null && sz >= 8) {
 
@@ -741,9 +763,10 @@ public class NodeRenderer {
         List<BackgroundPictureConfig.Picture> pics = BackgroundPictureConfig.get(ctx.selectedChapter());
         BackgroundPictureConfig.Picture hit = null;
         for (BackgroundPictureConfig.Picture pic : pics) {
-            int[] rect = BackgroundPictureRenderer.screenRect(pic, cl, ChronicleOverviewScreen.HEADER_H,
-                    ctx.posZoom(), state.viewOffX(), state.viewOffY());
-            if (mx >= rect[0] && mx <= rect[2] && my >= rect[1] && my <= rect[3]) hit = pic;
+            if (BackgroundPictureRenderer.contains(pic, mx, my, cl, ChronicleOverviewScreen.HEADER_H,
+                    ctx.posZoom(), state.viewOffX(), state.viewOffY())) {
+                hit = pic;
+            }
         }
         return hit;
     }
@@ -804,7 +827,7 @@ public class NodeRenderer {
                     taskTotal++;
                     boolean done = state.isTaskDone(t);
                     if (done) taskDone++;
-                    String prog = t.getProgressString(player);
+                    String prog = t.hidesAmount() && !done ? "?" : t.getProgressString(player);
                     String check = done ? "§a✔ " : "§8✗ ";
                     taskLines.add(check + "§7" + t.getDescription().getString() +
                             (prog != null && !prog.isBlank() ? " §8(" + prog + ")" : ""));

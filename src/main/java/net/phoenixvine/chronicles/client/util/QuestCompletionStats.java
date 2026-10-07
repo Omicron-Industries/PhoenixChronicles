@@ -41,6 +41,9 @@ public final class QuestCompletionStats {
 
     public final Map<String, Tally> chapters = new LinkedHashMap<>();
 
+    /** Per chapter, required (non-optional) quests only - what a chapter-complete stamp is judged on. */
+    public final Map<String, Tally> chaptersRequired = new LinkedHashMap<>();
+
     public Tally overall() {
         Tally t = new Tally();
         t.done = required.done + optional.done;
@@ -55,7 +58,10 @@ public final class QuestCompletionStats {
         Player player = mc.player;
 
         List<String> chapterOrder = ctx.buildChapterList();
-        for (String c : chapterOrder) stats.chapters.put(c.toUpperCase(Locale.ROOT), new Tally());
+        for (String c : chapterOrder) {
+            stats.chapters.put(c.toUpperCase(Locale.ROOT), new Tally());
+            stats.chaptersRequired.put(c.toUpperCase(Locale.ROOT), new Tally());
+        }
 
         for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
             if (n.isLinkStub()) continue;
@@ -79,6 +85,7 @@ public final class QuestCompletionStats {
             boolean done = ctx.getState(n) == QuestState.COMPLETED;
             (n.isOptional() ? stats.optional : stats.required).add(done);
             chapterTally.add(done);
+            if (!n.isOptional()) stats.chaptersRequired.get(chapter).add(done);
         }
         return stats;
     }

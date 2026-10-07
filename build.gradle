@@ -139,6 +139,11 @@ legacyForge {
     }
 }
 
+mixin {
+    add sourceSets.main, 'phoenix_chronicles.refmap.json'
+    config 'phoenix_chronicles.mixins.json'
+}
+
 apply from: "$rootDir/gradle/scripts/spotless.gradle"
 
 dependencies {
@@ -178,7 +183,7 @@ dependencies {
     modCompileOnly('net.phoenixvine.guilds:phoenix_guilds:1.6.3')
     modRuntimeOnly('net.phoenixvine.guilds:phoenix_guilds:1.6.3')
 
-    jarJar(modImplementation("net.phoenixvine.wiki:phoenix_wiki:0.5.5"))
+    jarJar(modImplementation("net.phoenixvine.wiki:phoenix_wiki:0.5.7"))
 
     modCompileOnly("net.phoenix.phoenix_archive:phoenix_archive:${phoenix_archive_version}")
     modRuntimeOnly("net.phoenix.phoenix_archive:phoenix_archive:${phoenix_archive_version}")
@@ -231,7 +236,12 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
-tasks.named('jar', Jar).configure { finalizedBy 'reobfJar' }
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes(['MixinConfigs': 'phoenix_chronicles.mixins.json'])
+    }
+    finalizedBy 'reobfJar'
+}
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
     options.release.set(17)

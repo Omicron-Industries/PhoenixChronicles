@@ -10,6 +10,8 @@ import net.minecraft.client.gui.components.Whence;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 
@@ -108,6 +110,15 @@ public class MultilineTextArea extends AbstractWidget {
         }
     }
 
+    /**
+     * Width of the text exactly as typed. Plain string drawing and measuring run through the formatting decomposer,
+     * which is where Text Animator turns {@code <grad ...>} tags into effects and hides them. An editor has to show
+     * every symbol, so the text is drawn and measured as a raw character sequence that decomposer never sees.
+     */
+    private int rawWidth(String text) {
+        return font.width(FormattedCharSequence.forward(text, Style.EMPTY));
+    }
+
     @Override
     protected void renderWidget(GuiGraphics g, int mx, int my, float partial) {
         g.fill(getX(), getY(), getX() + width, getY() + height, 0xFF0A0A10);
@@ -139,7 +150,7 @@ public class MultilineTextArea extends AbstractWidget {
                         int segW = 0;
                         int i = 0;
                         while (i < rawLine.length()) {
-                            int cw = font.width(String.valueOf(rawLine.charAt(i)));
+                            int cw = rawWidth(String.valueOf(rawLine.charAt(i)));
                             if (segW + cw > maxWidth && i > segStart) {
                                 int breakAt = lastBreak > segStart ? lastBreak : i;
                                 lines.add(new LinePos(currentIndex + segStart, currentIndex + breakAt,
@@ -193,8 +204,8 @@ public class MultilineTextArea extends AbstractWidget {
                 if (hoverWordEnd > line.start && hoverWordStart < line.end) {
                     int a = Math.max(hoverWordStart, line.start) - line.start;
                     int b = Math.min(hoverWordEnd, line.end) - line.start;
-                    int x1 = textX + font.width(line.text.substring(0, a));
-                    int x2 = textX + font.width(line.text.substring(0, b));
+                    int x1 = textX + rawWidth(line.text.substring(0, a));
+                    int x2 = textX + rawWidth(line.text.substring(0, b));
                     g.fill(x1, lineY, x2, lineY + 9, C_HOVER_FILL);
                     g.fill(x1, lineY, x2, lineY + 1, C_HOVER_OUTLINE);
                     g.fill(x1, lineY + 8, x2, lineY + 9, C_HOVER_OUTLINE);
@@ -215,8 +226,8 @@ public class MultilineTextArea extends AbstractWidget {
                 if (selEnd > line.start && selStart < line.end) {
                     int a = Math.max(selStart, line.start) - line.start;
                     int b = Math.min(selEnd, line.end) - line.start;
-                    int x1 = textX + font.width(line.text.substring(0, a));
-                    int x2 = textX + font.width(line.text.substring(0, b));
+                    int x1 = textX + rawWidth(line.text.substring(0, a));
+                    int x2 = textX + rawWidth(line.text.substring(0, b));
                     g.fill(x1, lineY, x2, lineY + 9, C_SEL_FILL);
                     g.fill(x1, lineY, x2, lineY + 1, C_SEL_OUTLINE);
                     g.fill(x1, lineY + 8, x2, lineY + 9, C_SEL_OUTLINE);
@@ -231,12 +242,13 @@ public class MultilineTextArea extends AbstractWidget {
             int lineY = textY + (i - scrollLines) * 9;
 
             if (lineY < getY() || lineY + 9 > getY() + height) continue;
-            g.drawString(font, line.text, textX, lineY, 0xFFFFFFFF, false);
+            g.drawString(font, FormattedCharSequence.forward(line.text, Style.EMPTY), textX, lineY, 0xFFFFFFFF,
+                    false);
             if (isFocused() && cursor >= line.start && cursor <= line.end) {
                 if ((System.currentTimeMillis() / 530) % 2 == 0) {
                     int off = cursor - line.start;
                     String sub = line.text.substring(0, Math.min(off, line.text.length()));
-                    int cx = textX + font.width(sub);
+                    int cx = textX + rawWidth(sub);
                     g.fill(cx, lineY, cx + 1, lineY + 9, C_ACCENT);
                 }
             }
@@ -278,7 +290,7 @@ public class MultilineTextArea extends AbstractWidget {
         int localX = mx - textX;
         int offset = 0;
         while (offset < line.text.length()) {
-            if (font.width(line.text.substring(0, offset + 1)) > localX) break;
+            if (rawWidth(line.text.substring(0, offset + 1)) > localX) break;
             offset++;
         }
         int absPos = line.start + offset;
@@ -301,7 +313,7 @@ public class MultilineTextArea extends AbstractWidget {
         int localX = (int) (mx - (getX() + 6));
         int rawOffset = 0;
         while (rawOffset < line.text.length()) {
-            if (font.width(line.text.substring(0, rawOffset + 1)) > localX) break;
+            if (rawWidth(line.text.substring(0, rawOffset + 1)) > localX) break;
             rawOffset++;
         }
         return line.start + rawOffset;
@@ -356,7 +368,7 @@ public class MultilineTextArea extends AbstractWidget {
             if (kc == GLFW.GLFW_KEY_V) {
                 String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
                 if (clip != null && !clip.isEmpty()) {
-                    forceInsert(clip.replace("\r\n", "\n").replace("\r", "\n"));
+                    forceInsert(convertPastedCodes(clip.replace("\r\n", "\n").replace("\r", "\n")));
                 }
                 return true;
             }
@@ -368,10 +380,49 @@ public class MultilineTextArea extends AbstractWidget {
         return super.keyPressed(kc, sc, mod);
     }
 
+    /**
+     * Turns what was just typed into formatting: {@code &c} becomes {@code §c} and {@code &#RRGGBB} becomes
+     * {@code {#RRGGBB}}. The editor displays {@code §} as {@code &}, so typing looks the same either way.
+     */
+    private void convertTypedCodes() {
+        String v = textField.value();
+        int c = textField.cursor();
+        if (c >= 2 && v.charAt(c - 2) == '&' && isCodeChar(v.charAt(c - 1))) {
+            textField.setValue(v.substring(0, c - 2) + '§' + v.substring(c - 1));
+            textField.seekCursor(Whence.ABSOLUTE, c);
+            return;
+        }
+        if (c >= 8 && v.charAt(c - 8) == '&' && v.charAt(c - 7) == '#' && isHex6(v, c - 6)) {
+            String hex = v.substring(c - 6, c);
+            String replaced = v.substring(0, c - 8) + "{#" + hex + "}" + v.substring(c);
+            textField.setValue(replaced);
+            textField.seekCursor(Whence.ABSOLUTE, c - 8 + 9);
+        }
+    }
+
+    private static boolean isCodeChar(char ch) {
+        return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'k' && ch <= 'o') || ch == 'r';
+    }
+
+    private static boolean isHex6(String v, int from) {
+        if (from < 0 || from + 6 > v.length()) return false;
+        for (int i = from; i < from + 6; i++) {
+            char ch = v.charAt(i);
+            if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))) return false;
+        }
+        return true;
+    }
+
+    /** Same conversion for pasted text. */
+    private static String convertPastedCodes(String text) {
+        return text.replaceAll("&#([0-9A-Fa-f]{6})", "{#$1}").replaceAll("&([0-9a-fk-or])", "§$1");
+    }
+
     @Override
     public boolean charTyped(char ch, int mods) {
         if (isFocused() && SharedConstants.isAllowedChatCharacter(ch)) {
             textField.insertText(Character.toString(ch));
+            convertTypedCodes();
             fireChanged();
             return true;
         }

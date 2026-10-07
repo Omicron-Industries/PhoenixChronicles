@@ -2,6 +2,7 @@ package net.phoenixvine.chronicles.client.render;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
+import net.phoenixvine.chronicles.client.util.AnimatedTexture;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -134,7 +135,7 @@ public final class NodeShapeRenderer {
         g.flush();
         RenderSystem.setShaderColor(r / 255f, gg / 255f, b / 255f, a / 255f);
         try {
-            g.blit(tex, x, y, 0, 0, w, h, w, h);
+            AnimatedTexture.blit(g, tex, x, y, w, h);
         } finally {
 
             g.flush();
@@ -144,6 +145,14 @@ public final class NodeShapeRenderer {
 
     private static double guiScale() {
         return 4.0;
+    }
+
+    /**
+     * A star's points only reach the node's bounding box at a few tips, so at the same box size it
+     * reads as much smaller than the other shapes; scaling its box up makes it look comparable.
+     */
+    public static float visualSizeScale(String shapeType) {
+        return "STAR".equalsIgnoreCase(shapeType) ? 1.2f : 1.0f;
     }
 
     public static float iconInsetScale(String shapeType) {

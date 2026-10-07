@@ -219,7 +219,9 @@ public final class PhoenixTaskRegistry {
         if (entry == null) return null;
         try {
 
-            return (QuestTask) entry.deserializer().apply(tag);
+            QuestTask task = (QuestTask) entry.deserializer().apply(tag);
+            if (task != null && tag.contains("hide")) task.setHiddenParts(tag.getInt("hide"));
+            return task;
         } catch (Exception e) {
             PhoenixChronicles.LOGGER.error("Failed to deserialize task type '{}' (task_id={})", typeId,
                     tag.contains("task_id") ? tag.getString("task_id") : "?", e);
@@ -271,6 +273,21 @@ public final class PhoenixTaskRegistry {
                 .field(FieldDef.integer("count", "Count"))
                 .register();
 
+        register("recipe", tag -> {
+            RecipeTask t = new RecipeTask(taskId(tag), desc(tag),
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "smelting"), null, 1);
+            t.deserializeNBT(tag);
+            return t;
+        }).icon("§b⚙").label("Recipe")
+                .tooltip("Run a recipe a number of times - any recipe of a type (every macerator recipe), or one " +
+                        "specific recipe.\nTarget: recipe type id (e.g. gtceu:macerator).\n" +
+                        "Secondary: a specific recipe id (optional).\nCount: how many runs. Counted for the machine's " +
+                        "owner, or the nearest player.")
+                .field(FieldDef.text("recipe_type", "Recipe type", "e.g. gtceu:macerator"))
+                .field(FieldDef.text("recipe_id", "Recipe id (optional)"))
+                .field(FieldDef.integer("required", "Count"))
+                .register();
+
         register("experience", tag -> {
             ExperienceTask t = new ExperienceTask(taskId(tag), desc(tag), 1);
             t.deserializeNBT(tag);
@@ -308,9 +325,11 @@ public final class PhoenixTaskRegistry {
             t.deserializeNBT(tag);
             return t;
         }).icon("§7□").label("Block Interact")
-                .tooltip("Place or right-click a specific block.\nTarget: block id. Secondary: PLACE or RIGHT_CLICK.")
+                .tooltip(
+                        "Place or right-click a specific block, optionally several times.\nTarget: block id. Secondary: PLACE or RIGHT_CLICK. Count: how many times.")
                 .field(FieldDef.text("block_id", "Block ID"))
                 .field(FieldDef.text("mode", "Mode", "PLACE or RIGHT_CLICK"))
+                .field(FieldDef.integer("required", "Count"))
                 .field(FieldDef.bool("consume", "Consume"))
                 .register();
 

@@ -3,41 +3,67 @@ package net.phoenixvine.chronicles.client.screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.common.model.EmergencyKit;
 import net.phoenixvine.chronicles.common.model.QuestNode;
+import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems;
+import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+/**
+ * Edits an emergency kit - the rewards a player can claim while a quest is stuck - and how often they can claim
+ * them. The rewards themselves are edited in the full reward editor, so every reward type except Choice Box works.
+ */
 public class EmergencyItemsScreen extends Screen {
 
-    private static final int PANEL_W = 280;
+    private static final int PANEL_W = 300;
     private static final int HEADER_H = 20;
     private static final int TAB_H = 22;
     private static final int INFO_H = 14;
-    private static final int ROW_H = 20;
-    private static final int VISIBLE_ROWS = 8;
+    private static final int ROW_H = 18;
+    private static final int VISIBLE_ROWS = 5;
+    private static final int TIMER_H = 62;
     private static final int FOOTER_H = 26;
 
+    private static final Pattern DURATION = Pattern.compile(
+            "^(?:(\\d+)\\s*d)?\\s*(?:(\\d+)\\s*h)?\\s*(?:(\\d+)\\s*m)?\\s*(?:(\\d+)\\s*s?)?$",
+            Pattern.CASE_INSENSITIVE);
+
     private final Screen parent;
+    @Nullable
     private final QuestNode node;
     private final Supplier<String> chapterSupplier;
 
-    private boolean chapterScope = false;
-    private List<ItemStack> chapterItems = new ArrayList<>();
+    /** Quest kits need that quest active; chapter and questbook kits can be claimed whatever is unlocked. */
+    private enum Scope {
+        QUEST,
+        CHAPTER,
+        QUESTBOOK
+    }
+
+    private Scope scope = Scope.QUEST;
+    private EmergencyKit storedKit = new EmergencyKit();
+    private boolean storedKitLoaded = false;
 
     private int scroll = 0;
     private int panelX, panelY, panelH;
+    private EditBox cooldownBox;
 
     public EmergencyItemsScreen(Screen parent, QuestNode node, Supplier<String> chapterSupplier) {
         super(Component.literal("Emergency Items"));
@@ -46,8 +72,14 @@ public class EmergencyItemsScreen extends Screen {
         this.chapterSupplier = chapterSupplier;
     }
 
+    /** Opens straight on a chapter's default kit, for the chapter editor where there is no quest. */
+    public EmergencyItemsScreen(Screen parent, String chapter) {
+        this(parent, null, () -> chapter);
+        this.scope = Scope.CHAPTER;
+    }
+
     private String chapter() {
-        String c = chapterSupplier != null ? chapterSupplier.get() : node.getChapter();
+        String c = chapterSupplier != null ? chapterSupplier.get() : node != null ? node.getChapter() : "";
         return c == null ? "" : c.trim();
     }
 
@@ -55,31 +87,43 @@ public class EmergencyItemsScreen extends Screen {
         return Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
     }
 
-    private List<ItemStack> items() {
-        return chapterScope ? new ArrayList<>(chapterItems) : new ArrayList<>(node.getEmergencyItems());
-    }
-
-    private void replaceAll(List<ItemStack> stacks) {
-        if (chapterScope) {
-            chapterItems = new ArrayList<>();
-            for (ItemStack s : stacks) chapterItems.add(s.copy());
-            ChapterEmergencyItems.save(configDir(), chapter(), chapterItems);
-        } else {
-            node.clearEmergencyItems();
-            for (ItemStack s : stacks) node.addEmergencyItem(s);
+    private EmergencyKit kit() {
+        if (scope == Scope.QUEST) return node != null ? node.getEmergencyKit() : new EmergencyKit();
+        if (!storedKitLoaded) {
+            storedKit = scope == Scope.CHAPTER ? ChapterEmergencyItems.get(chapter()) :
+                    ChapterEmergencyItems.getQuestbook();
+            storedKitLoaded = true;
         }
+        return storedKit;
     }
 
-    private void addItem(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return;
-        List<ItemStack> l = items();
-        l.add(stack.copy());
-        replaceAll(l);
+    /** Quest kits are edited on the live quest and saved with it; a chapter's default has its own file. */
+    private void persist() {
+        if (scope == Scope.CHAPTER) ChapterEmergencyItems.save(configDir(), chapter(), kit());
+        else if (scope == Scope.QUESTBOOK) ChapterEmergencyItems.saveQuestbook(configDir(), kit());
+        resyncEmergencyState();
     }
 
-    private void setScope(boolean chapterScope) {
-        this.chapterScope = chapterScope;
-        if (chapterScope) chapterItems = new ArrayList<>(ChapterEmergencyItems.get(chapter()));
+    /**
+     * Which quests have emergency items reaches the client only with a progress sync, and nothing else sends one
+     * after a kit is edited - so the header pill and the quest popup button wouldn't show up until the next claim
+     * or relog. Ask the integrated server for a fresh sync.
+     */
+    private static void resyncEmergencyState() {
+        Minecraft mc = Minecraft.getInstance();
+        net.minecraft.server.MinecraftServer server = mc.getSingleplayerServer();
+        if (server == null || mc.player == null) return;
+        java.util.UUID playerId = mc.player.getUUID();
+        server.execute(() -> {
+            net.minecraft.server.level.ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+            if (player != null) QuestProgressTracker.sendProgressSync(player);
+        });
+    }
+
+    private void setScope(Scope next) {
+        persist();
+        this.scope = next;
+        storedKitLoaded = false;
         scroll = 0;
         init();
     }
@@ -87,32 +131,47 @@ public class EmergencyItemsScreen extends Screen {
     @Override
     protected void init() {
         clearWidgets();
-        panelH = HEADER_H + TAB_H + INFO_H + VISIBLE_ROWS * ROW_H + FOOTER_H;
+        panelH = HEADER_H + TAB_H + INFO_H + VISIBLE_ROWS * ROW_H + 22 + TIMER_H + FOOTER_H;
         panelX = width / 2 - PANEL_W / 2;
         panelY = height / 2 - panelH / 2;
 
-        if (chapterScope) chapterItems = new ArrayList<>(ChapterEmergencyItems.get(chapter()));
-
         boolean hasChapter = !chapter().isEmpty();
         int tabY = panelY + HEADER_H + 3;
-        int tabW = (PANEL_W - 18) / 2;
+        int tabW = (PANEL_W - 24) / 3;
         Button questTab = Button.builder(
-                Component.literal(chapterScope ? "§7This Quest" : "§f▸ This Quest"), b -> setScope(false))
-                .bounds(panelX + 6, tabY, tabW, 16).build();
-        questTab.active = chapterScope;
+                Component.literal(scope == Scope.QUEST ? "§f▸ This Quest" : "§7This Quest"),
+                b -> setScope(Scope.QUEST))
+                .bounds(panelX + 6, tabY, tabW, 16)
+                .tooltip(Tooltip.create(Component.literal(
+                        "Claimable while this quest is active.")))
+                .build();
+        questTab.active = scope != Scope.QUEST && node != null;
         addRenderableWidget(questTab);
 
         Button chapterTab = Button.builder(
-                Component.literal(chapterScope ? "§f▸ Chapter Default" : "§7Chapter Default"), b -> setScope(true))
+                Component.literal(scope == Scope.CHAPTER ? "§f▸ Chapter" : "§7Chapter"),
+                b -> setScope(Scope.CHAPTER))
                 .bounds(panelX + 12 + tabW, tabY, tabW, 16)
                 .tooltip(Tooltip.create(Component.literal(hasChapter ?
-                        "Fallback items for every quest in " + chapter() + " that has no list of its own." :
+                        "Claimable from the emergency screen any time, even if every quest in " + chapter() +
+                                " is locked." :
                         "Pick a chapter for this quest first.")))
                 .build();
-        chapterTab.active = hasChapter && !chapterScope;
+        chapterTab.active = hasChapter && scope != Scope.CHAPTER;
         addRenderableWidget(chapterTab);
 
-        List<ItemStack> list = items();
+        Button questbookTab = Button.builder(
+                Component.literal(scope == Scope.QUESTBOOK ? "§f▸ Questbook" : "§7Questbook"),
+                b -> setScope(Scope.QUESTBOOK))
+                .bounds(panelX + 18 + tabW * 2, tabY, tabW, 16)
+                .tooltip(Tooltip.create(Component.literal(
+                        "Claimable from the emergency screen any time, whatever chapter the player is in.")))
+                .build();
+        questbookTab.active = scope != Scope.QUESTBOOK;
+        addRenderableWidget(questbookTab);
+
+        EmergencyKit kit = kit();
+        List<QuestReward> list = kit.getRewards();
         int maxScroll = Math.max(0, list.size() - VISIBLE_ROWS);
         scroll = Math.max(0, Math.min(scroll, maxScroll));
 
@@ -120,59 +179,126 @@ public class EmergencyItemsScreen extends Screen {
         for (int row = 0; row < VISIBLE_ROWS; row++) {
             int idx = scroll + row;
             if (idx >= list.size()) break;
-            int y = listTop + row * ROW_H + 2;
-            int right = panelX + PANEL_W - 6;
+            int y = listTop + row * ROW_H + 1;
             final int index = idx;
-
             addRenderableWidget(Button.builder(Component.literal("§c×"), b -> {
-                List<ItemStack> l = items();
-                if (index < l.size()) l.remove(index);
-                replaceAll(l);
+                List<QuestReward> next = new ArrayList<>(kit().getRewards());
+                if (index < next.size()) next.remove(index);
+                kit().setRewards(next);
+                persist();
                 init();
-            }).bounds(right - 14, y, 14, 16)
+            }).bounds(panelX + PANEL_W - 20, y, 14, 16)
                     .tooltip(Tooltip.create(Component.literal("Remove")))
                     .build());
-            addRenderableWidget(Button.builder(Component.literal("+"), b -> changeCount(index, hasShiftDown() ? 10 : 1))
-                    .bounds(right - 32, y, 16, 16)
-                    .tooltip(Tooltip.create(Component.literal("Add 1 (Shift: 10)")))
-                    .build());
-            addRenderableWidget(
-                    Button.builder(Component.literal("−"), b -> changeCount(index, hasShiftDown() ? -10 : -1))
-                            .bounds(right - 50, y, 16, 16)
-                            .tooltip(Tooltip.create(Component.literal("Remove 1 (Shift: 10)")))
-                            .build());
         }
 
-        int footY = panelY + panelH - FOOTER_H + 5;
-        addRenderableWidget(Button.builder(Component.literal("§a+ Add Items…"), b -> {
-            if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, this::addItem));
-        }).bounds(panelX + 6, footY, 90, 16)
+        int editY = listTop + VISIBLE_ROWS * ROW_H + 3;
+        addRenderableWidget(Button.builder(Component.literal("§a✎ Edit Rewards…"), b -> {
+            if (minecraft == null) return;
+            String label = switch (scope) {
+                case CHAPTER -> chapter() + " (chapter)";
+                case QUESTBOOK -> "entire questbook";
+                case QUEST -> node != null ? node.getId().getPath() : "";
+            };
+            minecraft.setScreen(new TaskRewardEditorScreen(this, scope == Scope.QUEST ? node : null,
+                    new ArrayList<>(kit().getRewards()), updated -> {
+                        kit().setRewards(updated);
+                        persist();
+                    }, label));
+        }).bounds(panelX + 6, editY, PANEL_W - 12, 16)
                 .tooltip(Tooltip.create(Component.literal(
-                        "Right-click items in the picker to select several, then press Select.")))
+                        "Add items, fluids, XP, commands, loot tables and more.\n" +
+                                "Choice boxes aren't available here.")))
                 .build());
-        addRenderableWidget(Button.builder(Component.literal("§cClear All"), b -> {
-            replaceAll(new ArrayList<>());
+
+        int timerY = editY + 22;
+        addRenderableWidget(Button.builder(Component.literal(modeLabel(kit.getRepeat())), b -> {
+            EmergencyKit.Repeat next = switch (kit().getRepeat()) {
+                case INHERIT -> EmergencyKit.Repeat.ONCE;
+                case ONCE -> EmergencyKit.Repeat.REPEATABLE;
+                case REPEATABLE -> EmergencyKit.Repeat.INHERIT;
+            };
+            kit().setRepeat(next);
+            init();
+        }).bounds(panelX + 6, timerY + 12, PANEL_W - 12, 16)
+                .tooltip(Tooltip.create(Component.literal(
+                        "Inherit: use the engine default from engine_settings.snbt.\n" +
+                                "One use: each player can claim it once.\n" +
+                                "Repeatable: claimable again after the cooldown below.")))
+                .build());
+
+        cooldownBox = new EditBox(font, panelX + 6, timerY + 32, 110, 16, Component.empty());
+        cooldownBox.setMaxLength(24);
+        cooldownBox.setHint(Component.literal("§8inherit"));
+        cooldownBox.setValue(kit.getCooldownSeconds() >= 0 ?
+                QuestProgressTracker.formatDuration(kit.getCooldownSeconds() * 1000L) : "");
+        cooldownBox.setResponder(text -> {
+            int parsed = parseSeconds(text);
+            if (parsed == -2) return;
+            kit().setCooldownSeconds(parsed);
+        });
+        cooldownBox.setTooltip(Tooltip.create(Component.literal(
+                "Time between claims for repeatable kits, e.g. 90, 5m, 1h 30m or 2d.\n" +
+                        "Leave empty to inherit. 0 means no wait.")));
+        addRenderableWidget(cooldownBox);
+
+        int footY = panelY + panelH - FOOTER_H + 5;
+        addRenderableWidget(Button.builder(Component.literal("§cClear Rewards"), b -> {
+            kit().setRewards(List.of());
+            persist();
             scroll = 0;
             init();
-        }).bounds(panelX + 100, footY, 70, 16).build());
+        }).bounds(panelX + 6, footY, 90, 16).build());
         addRenderableWidget(Button.builder(Component.literal("§fDone"), b -> onClose())
                 .bounds(panelX + PANEL_W - 66, footY, 60, 16).build());
     }
 
-    private void changeCount(int index, int delta) {
-        List<ItemStack> l = items();
-        if (index < 0 || index >= l.size()) return;
-        ItemStack s = l.get(index).copy();
-        int max = Math.max(1, s.getMaxStackSize());
-        s.setCount(Math.max(1, Math.min(max, s.getCount() + delta)));
-        l.set(index, s);
-        replaceAll(l);
-        init();
+    private static String modeLabel(EmergencyKit.Repeat repeat) {
+        return "§8Claims: §7" + switch (repeat) {
+            case INHERIT -> "Inherit";
+            case ONCE -> "One use";
+            case REPEATABLE -> "Repeatable";
+        } + " §8▾";
+    }
+
+    /** -1 for blank (inherit), -2 for text that isn't a duration yet, otherwise seconds. */
+    static int parseSeconds(String text) {
+        String trimmed = text == null ? "" : text.trim();
+        if (trimmed.isEmpty()) return -1;
+        Matcher m = DURATION.matcher(trimmed);
+        if (!m.matches()) return -2;
+        long total = 0;
+        boolean any = false;
+        long[] unit = { 86400, 3600, 60, 1 };
+        for (int g = 1; g <= 4; g++) {
+            if (m.group(g) == null) continue;
+            any = true;
+            total += Long.parseLong(m.group(g)) * unit[g - 1];
+        }
+        if (!any) return -2;
+        return (int) Math.min(Integer.MAX_VALUE, total);
+    }
+
+    /** What the claim rules come to for the kit being edited, after inheritance. */
+    private String effectiveSummary() {
+        EmergencyKit kit = kit();
+        boolean repeatable;
+        int cooldown;
+        if (scope != Scope.QUEST || node == null) {
+            repeatable = kit.resolveRepeatable(EmergencyKit.Repeat.INHERIT);
+            cooldown = kit.resolveCooldownSeconds(-1);
+        } else {
+            repeatable = node.isEmergencyRepeatable();
+            cooldown = node.getEmergencyCooldownSeconds();
+        }
+        if (!repeatable) return "One use per player.";
+        return cooldown > 0 ? "Repeatable, " + QuestProgressTracker.formatDuration(cooldown * 1000L) + " cooldown." :
+                "Repeatable, no cooldown.";
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int total = items().size();
+        int total = kit().getRewards().size();
         if (total > VISIBLE_ROWS) {
             scroll = Math.max(0, Math.min(total - VISIBLE_ROWS, scroll - (int) Math.signum(delta)));
             init();
@@ -183,6 +309,7 @@ public class EmergencyItemsScreen extends Screen {
 
     @Override
     public void onClose() {
+        persist();
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
@@ -191,46 +318,53 @@ public class EmergencyItemsScreen extends Screen {
         ChroniclesUIKit.drawModalChrome(g, font, width, height, panelX, panelY, PANEL_W, panelH, HEADER_H,
                 "Emergency Items");
 
-        List<ItemStack> list = items();
-        String info;
-        if (chapterScope) {
-            info = "§7Default for " + chapter() + " quests with no list of their own.";
-        } else if (list.isEmpty()) {
-            int fallback = ChapterEmergencyItems.get(chapter()).size();
-            info = fallback > 0 ?
-                    "§8None set: using the chapter default (" + fallback + " item(s))." :
-                    "§8No fallback items. Players can't recover lost items.";
-        } else {
-            info = "§7Claimable once per player while this quest is active.";
-        }
-        g.drawString(font, info, panelX + 6, panelY + HEADER_H + TAB_H + 3, ChroniclesThemePalette.TEXT_DIM, false);
+        EmergencyKit kit = kit();
+        List<QuestReward> list = kit.getRewards();
+        String info = switch (scope) {
+            case CHAPTER -> "§7Claimable any time for " + chapter() + ", even if its quests are locked.";
+            case QUESTBOOK -> "§7Claimable any time, whatever the player has unlocked.";
+            case QUEST -> list.isEmpty() ? "§8No fallback rewards for this quest." :
+                    "§7Claimable while this quest is active.";
+        };
+        g.drawString(font, ChroniclesUIKit.fitText(font, info, PANEL_W - 12), panelX + 6,
+                panelY + HEADER_H + TAB_H + 3, ChroniclesThemePalette.TEXT_DIM, false);
 
         int listTop = panelY + HEADER_H + TAB_H + INFO_H;
-        ItemStack hovered = null;
+        List<Component> hoveredTip = List.of();
         for (int row = 0; row < VISIBLE_ROWS; row++) {
             int idx = scroll + row;
             if (idx >= list.size()) break;
-            ItemStack s = list.get(idx);
+            QuestReward reward = list.get(idx);
             int y = listTop + row * ROW_H;
-            g.renderItem(s, panelX + 6, y + 2);
-            String label = ChroniclesUIKit.fitText(font, s.getHoverName().getString(), PANEL_W - 110);
-            g.drawString(font, "§f" + label, panelX + 28, y + 6, ChroniclesThemePalette.TEXT, false);
-            String count = "×" + s.getCount();
-            g.drawString(font, "§7" + count, panelX + PANEL_W - 56 - 4 - font.width(count), y + 6,
-                    ChroniclesThemePalette.TEXT_DIM, false);
-            if (mouseX >= panelX + 6 && mouseX < panelX + PANEL_W - 60 && mouseY >= y && mouseY < y + ROW_H) {
-                hovered = s;
+            int textX = panelX + 8;
+            if (reward instanceof QuestReward.ItemReward itemReward) {
+                ItemStack stack = new ItemStack(itemReward.getItem(), itemReward.getCount());
+                g.renderItem(stack, panelX + 6, y + 1);
+                textX = panelX + 26;
+                if (mouseX >= panelX + 6 && mouseX < panelX + PANEL_W - 24 && mouseY >= y && mouseY < y + ROW_H) {
+                    hoveredTip = Screen.getTooltipFromItem(minecraft, stack);
+                }
             }
+            String label = reward.getSummary().getString();
+            g.drawString(font, "§f" + ChroniclesUIKit.fitText(font, label, panelX + PANEL_W - 28 - textX), textX,
+                    y + 5, ChroniclesThemePalette.TEXT, false);
         }
         if (list.size() > VISIBLE_ROWS) {
             String more = (scroll + 1) + "-" + Math.min(list.size(), scroll + VISIBLE_ROWS) + " of " +
                     list.size() + "  (scroll)";
             g.drawString(font, "§8" + more, panelX + PANEL_W - 6 - font.width(more),
-                    panelY + panelH - FOOTER_H - 9, ChroniclesThemePalette.TEXT_DIM, false);
+                    listTop + VISIBLE_ROWS * ROW_H - 8, ChroniclesThemePalette.TEXT_DIM, false);
         }
 
+        int timerY = listTop + VISIBLE_ROWS * ROW_H + 3 + 22;
+        g.fill(panelX + 6, timerY - 3, panelX + PANEL_W - 6, timerY - 2, ChroniclesThemePalette.BORDER);
+        g.drawString(font, "§8Timer", panelX + 6, timerY + 2, ChroniclesThemePalette.TEXT_FAINT, false);
+        g.drawString(font, "§8Cooldown", panelX + 122, timerY + 36, ChroniclesThemePalette.TEXT_FAINT, false);
+        g.drawString(font, ChroniclesUIKit.fitText(font, "§7Now: §f" + effectiveSummary(), PANEL_W - 12),
+                panelX + 6, timerY + 52, ChroniclesThemePalette.TEXT, false);
+
         super.render(g, mouseX, mouseY, partialTick);
-        if (hovered != null) g.renderTooltip(font, hovered, mouseX, mouseY);
+        if (!hoveredTip.isEmpty()) g.renderComponentTooltip(font, hoveredTip, mouseX, mouseY);
     }
 
     @Override

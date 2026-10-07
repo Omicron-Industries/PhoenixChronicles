@@ -237,6 +237,12 @@ public class SettingsScreen extends Screen {
             case POPUPS -> {
                 rows.add(Row.toggle("§fShow Pop-Ups (Toasts)", settings::isShowToasts, settings::setShowToasts)
                         .tip("Master switch - turn off to silence every quest pop-up/toast,\nregardless of the settings below."));
+                rows.add(Row.toggle("§fQuest Unlocked Pop-Ups", settings::isShowUnlockToasts,
+                        settings::setShowUnlockToasts)
+                        .tip("Show a pop-up when a quest unlocks. Off silences just those."));
+                rows.add(Row.toggle("§fQuest Complete Pop-Ups", settings::isShowCompleteToasts,
+                        settings::setShowCompleteToasts)
+                        .tip("Show a pop-up when a quest is completed. Off silences just those."));
                 rows.add(Row.cycle("§fPop-Up Style", ToastStyle.class, settings::getToastStyle,
                         settings::setToastStyle).tip("Overall visual style of the quest completion/unlock pop-up."));
                 rows.add(Row.cycle("§fPop-Up Position", HUDPosition.class, settings::getToastPosition,
@@ -246,6 +252,9 @@ public class SettingsScreen extends Screen {
                 rows.add(Row.info("§8Individual pop-ups: right-click a quest → Design Pop-Up", 1));
             }
             case CANVAS -> {
+                rows.add(Row.toggle("§fChapter Complete Stamp", settings::isShowChapterStamp,
+                        settings::setShowChapterStamp)
+                        .tip("Shows a \"CHAPTER COMPLETE\" stamp in the corner of the canvas once every required\nquest in the open chapter is done."));
                 rows.add(Row.toggle("§fHide Completed by Default", settings::isHideCompletedByDefault,
                         settings::setHideCompletedByDefault)
                         .tip("Newly opened quest books start with completed quests\nhidden from the canvas."));

@@ -10,6 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
+import net.phoenixvine.chronicles.client.util.HiddenParts;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
@@ -143,7 +144,7 @@ public class ItemLookupResultsScreen extends Screen {
         if (icon != null && icon != Items.AIR) return icon;
         for (QuestTask task : node.getTasks()) {
             ResourceLocation id = task.getDisplayItemId();
-            if (id == null) continue;
+            if (id == null || HiddenParts.taskTargetHidden(node, task)) continue;
             Item item = ForgeRegistries.ITEMS.getValue(id);
             if (item != null && item != Items.AIR) return item;
         }

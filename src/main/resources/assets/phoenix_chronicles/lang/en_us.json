@@ -87,6 +87,7 @@
   "phoenix_chronicles.screen.dep_line_settings.filter_quests": "§8Filter quests…",
   "phoenix_chronicles.screen.claim_rewards.title": "Unclaimed Rewards",
   "phoenix_chronicles.screen.claim_rewards.claim_all": "§a✔ Claim All",
+  "phoenix_chronicles.screen.emergency.title": "Emergency Items",
   "phoenix_chronicles.screen.reward_simulator.title": "Simulate Reward Table",
   "phoenix_chronicles.screen.reward_simulator.roll_again": "§bRoll %sx again",
   "phoenix_chronicles.ui.progress_label": "§7Progress: §f%s",

@@ -36,6 +36,7 @@ public final class QuestRewardDisplay {
         List<Entry> out = new ArrayList<>();
         if (node == null || node.getRewards() == null) return out;
         for (QuestReward reward : node.getRewards()) {
+            if (net.phoenixvine.chronicles.client.util.HiddenParts.rewardTargetHidden(node, reward)) continue;
             Entry e = entryFor(reward);
             if (e != null) out.add(e);
         }

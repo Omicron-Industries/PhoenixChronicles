@@ -160,6 +160,7 @@ public class QuestFileSaver {
         if (!node.getExternalScreenId().isEmpty()) tag.putString("external_screen", node.getExternalScreenId());
         if (!node.getUnlockSoundId().isEmpty()) tag.putString("unlock_sound", node.getUnlockSoundId());
         if (!node.getCompleteSoundId().isEmpty()) tag.putString("complete_sound", node.getCompleteSoundId());
+        if (!node.getAudio().isEmpty()) tag.put("audio", node.getAudio().toTag());
 
         if (!node.getSubtitleRaw().isEmpty()) tag.putString("subtitle", node.getSubtitleRaw());
         tag.putString("visibility", node.getVisibility().name());
@@ -222,7 +223,7 @@ public class QuestFileSaver {
         if (!node.getTasks().isEmpty()) {
             net.minecraft.nbt.ListTag taskList = new net.minecraft.nbt.ListTag();
             for (QuestTask t : node.getTasks()) {
-                CompoundTag tTag = t.serializeNBT();
+                CompoundTag tTag = t.serializeWithMeta();
                 tTag.putString("task_id", t.getTaskId().toString());
                 tTag.putString("description",
                         net.minecraft.network.chat.Component.Serializer.toJson(t.getDescriptionRaw()));
@@ -234,7 +235,7 @@ public class QuestFileSaver {
 
         if (!node.getRewards().isEmpty()) {
             net.minecraft.nbt.ListTag rewardList = new net.minecraft.nbt.ListTag();
-            for (QuestReward r : node.getRewards()) rewardList.add(r.serializeNBT());
+            for (QuestReward r : node.getRewards()) rewardList.add(r.serializeWithMeta());
             tag.put("rewards", rewardList);
         }
 
@@ -249,7 +250,7 @@ public class QuestFileSaver {
                 if (v.tasks != null) {
                     net.minecraft.nbt.ListTag taskList = new net.minecraft.nbt.ListTag();
                     for (QuestTask t : v.tasks) {
-                        CompoundTag tTag = t.serializeNBT();
+                        CompoundTag tTag = t.serializeWithMeta();
                         tTag.putString("task_id", t.getTaskId().toString());
                         tTag.putString("description",
                                 net.minecraft.network.chat.Component.Serializer.toJson(t.getDescriptionRaw()));
@@ -260,7 +261,7 @@ public class QuestFileSaver {
                 }
                 if (v.rewards != null) {
                     net.minecraft.nbt.ListTag rewardList = new net.minecraft.nbt.ListTag();
-                    for (QuestReward r : v.rewards) rewardList.add(r.serializeNBT());
+                    for (QuestReward r : v.rewards) rewardList.add(r.serializeWithMeta());
                     vTag.put("rewards", rewardList);
                 }
                 variantList.add(vTag);
@@ -268,8 +269,19 @@ public class QuestFileSaver {
             tag.put("variants", variantList);
         }
 
-        if (!node.getEmergencyItems().isEmpty()) {
-            tag.put("emergency_items", node.serializeEmergencyItems());
+        if (!node.getChapterPrereqs().isEmpty()) {
+            net.minecraft.nbt.ListTag chapterList = new net.minecraft.nbt.ListTag();
+            for (String c : node.getChapterPrereqs()) chapterList.add(net.minecraft.nbt.StringTag.valueOf(c));
+            tag.put("chapter_prereqs", chapterList);
+        }
+        if (!node.getCategoryPrereqs().isEmpty()) {
+            net.minecraft.nbt.ListTag categoryList = new net.minecraft.nbt.ListTag();
+            for (String c : node.getCategoryPrereqs()) categoryList.add(net.minecraft.nbt.StringTag.valueOf(c));
+            tag.put("category_prereqs", categoryList);
+        }
+
+        if (!node.getEmergencyKit().isDefault()) {
+            tag.put("emergency_kit", node.getEmergencyKit().serializeNBT());
         }
 
         if (!node.getTutorialSteps().isEmpty()) {

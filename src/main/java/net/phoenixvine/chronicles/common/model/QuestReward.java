@@ -16,8 +16,10 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.phoenixvine.chronicles.PhoenixChronicles;
 import net.phoenixvine.chronicles.common.event.PhoenixQuestScriptRewardEvent;
 import net.phoenixvine.chronicles.common.item.ChronicleLootCrateItem;
+import net.phoenixvine.chronicles.common.registry.PhoenixRewardRegistry;
 import net.phoenixvine.chronicles.common.registry.QuestEngineConfig;
 import net.phoenixvine.chronicles.common.registry.RewardTableRegistry;
 import net.phoenixvine.chronicles.integration.ae2.AE2Compat;
@@ -40,7 +42,8 @@ public abstract class QuestReward {
         OPEN_SCREEN,
         CHOICE_BOX,
         FLUID,
-        QUEST_ACTION
+        QUEST_ACTION,
+        EXTERNAL
     }
 
     public abstract RewardType getType();
@@ -50,6 +53,35 @@ public abstract class QuestReward {
     public abstract void grant(ServerPlayer player);
 
     public abstract CompoundTag serializeNBT();
+
+    /** Hidden-part bits: the amount / the target stay masked in the quest viewer until the quest is completed. */
+    public static final int HIDE_AMOUNT = 1;
+    public static final int HIDE_TARGET = 2;
+
+    private int hiddenParts = 0;
+
+    public int getHiddenParts() {
+        return hiddenParts;
+    }
+
+    public void setHiddenParts(int hiddenParts) {
+        this.hiddenParts = hiddenParts;
+    }
+
+    public boolean hidesAmount() {
+        return (hiddenParts & HIDE_AMOUNT) != 0;
+    }
+
+    public boolean hidesTarget() {
+        return (hiddenParts & HIDE_TARGET) != 0;
+    }
+
+    /** {@link #serializeNBT()} plus the metadata every reward shares (currently the hidden parts). */
+    public CompoundTag serializeWithMeta() {
+        CompoundTag tag = serializeNBT();
+        if (hiddenParts != 0) tag.putInt("hide", hiddenParts);
+        return tag;
+    }
 
     public record WeightedReward(QuestReward reward, int weight) {
 
@@ -113,6 +145,12 @@ public abstract class QuestReward {
     }
 
     public static QuestReward deserializeNBT(CompoundTag tag) {
+        QuestReward reward = deserializeBody(tag);
+        if (reward != null && tag.contains("hide")) reward.hiddenParts = tag.getInt("hide");
+        return reward;
+    }
+
+    private static QuestReward deserializeBody(CompoundTag tag) {
         if (tag == null || !tag.contains("type")) return null;
         String type = tag.getString("type");
         return switch (type) {
@@ -128,6 +166,7 @@ public abstract class QuestReward {
             case "choice_box" -> ChoiceBoxReward.fromNBT(tag);
             case "fluid" -> FluidReward.fromNBT(tag);
             case "quest_action" -> QuestActionReward.fromNBT(tag);
+            case "external" -> ExternalReward.fromNBT(tag);
             default -> null;
         };
     }
@@ -507,6 +546,7 @@ public abstract class QuestReward {
                                     target, QuestState.UNLOCKED);
                         }
                     });
+            net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.relockUnsatisfied(player);
             net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.sendProgressSync(player);
         }
 
@@ -635,6 +675,71 @@ public abstract class QuestReward {
             if (id.isBlank()) return null;
             CompoundTag data = tag.contains("data") ? tag.getCompound("data") : new CompoundTag();
             return new ScriptEventReward(id, data);
+        }
+    }
+
+    /** A reward whose behavior is registered by another mod or script in {@link PhoenixRewardRegistry}. */
+    public static class ExternalReward extends QuestReward {
+
+        private final String typeId;
+        private final CompoundTag data;
+
+        public ExternalReward(String typeId, CompoundTag data) {
+            this.typeId = typeId != null ? typeId : "";
+            this.data = data != null ? data.copy() : new CompoundTag();
+        }
+
+        public String getTypeId() {
+            return typeId;
+        }
+
+        public CompoundTag getData() {
+            return data;
+        }
+
+        @Override
+        public RewardType getType() {
+            return RewardType.EXTERNAL;
+        }
+
+        @Override
+        public Component getSummary() {
+            PhoenixRewardRegistry.Entry entry = PhoenixRewardRegistry.get(typeId);
+            if (entry == null) return Component.literal("External: " + typeId);
+            if (entry.summary() != null) {
+                try {
+                    return Component.literal(entry.summary().apply(data.copy()));
+                } catch (Exception ignored) {}
+            }
+            return Component.literal(entry.displayName());
+        }
+
+        @Override
+        public void grant(ServerPlayer player) {
+            if (player == null || typeId.isBlank()) return;
+            PhoenixRewardRegistry.Entry entry = PhoenixRewardRegistry.get(typeId);
+            if (entry == null || !entry.isAvailable()) {
+                PhoenixChronicles.LOGGER.warn("[ExternalReward] No handler registered for '{}'; reward skipped",
+                        typeId);
+                return;
+            }
+            entry.grant().accept(player, data.copy());
+        }
+
+        @Override
+        public CompoundTag serializeNBT() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString("type", "external");
+            tag.putString("external_type", typeId);
+            if (!data.isEmpty()) tag.put("data", data.copy());
+            return tag;
+        }
+
+        public static ExternalReward fromNBT(CompoundTag tag) {
+            String id = tag.getString("external_type");
+            if (id.isBlank()) return null;
+            CompoundTag data = tag.contains("data") ? tag.getCompound("data") : new CompoundTag();
+            return new ExternalReward(id, data);
         }
     }
 

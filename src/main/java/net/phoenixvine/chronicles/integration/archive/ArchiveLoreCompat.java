@@ -21,6 +21,23 @@ public final class ArchiveLoreCompat {
         if (isAvailable()) ArchiveLoreCompatImpl.openLoreFor(returnTo, questId);
     }
 
+    /** Registers the "unlock Archive entry" reward when the Archive mod is present. */
+    public static void registerRewards() {
+        if (!isAvailable()) return;
+        net.phoenixvine.chronicles.common.registry.PhoenixRewardRegistry.register("archive_unlock")
+                .label("Unlock Archive entry")
+                .tooltip("Unlocks a Phoenix Archive lore entry for the player.")
+                .requiresMod(ARCHIVE_MOD_ID)
+                .field(net.phoenixvine.chronicles.common.registry.PhoenixTaskRegistry.FieldDef.text("entry_id",
+                        "Entry id", "e.g. phoenix_archive:my_entry"))
+                .summary(data -> "Unlock Archive entry: " + data.getString("entry_id"))
+                .onGrant((player, data) -> {
+                    String id = data.getString("entry_id").trim();
+                    if (!id.isEmpty()) ArchiveLoreCompatImpl.unlockEntry(player, id);
+                })
+                .register();
+    }
+
     public static boolean hasEntry(String entryId) {
         return isAvailable() && ArchiveLoreCompatImpl.hasEntry(entryId);
     }

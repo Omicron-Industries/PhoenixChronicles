@@ -122,6 +122,12 @@ public class QuestChroniclesSettings {
 
     private Boolean showToasts;
 
+    private Boolean showChapterStamp;
+
+    private Boolean showUnlockToasts;
+
+    private Boolean showCompleteToasts;
+
     private Boolean reduceMotion;
 
     private Boolean returnToQuestbookFromRecipeViewer;
@@ -180,6 +186,9 @@ public class QuestChroniclesSettings {
         Boolean hideCompletedByDefault;
         Integer defaultGridSnap;
         Boolean showToasts;
+        Boolean showChapterStamp;
+        Boolean showUnlockToasts;
+        Boolean showCompleteToasts;
         Boolean reduceMotion;
         Boolean returnToQuestbookFromRecipeViewer;
         Boolean showProgressArc;
@@ -572,8 +581,32 @@ public class QuestChroniclesSettings {
         return resolve(showToasts, packDefaults().showToasts, true);
     }
 
+    public boolean isShowChapterStamp() {
+        return resolve(showChapterStamp, packDefaults().showChapterStamp, true);
+    }
+
+    public void setShowChapterStamp(boolean show) {
+        this.showChapterStamp = show;
+    }
+
     public void setShowToasts(boolean show) {
         this.showToasts = show;
+    }
+
+    public boolean isShowUnlockToasts() {
+        return resolve(showUnlockToasts, packDefaults().showUnlockToasts, true);
+    }
+
+    public void setShowUnlockToasts(boolean show) {
+        this.showUnlockToasts = show;
+    }
+
+    public boolean isShowCompleteToasts() {
+        return resolve(showCompleteToasts, packDefaults().showCompleteToasts, true);
+    }
+
+    public void setShowCompleteToasts(boolean show) {
+        this.showCompleteToasts = show;
     }
 
     public boolean isReduceMotion() {

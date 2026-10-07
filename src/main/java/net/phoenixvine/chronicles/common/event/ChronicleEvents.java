@@ -86,6 +86,7 @@ public class ChronicleEvents {
         } catch (java.io.IOException ignored) {}
 
         PhoenixTaskRegistry.registerBuiltins();
+        net.phoenixvine.chronicles.integration.archive.ArchiveLoreCompat.registerRewards();
         KubeJsTaskTypeLoader.load(configDir);
         PhoenixQuestFlags.invalidateCaches();
         ChronicleDataMigration.migrate(configDir);
@@ -825,6 +826,8 @@ public class ChronicleEvents {
                         QuestProgressTracker.changeQuestState(fsp, node,
                                 QuestState.UNLOCKED);
                     }
+
+                    QuestProgressTracker.relockUnsatisfied(fsp);
 
                     ChronicleNetwork.CHANNEL.send(
                             net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> fsp),

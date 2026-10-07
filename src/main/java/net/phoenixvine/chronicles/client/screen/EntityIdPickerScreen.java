@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
@@ -44,6 +45,7 @@ public class EntityIdPickerScreen extends Screen {
 
     private final Map<ResourceLocation, Optional<LivingEntity>> previewCache = new HashMap<>();
 
+    private boolean mobsFiltered = false;
     private int scrollOffset = 0;
     private ResourceLocation hoveredId = null;
 
@@ -69,6 +71,8 @@ public class EntityIdPickerScreen extends Screen {
         panelTop = (height - PANEL_H) / 2;
 
         int searchY = panelTop + HEADER_H + 2;
+        keepMobsOnly();
+
         searchBox = new EditBox(font, panelLeft + 4, searchY, PANEL_W - 8, SEARCH_H, Component.empty());
         searchBox.setMaxLength(64);
         searchBox.setHint(Component.translatable("phoenix_chronicles.ui.search_hint"));
@@ -81,6 +85,16 @@ public class EntityIdPickerScreen extends Screen {
         addRenderableWidget(searchBox);
 
         rebuildList();
+    }
+
+    /**
+     * The registry holds every entity - items, projectiles, boats, paintings, the player. Only things that can
+     * actually be killed or fought are useful here, so keep the ones that spawn as a living entity.
+     */
+    private void keepMobsOnly() {
+        if (mobsFiltered || minecraft == null || minecraft.level == null) return;
+        mobsFiltered = true;
+        allIds.removeIf(id -> previewFor(id).map(e -> e instanceof ArmorStand).orElse(true));
     }
 
     private void rebuildList() {
@@ -96,13 +110,32 @@ public class EntityIdPickerScreen extends Screen {
             if (minecraft == null || minecraft.level == null) return Optional.empty();
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(i);
             if (type == null) return Optional.empty();
+            // The player type can't be created from the registry; the local player stands in for its preview.
+            if (type == EntityType.PLAYER) return Optional.ofNullable(minecraft.player);
             try {
-                return Optional.ofNullable(type.create(minecraft.level)).filter(LivingEntity.class::isInstance)
-                        .map(LivingEntity.class::cast);
+                Optional<LivingEntity> living = Optional.ofNullable(type.create(minecraft.level))
+                        .filter(LivingEntity.class::isInstance).map(LivingEntity.class::cast);
+                living.ifPresent(EntityIdPickerScreen::faceViewer);
+                return living;
             } catch (Exception e) {
                 return Optional.empty();
             }
         });
+    }
+
+    /**
+     * Entities default to yaw 0, which faces away from the screen here; inventory previews turn them half way round.
+     */
+    private static void faceViewer(LivingEntity entity) {
+        float yaw = 180f + 25f;
+        entity.setYRot(yaw);
+        entity.yRotO = yaw;
+        entity.setXRot(0f);
+        entity.xRotO = 0f;
+        entity.yBodyRot = yaw;
+        entity.yBodyRotO = yaw;
+        entity.yHeadRot = yaw;
+        entity.yHeadRotO = yaw;
     }
 
     @Override
@@ -171,12 +204,36 @@ public class EntityIdPickerScreen extends Screen {
     }
 
     private void renderIcon(GuiGraphics g, LivingEntity entity, int x, int bottomY) {
-        float scale = Math.min(16f, 16f / Math.max(1f, entity.getBbHeight()));
+        // renderEntityInInventory's scale is pixels per block, so the mob is drawn bbHeight * scale tall. Fit both its
+        // height and its width into the icon cell; a fixed multiplier drew most mobs several times too big, and the
+        // cell's scissor then clipped them down to an unrecognizable slice of the model.
+        float fitHeight = (ICON_W - 4) / Math.max(0.2f, entity.getBbHeight());
+        float fitWidth = (ICON_W - 2) / Math.max(0.2f, entity.getBbWidth());
+        int scale = Math.max(1, Math.round(Math.min(fitHeight, fitWidth)));
         PoseStack pose = g.pose();
         pose.pushPose();
         g.enableScissor(x - ICON_W / 2, bottomY - ICON_W, x + ICON_W / 2, bottomY);
-        InventoryScreen.renderEntityInInventory(g, x, bottomY, Math.round(scale * 8f),
-                new Quaternionf().rotateZ((float) Math.PI), null, entity);
+        // The local player is the real, moving entity, so turn it for the preview and then put it back.
+        boolean isLocalPlayer = entity == minecraft.player;
+        float yRot = entity.getYRot(), xRot = entity.getXRot();
+        float bodyRot = entity.yBodyRot, headRot = entity.yHeadRot;
+        float yRotO = entity.yRotO, xRotO = entity.xRotO, bodyRotO = entity.yBodyRotO, headRotO = entity.yHeadRotO;
+        if (isLocalPlayer) faceViewer(entity);
+        try {
+            InventoryScreen.renderEntityInInventory(g, x, bottomY, scale,
+                    new Quaternionf().rotateZ((float) Math.PI), null, entity);
+        } finally {
+            if (isLocalPlayer) {
+                entity.setYRot(yRot);
+                entity.setXRot(xRot);
+                entity.yBodyRot = bodyRot;
+                entity.yHeadRot = headRot;
+                entity.yRotO = yRotO;
+                entity.xRotO = xRotO;
+                entity.yBodyRotO = bodyRotO;
+                entity.yHeadRotO = headRotO;
+            }
+        }
         g.disableScissor();
         pose.popPose();
     }

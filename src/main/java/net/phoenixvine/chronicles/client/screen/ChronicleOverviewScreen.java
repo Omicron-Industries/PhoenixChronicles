@@ -28,6 +28,8 @@ import net.phoenixvine.chronicles.client.screen.utils.*;
 import net.phoenixvine.chronicles.client.screen.widgets.*;
 import net.phoenixvine.chronicles.client.util.BackgroundPictureConfig;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
+import net.phoenixvine.chronicles.client.util.ClientEmergencyState;
+import net.phoenixvine.chronicles.client.util.HiddenParts;
 import net.phoenixvine.chronicles.common.codec.QuestChroniclesSettings;
 import net.phoenixvine.chronicles.common.codec.QuestContentLoader;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
@@ -37,6 +39,7 @@ import net.phoenixvine.chronicles.common.registry.ChapterFlagRegistry;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.tasks.ItemRequirementTask;
 import net.phoenixvine.chronicles.common.tasks.ScreenOpenedTask;
+import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
 import net.phoenixvine.chronicles.network.ChronicleNetwork;
 import net.phoenixvine.chronicles.network.packet.C2SScreenOpenedTaskPacket;
@@ -62,7 +65,13 @@ import java.util.function.Function;
 public class ChronicleOverviewScreen extends Screen
                                      implements ScreenContext, NodeCtxMenuState, DragControllerState,
                                      GraphLayoutState, QuestEditOpsState, ChapterActionsState,
-                                     NodeRendererState, BulkOpsPanelState, NodeContextMenuBuilderState {
+                                     NodeRendererState, BulkOpsPanelState, NodeContextMenuBuilderState,
+                                     net.phoenixvine.chronicles.client.audio.ChroniclesAudio.AudioSource {
+
+    @Override
+    public net.phoenixvine.chronicles.common.model.QuestAudio desiredAudio() {
+        return net.phoenixvine.chronicles.client.util.ChapterConfig.musicFor(selectedChapter);
+    }
 
     public static final int HEADER_H = 38;
     public static final int TOOLBAR_Y = 22;
@@ -81,7 +90,7 @@ public class ChronicleOverviewScreen extends Screen
     private static final float ZOOM_MAX = 2.5f;
     private static final float ZOOM_STEP = 0.12f;
 
-    private static final float POSITION_ZOOM_EXPONENT = 0.75f;
+    private static final float POSITION_ZOOM_EXPONENT = 0.68f;
     private static final long POST_MOVE_UNDO_WINDOW_MS = 1000;
     private static final float PIC_EDIT_MIN_SIZE = 4f, PIC_EDIT_MAX_SIZE = 4096f;
     public static final int CTX_ROW = 16;
@@ -424,6 +433,7 @@ public class ChronicleOverviewScreen extends Screen
 
     private Item fallbackTaskIcon(QuestNode node) {
         for (QuestTask task : node.getTasks()) {
+            if (HiddenParts.taskTargetHidden(node, task)) continue;
             ResourceLocation id = task.getDisplayItemId();
             Item item = ForgeRegistries.ITEMS.getValue(id);
             if (item != null && item != Items.AIR) return item;
@@ -434,6 +444,7 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public QuestTask fallbackTaskIconTask(QuestNode node) {
         for (QuestTask task : node.getTasks()) {
+            if (HiddenParts.taskTargetHidden(node, task)) continue;
             ResourceLocation id = task.getDisplayItemId();
             Item item = ForgeRegistries.ITEMS.getValue(id);
             if (item != null && item != Items.AIR) return task;
@@ -1317,6 +1328,10 @@ public class ChronicleOverviewScreen extends Screen
 
     private boolean tryHandlePictureEditScroll(double delta) {
         if (pictureEditMode != null) {
+            if (hasAltDown()) {
+                pictureEditMode.rotateBy((hasShiftDown() ? 1f : 5f) * (delta > 0 ? 1f : -1f));
+                return true;
+            }
 
             float step = hasShiftDown() ? 1.05f : 1.2f;
             float factor = delta > 0 ? step : (1f / step);
@@ -1464,10 +1479,21 @@ public class ChronicleOverviewScreen extends Screen
         if (my < 0 || my >= TOOLBAR_Y) return false;
 
         int[][] layout = computeHeaderBarLayout(cr);
-        int[] claimBtn = layout[0], gridBtn = layout[1], subgraphBtn = layout[2];
+        int[] claimBtn = layout[0], gridBtn = layout[1], subgraphBtn = layout[2], emergencyBtn = layout[3];
+        int[] autoClaimBtn = layout[4];
 
         if (claimBtn != null && hitsRect(claimBtn, mx, my)) {
             if (minecraft != null) minecraft.setScreen(new ClaimRewardsScreen(this));
+            return true;
+        }
+
+        if (emergencyBtn != null && hitsRect(emergencyBtn, mx, my)) {
+            if (minecraft != null) minecraft.setScreen(new EmergencyClaimScreen(this));
+            return true;
+        }
+
+        if (autoClaimBtn != null && hitsRect(autoClaimBtn, mx, my)) {
+            if (minecraft != null) minecraft.setScreen(new AutoClaimSettingsScreen(this));
             return true;
         }
 
@@ -1509,6 +1535,23 @@ public class ChronicleOverviewScreen extends Screen
             zx2 = cpx2;
         }
 
+        int[] emergencyBtn = null;
+        EmergencyPill emergency2 = emergencyPill();
+        if (emergencyPillVisible(emergency2)) {
+            int ew2 = font.width(emergencyPillLabel(emergency2));
+            int epx2 = zx2 - ew2 - 18;
+            emergencyBtn = new int[] { epx2 - 3, 3, epx2 + ew2 + 5, 16 };
+            zx2 = epx2;
+        }
+
+        int[] autoClaimBtn = null;
+        if (playerData != null) {
+            int aw2 = font.width(autoClaimPillLabel());
+            int apx2 = zx2 - aw2 - 18;
+            autoClaimBtn = new int[] { apx2 - 3, 3, apx2 + aw2 + 5, 16 };
+            zx2 = apx2;
+        }
+
         String gridLabel2 = !gridSnapEnabled ? "Grid: off" :
                 (gridSnap == 1) ? "Grid: free" : "Grid: " + gridSnap;
         int gw2 = font.width(gridLabel2);
@@ -1523,7 +1566,7 @@ public class ChronicleOverviewScreen extends Screen
             subgraphBtn = new int[] { sgx2 - 3, 3, sgx2 + sgw2 + 5, 16 };
         }
 
-        return new int[][] { claimBtn, gridBtn, subgraphBtn };
+        return new int[][] { claimBtn, gridBtn, subgraphBtn, emergencyBtn, autoClaimBtn };
     }
 
     private boolean tryHandleToolbarButtonClick(double mx, double my) {
@@ -2246,8 +2289,11 @@ public class ChronicleOverviewScreen extends Screen
 
             int screenX = (int) mx - pictureDragGrabX;
             int screenY = (int) my - pictureDragGrabY;
-            float canvasX = (screenX - cl - viewOffX) / posZoom() + draggedPicture.w / 2f;
-            float canvasY = (screenY - HEADER_H - viewOffY) / posZoom() + draggedPicture.h / 2f;
+            float dragZoom = BackgroundPictureRenderer.parallaxZoom(draggedPicture, posZoom());
+            float canvasX = (screenX - cl - BackgroundPictureRenderer.parallaxOffset(draggedPicture, viewOffX)) /
+                    dragZoom + draggedPicture.w / 2f;
+            float canvasY = (screenY - HEADER_H - BackgroundPictureRenderer.parallaxOffset(draggedPicture, viewOffY)) /
+                    dragZoom + draggedPicture.h / 2f;
             draggedPicture.x = canvasX;
             draggedPicture.y = canvasY;
             return true;
@@ -2462,9 +2508,28 @@ public class ChronicleOverviewScreen extends Screen
         return ctxMenuBuilder.ctxMoveCatYClamped(items, catCount);
     }
 
+    private String stampChapterKey = "";
+    private boolean stampComplete = false;
+    private long stampSinceMs = 0;
+    private int stampFrame = 0;
+
+    /** Re-checks a couple of times a second whether the selected chapter's required quests are all done. */
+    private void refreshChapterStamp() {
+        boolean chapterChanged = !selectedChapter.equals(stampChapterKey);
+        if (!chapterChanged && ++stampFrame % 30 != 0) return;
+        stampChapterKey = selectedChapter;
+        var tally = net.phoenixvine.chronicles.client.util.QuestCompletionStats.compute(this).chaptersRequired
+                .get(selectedChapter.toUpperCase(java.util.Locale.ROOT));
+        boolean complete = tally != null && tally.total > 0 && tally.done >= tally.total;
+        if (complete && !stampComplete) stampSinceMs = chapterChanged ? 0 : System.currentTimeMillis();
+        if (!complete) stampSinceMs = 0;
+        stampComplete = complete;
+    }
+
     @Override
     public void render(@NotNull GuiGraphics g, int mx, int my, float partial) {
         FrameProfiler.begin("TOTAL render()");
+        refreshChapterStamp();
 
         refreshPalette();
         rebuildLinesIfThemeChanged();
@@ -2535,6 +2600,14 @@ public class ChronicleOverviewScreen extends Screen
         for (Runnable r : pendingDeferredDraws) r.run();
         pendingDeferredDraws.clear();
 
+        if (stampComplete && QuestChroniclesSettings.get().isShowChapterStamp()) {
+            g.enableScissor(cl, HEADER_H, cr, height);
+            net.phoenixvine.chronicles.client.render.ChapterStamp.draw(g, font,
+                    cr - net.phoenixvine.chronicles.client.render.ChapterStamp.W / 2 - 14, HEADER_H + 34,
+                    stampSinceMs, palette.textDone);
+            g.disableScissor();
+        }
+
         if (minimapOpen) renderMinimap(g, mx, my, cl, cr);
 
         FrameProfiler.end("TOTAL render()");
@@ -2564,6 +2637,10 @@ public class ChronicleOverviewScreen extends Screen
         int pillReserve = font.width(Math.round(zoom * 100) + "%") + 10;
         if (unclaimedRewardCount() > 0)
             pillReserve += font.width("🎁 " + unclaimedRewardCount()) + 18;
+        EmergencyPill emergencyReserve = emergencyPill();
+        if (emergencyPillVisible(emergencyReserve))
+            pillReserve += font.width(emergencyPillLabel(emergencyReserve)) + 18;
+        if (playerData != null) pillReserve += font.width(autoClaimPillLabel()) + 18;
         pillReserve += font.width("Grid: off") + 18;
         if (isDevMode) pillReserve += font.width("⊛ Subgraph: 000") + 18;
         int titleMaxW = Math.max(20, (cr - pillReserve) - (cl + 8));
@@ -2576,7 +2653,7 @@ public class ChronicleOverviewScreen extends Screen
         if (testMode) g.fill(cl, TOOLBAR_Y - 1, cr, TOOLBAR_Y, 0xFFCC2222);
         if (pictureEditMode != null) {
             g.fill(cl, TOOLBAR_Y - 1, cr, TOOLBAR_Y, 0xFFFFCC33);
-            String hint = "§e🖼 Editing picture. Scroll to resize (shift = fine), drag to move, right-click/Esc to finish";
+            String hint = "§e🖼 Editing picture. Scroll to resize, Alt+scroll to rotate (shift = fine), drag to move, right-click/Esc to finish";
             ChroniclesUIKit.drawCenteredString(g, font, hint, (cl + cr) / 2, 7, 0xFFFFEEAA);
         }
 
@@ -2604,6 +2681,45 @@ public class ChronicleOverviewScreen extends Screen
                         mx, my));
             }
             zx = cpx;
+        }
+
+        EmergencyPill emergency = emergencyPill();
+        if (emergencyPillVisible(emergency)) {
+            boolean anyReady = emergency.ready() > 0;
+            String plain = emergencyPillLabel(emergency);
+            int ew = font.width(plain);
+            int epx = zx - ew - 18, epy = 3;
+            boolean emergencyHov = mx >= epx - 3 && mx < epx + ew + 5 && my >= epy && my < epy + 13;
+            g.fill(epx - 3, epy, epx + ew + 5, epy + 13,
+                    emergencyHov ? 0x44FFFFFF : anyReady ? 0x44B08A2E : 0x22FFFFFF);
+            ChroniclesUIKit.drawString(g, font, (anyReady ? "§6" : "§8") + plain, epx, epy + 3, palette.textDim,
+                    false);
+            if (emergencyHov) {
+                String tip = anyReady ?
+                        "§7" + emergency.ready() + " quest(s) with emergency items ready - click to open" :
+                        "§7Emergency items ready again in " +
+                                QuestProgressTracker.formatDuration(emergency.soonestCooldownMs()) +
+                                " - click to open";
+                pendingDeferredDraws.add(() -> g.renderTooltip(font, ChroniclesUIKit.lit(tip), mx, my));
+            }
+            zx = epx;
+        }
+
+        if (playerData != null) {
+            boolean autoOn = playerData.isAutoClaimEnabled();
+            String autoPlain = autoClaimPillLabel();
+            int aw = font.width(autoPlain);
+            int apx = zx - aw - 18, apy = 3;
+            boolean autoHov = mx >= apx - 3 && mx < apx + aw + 5 && my >= apy && my < apy + 13;
+            g.fill(apx - 3, apy, apx + aw + 5, apy + 13, autoHov ? 0x44FFFFFF : autoOn ? 0x3355CC77 : 0x22FFFFFF);
+            ChroniclesUIKit.drawString(g, font, (autoOn ? "§a" : "§8") + autoPlain, apx, apy + 3, palette.textDim,
+                    false);
+            if (autoHov) {
+                pendingDeferredDraws.add(() -> g.renderTooltip(font, ChroniclesUIKit.lit(autoOn ?
+                        "§7Auto-claim is on - click to choose what it claims" :
+                        "§7Auto-claim is off - click to set it up"), mx, my));
+            }
+            zx = apx;
         }
 
         String gridLabel = !gridSnapEnabled ? "§8Grid: §c§loff" :
@@ -2686,7 +2802,7 @@ public class ChronicleOverviewScreen extends Screen
     }
 
     private void handleSidebarDrop(SidebarRow source, int mx, int my) {
-        sidebarPanel.handleDrop(source, mx, my, this::friendly, progressLookup(), this::buildChapterList,
+        sidebarPanel.handleDrop(source, mx, my, this::friendly, progressLookup(),
                 this::setFeedback, this::rebuild, buildChapterList());
     }
 
@@ -2702,8 +2818,13 @@ public class ChronicleOverviewScreen extends Screen
         if (pictureEditMode != null) {
             int[] rect = BackgroundPictureRenderer.screenRect(pictureEditMode, cl, HEADER_H, posZoom(), viewOffX,
                     viewOffY);
-            ChroniclesUIKit.drawBorder(g, rect[0] - 1, rect[1] - 1, rect[2] - rect[0] + 2, rect[3] - rect[1] + 2,
+            int outlineW = rect[2] - rect[0], outlineH = rect[3] - rect[1];
+            g.pose().pushPose();
+            g.pose().translate((rect[0] + rect[2]) / 2f, (rect[1] + rect[3]) / 2f, 0f);
+            g.pose().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(pictureEditMode.rotation));
+            ChroniclesUIKit.drawBorder(g, -outlineW / 2 - 1, -outlineH / 2 - 1, outlineW + 2, outlineH + 2,
                     0xFFFFCC33);
+            g.pose().popPose();
         }
         FrameProfiler.end("background");
 
@@ -3060,7 +3181,7 @@ public class ChronicleOverviewScreen extends Screen
         for (QuestTask task : n.getEffectiveTasks(server, minecraft.player)) {
             sb.append(task.getDescription().getString().toLowerCase()).append(' ');
 
-            ResourceLocation displayId = task.getDisplayItemId();
+            ResourceLocation displayId = HiddenParts.taskTargetHidden(n, task) ? null : task.getDisplayItemId();
             if (displayId != null) {
                 Item item = ForgeRegistries.ITEMS
                         .getValue(displayId);
@@ -3100,6 +3221,7 @@ public class ChronicleOverviewScreen extends Screen
         }
 
         for (QuestReward reward : n.getEffectiveRewards(server, minecraft.player)) {
+            if (HiddenParts.rewardTargetHidden(n, reward)) continue;
             sb.append(reward.getSummary().getString()).append(' ');
             if (reward instanceof QuestReward.ItemReward ir) {
                 ResourceLocation rid = ForgeRegistries.ITEMS.getKey(ir.getItem());
@@ -3635,6 +3757,61 @@ public class ChronicleOverviewScreen extends Screen
     @Override
     public Map<String, Integer> dbgShapeCounts() {
         return dbgShapeCounts;
+    }
+
+    private String autoClaimPillLabel() {
+        return playerData != null && playerData.isAutoClaimEnabled() ? "⚡ On" : "⚡ Off";
+    }
+
+    private record EmergencyPill(int ready, long soonestCooldownMs) {}
+
+    private EmergencyPill cachedEmergencyPill = new EmergencyPill(0, 0);
+    private long emergencyPillStampMs = 0;
+
+    /**
+     * How many active quests have emergency items ready, or else how long until the soonest comes off cooldown.
+     * Scanning every quest is too much to repeat for each of the header's layout, click and draw passes, so the
+     * result is kept for a quarter second - still fine-grained enough for a seconds countdown.
+     */
+    private EmergencyPill emergencyPill() {
+        long now = System.currentTimeMillis();
+        if (now - emergencyPillStampMs < 250) return cachedEmergencyPill;
+        emergencyPillStampMs = now;
+
+        int ready = 0;
+        long soonest = 0;
+        if (playerData != null) {
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                if (node.isFlagDisabled(null)) continue;
+                if (playerData.getQuestState(node.getId(), QuestState.LOCKED) != QuestState.ACTIVE) continue;
+                if (!ClientEmergencyState.hasEmergencyItems(node.getId())) continue;
+                ClientEmergencyState.Availability av = ClientEmergencyState.availability(playerData, node.getId());
+                if (av.state() == ClientEmergencyState.State.READY) {
+                    ready++;
+                } else if (av.state() == ClientEmergencyState.State.COOLDOWN) {
+                    soonest = soonest == 0 ? av.remainingMs() : Math.min(soonest, av.remainingMs());
+                }
+            }
+            for (ResourceLocation stationId : ClientEmergencyState.stationIds()) {
+                ClientEmergencyState.Availability av = ClientEmergencyState.availability(playerData, stationId);
+                if (av.state() == ClientEmergencyState.State.READY) {
+                    ready++;
+                } else if (av.state() == ClientEmergencyState.State.COOLDOWN) {
+                    soonest = soonest == 0 ? av.remainingMs() : Math.min(soonest, av.remainingMs());
+                }
+            }
+        }
+        cachedEmergencyPill = new EmergencyPill(ready, soonest);
+        return cachedEmergencyPill;
+    }
+
+    private static boolean emergencyPillVisible(EmergencyPill pill) {
+        return pill.ready() > 0 || pill.soonestCooldownMs() > 0;
+    }
+
+    private static String emergencyPillLabel(EmergencyPill pill) {
+        return pill.ready() > 0 ? "⚠ " + pill.ready() : "⚠ " + ClientEmergencyState.compactDuration(
+                pill.soonestCooldownMs());
     }
 
     public int unclaimedRewardCount() {

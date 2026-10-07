@@ -14,6 +14,7 @@ import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.common.model.CategoryDefinition;
+import net.phoenixvine.chronicles.common.model.EmergencyKit;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
@@ -60,9 +61,11 @@ public class QuestCreatorScreen extends Screen {
         BASIC_INFO("Basic Info"),
         POSITION_SIZE("Position & Size"),
         TASKS_REWARDS("Tasks & Rewards"),
+        EMERGENCY("Emergency Items"),
         VARIANTS("Variants"),
         VISIBILITY_PREREQS("Visibility & Prerequisites"),
         REWARDS_REPEATS("Rewards & Repeats"),
+        AUDIO("Narration & Music"),
         ADVANCED("Advanced"),
         RAW("Raw SNBT Preview");
 
@@ -74,7 +77,8 @@ public class QuestCreatorScreen extends Screen {
     }
 
     private final Set<Section> collapsedSections = new HashSet<>(List.of(
-            Section.TASKS_REWARDS, Section.VARIANTS, Section.REWARDS_REPEATS, Section.ADVANCED, Section.RAW));
+            Section.TASKS_REWARDS, Section.EMERGENCY, Section.VARIANTS, Section.REWARDS_REPEATS, Section.ADVANCED,
+            Section.RAW));
 
     private record SectionHeaderRect(Section section, int y, int h) {}
 
@@ -130,6 +134,8 @@ public class QuestCreatorScreen extends Screen {
     private String cachedEnableIf = "";
 
     private Boolean cachedRequireAll = null;
+    private java.util.Set<String> cachedChapterPrereqs = new java.util.LinkedHashSet<>();
+    private java.util.Set<String> cachedCategoryPrereqs = new java.util.LinkedHashSet<>();
     private boolean cachedDisabledBlocksChildren = false;
     private final List<QuestNode> cachedPrerequisites = new ArrayList<>();
     private int cachedTaskMinCount = 0;
@@ -152,6 +158,11 @@ public class QuestCreatorScreen extends Screen {
     private String cachedExternalScreenId = "";
     private String cachedUnlockSoundId = "";
     private String cachedCompleteSoundId = "";
+    private String cachedVoiceId = "";
+    private boolean cachedVoiceAuto = false;
+    private String cachedMusicId = "";
+    private String cachedMusicVolumePct = "100";
+    private String cachedMusicFadeSec = "1.5";
     private int cachedPosX = 40;
     private int cachedPosY = 70;
 
@@ -223,6 +234,8 @@ public class QuestCreatorScreen extends Screen {
                 QuestNode.Visibility.NORMAL;
         cachedEnableIf = editingNode.getEnableIf() != null ? editingNode.getEnableIf() : "";
         cachedRequireAll = editingNode.getRequireAllPrerequisites();
+        cachedChapterPrereqs = new java.util.LinkedHashSet<>(editingNode.getChapterPrereqs());
+        cachedCategoryPrereqs = new java.util.LinkedHashSet<>(editingNode.getCategoryPrereqs());
         cachedDisabledBlocksChildren = editingNode.isDisabledBlocksChildren();
         cachedTaskMinCount = editingNode.getTaskMinCount();
         cachedRepeatMode = editingNode.getRepeatMode() != null ? editingNode.getRepeatMode() :
@@ -239,6 +252,11 @@ public class QuestCreatorScreen extends Screen {
         cachedExternalScreenId = editingNode.getExternalScreenId();
         cachedUnlockSoundId = editingNode.getUnlockSoundId();
         cachedCompleteSoundId = editingNode.getCompleteSoundId();
+        cachedVoiceId = editingNode.getAudio().voiceId();
+        cachedVoiceAuto = editingNode.getAudio().voiceAuto();
+        cachedMusicId = editingNode.getAudio().musicId();
+        cachedMusicVolumePct = String.valueOf(Math.round(editingNode.getAudio().musicVolume() * 100));
+        cachedMusicFadeSec = String.valueOf(editingNode.getAudio().fadeMs() / 1000f);
 
         cachedPosX = editingNode.getCustomX();
         cachedPosY = editingNode.getCustomY();
@@ -257,13 +275,15 @@ public class QuestCreatorScreen extends Screen {
                 cachedId, cachedTitle, cachedDesc, cachedSubtitle, cachedChapter, cachedIconItemId, cachedShape,
                 cachedLabelPosition,
                 cachedShapeTexture, String.valueOf(cachedVisibility), cachedEnableIf,
-                String.valueOf(cachedRequireAll), String.valueOf(cachedDisabledBlocksChildren),
+                String.valueOf(cachedRequireAll), String.valueOf(cachedChapterPrereqs),
+                String.valueOf(cachedCategoryPrereqs), String.valueOf(cachedDisabledBlocksChildren),
                 String.valueOf(cachedTaskMinCount), String.valueOf(cachedRepeatMode),
                 String.valueOf(cachedRepeatCooldownHours), String.valueOf(cachedHideDepLine),
                 String.valueOf(cachedAutoClaimRewards), String.valueOf(cachedRewardChoice),
                 String.valueOf(cachedRewardChoiceCount), String.valueOf(cachedNodeSize),
                 String.valueOf(cachedSizeOverridePx), cachedDevNotes, cachedPreviewMachineId,
-                cachedExternalScreenId, cachedUnlockSoundId, cachedCompleteSoundId,
+                cachedExternalScreenId, cachedUnlockSoundId, cachedCompleteSoundId, cachedVoiceId,
+                String.valueOf(cachedVoiceAuto), cachedMusicId, cachedMusicVolumePct, cachedMusicFadeSec,
                 String.valueOf(cachedPosX), String.valueOf(cachedPosY), prereqKey);
     }
 
@@ -307,9 +327,11 @@ public class QuestCreatorScreen extends Screen {
         y = buildSection(Section.BASIC_INFO, y, this::buildBasicInfo, this::basicInfoSummary);
         y = buildSection(Section.POSITION_SIZE, y, this::buildPositionSize, this::positionSizeSummary);
         y = buildSection(Section.TASKS_REWARDS, y, this::buildTasksRewards, this::tasksRewardsSummary);
+        y = buildSection(Section.EMERGENCY, y, this::buildEmergency, this::emergencySummary);
         y = buildSection(Section.VARIANTS, y, this::buildVariants, this::variantsSummary);
         y = buildSection(Section.VISIBILITY_PREREQS, y, this::buildVisibilityPrereqs, this::visibilityPrereqsSummary);
         y = buildSection(Section.REWARDS_REPEATS, y, this::buildRewardsRepeats, this::rewardsRepeatsSummary);
+        y = buildSection(Section.AUDIO, y, this::buildAudioSection, this::audioSummary);
         y = buildSection(Section.ADVANCED, y, this::buildAdvanced, this::advancedSummary);
         y = buildSection(Section.RAW, y, this::buildRaw, () -> "");
 
@@ -637,26 +659,39 @@ public class QuestCreatorScreen extends Screen {
                 (pendingWorkingNode != null ? pendingWorkingNode.getRewards().size() : 0);
         labels.add(new LabelEntry(cx, y,
                 "§f" + taskCount + " task(s)  ·  " + rewardCount + " reward(s)", C_TEXT_FAINT));
-        int emergencyW = 96;
         addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§f⊞ Open Tasks & Rewards Editor"), b -> {
             chapterDropdownOpen = false;
             visibilityDropdownOpen = false;
             Minecraft.getInstance().setScreen(new TaskRewardEditorScreen(this, resolveWorkingNode()));
-        }).bounds(cx, rowY, cw - emergencyW - COL_GAP, FIELD_H).build());
-        int emergencyCount = resolveWorkingNode().getEmergencyItems().size();
+        }).bounds(cx, rowY, cw, FIELD_H).build());
+        return rowY + FIELD_H;
+    }
+
+    private int buildEmergency(int y) {
+        int rowY = y + LABEL_H + LABEL_GAP;
+        EmergencyKit kit = resolveWorkingNode().getEmergencyKit();
+        labels.add(new LabelEntry(cx, y, "§fFallback rewards for a player stuck on this quest", C_TEXT_FAINT));
         addRenderableWidget(Button.builder(
-                ChroniclesUIKit.lit("§f⚠ Emergency" + (emergencyCount > 0 ? " (" + emergencyCount + ")" : "")), b -> {
+                ChroniclesUIKit.lit("§6⚠ §fEdit Emergency Items" +
+                        (kit.hasRewards() ? " §7(" + kit.getRewards().size() + ")" : "")),
+                b -> {
                     chapterDropdownOpen = false;
                     visibilityDropdownOpen = false;
                     Minecraft.getInstance()
                             .setScreen(new EmergencyItemsScreen(this, resolveWorkingNode(), () -> cachedChapter));
                 })
-                .bounds(cx + cw - emergencyW, rowY, emergencyW, FIELD_H)
+                .bounds(cx, rowY, cw, FIELD_H)
                 .tooltip(Tooltip.create(ChroniclesUIKit.lit(
-                        "Fallback items a player can claim once (/chronicles emergency) while this quest is\n" +
-                                "active, e.g. if they lost an item the quest needs. Also edits the chapter default.")))
+                        "Rewards for a player who lost an item the quest needs, or got stuck. They claim them from\n" +
+                                "the \u26a0 button in the header or the quest popup. The screen also sets how often\n" +
+                                "they can be claimed, and edits the chapter default for quests with no kit of their own.")))
                 .build());
         return rowY + FIELD_H;
+    }
+
+    private String emergencySummary() {
+        EmergencyKit kit = resolveWorkingNode().getEmergencyKit();
+        return kit.hasRewards() ? "§f" + kit.getRewards().size() + " reward(s)" : "§8none";
     }
 
     private String tasksRewardsSummary() {
@@ -744,6 +779,29 @@ public class QuestCreatorScreen extends Screen {
                     })
                     .bounds(cx + vw + COL_GAP + prereqW + COL_GAP, rowY, blockW, FIELD_H).build());
         }
+        y = rowY + FIELD_H + ROW_GAP;
+
+        rowY = y + LABEL_H + LABEL_GAP;
+        labels.add(new LabelEntry(cx, y, "§fWhole chapters / categories this quest waits on", C_TEXT_FAINT));
+        int chapterDepCount = cachedChapterPrereqs.size() + cachedCategoryPrereqs.size();
+        addRenderableWidget(Button.builder(
+                ChroniclesUIKit.lit("§f▤ Chapter & Category Dependencies" +
+                        (chapterDepCount > 0 ? " §7(" + chapterDepCount + ")" : "")),
+                b -> {
+                    chapterDropdownOpen = false;
+                    visibilityDropdownOpen = false;
+                    Minecraft.getInstance().setScreen(new ChapterDependencyScreen(this, cachedChapter,
+                            cachedChapterPrereqs, cachedCategoryPrereqs, (chapters, categories) -> {
+                                cachedChapterPrereqs = new java.util.LinkedHashSet<>(chapters);
+                                cachedCategoryPrereqs = new java.util.LinkedHashSet<>(categories);
+                            }));
+                })
+                .bounds(cx, rowY, cw, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                        "Keep this quest locked until every counted quest in the picked chapters (or in every\n" +
+                                "chapter of a picked category) is complete. This adds to the quest's own\n" +
+                                "prerequisites; it doesn't replace them.")))
+                .build());
         y = rowY + FIELD_H + ROW_GAP;
 
         rowY = y + LABEL_H + LABEL_GAP;
@@ -1060,6 +1118,95 @@ public class QuestCreatorScreen extends Screen {
         return y;
     }
 
+    private String audioSummary() {
+        boolean voice = !cachedVoiceId.isBlank();
+        boolean music = !cachedMusicId.isBlank();
+        if (!voice && !music) return "§8none";
+        return "§f" + (voice ? "♪ voice" : "") + (voice && music ? "  " : "") + (music ? "♫ music" : "");
+    }
+
+    private int buildAudioSection(int y) {
+        int soundPickW = 16;
+        int rowY = y + LABEL_H + LABEL_GAP;
+        labels.add(new LabelEntry(cx, y, "§fNarration (voice line)", C_TEXT_FAINT));
+        int autoW = 56;
+        EditBox voiceBox = new EditBox(font, cx, rowY, cw - soundPickW - autoW - 4, FIELD_H, Component.empty());
+        voiceBox.setMaxLength(128);
+        voiceBox.setHint(ChroniclesUIKit.lit("§fsound event id from a resource pack / KubeJS (blank = none)"));
+        voiceBox.setValue(cachedVoiceId);
+        voiceBox.setResponder(v -> cachedVoiceId = v);
+        addRenderableWidget(voiceBox);
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick voice line",
+                        net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getKeys(), id -> {
+                            cachedVoiceId = id.toString();
+                            voiceBox.setValue(cachedVoiceId);
+                        }));
+            }
+        }).bounds(cx + cw - soundPickW - autoW - 2, rowY, soundPickW, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse registered sound events")))
+                .build());
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit(cachedVoiceAuto ? "§aAuto" : "§8Auto"), b -> {
+            cachedVoiceAuto = !cachedVoiceAuto;
+            b.setMessage(ChroniclesUIKit.lit(cachedVoiceAuto ? "§aAuto" : "§8Auto"));
+        }).bounds(cx + cw - autoW, rowY, autoW, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                        "Auto: play the narration the moment the quest opens.\n" +
+                                "Off: players start it with the ♪ button in the quest footer.")))
+                .build());
+        y = rowY + FIELD_H;
+
+        y += ROW_GAP;
+        rowY = y + LABEL_H + LABEL_GAP;
+        labels.add(new LabelEntry(cx, y, "§fMusic  §8(volume %  /  fade seconds)", C_TEXT_FAINT));
+        int numW = 34;
+        EditBox musicBox = new EditBox(font, cx, rowY, cw - soundPickW - numW * 2 - 6, FIELD_H, Component.empty());
+        musicBox.setMaxLength(128);
+        musicBox.setHint(ChroniclesUIKit.lit("§floops while this quest is open (blank = chapter music)"));
+        musicBox.setValue(cachedMusicId);
+        musicBox.setResponder(v -> cachedMusicId = v);
+        addRenderableWidget(musicBox);
+        addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick music",
+                        net.minecraftforge.registries.ForgeRegistries.SOUND_EVENTS.getKeys(), id -> {
+                            cachedMusicId = id.toString();
+                            musicBox.setValue(cachedMusicId);
+                        }));
+            }
+        }).bounds(cx + cw - soundPickW - numW * 2 - 4, rowY, soundPickW, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse registered sound events")))
+                .build());
+        EditBox volBox = new EditBox(font, cx + cw - numW * 2 - 2, rowY, numW, FIELD_H, Component.empty());
+        volBox.setMaxLength(3);
+        volBox.setValue(cachedMusicVolumePct);
+        volBox.setResponder(v -> cachedMusicVolumePct = v);
+        volBox.setTooltip(Tooltip.create(ChroniclesUIKit.lit("Music volume, 0-100%")));
+        addRenderableWidget(volBox);
+        EditBox fadeBox = new EditBox(font, cx + cw - numW, rowY, numW, FIELD_H, Component.empty());
+        fadeBox.setMaxLength(5);
+        fadeBox.setValue(cachedMusicFadeSec);
+        fadeBox.setResponder(v -> cachedMusicFadeSec = v);
+        fadeBox.setTooltip(Tooltip.create(ChroniclesUIKit.lit("Fade in / out time in seconds")));
+        addRenderableWidget(fadeBox);
+        y = rowY + FIELD_H;
+        return y;
+    }
+
+    private net.phoenixvine.chronicles.common.model.QuestAudio buildAudio() {
+        float volume = 1f;
+        int fadeMs = net.phoenixvine.chronicles.common.model.QuestAudio.DEFAULT_FADE_MS;
+        try {
+            volume = Integer.parseInt(cachedMusicVolumePct.trim()) / 100f;
+        } catch (NumberFormatException ignored) {}
+        try {
+            fadeMs = Math.round(Float.parseFloat(cachedMusicFadeSec.trim()) * 1000f);
+        } catch (NumberFormatException ignored) {}
+        return new net.phoenixvine.chronicles.common.model.QuestAudio(cachedVoiceId, cachedVoiceAuto, cachedMusicId,
+                volume, fadeMs);
+    }
+
     private String advancedSummary() {
         return idManuallySet ? "§c" + cachedId + " (manual)" : "§f" + cachedId;
     }
@@ -1269,9 +1416,11 @@ public class QuestCreatorScreen extends Screen {
             case BASIC_INFO -> basicInfoSummary();
             case POSITION_SIZE -> positionSizeSummary();
             case TASKS_REWARDS -> tasksRewardsSummary();
+            case EMERGENCY -> emergencySummary();
             case VARIANTS -> variantsSummary();
             case VISIBILITY_PREREQS -> visibilityPrereqsSummary();
             case REWARDS_REPEATS -> rewardsRepeatsSummary();
+            case AUDIO -> audioSummary();
             case ADVANCED -> advancedSummary();
             case RAW -> "";
         };
@@ -1430,6 +1579,16 @@ public class QuestCreatorScreen extends Screen {
             tag.putString("parent", cachedPrerequisites.isEmpty() ? "none" : cachedPrerequisites.get(0).getId()
                     .getPath());
             if (cachedRequireAll != null) tag.putBoolean("require_all_prereqs", cachedRequireAll);
+            if (!cachedChapterPrereqs.isEmpty()) {
+                net.minecraft.nbt.ListTag chapterList = new net.minecraft.nbt.ListTag();
+                for (String c : cachedChapterPrereqs) chapterList.add(net.minecraft.nbt.StringTag.valueOf(c));
+                tag.put("chapter_prereqs", chapterList);
+            }
+            if (!cachedCategoryPrereqs.isEmpty()) {
+                net.minecraft.nbt.ListTag categoryList = new net.minecraft.nbt.ListTag();
+                for (String c : cachedCategoryPrereqs) categoryList.add(net.minecraft.nbt.StringTag.valueOf(c));
+                tag.put("category_prereqs", categoryList);
+            }
             if (cachedTaskMinCount > 0) tag.putInt("task_min_count", cachedTaskMinCount);
             tag.putInt("positionX", cachedPosX);
             tag.putInt("positionY", cachedPosY);
@@ -1506,6 +1665,8 @@ public class QuestCreatorScreen extends Screen {
                 editingNode.setEnableIf(cachedEnableIf);
                 editingNode.setDisabledBlocksChildren(cachedDisabledBlocksChildren);
                 editingNode.setRequireAllPrerequisites(cachedRequireAll);
+                editingNode.setChapterPrereqs(cachedChapterPrereqs);
+                editingNode.setCategoryPrereqs(cachedCategoryPrereqs);
                 editingNode.setTaskMinCount(cachedTaskMinCount);
                 editingNode.setRepeatMode(cachedRepeatMode);
                 if (cachedRepeatMode == QuestNode.RepeatMode.COOLDOWN)
@@ -1521,6 +1682,7 @@ public class QuestCreatorScreen extends Screen {
                 editingNode.setExternalScreenId(cachedExternalScreenId.trim());
                 editingNode.setUnlockSoundId(cachedUnlockSoundId.trim());
                 editingNode.setCompleteSoundId(cachedCompleteSoundId.trim());
+                editingNode.setAudio(buildAudio());
                 editingNode.setCustomPosition(cachedPosX, cachedPosY);
                 if (!cachedIconItemId.isBlank()) editingNode.setIconItemById(cachedIconItemId.trim());
 
@@ -1550,6 +1712,8 @@ public class QuestCreatorScreen extends Screen {
                 node.setEnableIf(cachedEnableIf);
                 node.setDisabledBlocksChildren(cachedDisabledBlocksChildren);
                 node.setRequireAllPrerequisites(cachedRequireAll);
+                node.setChapterPrereqs(cachedChapterPrereqs);
+                node.setCategoryPrereqs(cachedCategoryPrereqs);
                 node.setTaskMinCount(cachedTaskMinCount);
                 node.setRepeatMode(cachedRepeatMode);
                 if (cachedRepeatMode == QuestNode.RepeatMode.COOLDOWN)
@@ -1565,6 +1729,7 @@ public class QuestCreatorScreen extends Screen {
                 node.setExternalScreenId(cachedExternalScreenId.trim());
                 node.setUnlockSoundId(cachedUnlockSoundId.trim());
                 node.setCompleteSoundId(cachedCompleteSoundId.trim());
+                node.setAudio(buildAudio());
                 node.setCustomPosition(cachedPosX, cachedPosY);
                 if (!cachedIconItemId.isBlank()) node.setIconItemById(cachedIconItemId.trim());
 
@@ -1578,8 +1743,7 @@ public class QuestCreatorScreen extends Screen {
                     node.setPooledProgress(editingNode.isPooledProgress());
                     if (editingNode.getOptionalPrereqMinCount() != null)
                         node.setOptionalPrereqMinCount(editingNode.getOptionalPrereqMinCount());
-                    if (!editingNode.getEmergencyItems().isEmpty())
-                        node.deserializeEmergencyItems(editingNode.serializeEmergencyItems());
+                    node.setEmergencyKit(editingNode.getEmergencyKit());
                     for (QuestNode p : cachedPrerequisites) {
                         node.addPrerequisite(p);
                         boolean hadFlags = editingNode.getPrerequisites().contains(p);
@@ -1602,8 +1766,7 @@ public class QuestCreatorScreen extends Screen {
                     for (QuestTask t : pendingWorkingNode.getTasks()) node.addTask(t);
                     for (QuestReward r : pendingWorkingNode.getRewards()) node.addReward(r);
                     for (QuestNode.QuestVariant v : pendingWorkingNode.getVariants()) node.addVariant(v);
-                    if (!pendingWorkingNode.getEmergencyItems().isEmpty())
-                        node.deserializeEmergencyItems(pendingWorkingNode.serializeEmergencyItems());
+                    node.setEmergencyKit(pendingWorkingNode.getEmergencyKit());
                 }
 
                 if (editingNode == null) {

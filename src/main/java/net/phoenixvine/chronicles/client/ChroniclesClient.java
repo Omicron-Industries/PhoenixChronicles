@@ -39,11 +39,22 @@ public class ChroniclesClient {
         PhoenixTheme.registerMod("net.phoenixvine.chronicles", MOD_ID);
 
         ChroniclesThemePalette.refresh(PhoenixTheme.current());
-        WikiRichTextRenderer.registerImageResolver(CustomTextureCache::resolve);
+        WikiRichTextRenderer.registerImageResolver(loc -> CustomTextureCache.resolve(wikiTexturePath(loc)));
 
         BlockParserRegistry.DEFAULT.registerFirst(new ChroniclesConditionalBlockParser());
 
         registerHudBar(mc);
+    }
+
+    /**
+     * Lets wiki image tags use short texture ids: {@code [img:ae2:block/dense_energy_cell_3,64,64]} resolves to
+     * {@code ae2:textures/block/dense_energy_cell_3.png}. Full paths pass through untouched.
+     */
+    private static ResourceLocation wikiTexturePath(ResourceLocation loc) {
+        String path = loc.getPath();
+        if (!path.startsWith("textures/")) path = "textures/" + path;
+        if (!path.endsWith(".png")) path = path + ".png";
+        return path.equals(loc.getPath()) ? loc : ResourceLocation.fromNamespaceAndPath(loc.getNamespace(), path);
     }
 
     private static void registerHudBar(Minecraft mc) {

@@ -31,6 +31,7 @@ import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.common.model.RewardTable;
+import net.phoenixvine.chronicles.common.registry.PhoenixRewardRegistry;
 import net.phoenixvine.chronicles.common.registry.PhoenixTaskRegistry;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.registry.RewardTableRegistry;
@@ -43,7 +44,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
 public class TaskRewardEditorScreen extends Screen {
 
@@ -84,7 +88,15 @@ public class TaskRewardEditorScreen extends Screen {
         return parent;
     }
 
+    /** Null only when editing a chapter's default emergency kit, where there is no quest. */
+    @Nullable
     private final QuestNode questNode;
+
+    /** Emergency mode edits one list of rewards (a kit) and hands it to the sink; there are no tasks. */
+    private final boolean emergencyMode;
+    @Nullable
+    private final Consumer<List<QuestReward>> emergencySink;
+    private final String emergencyLabel;
 
     @Nullable
     private final QuestNode.QuestVariant variantTarget;
@@ -95,6 +107,8 @@ public class TaskRewardEditorScreen extends Screen {
     private String taskType = "item_check";
     private boolean taskConsume = false;
     private boolean taskOptional = false;
+    private int taskHiddenParts = 0;
+    private int rewardHiddenParts = 0;
 
     private boolean taskSticky = true;
     private boolean taskCheckAe2Storage = AE2Compat.isAvailable();
@@ -125,6 +139,8 @@ public class TaskRewardEditorScreen extends Screen {
     private QuestReward.ChoiceBoxReward.Mode boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
     private final List<QuestReward> boxOptions = new ArrayList<>();
     private static final int BOX_OPTION_ROW_H = 14;
+    private static final int CHOICE_ADD_ITEM_W = 44;
+    private static final int CHOICE_ADD_TABLE_W = 48;
     private int boxOptionsListX, boxOptionsListY, boxOptionsListW, boxOptionsListBottom;
     private int boxOptionsScroll = 0;
     private final List<int[]> boxOptionRowRects = new ArrayList<>();
@@ -133,10 +149,13 @@ public class TaskRewardEditorScreen extends Screen {
     private ItemStack boxOptionPickedItem = null;
     private EditBox boxOptionCountBox, boxOptionNbtBox;
     private boolean forcePendingBoxOptionValues = false;
-    private String pendingBoxOptionCount = "1", pendingBoxOptionNbt = "";
+    private String pendingBoxOptionCount = "1", pendingBoxOptionNbt = "", pendingBoxOptionTable = "";
+    private EditBox boxOptionTableBox;
 
     private int hoveredTaskRow = -1;
     private int hoveredRewardRow = -1;
+    private int taskListScroll = 0;
+    private int rewardListScroll = 0;
     private int hoveredDropRow = -1;
 
     private int draggingTaskIndex = -1;
@@ -148,11 +167,14 @@ public class TaskRewardEditorScreen extends Screen {
     private List<Integer> rewardDisplayOrder = List.of();
 
     private static CompoundTag copiedTaskNBT = null;
+    private static CompoundTag copiedRewardNBT = null;
 
     private final UndoRedoManager undoRedo = new UndoRedoManager(msg -> {});
 
+    // "reward_table" is not offered for new rewards - tables are added as options of a Choice Box. Rewards already
+    // saved with the old standalone type still load, grant, and edit through the branch below.
     private static final String[] REWARD_TYPES = { "item", "xp", "command", "loot_table", "script_event",
-            "reward_table", "choice_box", "fluid", "open_screen", "quest_action" };
+            "choice_box", "fluid", "open_screen", "quest_action", "external" };
 
     private static String rewardTypeLabel(String type) {
         return switch (type) {
@@ -166,11 +188,14 @@ public class TaskRewardEditorScreen extends Screen {
             case "fluid" -> "Fluid";
             case "open_screen" -> "Open Screen";
             case "quest_action" -> "Quest Action";
+            case "external" -> "External";
             default -> type;
         };
     }
 
     private EditBox rewardEventDataBox;
+    private final Map<String, String> externalFieldValues = new LinkedHashMap<>();
+    private PhoenixRewardRegistry.Entry externalEntryAtBuild;
 
     public TaskRewardEditorScreen(Screen parent, QuestNode questNode) {
         this(parent, questNode, null);
@@ -181,6 +206,9 @@ public class TaskRewardEditorScreen extends Screen {
         this.parent = parent;
         this.questNode = questNode;
         this.variantTarget = variantTarget;
+        this.emergencyMode = false;
+        this.emergencySink = null;
+        this.emergencyLabel = "";
         if (variantTarget != null) {
             this.tasks.addAll(variantTarget.tasks != null ? variantTarget.tasks : questNode.getTasks());
             this.rewards.addAll(variantTarget.rewards != null ? variantTarget.rewards : questNode.getRewards());
@@ -188,6 +216,24 @@ public class TaskRewardEditorScreen extends Screen {
             this.tasks.addAll(questNode.getTasks());
             this.rewards.addAll(questNode.getRewards());
         }
+    }
+
+    public TaskRewardEditorScreen(Screen parent, @Nullable QuestNode questNode, List<QuestReward> emergencyRewards,
+                                  Consumer<List<QuestReward>> sink, String label) {
+        super(ChroniclesUIKit.lit("Emergency Rewards"));
+        this.parent = parent;
+        this.questNode = questNode;
+        this.variantTarget = null;
+        this.emergencyMode = true;
+        this.emergencySink = sink;
+        this.emergencyLabel = label;
+        this.rewards.addAll(emergencyRewards);
+    }
+
+    /** Choice boxes need the player to open them, which an emergency claim has no screen for. */
+    private String[] rewardTypes() {
+        if (!emergencyMode) return REWARD_TYPES;
+        return java.util.Arrays.stream(REWARD_TYPES).filter(t -> !t.equals("choice_box")).toArray(String[]::new);
     }
 
     @Override
@@ -220,6 +266,29 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
+    /**
+     * Hint text sits inside the box, so a long one runs out of it at small window sizes. Cut it to what fits
+     * and put the whole text in a hover tooltip instead.
+     */
+    private void setHintFitted(EditBox box, String hint) {
+        String plain = hint.replaceAll("§.", "");
+        int maxW = Math.max(10, box.getWidth() - 10);
+        boolean cut = font.width(plain) > maxW;
+        String shown = cut ? font.plainSubstrByWidth(plain, Math.max(0, maxW - font.width("…"))) + "…" : plain;
+        box.setHint(ChroniclesUIKit.lit("§8" + shown));
+        if (cut) box.setTooltip(Tooltip.create(ChroniclesUIKit.lit(plain)));
+    }
+
+    /** The box only says what it is; the tables that exist are listed in its hover tooltip. */
+    private void setTableIdHint(EditBox box) {
+        box.setHint(ChroniclesUIKit.lit("§8Table ID"));
+        List<String> known = new ArrayList<>(RewardTableRegistry.getAll().keySet());
+        Collections.sort(known);
+        String text = known.isEmpty() ? "No reward tables are loaded yet.\n(config/phoenix_chronicles/reward_tables/)" :
+                "Existing reward tables:\n" + String.join("\n", known);
+        box.setTooltip(Tooltip.create(ChroniclesUIKit.lit(text)));
+    }
+
     protected void rebuildWidgets() {
         String descVal = forcePendingTaskValues ? pendingTaskDesc : (taskDescBox != null ? taskDescBox.getValue() : "");
         String targetVal = forcePendingTaskValues ? pendingTaskTarget :
@@ -243,17 +312,20 @@ public class TaskRewardEditorScreen extends Screen {
                 (boxOptionCountBox != null ? boxOptionCountBox.getValue() : "1");
         String boNbtVal = forcePendingBoxOptionValues ? pendingBoxOptionNbt :
                 (boxOptionNbtBox != null ? boxOptionNbtBox.getValue() : "");
+        String boTableVal = forcePendingBoxOptionValues ? pendingBoxOptionTable :
+                (boxOptionTableBox != null ? boxOptionTableBox.getValue() : "");
         forcePendingBoxOptionValues = false;
 
         clearWidgets();
 
         addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7‹ Done"), b -> {
             flushToQuestNode();
-            ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
+            if (!emergencyMode) ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
             if (minecraft != null) minecraft.setScreen(parent);
         }).bounds(vw / 2 - 40, vh - FOOTER_H + (FOOTER_H - 14) / 2, 80, 14)
                 .tooltip(Tooltip.create(ChroniclesUIKit.lit("Save changes and return to quest editor"))).build());
 
+        int taskFormStart = children().size();
         int tx = MARGIN;
         int fy = formTop + 8;
 
@@ -284,9 +356,9 @@ public class TaskRewardEditorScreen extends Screen {
             }
         };
         boolean needsSecond = taskType.equals("block_interact") || taskType.equals("stat") ||
-                taskType.equals("dimension") || taskType.equals("energy_check");
+                taskType.equals("dimension") || taskType.equals("energy_check") || taskType.equals("recipe");
         boolean needsCount = switch (taskType) {
-            case "kill_entity", "item_check", "craft_item", "experience", "fluid_check", "stat", "tag_item", "energy_check", "external_trigger", "view_machine", "view_scene" -> true;
+            case "kill_entity", "item_check", "craft_item", "experience", "fluid_check", "stat", "tag_item", "energy_check", "external_trigger", "view_machine", "view_scene", "recipe", "block_interact" -> true;
             default -> {
                 PhoenixTaskRegistry.TaskEntry re = PhoenixTaskRegistry.get(taskType);
                 yield re != null &&
@@ -309,7 +381,7 @@ public class TaskRewardEditorScreen extends Screen {
         };
 
         taskDescBox = new EditBox(font, tx, fy, colW, FIELD_H, Component.empty());
-        taskDescBox.setHint(ChroniclesUIKit.lit("§8Task label shown to player"));
+        setHintFitted(taskDescBox, "§8Task label shown to player");
         taskDescBox.setMaxLength(128);
         taskDescBox.setValue(descVal);
         addRenderableWidget(taskDescBox);
@@ -331,6 +403,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "filter_item" -> "§8Item id(s), semicolon-separated: ANY match  (e.g. wire;cable)";
                 case "filter_fluid" -> "§8Fluid id(s), semicolon-separated: ANY match  (e.g. water;lava)";
                 case "external_trigger" -> "§8Trigger id";
+                case "recipe" -> "§8Recipe type  (e.g. gtceu:macerator, minecraft:smelting)";
                 case "view_machine" -> "§8Machine id  (Phantasia multiblock definition id)";
                 case "view_scene" -> "§8Scene id  (Phantasia scene definition id)";
                 case "view_guide" -> "§8Guide id  (Phantasia guide definition id)";
@@ -360,14 +433,16 @@ public class TaskRewardEditorScreen extends Screen {
             boolean hasStringIdPicker = taskType.equals("view_machine") || taskType.equals("view_scene") ||
                     taskType.equals("view_guide") || taskType.equals("archive_entry") ||
                     taskType.equals("external_trigger");
+            boolean hasRecipeTypePicker = taskType.equals("recipe");
             boolean hasEnergyTypeCycle = taskType.equals("energy_check");
             boolean hasAnyItemPicker = hasItemPicker || hasItemListPicker;
             boolean hasAnyFluidPicker = hasFluidPicker || hasFluidListPicker;
             int tw = (hasAnyItemPicker || hasAnyFluidPicker || hasBlockPicker || hasEntityPicker ||
-                    hasRegistryIdPicker || hasStringIdPicker || hasEnergyTypeCycle) ? colW - 36 : colW;
+                    hasRegistryIdPicker || hasStringIdPicker || hasEnergyTypeCycle || hasRecipeTypePicker) ? colW - 36 :
+                            colW;
             int tmaxLen = isInfo ? 512 : 160;
             taskTargetBox = new EditBox(font, tx, fy, tw, FIELD_H, Component.empty());
-            taskTargetBox.setHint(ChroniclesUIKit.lit(hint));
+            setHintFitted(taskTargetBox, hint);
             taskTargetBox.setMaxLength(tmaxLen);
             taskTargetBox.setValue(targetVal);
             addRenderableWidget(taskTargetBox);
@@ -377,8 +452,12 @@ public class TaskRewardEditorScreen extends Screen {
                         if (applyPickedItemFilter(stack)) return;
                         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
                         if (id != null && taskTargetBox != null) taskTargetBox.setValue(id.toString());
-                    }));
-                }).bounds(tx + tw, fy, 16, FIELD_H).build());
+                    }).withBulk(this::bulkAddItemTasks));
+                }).bounds(tx + tw, fy, 16, FIELD_H)
+                        .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                                "Pick an item. Right-click several in the picker to add one task per item at once " +
+                                        "(uses the count / consume / optional settings below).")))
+                        .build());
             } else if (hasItemListPicker) {
                 addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
                     if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
@@ -437,6 +516,17 @@ public class TaskRewardEditorScreen extends Screen {
                         }));
                     }
                 }).bounds(tx + tw, fy, 16, FIELD_H).build());
+            } else if (hasRecipeTypePicker) {
+                addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+                    if (minecraft != null) {
+                        minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick recipe type",
+                                ForgeRegistries.RECIPE_TYPES.getKeys(), id -> {
+                                    if (taskTargetBox != null) taskTargetBox.setValue(id.toString());
+                                }));
+                    }
+                }).bounds(tx + tw, fy, 16, FIELD_H)
+                        .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse recipe types, including every machine")))
+                        .build());
             } else if (hasEnergyTypeCycle) {
                 addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§6⟳"), b -> {
                     if (taskTargetBox == null) return;
@@ -476,7 +566,7 @@ public class TaskRewardEditorScreen extends Screen {
         taskNbtBox = null;
         if (taskType.equals("item_check")) {
             taskNbtBox = new EditBox(font, tx, fy, colW, FIELD_H, Component.empty());
-            taskNbtBox.setHint(ChroniclesUIKit.lit("§8NBT filter (optional)"));
+            setHintFitted(taskNbtBox, "§8NBT filter (optional)");
             taskNbtBox.setMaxLength(512);
             taskNbtBox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
                     ChroniclesUIKit.lit(
@@ -491,16 +581,33 @@ public class TaskRewardEditorScreen extends Screen {
                 case "block_interact" -> "§8PLACE or RIGHT_CLICK";
                 case "dimension" -> "§8Dimension id  (e.g. minecraft:the_nether)";
                 case "energy_check" -> "§8INVENTORY / HELD / BLOCK";
+                case "recipe" -> "§8Specific recipe id  (optional, any recipe of the type if empty)";
                 default -> "§8Secondary value";
             };
             boolean hasDimensionPicker = taskType.equals("dimension");
             boolean hasSourceCycle = taskType.equals("energy_check");
-            int secondW = (hasDimensionPicker || hasSourceCycle) ? colW - 18 : colW;
+            boolean hasRecipePicker = taskType.equals("recipe");
+            int secondW = (hasDimensionPicker || hasSourceCycle || hasRecipePicker) ? colW - 18 : colW;
             taskSecondaryBox = new EditBox(font, tx, fy, secondW, FIELD_H, Component.empty());
-            taskSecondaryBox.setHint(ChroniclesUIKit.lit(hint2));
+            setHintFitted(taskSecondaryBox, hint2);
             taskSecondaryBox.setMaxLength(128);
             taskSecondaryBox.setValue(secondVal);
-            addRenderableWidget(taskSecondaryBox);
+            if (taskType.equals("block_interact")) {
+                // The mode is a fixed choice, so a toggle replaces the text box; the box only holds the value.
+                String curMode = secondVal.trim().equalsIgnoreCase("RIGHT_CLICK") ? "RIGHT_CLICK" : "PLACE";
+                taskSecondaryBox.setValue(curMode);
+                addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§fMode: §e" + curMode), b -> {
+                    String next = taskSecondaryBox.getValue().equalsIgnoreCase("PLACE") ? "RIGHT_CLICK" : "PLACE";
+                    taskSecondaryBox.setValue(next);
+                    b.setMessage(ChroniclesUIKit.lit("§fMode: §e" + next));
+                }).bounds(tx, fy, colW, FIELD_H)
+                        .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                                "PLACE: the player places the block.\nRIGHT_CLICK: the player right-clicks it.\n" +
+                                        "Click to switch.")))
+                        .build());
+            } else {
+                addRenderableWidget(taskSecondaryBox);
+            }
             if (hasDimensionPicker) {
                 addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
                     if (minecraft == null || minecraft.getConnection() == null) return;
@@ -510,6 +617,25 @@ public class TaskRewardEditorScreen extends Screen {
                         if (taskSecondaryBox != null) taskSecondaryBox.setValue(id.toString());
                     }));
                 }).bounds(tx + secondW, fy, 16, FIELD_H).build());
+            } else if (hasRecipePicker) {
+                addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+                    if (minecraft == null || minecraft.level == null) return;
+                    ResourceLocation wantedType = taskTargetBox != null ?
+                            ResourceLocation.tryParse(taskTargetBox.getValue().trim()) : null;
+                    java.util.List<ResourceLocation> ids = new ArrayList<>();
+                    for (net.minecraft.world.item.crafting.Recipe<?> recipe : minecraft.level.getRecipeManager()
+                            .getRecipes()) {
+                        ResourceLocation typeKey = ForgeRegistries.RECIPE_TYPES.getKey(recipe.getType());
+                        if (wantedType == null || wantedType.equals(typeKey)) ids.add(recipe.getId());
+                    }
+                    minecraft.setScreen(new RegistryIdPickerScreen(this,
+                            wantedType != null ? "Pick " + wantedType + " recipe" : "Pick recipe", ids, id -> {
+                                if (taskSecondaryBox != null) taskSecondaryBox.setValue(id.toString());
+                            }));
+                }).bounds(tx + secondW, fy, 16, FIELD_H)
+                        .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                                "Browse the recipes of the type above (fill the type in first to narrow the list)")))
+                        .build());
             } else if (hasSourceCycle) {
                 addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§6⟳"), b -> {
                     if (taskSecondaryBox == null) return;
@@ -544,7 +670,7 @@ public class TaskRewardEditorScreen extends Screen {
                 }
             };
             taskCountBox = new EditBox(font, tx, rowY, 52, FIELD_H, Component.empty());
-            taskCountBox.setHint(ChroniclesUIKit.lit(countHint));
+            setHintFitted(taskCountBox, countHint);
             taskCountBox.setMaxLength(8);
             taskCountBox.setValue(countVal);
             addRenderableWidget(taskCountBox);
@@ -592,6 +718,10 @@ public class TaskRewardEditorScreen extends Screen {
                     taskOptional = !taskOptional;
                     rebuildWidgets();
                 }).tooltip(Tooltip.create(ChroniclesUIKit.lit("Task is optional: won't block quest completion")))));
+        flexBtns.add(new FlexBtn(62, () -> Button.builder(hideLabel(taskHiddenParts), b -> {
+            taskHiddenParts = (taskHiddenParts + 1) % 4;
+            rebuildWidgets();
+        }).tooltip(Tooltip.create(ChroniclesUIKit.lit(HIDE_TOOLTIP.formatted("task is completed"))))));
         flexBtns.add(new FlexBtn(46, () -> Button.builder(
                 ChroniclesUIKit.lit(editingTaskIndex >= 0 ? "§b✎ Update" : "§a✔ Add"),
                 b -> commitTaskFromForm())
@@ -610,6 +740,13 @@ public class TaskRewardEditorScreen extends Screen {
             flexCursor += w + flexGap;
         }
 
+        if (emergencyMode) {
+            taskTypeDropOpen = false;
+            for (var widget : new ArrayList<>(children().subList(taskFormStart, children().size()))) {
+                removeWidget(widget);
+            }
+        }
+
         int rx = splitX;
         int rfy = formTop + 8;
 
@@ -625,6 +762,8 @@ public class TaskRewardEditorScreen extends Screen {
             case "choice_box" -> "A single slot the player resolves themselves - Menu mode lets them " +
                     "pick one of the options below, Lootbox mode grants a random one instantly";
             case "open_screen" -> "Opens a registered external screen for the player when they claim this reward";
+            case "external" -> "A reward type another mod or script registered (PhoenixRewardRegistry); " +
+                    "its handler receives the player and the data below";
             default -> "Choose a reward type";
         };
         addRenderableWidget(Button.builder(
@@ -637,6 +776,11 @@ public class TaskRewardEditorScreen extends Screen {
                 .tooltip(Tooltip.create(ChroniclesUIKit.lit(rewardTypeTooltip))).build());
         rfy += FIELD_H + FIELD_GAP;
 
+        boolean editingBoxOption = rewardType.equals("choice_box") && editingBoxOptionIndex >= 0;
+        boolean editingTableOption = editingBoxOption && editingBoxOptionIndex < boxOptions.size() &&
+                boxOptions.get(editingBoxOptionIndex) instanceof QuestReward.RewardTableReward;
+        boolean editingItemOption = editingBoxOption && !editingTableOption;
+
         if (rewardType.equals("item")) {
             String itemLabel = rewardPickedItem != null ? "§f" + rewardPickedItem.getHoverName().getString() :
                     "§8Pick Item";
@@ -644,10 +788,13 @@ public class TaskRewardEditorScreen extends Screen {
                 if (minecraft != null) minecraft.setScreen(new ItemPickerScreen(this, stack -> {
                     rewardPickedItem = stack;
                     rebuildWidgets();
-                }));
-            }).bounds(rx, rfy, colW - 44, FIELD_H).build());
+                }).withBulk(this::bulkAddItemRewards));
+            }).bounds(rx, rfy, colW - 44, FIELD_H)
+                    .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                            "Pick an item. Right-click several in the picker to add one reward per item at once.")))
+                    .build());
             rewardCountBox = new EditBox(font, rx + colW - 42, rfy, 42, FIELD_H, Component.empty());
-            rewardCountBox.setHint(ChroniclesUIKit.lit("§8Qty"));
+            setHintFitted(rewardCountBox, "§8Qty");
             rewardCountBox.setMaxLength(4);
             rewardCountBox.setValue(rCountVal);
             addRenderableWidget(rewardCountBox);
@@ -657,7 +804,7 @@ public class TaskRewardEditorScreen extends Screen {
             }
         } else if (rewardType.equals("fluid")) {
             rewardCommandBox = new EditBox(font, rx, rfy, colW - 62, FIELD_H, Component.empty());
-            rewardCommandBox.setHint(ChroniclesUIKit.lit("§8Fluid id  (e.g. gtceu:oxygen)"));
+            setHintFitted(rewardCommandBox, "§8Fluid id  (e.g. gtceu:oxygen)");
             rewardCommandBox.setMaxLength(128);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
@@ -672,7 +819,7 @@ public class TaskRewardEditorScreen extends Screen {
                     .tooltip(Tooltip.create(ChroniclesUIKit.lit("Pick a fluid")))
                     .build());
             rewardCountBox = new EditBox(font, rx + colW - 42, rfy, 42, FIELD_H, Component.empty());
-            rewardCountBox.setHint(ChroniclesUIKit.lit("§8mB"));
+            setHintFitted(rewardCountBox, "§8mB");
             rewardCountBox.setMaxLength(8);
             rewardCountBox.setValue(rCountVal);
             addRenderableWidget(rewardCountBox);
@@ -689,29 +836,25 @@ public class TaskRewardEditorScreen extends Screen {
             }
         } else if (rewardType.equals("xp")) {
             rewardCountBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
-            rewardCountBox.setHint(ChroniclesUIKit.lit("§8XP levels to award"));
+            setHintFitted(rewardCountBox, "§8XP levels to award");
             rewardCountBox.setMaxLength(5);
             rewardCountBox.setValue(rCountVal);
             addRenderableWidget(rewardCountBox);
         } else if (rewardType.equals("script_event")) {
             rewardCommandBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
-            rewardCommandBox.setHint(ChroniclesUIKit.lit("§8Event ID  (e.g. unlock_end)"));
+            setHintFitted(rewardCommandBox, "§8Event ID  (e.g. unlock_end)");
             rewardCommandBox.setMaxLength(128);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
             rfy += FIELD_H + FIELD_GAP;
             rewardEventDataBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
-            rewardEventDataBox.setHint(ChroniclesUIKit.lit("§8NBT data  {key:\"val\"}  (optional)"));
+            setHintFitted(rewardEventDataBox, "§8NBT data  {key:\"val\"}  (optional)");
             rewardEventDataBox.setMaxLength(256);
             rewardEventDataBox.setValue(rEventDataVal);
             addRenderableWidget(rewardEventDataBox);
         } else if (rewardType.equals("reward_table")) {
-            String knownTables = RewardTableRegistry.getAll().keySet()
-                    .stream().reduce("", (a, b) -> a.isEmpty() ? b : a + ", " + b);
-            String hint = knownTables.isEmpty() ? "§8Table ID  (no tables loaded yet)" :
-                    "§8Table ID: known: " + knownTables;
             rewardCommandBox = new EditBox(font, rx, rfy, colW - 20, FIELD_H, Component.empty());
-            rewardCommandBox.setHint(ChroniclesUIKit.lit(hint));
+            setTableIdHint(rewardCommandBox);
             rewardCommandBox.setMaxLength(128);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
@@ -721,7 +864,29 @@ public class TaskRewardEditorScreen extends Screen {
             }).bounds(rx + colW - 18, rfy, 18, FIELD_H)
                     .tooltip(Tooltip.create(ChroniclesUIKit.lit("Simulate 1000 rolls against this table")))
                     .build());
-        } else if (rewardType.equals("choice_box") && editingBoxOptionIndex >= 0) {
+        } else if (editingTableOption) {
+            boxOptionTableBox = new EditBox(font, rx, rfy, colW - 20, FIELD_H, Component.empty());
+            setTableIdHint(boxOptionTableBox);
+            boxOptionTableBox.setMaxLength(128);
+            boxOptionTableBox.setValue(boTableVal);
+            addRenderableWidget(boxOptionTableBox);
+            addRenderableWidget(Button.builder(ChroniclesUIKit.lit("🎲"), b -> {
+                String tid = boxOptionTableBox.getValue().trim();
+                if (minecraft != null && !tid.isEmpty())
+                    minecraft.setScreen(new RewardTableSimulatorScreen(this, tid));
+            }).bounds(rx + colW - 18, rfy, 18, FIELD_H)
+                    .tooltip(Tooltip.create(ChroniclesUIKit.lit("Simulate 1000 rolls against this table")))
+                    .build());
+            rfy += FIELD_H + FIELD_GAP;
+
+            addRenderableWidget(
+                    Button.builder(ChroniclesUIKit.lit("§a✔ Save Option"), b -> commitBoxOptionEdit())
+                            .bounds(rx, rfy, colW / 2 - 2, FIELD_H)
+                            .tooltip(Tooltip.create(ChroniclesUIKit.lit("Save changes to this option")))
+                            .build());
+            addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7Cancel"), b -> cancelBoxOptionEdit())
+                    .bounds(rx + colW / 2 + 2, rfy, colW / 2 - 2, FIELD_H).build());
+        } else if (editingItemOption) {
             String itemLabel = boxOptionPickedItem != null ?
                     "§f" + boxOptionPickedItem.getHoverName().getString() : "§8Pick Item";
             addRenderableWidget(Button.builder(ChroniclesUIKit.lit(itemLabel), b -> {
@@ -731,14 +896,14 @@ public class TaskRewardEditorScreen extends Screen {
                 }));
             }).bounds(rx, rfy, colW - 44, FIELD_H).build());
             boxOptionCountBox = new EditBox(font, rx + colW - 42, rfy, 42, FIELD_H, Component.empty());
-            boxOptionCountBox.setHint(ChroniclesUIKit.lit("§8Qty"));
+            setHintFitted(boxOptionCountBox, "§8Qty");
             boxOptionCountBox.setMaxLength(4);
             boxOptionCountBox.setValue(boCountVal);
             addRenderableWidget(boxOptionCountBox);
             rfy += FIELD_H + FIELD_GAP;
 
             boxOptionNbtBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
-            boxOptionNbtBox.setHint(ChroniclesUIKit.lit("§8NBT  {display:{Name:'...'}}  (optional)"));
+            setHintFitted(boxOptionNbtBox, "§8NBT  {display:{Name:'...'}}  (optional)");
             boxOptionNbtBox.setMaxLength(256);
             boxOptionNbtBox.setValue(boNbtVal);
             addRenderableWidget(boxOptionNbtBox);
@@ -766,7 +931,7 @@ public class TaskRewardEditorScreen extends Screen {
                         };
                         rebuildWidgets();
                     })
-                    .bounds(rx, rfy, colW - 76, FIELD_H)
+                    .bounds(rx, rfy, colW - CHOICE_ADD_ITEM_W - CHOICE_ADD_TABLE_W - 4, FIELD_H)
                     .tooltip(Tooltip.create(ChroniclesUIKit.lit(
                             "Menu: player clicks the box and picks which option they get.\n" +
                                     "Lootbox: player clicks the box and the server grants a random option.\n" +
@@ -777,9 +942,16 @@ public class TaskRewardEditorScreen extends Screen {
                     boxOptions.add(new QuestReward.ItemReward(stack.getItem(), Math.max(1, stack.getCount())));
                     rebuildWidgets();
                 }));
-            }).bounds(rx + colW - 72, rfy, 72, FIELD_H)
+            }).bounds(rx + colW - CHOICE_ADD_ITEM_W - CHOICE_ADD_TABLE_W - 2, rfy, CHOICE_ADD_ITEM_W, FIELD_H)
                     .tooltip(Tooltip.create(ChroniclesUIKit.lit(
                             "Add an item option to this choice box (right-click an option to edit its qty/NBT)")))
+                    .build());
+            addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§6+ Table"), b -> {
+                boxOptions.add(new QuestReward.RewardTableReward(""));
+                startEditingBoxOption(boxOptions.size() - 1);
+            }).bounds(rx + colW - CHOICE_ADD_TABLE_W, rfy, CHOICE_ADD_TABLE_W, FIELD_H)
+                    .tooltip(Tooltip.create(ChroniclesUIKit.lit(
+                            "Add a reward table option: picking it rolls that table (right-click it to change the table)")))
                     .build());
             rfy += FIELD_H + FIELD_GAP;
 
@@ -804,9 +976,72 @@ public class TaskRewardEditorScreen extends Screen {
             int visibleRows = Math.max(1, (boxOptionsListBottom - boxOptionsListY) / BOX_OPTION_ROW_H);
             int maxScroll = Math.max(0, boxOptions.size() - visibleRows);
             boxOptionsScroll = Math.max(0, Math.min(boxOptionsScroll, maxScroll));
+        } else if (rewardType.equals("external")) {
+            PhoenixRewardRegistry.Entry externalEntry = PhoenixRewardRegistry.get(rCommandVal.trim());
+            externalEntryAtBuild = externalEntry;
+            rewardCommandBox = new EditBox(font, rx, rfy, colW - 20, FIELD_H, Component.empty());
+            setHintFitted(rewardCommandBox, "§8Registered external reward id");
+            rewardCommandBox.setMaxLength(128);
+            rewardCommandBox.setValue(rCommandVal);
+            rewardCommandBox.setResponder(v -> {
+                if (PhoenixRewardRegistry.get(v.trim()) != externalEntryAtBuild) {
+                    pendingRewardCommand = v;
+                    pendingRewardEventData = rewardEventDataBox != null ? rewardEventDataBox.getValue() :
+                            pendingRewardEventData;
+                    forcePendingRewardValues = true;
+                    rebuildWidgets();
+                }
+            });
+            addRenderableWidget(rewardCommandBox);
+            addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
+                java.util.List<ResourceLocation> ids = new ArrayList<>();
+                for (PhoenixRewardRegistry.Entry e : PhoenixRewardRegistry.all()) {
+                    ResourceLocation id = ResourceLocation.tryParse(e.typeId());
+                    if (id != null) ids.add(id);
+                }
+                if (minecraft != null && !ids.isEmpty()) {
+                    minecraft.setScreen(new RegistryIdPickerScreen(this, "Pick external reward", ids, id -> {
+                        pendingRewardCommand = id.toString();
+                        forcePendingRewardValues = true;
+                        rebuildWidgets();
+                    }));
+                }
+            }).bounds(rx + colW - 18, rfy, 18, FIELD_H)
+                    .tooltip(Tooltip.create(ChroniclesUIKit.lit("Browse registered external reward types")))
+                    .build());
+            rfy += FIELD_H + FIELD_GAP;
+
+            if (externalEntry != null && !externalEntry.fields().isEmpty()) {
+                for (PhoenixTaskRegistry.FieldDef field : externalEntry.fields()) {
+                    String current = externalFieldValues.getOrDefault(field.id(), "");
+                    if (field.type() == PhoenixTaskRegistry.FieldDef.FieldType.BOOLEAN) {
+                        boolean on = Boolean.parseBoolean(current);
+                        addRenderableWidget(Button.builder(
+                                ChroniclesUIKit.lit("§8" + field.label() + ": " + (on ? "§aON" : "§7OFF")), b -> {
+                                    externalFieldValues.put(field.id(), String.valueOf(!on));
+                                    rebuildWidgets();
+                                }).bounds(rx, rfy, colW, FIELD_H).build());
+                    } else {
+                        EditBox box = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
+                        setHintFitted(box, "§8" + field.label() +
+                                (field.hint() != null ? "  (" + field.hint() + ")" : ""));
+                        box.setMaxLength(256);
+                        box.setValue(current);
+                        box.setResponder(v -> externalFieldValues.put(field.id(), v));
+                        addRenderableWidget(box);
+                    }
+                    rfy += FIELD_H + FIELD_GAP;
+                }
+            } else {
+                rewardEventDataBox = new EditBox(font, rx, rfy, colW, FIELD_H, Component.empty());
+                setHintFitted(rewardEventDataBox, "§8NBT data  {key:\"val\"}  (optional)");
+                rewardEventDataBox.setMaxLength(256);
+                rewardEventDataBox.setValue(rEventDataVal);
+                addRenderableWidget(rewardEventDataBox);
+            }
         } else if (rewardType.equals("open_screen")) {
             rewardCommandBox = new EditBox(font, rx, rfy, colW - 20, FIELD_H, Component.empty());
-            rewardCommandBox.setHint(ChroniclesUIKit.lit("§8Registered external screen id"));
+            setHintFitted(rewardCommandBox, "§8Registered external screen id");
             rewardCommandBox.setMaxLength(128);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
@@ -825,19 +1060,22 @@ public class TaskRewardEditorScreen extends Screen {
                     .build());
         } else {
 
-            String hint = rewardType.equals("loot_table") ? "§8Loot table id  (e.g. minecraft:chests/simple_dungeon)" :
-                    rewardType.equals("quest_action") ? "§8Quest id  (e.g. my_quest or phoenix_chronicles:my_quest)" :
+            String hint = rewardType.equals("loot_table") ?
+                    "§8Loot table id  (e.g. minecraft:chests/simple_dungeon)" :
+                    rewardType.equals("quest_action") ?
+                            "§8Quest id  (e.g. my_quest or phoenix_chronicles:my_quest)" :
                             "§8/give {p} …";
             boolean questPicker = rewardType.equals("quest_action");
-            rewardCommandBox = new EditBox(font, rx, rfy, questPicker ? colW - 22 : colW, FIELD_H, Component.empty());
-            rewardCommandBox.setHint(ChroniclesUIKit.lit(hint));
+            rewardCommandBox = new EditBox(font, rx, rfy, questPicker ? colW - 22 : colW, FIELD_H,
+                    Component.empty());
+            setHintFitted(rewardCommandBox, hint);
             rewardCommandBox.setMaxLength(256);
             rewardCommandBox.setValue(rCommandVal);
             addRenderableWidget(rewardCommandBox);
             if (questPicker) {
                 addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§7⊞"), b -> {
                     if (rewardCommandBox != null) pendingRewardCommand = rewardCommandBox.getValue();
-                    if (minecraft != null) {
+                    if (minecraft != null && questNode != null) {
                         minecraft.setScreen(ParentSelectorScreen.singleSelect(this, questNode, picked -> {
                             pendingRewardCommand = picked.getId().toString();
                             forcePendingRewardValues = true;
@@ -858,6 +1096,12 @@ public class TaskRewardEditorScreen extends Screen {
             }
         }
 
+        addRenderableWidget(Button.builder(hideLabel(rewardHiddenParts), b -> {
+            rewardHiddenParts = (rewardHiddenParts + 1) % 4;
+            rebuildWidgets();
+        }).bounds(rx + colW - 80 - 4 - 62, formBottom - FIELD_H - 4, 62, FIELD_H)
+                .tooltip(Tooltip.create(ChroniclesUIKit.lit(HIDE_TOOLTIP.formatted("quest is completed"))))
+                .build());
         addRenderableWidget(Button.builder(
                 ChroniclesUIKit.lit(editingRewardIndex >= 0 ? "§b✎ Update Reward" : "§a✔ Add Reward"),
                 b -> commitRewardFromForm())
@@ -866,6 +1110,19 @@ public class TaskRewardEditorScreen extends Screen {
                         "Save changes to this reward (right-click it again to cancel)" :
                         "Add this reward to the quest (Ctrl+Z to undo)")))
                 .build());
+    }
+
+    private static final String HIDE_TOOLTIP = "Hide parts of this entry in the quest viewer until the %s.\n" +
+            "Click to cycle: off > amount > target > amount + target.\n" +
+            "Example: show that iron is needed but not how much.";
+
+    private static net.minecraft.network.chat.Component hideLabel(int parts) {
+        return ChroniclesUIKit.lit(switch (parts) {
+            case 1 -> "§dHide: amount";
+            case 2 -> "§dHide: target";
+            case 3 -> "§dHide: both";
+            default -> "§8Hide: off";
+        });
     }
 
     private static String permLabel(int level) {
@@ -1075,6 +1332,56 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
+    /** One task per picked item, all sharing the form's count, consume, optional and hide settings. */
+    private void bulkAddItemTasks(List<ItemStack> picked) {
+        if (editingTaskIndex >= 0 || taskTargetBox == null) return;
+        String descTemplate = taskDescBox != null ? taskDescBox.getValue().trim() : "";
+        String countVal = taskCountBox != null ? taskCountBox.getValue() : "1";
+        boolean optional = taskOptional, consume = taskConsume, sticky = taskSticky;
+        boolean ae2 = taskCheckAe2Storage;
+        int hidden = taskHiddenParts;
+        for (ItemStack stack : picked) {
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+            if (id == null || taskTargetBox == null) continue;
+            String name = stack.getHoverName().getString();
+            String verb = taskType.equals("craft_item") ? "Craft " : "Collect ";
+            taskTargetBox.setValue(id.toString());
+            if (taskDescBox != null) {
+                taskDescBox.setValue(descTemplate.isEmpty() ? verb + name : descTemplate.replace("{item}", name));
+            }
+            if (taskCountBox != null) taskCountBox.setValue(countVal);
+            taskOptional = optional;
+            taskConsume = consume;
+            taskSticky = sticky;
+            taskCheckAe2Storage = ae2;
+            taskHiddenParts = hidden;
+            commitTaskFromForm();
+        }
+    }
+
+    /** One item reward per picked item, each using the form's quantity. */
+    private void bulkAddItemRewards(List<ItemStack> picked) {
+        if (editingRewardIndex >= 0) return;
+        int count = 1;
+        try {
+            count = Math.max(1, Integer.parseInt(rewardCountBox != null ? rewardCountBox.getValue().trim() : "1"));
+        } catch (NumberFormatException ignored) {}
+        final int qty = count;
+        final int hidden = rewardHiddenParts;
+        final List<QuestReward> added = new ArrayList<>();
+        for (ItemStack stack : picked) {
+            QuestReward r = new QuestReward.ItemReward(stack.getItem(), qty, stack.getTag(), rewardPushAe2);
+            r.setHiddenParts(hidden);
+            added.add(r);
+        }
+        pushUndo(() -> {
+            rewards.addAll(added);
+            rewardListScroll = Integer.MAX_VALUE;
+        });
+        rewardPickedItem = null;
+        rebuildWidgets();
+    }
+
     private void commitTaskFromForm() {
         String desc = taskDescBox != null ? taskDescBox.getValue().trim() : "";
         String target = taskTargetBox != null ? taskTargetBox.getValue().trim() : "";
@@ -1126,6 +1433,12 @@ public class TaskRewardEditorScreen extends Screen {
                     yield irt;
                 }
                 case "craft_item" -> new CraftItemTask(taskId, descComp, ResourceLocation.parse(target), count);
+                case "recipe" -> {
+                    ResourceLocation recipeTypeId = ResourceLocation.tryParse(target);
+                    ResourceLocation recipeId = second.isEmpty() ? null : ResourceLocation.tryParse(second);
+                    yield recipeTypeId != null ? new RecipeTask(taskId, descComp, recipeTypeId, recipeId, count) :
+                            null;
+                }
                 case "experience" -> new ExperienceTask(taskId, descComp, count);
                 case "location_terminal" -> new LocationOrTerminalTask(taskId, descComp, ResourceLocation.parse(target),
                         taskConsume);
@@ -1171,7 +1484,7 @@ public class TaskRewardEditorScreen extends Screen {
                 case "block_interact" -> {
                     var block = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(target));
                     String mode = second.isEmpty() ? "PLACE" : second.toUpperCase();
-                    yield block != null ? new BlockInteractTask(taskId, descComp, block, mode) : null;
+                    yield block != null ? new BlockInteractTask(taskId, descComp, block, mode, count) : null;
                 }
                 case "block_break" -> {
                     var block = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(target));
@@ -1241,6 +1554,7 @@ public class TaskRewardEditorScreen extends Screen {
 
         if (task != null) {
             task.setOptional(taskOptional);
+            task.setHiddenParts(taskHiddenParts);
             applyStickyIfSupported(task, taskSticky);
             QuestTask finalTask = task;
             pushUndo(() -> {
@@ -1248,11 +1562,13 @@ public class TaskRewardEditorScreen extends Screen {
                     tasks.set(editingTaskIndex, finalTask);
                 } else {
                     tasks.add(finalTask);
+                    taskListScroll = Integer.MAX_VALUE;
                 }
                 editingTaskIndex = -1;
             });
             taskTypeDropOpen = false;
             taskOptional = false;
+            taskHiddenParts = 0;
             taskSticky = true;
             taskConsume = false;
             taskCheckAe2Storage = AE2Compat.isAvailable();
@@ -1273,6 +1589,7 @@ public class TaskRewardEditorScreen extends Screen {
         editingTaskIndex = idx;
         taskType = taskTypeIdFor(t);
         taskOptional = t.isOptional();
+        taskHiddenParts = t.getHiddenParts();
         taskConsume = true;
         taskSticky = true;
         taskCheckAe2Storage = AE2Compat.isAvailable();
@@ -1305,6 +1622,10 @@ public class TaskRewardEditorScreen extends Screen {
         } else if (t instanceof CraftItemTask ct) {
             pendingTaskTarget = ct.getItemId().toString();
             pendingTaskCount = String.valueOf(ct.getRequiredCount());
+        } else if (t instanceof RecipeTask rt) {
+            pendingTaskTarget = rt.getRecipeType().toString();
+            pendingTaskSecondary = rt.getRecipeId() != null ? rt.getRecipeId().toString() : "";
+            pendingTaskCount = String.valueOf(rt.getRequired());
         } else if (t instanceof ExperienceTask et) {
             pendingTaskCount = String.valueOf(et.getRequiredLevel());
         } else if (t instanceof LocationOrTerminalTask lt) {
@@ -1316,6 +1637,7 @@ public class TaskRewardEditorScreen extends Screen {
             ResourceLocation id = ForgeRegistries.BLOCKS.getKey(bit.getTargetBlock());
             pendingTaskTarget = id != null ? id.toString() : "";
             pendingTaskSecondary = bit.getMode();
+            pendingTaskCount = String.valueOf(bit.getRequired());
         } else if (t instanceof BlockBreakTask bbt) {
             ResourceLocation id = ForgeRegistries.BLOCKS.getKey(bbt.getTargetBlock());
             pendingTaskTarget = id != null ? id.toString() : "";
@@ -1423,6 +1745,7 @@ public class TaskRewardEditorScreen extends Screen {
         if (t instanceof KillEntityTask) return "kill_entity";
         if (t instanceof ItemRequirementTask) return "item_check";
         if (t instanceof CraftItemTask) return "craft_item";
+        if (t instanceof RecipeTask) return "recipe";
         if (t instanceof ExperienceTask) return "experience";
         if (t instanceof LocationOrTerminalTask) return "location_terminal";
         if (t instanceof AdvancementTask) return "advancement";
@@ -1451,6 +1774,7 @@ public class TaskRewardEditorScreen extends Screen {
     private void cancelTaskEdit() {
         editingTaskIndex = -1;
         taskOptional = false;
+        taskHiddenParts = 0;
         taskCheckAe2Storage = AE2Compat.isAvailable();
         pendingTaskDesc = pendingTaskTarget = pendingTaskSecondary = pendingTaskCount = pendingTaskNbt = "";
         pendingPickedItemFilter = null;
@@ -1506,6 +1830,32 @@ public class TaskRewardEditorScreen extends Screen {
                 }
                 yield new QuestReward.ScriptEventReward(eid, data);
             }
+            case "external" -> {
+                String tid = rewardCommandBox != null ? rewardCommandBox.getValue().trim() : "";
+                if (tid.isEmpty()) yield null;
+                PhoenixRewardRegistry.Entry entry = PhoenixRewardRegistry.get(tid);
+                net.minecraft.nbt.CompoundTag data = new net.minecraft.nbt.CompoundTag();
+                if (entry != null && !entry.fields().isEmpty()) {
+                    for (PhoenixTaskRegistry.FieldDef field : entry.fields()) {
+                        String value = externalFieldValues.getOrDefault(field.id(), "").trim();
+                        if (value.isEmpty()) continue;
+                        switch (field.type()) {
+                            case INTEGER -> {
+                                try {
+                                    data.putInt(field.id(), Integer.parseInt(value));
+                                } catch (NumberFormatException ignored) {}
+                            }
+                            case BOOLEAN -> data.putBoolean(field.id(), Boolean.parseBoolean(value));
+                            default -> data.putString(field.id(), value);
+                        }
+                    }
+                } else if (rewardEventDataBox != null && !rewardEventDataBox.getValue().isBlank()) {
+                    try {
+                        data = net.minecraft.nbt.TagParser.parseTag(rewardEventDataBox.getValue().trim());
+                    } catch (Exception ignored) {}
+                }
+                yield new QuestReward.ExternalReward(tid, data);
+            }
             case "choice_box" -> boxOptions.isEmpty() ? null :
                     new QuestReward.ChoiceBoxReward(new ArrayList<>(boxOptions), boxMode);
             case "open_screen" -> {
@@ -1518,20 +1868,24 @@ public class TaskRewardEditorScreen extends Screen {
         };
 
         if (reward != null) {
+            reward.setHiddenParts(rewardHiddenParts);
             pushUndo(() -> {
                 if (editingRewardIndex >= 0 && editingRewardIndex < rewards.size()) {
                     rewards.set(editingRewardIndex, reward);
                 } else {
                     rewards.add(reward);
+                    rewardListScroll = Integer.MAX_VALUE;
                 }
                 editingRewardIndex = -1;
             });
             rewardPickedItem = null;
+            rewardHiddenParts = 0;
             rewardPushAe2 = true;
             rewardPermLevel = QuestReward.CommandReward.DEFAULT_PERMISSION_LEVEL;
             rewardQuestAction = QuestReward.QuestActionReward.Action.COMPLETE;
             rewardTypeDropOpen = false;
             pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
+            externalFieldValues.clear();
             boxOptions.clear();
             boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
             editingBoxOptionIndex = -1;
@@ -1545,12 +1899,14 @@ public class TaskRewardEditorScreen extends Screen {
         if (idx < 0 || idx >= rewards.size()) return;
         QuestReward r = rewards.get(idx);
         rewardPickedItem = null;
+        rewardHiddenParts = r.getHiddenParts();
         rewardPushAe2 = true;
         rewardPermLevel = QuestReward.CommandReward.DEFAULT_PERMISSION_LEVEL;
         rewardQuestAction = QuestReward.QuestActionReward.Action.COMPLETE;
         pendingRewardCount = "1";
         pendingRewardCommand = "";
         pendingRewardEventData = "";
+        externalFieldValues.clear();
         boxOptions.clear();
         boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
         editingBoxOptionIndex = -1;
@@ -1593,6 +1949,17 @@ public class TaskRewardEditorScreen extends Screen {
             rewardType = "choice_box";
             boxMode = box.getMode();
             boxOptions.addAll(box.getOptions());
+        } else if (r instanceof QuestReward.ExternalReward er) {
+            rewardType = "external";
+            pendingRewardCommand = er.getTypeId();
+            for (String key : er.getData().getAllKeys()) {
+                net.minecraft.nbt.Tag value = er.getData().get(key);
+                externalFieldValues.put(key, value instanceof net.minecraft.nbt.NumericTag number ?
+                        (value instanceof net.minecraft.nbt.ByteTag ? String.valueOf(number.getAsByte() != 0) :
+                                String.valueOf(number.getAsNumber())) :
+                        value.getAsString());
+            }
+            pendingRewardEventData = er.getData().isEmpty() ? "" : er.getData().toString();
         } else if (r instanceof QuestReward.OpenScreenReward osr) {
             rewardType = "open_screen";
             pendingRewardCommand = osr.getScreenId() != null ? osr.getScreenId().toString() : "";
@@ -1614,6 +1981,7 @@ public class TaskRewardEditorScreen extends Screen {
         rewardPermLevel = QuestReward.CommandReward.DEFAULT_PERMISSION_LEVEL;
         rewardQuestAction = QuestReward.QuestActionReward.Action.COMPLETE;
         pendingRewardCount = pendingRewardCommand = pendingRewardEventData = "";
+        externalFieldValues.clear();
         boxOptions.clear();
         boxMode = QuestReward.ChoiceBoxReward.Mode.MENU;
         editingBoxOptionIndex = -1;
@@ -1624,6 +1992,13 @@ public class TaskRewardEditorScreen extends Screen {
 
     private void startEditingBoxOption(int idx) {
         if (idx < 0 || idx >= boxOptions.size()) return;
+        if (boxOptions.get(idx) instanceof QuestReward.RewardTableReward table) {
+            editingBoxOptionIndex = idx;
+            pendingBoxOptionTable = table.getTableId();
+            forcePendingBoxOptionValues = true;
+            rebuildWidgets();
+            return;
+        }
         if (!(boxOptions.get(idx) instanceof QuestReward.ItemReward ir)) return;
 
         editingBoxOptionIndex = idx;
@@ -1636,6 +2011,14 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     private void commitBoxOptionEdit() {
+        if (editingBoxOptionIndex >= 0 && editingBoxOptionIndex < boxOptions.size() &&
+                boxOptions.get(editingBoxOptionIndex) instanceof QuestReward.RewardTableReward) {
+            String tid = boxOptionTableBox != null ? boxOptionTableBox.getValue().trim() : "";
+            if (tid.isEmpty()) boxOptions.remove(editingBoxOptionIndex);
+            else boxOptions.set(editingBoxOptionIndex, new QuestReward.RewardTableReward(tid));
+            cancelBoxOptionEdit();
+            return;
+        }
         if (editingBoxOptionIndex < 0 || editingBoxOptionIndex >= boxOptions.size() || boxOptionPickedItem == null) {
             cancelBoxOptionEdit();
             return;
@@ -1662,6 +2045,12 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     private void cancelBoxOptionEdit() {
+        if (editingBoxOptionIndex >= 0 && editingBoxOptionIndex < boxOptions.size() &&
+                boxOptions.get(editingBoxOptionIndex) instanceof QuestReward.RewardTableReward table &&
+                table.getTableId().isBlank()) {
+            boxOptions.remove(editingBoxOptionIndex);
+        }
+        pendingBoxOptionTable = "";
         editingBoxOptionIndex = -1;
         boxOptionPickedItem = null;
         pendingBoxOptionCount = "1";
@@ -1671,14 +2060,31 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     private void flushToQuestNode() {
+        if (emergencyMode) {
+            if (emergencySink != null) emergencySink.accept(new ArrayList<>(rewards));
+            return;
+        }
         if (variantTarget != null) {
             variantTarget.tasks = new ArrayList<>(tasks);
             variantTarget.rewards = new ArrayList<>(rewards);
         } else {
+            java.util.Set<ResourceLocation> existingTaskIds = new java.util.HashSet<>();
+            for (QuestTask old : questNode.getTasks()) existingTaskIds.add(old.getTaskId());
+            boolean addedRequiredTask = false;
+            for (QuestTask t : tasks) {
+                if (!t.isOptional() && !existingTaskIds.contains(t.getTaskId())) addedRequiredTask = true;
+            }
+
             questNode.clearTasks();
             for (QuestTask t : tasks) questNode.addTask(t);
             questNode.clearRewards();
             for (QuestReward r : rewards) questNode.addReward(r);
+
+            if (addedRequiredTask && QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
+                net.phoenixvine.chronicles.network.ChronicleNetwork.CHANNEL.sendToServer(
+                        new net.phoenixvine.chronicles.network.packet.C2SReopenCompletedQuestPacket(
+                                questNode.getId()));
+            }
         }
 
         if (QuestTreeRegistry.getQuest(questNode.getId()) == questNode) {
@@ -1706,21 +2112,23 @@ public class TaskRewardEditorScreen extends Screen {
         g.fill(0, 0, vw, HEADER_H, C_HEADER);
         g.fill(0, 0, vw, 2, C_ACCENT);
         g.fill(0, HEADER_H - 1, vw, HEADER_H, C_BORDER);
-        String repeatBadge = switch (questNode.getRepeatMode()) {
+        String repeatBadge = emergencyMode ? "" : switch (questNode.getRepeatMode()) {
             case DAILY -> "  §b[Daily]";
             case COOLDOWN -> "  §e[Cooldown " + questNode.getRepeatCooldownHours() + "h]";
             case INFINITE -> "  §a[∞]";
             default -> "";
         };
         String variantBadge = variantTarget != null ? "  §d[variant: " + variantTarget.condition + "]" : "";
-        ChroniclesUIKit.drawCenteredString(g, font,
-                "§fTasks & Rewards  §8: §7" + questNode.getId().getPath() + repeatBadge + variantBadge,
-                vw / 2, (HEADER_H - 8) / 2, C_TEXT);
+        String headerTitle = emergencyMode ? "§6⚠ §fEmergency Rewards  §8: §7" + emergencyLabel :
+                "§fTasks & Rewards  §8: §7" + questNode.getId().getPath() + repeatBadge + variantBadge;
+        ChroniclesUIKit.drawCenteredString(g, font, headerTitle, vw / 2, (HEADER_H - 8) / 2, C_TEXT);
 
         g.fill(0, HEADER_H, vw, listTop - 1, C_PANEL);
         g.fill(0, listTop - 1, vw, listTop, C_BORDER);
         String taskSubHeader;
-        if (tasks.isEmpty()) {
+        if (emergencyMode) {
+            taskSubHeader = "§6⚠ §8Emergency kit: no tasks, rewards only";
+        } else if (tasks.isEmpty()) {
             taskSubHeader = "§c⚠ No tasks: quest auto-completes on unlock";
         } else {
             long optCount = tasks.stream().filter(QuestTask::isOptional).count();
@@ -1734,6 +2142,9 @@ public class TaskRewardEditorScreen extends Screen {
                     false);
         ChroniclesUIKit.drawString(g, font, "§8Rewards  §7" + rewards.size(), splitX + 4, HEADER_H + 6, C_TEXT_FAINT,
                 false);
+        if (copiedRewardNBT != null)
+            ChroniclesUIKit.drawString(g, font, "§b[Ctrl+V]", splitX + colW - font.width("[Ctrl+V]") - 4,
+                    HEADER_H + 6, 0xFF55BBFF, false);
 
         g.fill(splitX - COL_GAP / 2, HEADER_H, splitX - COL_GAP / 2 + 1, vh - FOOTER_H, C_SPLIT);
 
@@ -1746,8 +2157,20 @@ public class TaskRewardEditorScreen extends Screen {
         g.fill(splitX, formPanelTop + 2, splitX + colW, formBottom - 2, C_FORM_BG);
         drawBorder(g, splitX, formPanelTop + 2, colW, formBottom - 2 - (formPanelTop + 2), C_BORDER);
         ChroniclesUIKit.drawString(g, font,
-                editingTaskIndex >= 0 ? "§b✎ Editing Task (right-click to cancel)" : "§8Add Task",
+                emergencyMode ? "§8Emergency kit" :
+                        editingTaskIndex >= 0 ? "§b✎ Editing Task (right-click to cancel)" : "§8Add Task",
                 MARGIN + 6, formPanelTop + 6, C_TEXT_FAINT, false);
+        if (emergencyMode) {
+            int helpY = formPanelTop + 20;
+            for (String line : font.getSplitter().splitLines(
+                    "Players claim these from the emergency screen while the quest is active - " +
+                            "use it for a lost required item or a stuck quest. Any reward type except Choice Box " +
+                            "works. How often it can be claimed is set on the previous screen.",
+                    colW - 14, net.minecraft.network.chat.Style.EMPTY).stream().map(t -> t.getString()).toList()) {
+                ChroniclesUIKit.drawString(g, font, "§8" + line, MARGIN + 6, helpY, C_TEXT_FAINT, false);
+                helpY += 10;
+            }
+        }
         ChroniclesUIKit.drawString(g, font,
                 editingRewardIndex >= 0 ? "§b✎ Editing Reward (right-click to cancel)" : "§8Add Reward",
                 splitX + 6, formPanelTop + 6, C_TEXT_FAINT, false);
@@ -1758,11 +2181,21 @@ public class TaskRewardEditorScreen extends Screen {
         g.fill(0, vh - FOOTER_H, vw, vh - FOOTER_H + 1, C_BORDER);
 
         hoveredTaskRow = -1;
-        int ty = listTop;
+        int listH = Math.max(0, listBottom - listTop);
+        int taskTotalH = tasks.size() * ROW_H;
+        taskListScroll = Math.max(0, Math.min(taskListScroll, Math.max(0, taskTotalH - listH)));
+        // GuiGraphics scissor ignores the pose scale used on small windows, so scale the rectangle by hand.
+        g.enableScissor(Math.round(MARGIN * uiScale), Math.round(listTop * uiScale),
+                Math.round((splitX - COL_GAP) * uiScale), Math.round(listBottom * uiScale));
+        int ty = listTop - taskListScroll;
         for (int i = 0; i < tasks.size(); i++) {
             QuestTask task = tasks.get(i);
-            if (ty + ROW_H > listBottom) break;
-            boolean hov = mx >= MARGIN && mx < splitX - COL_GAP && my >= ty && my < ty + ROW_H;
+            if (ty + ROW_H <= listTop || ty >= listBottom) {
+                ty += ROW_H;
+                continue;
+            }
+            boolean hov = mx >= MARGIN && mx < splitX - COL_GAP && my >= Math.max(ty, listTop) &&
+                    my < Math.min(ty + ROW_H, listBottom);
             if (hov) {
                 g.fill(MARGIN, ty, splitX - COL_GAP, ty + ROW_H, C_ROW_HOVER);
                 hoveredTaskRow = i;
@@ -1802,6 +2235,8 @@ public class TaskRewardEditorScreen extends Screen {
             }
             ty += ROW_H;
         }
+        g.disableScissor();
+        ChroniclesThemeRenderer.drawScrollbar(g, splitX - COL_GAP, listTop, listBottom, taskListScroll, taskTotalH);
         if (tasks.isEmpty())
             ChroniclesUIKit.drawString(g, font, "§8No tasks yet: add one below.", MARGIN + 6, listTop + 5, C_TEXT_FAINT,
                     false);
@@ -1809,20 +2244,28 @@ public class TaskRewardEditorScreen extends Screen {
         hoveredRewardRow = -1;
         rewardDisplayOrder = computeRewardDisplayOrder();
         int tableSectionStart = rewardTableSectionStart(rewardDisplayOrder);
-        int ry = listTop;
+        int rewardTotalH = rewardListContentH(rewardDisplayOrder, tableSectionStart);
+        rewardListScroll = Math.max(0, Math.min(rewardListScroll, Math.max(0, rewardTotalH - listH)));
+        g.enableScissor(Math.round(splitX * uiScale), Math.round(listTop * uiScale),
+                Math.round((vw - MARGIN) * uiScale), Math.round(listBottom * uiScale));
+        int ry = listTop - rewardListScroll;
         for (int pos = 0; pos < rewardDisplayOrder.size(); pos++) {
             if (pos == tableSectionStart) {
-                if (ry + ROW_HEADER_H > listBottom) break;
-                ChroniclesUIKit.drawString(g, font, "§6⊞ §8Reward Tables", splitX + 5, ry + (ROW_HEADER_H / 2) - 4,
-                        C_TEXT_FAINT,
-                        false);
-                g.fill(splitX, ry + ROW_HEADER_H - 1, vw - MARGIN, ry + ROW_HEADER_H, C_BORDER);
+                if (ry + ROW_HEADER_H > listTop && ry < listBottom) {
+                    ChroniclesUIKit.drawString(g, font, "§6⊞ §8Reward Tables", splitX + 5,
+                            ry + (ROW_HEADER_H / 2) - 4, C_TEXT_FAINT, false);
+                    g.fill(splitX, ry + ROW_HEADER_H - 1, vw - MARGIN, ry + ROW_HEADER_H, C_BORDER);
+                }
                 ry += ROW_HEADER_H;
             }
             int i = rewardDisplayOrder.get(pos);
             QuestReward reward = rewards.get(i);
-            if (ry + ROW_H > listBottom) break;
-            boolean hov = mx >= splitX && mx < vw - MARGIN && my >= ry && my < ry + ROW_H;
+            if (ry + ROW_H <= listTop || ry >= listBottom) {
+                ry += ROW_H;
+                continue;
+            }
+            boolean hov = mx >= splitX && mx < vw - MARGIN && my >= Math.max(ry, listTop) &&
+                    my < Math.min(ry + ROW_H, listBottom);
             if (hov) {
                 g.fill(splitX, ry, vw - MARGIN, ry + ROW_H, C_ROW_HOVER);
                 hoveredRewardRow = i;
@@ -1849,6 +2292,7 @@ public class TaskRewardEditorScreen extends Screen {
                     case REWARD_TABLE -> "§6⊞";
                     case FLUID -> "§3💧";
                     case QUEST_ACTION -> "§b✔";
+                    case EXTERNAL -> "§5⌘";
                     default -> "§8?";
                 };
                 String typeLine = switch (reward.getType()) {
@@ -1859,6 +2303,7 @@ public class TaskRewardEditorScreen extends Screen {
                     case REWARD_TABLE -> "§8reward table";
                     case FLUID -> "§8fluid";
                     case QUEST_ACTION -> "§8quest action";
+                    case EXTERNAL -> "§8external";
                     default -> "§8reward";
                 };
                 int rmaxW = (vw - MARGIN - (hov ? 16 : 6)) - rewardTextX - font.width(icon) - 4;
@@ -1871,6 +2316,8 @@ public class TaskRewardEditorScreen extends Screen {
             if (hov) ChroniclesUIKit.drawString(g, font, "§c×", vw - MARGIN - 12, ry + 9, 0xFFFF5555, false);
             ry += ROW_H;
         }
+        g.disableScissor();
+        ChroniclesThemeRenderer.drawScrollbar(g, vw - MARGIN, listTop, listBottom, rewardListScroll, rewardTotalH);
         if (rewards.isEmpty())
             ChroniclesUIKit.drawString(g, font, "§8No rewards yet: add one below.", splitX + 6, listTop + 5,
                     C_TEXT_FAINT, false);
@@ -1895,7 +2342,8 @@ public class TaskRewardEditorScreen extends Screen {
             drawBorder(g, MARGIN, dy, colW, dropH, C_ACCENT);
 
             hoveredDropRow = -1;
-
+            // Rows that are only partly inside the list must be cut off at its edges. GuiGraphics scissor ignores the
+            // pose scale used for small windows, so the rectangle is scaled by hand.
             g.enableScissor(Math.round(MARGIN * uiScale), Math.round(dy * uiScale),
                     Math.round((MARGIN + colW) * uiScale), Math.round((dy + dropH) * uiScale));
             for (int i = 0; i < editorTypes.size(); i++) {
@@ -1941,15 +2389,15 @@ public class TaskRewardEditorScreen extends Screen {
 
         if (rewardTypeDropOpen) {
             int rowH = FIELD_H;
-            int dropH = REWARD_TYPES.length * rowH;
+            int dropH = rewardTypes().length * rowH;
             int dy = Math.max(listTop, formTop - dropH - 2);
             g.fill(splitX, dy, splitX + colW, dy + dropH, C_PANEL);
             drawBorder(g, splitX, dy, colW, dropH, C_ACCENT);
-            for (int i = 0; i < REWARD_TYPES.length; i++) {
+            for (int i = 0; i < rewardTypes().length; i++) {
                 int dropRowY = dy + i * rowH;
                 boolean hov = mx >= splitX && mx < splitX + colW && my >= dropRowY && my < dropRowY + rowH;
                 if (hov) g.fill(splitX + 1, dropRowY, splitX + colW - 1, dropRowY + rowH, 0xFF1E1E2A);
-                ChroniclesUIKit.drawString(g, font, "§7" + rewardTypeLabel(REWARD_TYPES[i]), splitX + 5, dropRowY + 3,
+                ChroniclesUIKit.drawString(g, font, "§7" + rewardTypeLabel(rewardTypes()[i]), splitX + 5, dropRowY + 3,
                         hov ? C_TEXT : C_TEXT_DIM, false);
             }
         }
@@ -1970,11 +2418,33 @@ public class TaskRewardEditorScreen extends Screen {
             redoLastChange();
             return true;
         }
+        if (ctrl && key == 67) {
+            if (hoveredRewardRow >= 0 && hoveredRewardRow < rewards.size()) {
+                copiedRewardNBT = rewards.get(hoveredRewardRow).serializeWithMeta();
+                return true;
+            }
+            if (hoveredTaskRow >= 0 && hoveredTaskRow < tasks.size()) {
+                copiedTaskNBT = tasks.get(hoveredTaskRow).serializeWithMeta();
+                return true;
+            }
+        }
+        boolean pasteReward = copiedRewardNBT != null && (hoveredRewardRow >= 0 || copiedTaskNBT == null);
+        if (ctrl && key == 86 && pasteReward) {
+            QuestReward pastedReward = QuestReward.deserializeNBT(copiedRewardNBT.copy());
+            if (pastedReward != null) {
+                pushUndo(() -> {
+                    rewards.add(pastedReward);
+                    rewardListScroll = Integer.MAX_VALUE;
+                });
+            }
+            return true;
+        }
         if (ctrl && key == 86 && copiedTaskNBT != null) {
             QuestTask pasted = deserializeTask(copiedTaskNBT.copy());
             if (pasted != null) {
                 pasted = retaskId(pasted, "task_paste_" + java.util.UUID.randomUUID().toString().replace("-", ""));
                 tasks.add(pasted);
+                taskListScroll = Integer.MAX_VALUE;
             }
             return true;
         }
@@ -2000,6 +2470,22 @@ public class TaskRewardEditorScreen extends Screen {
             int maxScroll = Math.max(0, boxOptions.size() - visibleRows);
             boxOptionsScroll = Math.max(0, Math.min(maxScroll, boxOptionsScroll - (int) Math.signum(delta)));
             return true;
+        }
+        if (!rewardTypeDropOpen && my >= listTop && my < listBottom) {
+            int listH = Math.max(0, listBottom - listTop);
+            int step = ROW_H;
+            if (mx >= MARGIN && mx < splitX - COL_GAP) {
+                int maxScroll = Math.max(0, tasks.size() * ROW_H - listH);
+                taskListScroll = Math.max(0, Math.min(maxScroll, (int) (taskListScroll - Math.signum(delta) * step)));
+                return true;
+            }
+            if (mx >= splitX && mx < vw - MARGIN) {
+                int total = rewardListContentH(rewardDisplayOrder, rewardTableSectionStart(rewardDisplayOrder));
+                int maxScroll = Math.max(0, total - listH);
+                rewardListScroll = Math.max(0, Math.min(maxScroll,
+                        (int) (rewardListScroll - Math.signum(delta) * step)));
+                return true;
+            }
         }
         return super.mouseScrolled(mx, my, delta);
     }
@@ -2033,12 +2519,12 @@ public class TaskRewardEditorScreen extends Screen {
                 return true;
             }
             if (rewardTypeDropOpen) {
-                int dropH = REWARD_TYPES.length * FIELD_H;
+                int dropH = rewardTypes().length * FIELD_H;
                 int dy = Math.max(listTop, formTop - dropH - 2);
-                for (int i = 0; i < REWARD_TYPES.length; i++) {
+                for (int i = 0; i < rewardTypes().length; i++) {
                     int ry2 = dy + i * FIELD_H;
                     if (mx >= splitX && mx < splitX + colW && my >= ry2 && my < ry2 + FIELD_H) {
-                        rewardType = REWARD_TYPES[i];
+                        rewardType = rewardTypes()[i];
                         rewardTypeDropOpen = false;
                         rebuildWidgets();
                         return true;
@@ -2059,7 +2545,7 @@ public class TaskRewardEditorScreen extends Screen {
             }
 
             if (hoveredTaskRow >= 0 && mx >= splitX - COL_GAP - 28 && mx < splitX - COL_GAP - 14) {
-                copiedTaskNBT = tasks.get(hoveredTaskRow).serializeNBT();
+                copiedTaskNBT = tasks.get(hoveredTaskRow).serializeWithMeta();
                 return true;
             }
 
@@ -2118,9 +2604,22 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     private int rowIndexAtY(double my, int count) {
-        if (my < listTop) return -1;
-        int idx = (int) ((my - listTop) / ROW_H);
+        if (my < listTop || my >= listBottom) return -1;
+        int idx = (int) ((my - listTop + taskListScroll) / ROW_H);
         return idx >= 0 && idx < count ? idx : -1;
+    }
+
+    private int rewardListContentH(List<Integer> order, int tableSectionStart) {
+        return order.size() * ROW_H + (tableSectionStart < order.size() ? ROW_HEADER_H : 0);
+    }
+
+    /** Scrolls a list while a row is being dragged near its top or bottom edge. */
+    private int dragAutoScroll(double my, int scroll, int totalH) {
+        int listH = Math.max(0, listBottom - listTop);
+        int maxScroll = Math.max(0, totalH - listH);
+        if (my < listTop + 6) return Math.max(0, scroll - 6);
+        if (my >= listBottom - 6) return Math.min(maxScroll, scroll + 6);
+        return scroll;
     }
 
     private List<Integer> computeRewardDisplayOrder() {
@@ -2142,9 +2641,9 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     private int rewardRealIndexAtY(double my) {
-        if (my < listTop || rewardDisplayOrder.isEmpty()) return -1;
+        if (my < listTop || my >= listBottom || rewardDisplayOrder.isEmpty()) return -1;
         int tableSectionStart = rewardTableSectionStart(rewardDisplayOrder);
-        int y = listTop;
+        int y = listTop - rewardListScroll;
         for (int pos = 0; pos < rewardDisplayOrder.size(); pos++) {
             if (pos == tableSectionStart) y += ROW_HEADER_H;
             if (my >= y && my < y + ROW_H) return rewardDisplayOrder.get(pos);
@@ -2160,6 +2659,7 @@ public class TaskRewardEditorScreen extends Screen {
         double dx = rawDx / uiScale;
         double dy = rawDy / uiScale;
         if (btn == 0 && draggingTaskIndex >= 0) {
+            taskListScroll = dragAutoScroll(my, taskListScroll, tasks.size() * ROW_H);
             int target = rowIndexAtY(my, tasks.size());
             if (target >= 0 && target != draggingTaskIndex) {
                 if (!dragMovedTask) {
@@ -2174,6 +2674,8 @@ public class TaskRewardEditorScreen extends Screen {
             return true;
         }
         if (btn == 0 && draggingRewardIndex >= 0) {
+            rewardListScroll = dragAutoScroll(my, rewardListScroll,
+                    rewardListContentH(rewardDisplayOrder, rewardTableSectionStart(rewardDisplayOrder)));
             int target = rewardRealIndexAtY(my);
             if (target >= 0 && target != draggingRewardIndex) {
                 if (!dragMovedReward) {
@@ -2209,7 +2711,7 @@ public class TaskRewardEditorScreen extends Screen {
     public void onClose() {
         flushToQuestNode();
         LangSyncScheduler.flushNow();
-        ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
+        if (!emergencyMode) ChronicleOverviewScreen.invalidateNodeCachesUpChain(parent, questNode);
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
@@ -2226,7 +2728,7 @@ public class TaskRewardEditorScreen extends Screen {
     }
 
     private static QuestTask retaskId(QuestTask task, String newId) {
-        CompoundTag nbt = task.serializeNBT();
+        CompoundTag nbt = task.serializeWithMeta();
         nbt.putString("task_id", "phoenix_chronicles:" + newId);
         QuestTask copy = deserializeTask(nbt);
         return copy != null ? copy : task;
@@ -2270,6 +2772,9 @@ public class TaskRewardEditorScreen extends Screen {
             return item != null ? item.getDefaultInstance().getHoverName().getString() + " ×" + t.getRequiredCount() :
                     t.getItemId().toString();
         }
+        if (task instanceof RecipeTask t)
+            return (t.getRecipeId() != null ? t.getRecipeId().toString() : t.getRecipeType().toString()) + " ×" +
+                    t.getRequired();
         if (task instanceof KillEntityTask t)
             return t.getMatcher().displayName() + " ×" + t.getRequiredCount();
         if (task instanceof FluidRequirementTask t)
@@ -2297,7 +2802,8 @@ public class TaskRewardEditorScreen extends Screen {
     private void renderBoxOptionsList(GuiGraphics g, int mx, int my) {
         boxOptionRowRects.clear();
         if (boxOptions.isEmpty()) {
-            ChroniclesUIKit.drawString(g, font, "§8No options yet - use §7+ Item", boxOptionsListX, boxOptionsListY,
+            ChroniclesUIKit.drawString(g, font, "§8No options yet - use §7+ Item §8or §7+ Table", boxOptionsListX,
+                    boxOptionsListY,
                     C_TEXT_FAINT,
                     false);
             return;

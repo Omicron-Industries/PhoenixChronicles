@@ -18,6 +18,7 @@ public class ChroniclesLangPack {
     public static void register(@NotNull AddPackFindersEvent event) {
         Path root = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles");
         QuestLangRegistry.ensurePackStructure(root);
+        QuestLangRegistry.syncTranslations(root);
 
         event.addRepositorySource(consumer -> {
             Pack pack = Pack.readMetaAndCreate(
@@ -33,6 +34,8 @@ public class ChroniclesLangPack {
     }
 
     public static void reload() {
+        QuestLangRegistry.syncTranslations(
+                Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("phoenix_chronicles"));
         Minecraft.getInstance().reloadResourcePacks();
     }
 }

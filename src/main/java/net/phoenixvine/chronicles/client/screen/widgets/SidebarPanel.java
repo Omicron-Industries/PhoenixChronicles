@@ -28,12 +28,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class SidebarPanel {
 
@@ -262,19 +262,33 @@ public class SidebarPanel {
                                                @NotNull List<String> cats) {
         List<SidebarRow> rows = new ArrayList<>();
         int y = HEADER_H + 16 - scrollY;
-        Set<String> drawnInFolder = new HashSet<>();
 
         Map<String, List<String>> childrenOf = new HashMap<>();
-        Set<String> hasParent = new HashSet<>();
+        Set<String> hasParent = subChapterIds(cats);
         for (String c : cats) {
-            String parent = ChapterConfig.get(c).getParentChapter();
-            if (!parent.isEmpty() && !parent.equals(c) && cats.contains(parent)) {
-                childrenOf.computeIfAbsent(parent, k -> new ArrayList<>()).add(c);
-                hasParent.add(c);
+            if (hasParent.contains(c)) {
+                childrenOf.computeIfAbsent(ChapterConfig.get(c).getParentChapter(), k -> new ArrayList<>()).add(c);
             }
         }
 
-        for (CategoryDefinition category : CategoryRegistry.getCategories()) {
+        Map<String, String> standaloneById = new HashMap<>();
+        for (String cat : standaloneChapters(cats, hasParent)) {
+            standaloneById.put(cat.toUpperCase(Locale.ROOT), cat);
+        }
+
+        for (String token : CategoryRegistry.resolveTopLevel(new ArrayList<>(standaloneById.values()))) {
+            if (!CategoryRegistry.isCategoryToken(token)) {
+                String cat = standaloneById.get(CategoryRegistry.tokenId(token));
+                if (cat == null) continue;
+                rows.add(new SidebarRow(false, cat, friendly.apply(cat), y, SIDEBAR_CAT_ROW_H, false, false, false,
+                        false));
+                y += SIDEBAR_CAT_ROW_H;
+                y = emitSubChapters(rows, cat, childrenOf, y, false, friendly, progressLookup);
+                continue;
+            }
+
+            CategoryDefinition category = CategoryRegistry.get(CategoryRegistry.tokenId(token));
+            if (category == null) continue;
             List<String> fcats = category.chapters().stream().filter(cats::contains)
                     .filter(c -> !hasParent.contains(c)).toList();
 
@@ -288,24 +302,31 @@ public class SidebarPanel {
                     rows.add(new SidebarRow(false, cat, friendly.apply(cat), y, SIDEBAR_CAT_ROW_H, true, false,
                             false, false));
                     y += SIDEBAR_CAT_ROW_H;
-                    drawnInFolder.add(cat);
                     y = emitSubChapters(rows, cat, childrenOf, y, true, friendly, progressLookup);
                 }
-            } else {
-                drawnInFolder.addAll(fcats);
             }
         }
 
-        List<String> standalone = new ArrayList<>();
-        for (String cat : cats) if (!drawnInFolder.contains(cat) && !hasParent.contains(cat)) standalone.add(cat);
-        for (String cat : applyStandaloneOrder(standalone)) {
-            rows.add(new SidebarRow(false, cat, friendly.apply(cat), y, SIDEBAR_CAT_ROW_H, false, false, false,
-                    false));
-            y += SIDEBAR_CAT_ROW_H;
-            y = emitSubChapters(rows, cat, childrenOf, y, false, friendly, progressLookup);
-        }
-
         return rows;
+    }
+
+    private @NotNull List<String> standaloneChapters(@NotNull List<String> cats, @NotNull Set<String> hasParent) {
+        Set<String> inFolder = new HashSet<>();
+        for (CategoryDefinition category : CategoryRegistry.getCategories()) {
+            for (String c : category.chapters()) if (cats.contains(c) && !hasParent.contains(c)) inFolder.add(c);
+        }
+        List<String> standalone = new ArrayList<>();
+        for (String cat : cats) if (!inFolder.contains(cat) && !hasParent.contains(cat)) standalone.add(cat);
+        return standalone;
+    }
+
+    private @NotNull Set<String> subChapterIds(@NotNull List<String> cats) {
+        Set<String> hasParent = new HashSet<>();
+        for (String c : cats) {
+            String parent = ChapterConfig.get(c).getParentChapter();
+            if (!parent.isEmpty() && !parent.equals(c) && cats.contains(parent)) hasParent.add(c);
+        }
+        return hasParent;
     }
 
     private int emitSubChapters(@NotNull List<SidebarRow> rows, String parent,
@@ -323,15 +344,6 @@ public class SidebarPanel {
             y = emitSubChapters(rows, child, childrenOf, y, inFolder, friendly, progressLookup);
         }
         return y;
-    }
-
-    private List<String> applyStandaloneOrder(@NotNull List<String> standalone) {
-        List<String> order = CategoryRegistry.getStandaloneOrder();
-        if (order.isEmpty()) return standalone;
-        List<String> result = new ArrayList<>();
-        for (String c : order) if (standalone.contains(c)) result.add(c);
-        for (String c : standalone) if (!result.contains(c)) result.add(c);
-        return result;
     }
 
     public int scrollAreaHeight(int height) {
@@ -363,110 +375,118 @@ public class SidebarPanel {
         return null;
     }
 
+    public enum DropZone {
+        BEFORE,
+        INTO,
+        AFTER
+    }
+
+    public @NotNull DropZone dropZone(@NotNull SidebarRow source, @NotNull SidebarRow target, int my) {
+        int rel = my - target.y();
+        if (target.isFolder() && !source.isFolder()) {
+            return rel < target.height() * 0.3f ? DropZone.BEFORE : DropZone.INTO;
+        }
+        if (!target.isFolder() && target.inFolder() && !source.isFolder()) return DropZone.INTO;
+        return rel < target.height() / 2 ? DropZone.BEFORE : DropZone.AFTER;
+    }
+
+    private static @Nullable String topLevelTokenFor(@NotNull SidebarRow target) {
+        if (target.isFolder()) return CategoryRegistry.categoryToken(target.id());
+        CategoryDefinition owner = CategoryRegistry.categoryFor(target.id());
+        if (owner != null) return CategoryRegistry.categoryToken(owner.id());
+        return CategoryRegistry.chapterToken(target.id());
+    }
+
+    private static @Nullable String tokenAfter(@NotNull List<String> order, @NotNull String token) {
+        int idx = order.indexOf(token);
+        return idx >= 0 && idx + 1 < order.size() ? order.get(idx + 1) : null;
+    }
+
     public void handleDrop(@NotNull SidebarRow source, int mx, int my, @NotNull Function<String, String> friendly,
                            @NotNull Function<String, int[]> progressLookup,
-                           @NotNull Supplier<List<String>> buildChapterList,
                            @NotNull Consumer<String> setFeedback, @NotNull Runnable rebuild,
                            @NotNull List<String> cats) {
         List<SidebarRow> rows = buildRows(friendly, progressLookup, cats);
         SidebarRow target = rowAt(rows, mx, my);
+        if (target != null && target.subChapter()) {
+            rebuild.run();
+            return;
+        }
+
+        List<String> standalone = standaloneChapters(cats, subChapterIds(cats));
 
         if (source.isFolder()) {
-            List<CategoryDefinition> allCategories = CategoryRegistry.getCategories();
-            int targetIndex = allCategories.size();
+            String before = null;
             if (target != null) {
-                String targetCategoryId = target.isFolder() ? target.id() :
-                        (CategoryRegistry.categoryFor(target.id()) != null ?
-                                CategoryRegistry.categoryFor(target.id()).id() : null);
-                if (targetCategoryId != null) {
-                    for (int i = 0; i < allCategories.size(); i++) {
-                        if (allCategories.get(i).id().equals(targetCategoryId)) {
-                            targetIndex = i;
-                            break;
-                        }
-                    }
-                }
+                String targetToken = topLevelTokenFor(target);
+                before = dropZone(source, target, my) == DropZone.BEFORE ? targetToken :
+                        tokenAfter(CategoryRegistry.resolveTopLevel(standalone), targetToken);
             }
-            CategoryRegistry.reorderCategory(source.id(), targetIndex);
-            CategoryRegistry.save();
+            CategoryRegistry.moveTopLevel(CategoryRegistry.categoryToken(source.id()), before, standalone);
             setFeedback.accept("Category reordered");
         } else {
             String chap = source.id();
             CategoryDefinition currentCategory = CategoryRegistry.categoryFor(chap);
+            DropZone zone = target != null ? dropZone(source, target, my) : DropZone.AFTER;
 
-            String destCategoryId = null;
-            if (target != null) {
-                if (target.isFolder()) {
-                    destCategoryId = target.id();
-                } else {
-                    CategoryDefinition tc = CategoryRegistry.categoryFor(target.id());
-                    if (tc != null) destCategoryId = tc.id();
-                }
-            }
-
-            boolean sameCategory = currentCategory != null && currentCategory.id().equals(destCategoryId);
-
-            if (sameCategory) {
-                String targetChap = null;
-                if (target != null && !target.isFolder()) {
-                    List<String> catChapters = currentCategory.chapters();
-                    if (my < target.y() + target.height() / 2) {
-                        int targetIdx = catChapters.indexOf(target.id());
-                        if (targetIdx > 0) {
-                            targetChap = catChapters.get(targetIdx - 1);
-                        } else {
-                            targetChap = target.id();
-                        }
-                    } else {
-                        targetChap = target.id();
-                    }
-                }
-                if (!chap.equals(targetChap)) {
-                    CategoryRegistry.reorderCategoryChapter(currentCategory.id(), chap, targetChap);
-                    setFeedback.accept("Reordered " + friendly.apply(chap));
-                }
+            if (target != null && zone == DropZone.INTO) {
+                moveChapterIntoCategory(chap, currentCategory, target, my, friendly, setFeedback);
             } else {
-                if (currentCategory != null) {
-                    CategoryRegistry.removeChapterFromCategory(currentCategory.id(), chap);
-                }
-                if (destCategoryId != null) {
-                    CategoryRegistry.addChapterToCategory(destCategoryId, chap);
-                    setFeedback.accept("Moved " + friendly.apply(chap) + " into " + destCategoryId);
-                } else if (currentCategory != null) {
-                    setFeedback.accept("Removed " + friendly.apply(chap) + " from " + currentCategory.displayName());
-                } else {
-                    List<String> standalone = new ArrayList<>();
-                    for (String c : buildChapterList.get()) {
-                        if (CategoryRegistry.categoryFor(c) == null) {
-                            standalone.add(c);
-                        }
-                    }
-                    List<String> ordered = applyStandaloneOrder(standalone);
+                if (currentCategory != null) CategoryRegistry.removeChapterFromCategory(currentCategory.id(), chap);
 
-                    String targetChap = null;
-                    if (target != null && !target.isFolder() && CategoryRegistry.categoryFor(target.id()) == null) {
-                        if (my < target.y() + target.height() / 2) {
-                            int targetIdx = ordered.indexOf(target.id());
-                            if (targetIdx > 0) {
-                                targetChap = ordered.get(targetIdx - 1);
-                            } else {
-                                targetChap = target.id();
-                            }
-                        } else {
-                            targetChap = target.id();
-                        }
-                    }
+                List<String> withChapter = new ArrayList<>(standalone);
+                if (!withChapter.contains(chap)) withChapter.add(chap);
 
-                    if (!chap.equals(targetChap)) {
-                        CategoryRegistry.reorderStandaloneChapter(chap, targetChap, ordered);
-                        setFeedback.accept(targetChap != null ? "Reordered " + friendly.apply(chap) :
-                                "Moved " + friendly.apply(chap) + " to end");
-                    }
+                String before = null;
+                if (target != null) {
+                    String targetToken = topLevelTokenFor(target);
+                    before = zone == DropZone.BEFORE ? targetToken :
+                            tokenAfter(CategoryRegistry.resolveTopLevel(withChapter), targetToken);
                 }
+                CategoryRegistry.moveTopLevel(CategoryRegistry.chapterToken(chap), before, withChapter);
+                setFeedback.accept(currentCategory != null ?
+                        "Removed " + friendly.apply(chap) + " from " + currentCategory.displayName() :
+                        "Reordered " + friendly.apply(chap));
             }
             CategoryRegistry.save();
         }
         rebuild.run();
+    }
+
+    private void moveChapterIntoCategory(@NotNull String chap, @Nullable CategoryDefinition currentCategory,
+                                         @NotNull SidebarRow target, int my,
+                                         @NotNull Function<String, String> friendly,
+                                         @NotNull Consumer<String> setFeedback) {
+        String destCategoryId;
+        if (target.isFolder()) {
+            destCategoryId = target.id();
+        } else {
+            CategoryDefinition tc = CategoryRegistry.categoryFor(target.id());
+            if (tc == null) return;
+            destCategoryId = tc.id();
+        }
+
+        if (currentCategory != null && currentCategory.id().equals(destCategoryId)) {
+            String targetChap = null;
+            if (!target.isFolder()) {
+                List<String> catChapters = currentCategory.chapters();
+                if (my < target.y() + target.height() / 2) {
+                    int targetIdx = catChapters.indexOf(target.id());
+                    targetChap = targetIdx > 0 ? catChapters.get(targetIdx - 1) : target.id();
+                } else {
+                    targetChap = target.id();
+                }
+            }
+            if (!chap.equals(targetChap)) {
+                CategoryRegistry.reorderCategoryChapter(currentCategory.id(), chap, targetChap);
+                setFeedback.accept("Reordered " + friendly.apply(chap));
+            }
+            return;
+        }
+
+        if (currentCategory != null) CategoryRegistry.removeChapterFromCategory(currentCategory.id(), chap);
+        CategoryRegistry.addChapterToCategory(destCategoryId, chap);
+        setFeedback.accept("Moved " + friendly.apply(chap) + " into " + destCategoryId);
     }
 
     private int chapterAccent(@NotNull String cat) {
@@ -537,9 +557,17 @@ public class SidebarPanel {
 
         if (dragMoved && dragRow != null) {
             SidebarRow dropTarget = rowAt(sidebarRows, mx, my);
-            if (dropTarget != null) {
-                g.fill(1, dropTarget.y(), width() - 2, dropTarget.y() + dropTarget.height(), 0x4400DDFF);
-                ChroniclesUIKit.drawBorder(g, 1, dropTarget.y(), width() - 3, dropTarget.height(), 0xFF00DDFF);
+            if (dropTarget != null && !dropTarget.subChapter()) {
+                switch (dropZone(dragRow, dropTarget, my)) {
+                    case BEFORE -> g.fill(1, dropTarget.y() - 1, width() - 2, dropTarget.y() + 1, 0xFF00DDFF);
+                    case AFTER -> g.fill(1, dropTarget.y() + dropTarget.height() - 1, width() - 2,
+                            dropTarget.y() + dropTarget.height() + 1, 0xFF00DDFF);
+                    case INTO -> {
+                        g.fill(1, dropTarget.y(), width() - 2, dropTarget.y() + dropTarget.height(), 0x4400DDFF);
+                        ChroniclesUIKit.drawBorder(g, 1, dropTarget.y(), width() - 3, dropTarget.height(),
+                                0xFF00DDFF);
+                    }
+                }
             }
         }
         FrameProfiler.end("sidebar");

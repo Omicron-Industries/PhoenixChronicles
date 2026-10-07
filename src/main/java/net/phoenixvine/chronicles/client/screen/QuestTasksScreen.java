@@ -30,7 +30,61 @@ import net.phoenixvine.wiki.theme.PhoenixTheme;
 import java.util.ArrayList;
 import java.util.List;
 
-public class QuestTasksScreen extends Screen {
+public class QuestTasksScreen extends Screen
+                              implements net.phoenixvine.chronicles.client.audio.ChroniclesAudio.AudioSource {
+
+    private boolean voiceAutoStarted = false;
+
+    /** The quest's own music, or its chapter's when the quest has none. */
+    @Override
+    public net.phoenixvine.chronicles.common.model.QuestAudio desiredAudio() {
+        return node.getAudio().hasMusic() ? node.getAudio() :
+                net.phoenixvine.chronicles.client.util.ChapterConfig.musicFor(node.getChapter());
+    }
+
+    private boolean voiceShown() {
+        return node.getAudio().hasVoice();
+    }
+
+    /** Horizontal shift that keeps the voice button clear of the emergency button when both are visible. */
+    private int voiceOffset() {
+        return emergencyShown() ? 26 : 0;
+    }
+
+    /** Shift for the share-link button, which sits after the emergency and voice buttons. */
+    private int linkOffset() {
+        return voiceOffset() + (voiceShown() ? 26 : 0);
+    }
+
+    private void drawLinkButton(GuiGraphics g, int x, int y, int w, int h, int mx, int my) {
+        boolean hov = mx >= x && mx < x + w && my >= y && my < y + h;
+        g.fill(x, y, x + w, y + h, hov ? 0xFF1E2A3A : 0xFF141C28);
+        g.fill(x, y, x + w, y + 1, 0xFF3A6A9A);
+        ChroniclesUIKit.drawCenteredString(g, font, "§b🔗", x + w / 2, y + (h - 8) / 2, C_TEXT);
+        if (hov) hoveredHeaderTooltip = "Copy a link to this quest to share in chat";
+    }
+
+    private boolean clickLinkButton(int x, int y, int w, int h, double mx, double my) {
+        if (mx < x || mx >= x + w || my < y || my >= y + h) return false;
+        net.phoenixvine.chronicles.client.util.QuestChatLinks.copyToClipboard(node);
+        return true;
+    }
+
+    private void drawVoiceButton(GuiGraphics g, int x, int y, int w, int h, int mx, int my) {
+        if (!voiceShown()) return;
+        boolean playing = net.phoenixvine.chronicles.client.audio.ChroniclesAudio.isVoicePlaying();
+        boolean hov = mx >= x && mx < x + w && my >= y && my < y + h;
+        g.fill(x, y, x + w, y + h, playing ? 0xFF1A3A2A : hov ? 0xFF1E2A3A : 0xFF141C28);
+        g.fill(x, y, x + w, y + 1, playing ? C_DONE : 0xFF3A6A9A);
+        ChroniclesUIKit.drawCenteredString(g, font, playing ? "§a■" : "§b♪", x + w / 2, y + (h - 8) / 2, C_TEXT);
+        if (hov) hoveredHeaderTooltip = playing ? "Stop narration" : "Play narration";
+    }
+
+    private boolean clickVoiceButton(int x, int y, int w, int h, double mx, double my) {
+        if (!voiceShown() || mx < x || mx >= x + w || my < y || my >= y + h) return false;
+        net.phoenixvine.chronicles.client.audio.ChroniclesAudio.toggleVoice(node.getAudio().voiceId());
+        return true;
+    }
 
     private int C_BG = 0xFF0B0B0F;
     private int C_PANEL = 0xFF14141A;
@@ -51,6 +105,7 @@ public class QuestTasksScreen extends Screen {
     private static final int SUBTITLE_MAX_LINES = 3;
     private static final int ICON_SZ = 18;
     private static final int ICON_STRIP_H = ICON_SZ + 8;
+    private static final int STRIP_GAP = 3;
     private static final int FOOTER_H = 22;
     private static final int MARGIN = 6;
     private static final int REWARD_W = 185;
@@ -61,13 +116,22 @@ public class QuestTasksScreen extends Screen {
     private static final float MAX_CARD_WIDTH_FRACTION = 0.82f;
     private static final float MAX_CARD_HEIGHT_FRACTION = 0.82f;
 
+    // The scaled screen gets small in a restored window, where a fixed 82% share fills almost all of it. These
+    // fractions reach the full 82% at roughly the scaled size a fullscreen window has and shrink toward 55% below it.
+    private static final float CARD_FRACTION_FLOOR = 0.55f;
+    private static final float CARD_WIDTH_FULL_AT = 520f;
+    private static final float CARD_HEIGHT_FULL_AT = 330f;
+
     private int cardW() {
-        int fractionCap = Math.round(width * MAX_CARD_WIDTH_FRACTION);
+        float fraction = Math.max(CARD_FRACTION_FLOOR, Math.min(MAX_CARD_WIDTH_FRACTION, width / CARD_WIDTH_FULL_AT));
+        int fractionCap = Math.round(width * fraction);
         return Math.min(CARD_MAX_WIDTH, Math.max(120, Math.min(width - 24, fractionCap)));
     }
 
     private int maxCardH() {
-        return Math.max(60, Math.round(height * MAX_CARD_HEIGHT_FRACTION));
+        float fraction = Math.max(CARD_FRACTION_FLOOR,
+                Math.min(MAX_CARD_HEIGHT_FRACTION, height / CARD_HEIGHT_FULL_AT));
+        return Math.max(60, Math.round(height * fraction));
     }
 
     private java.util.List<net.minecraft.util.FormattedCharSequence> wrapSubtitle(String subtitle, int maxW) {
@@ -158,6 +222,14 @@ public class QuestTasksScreen extends Screen {
     protected void init() {
         super.init();
         openTimeMs = System.currentTimeMillis();
+        if (!voiceAutoStarted) {
+            voiceAutoStarted = true;
+            QuestState openState = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
+                    QuestState.LOCKED;
+            if (node.getAudio().hasVoice() && node.getAudio().voiceAuto() && openState != QuestState.LOCKED) {
+                net.phoenixvine.chronicles.client.audio.ChroniclesAudio.playVoice(node.getAudio().voiceId());
+            }
+        }
 
         isEditMode = player != null && player.hasPermissions(2) &&
                 parent instanceof ChronicleOverviewScreen overview && overview.isDevMode();
@@ -393,7 +465,7 @@ public class QuestTasksScreen extends Screen {
                 cardW() - 12);
         int compactHeaderH = compactHeaderH();
 
-        int fixedH = compactHeaderH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
+        int fixedH = compactHeaderH + 1 + compactStripH() + 2 + 1 + 18 + previewBlockH();
         int rawDesc = Math.min(descLines.size(), CARD_MAX_DESC);
         int fittedDesc = Math.max(0, Math.min(rawDesc, ((maxCardH() - compactHeaderH) - fixedH - 9) / compactLineH));
 
@@ -457,7 +529,7 @@ public class QuestTasksScreen extends Screen {
         cy += 1;
 
         renderIconStrip(g, cardX, cy, mx, my, tasks, rewards);
-        cy += ICON_STRIP_H;
+        cy += compactStripH();
 
         cy += 2;
         g.fill(cardX, cy, cardX + cardW(), cy + 1, C_BORDER);
@@ -575,12 +647,15 @@ public class QuestTasksScreen extends Screen {
     private void renderIconStrip(GuiGraphics g, int cardX, int cy, int mx, int my, List<QuestTask> tasks,
                                  List<QuestReward> rewards) {
         int sz = ICON_SZ;
-        int gap = 3;
-        int ix = cardX + CARD_PAD + 2;
-        int iy = cy + (ICON_STRIP_H - sz) / 2;
+        int gap = STRIP_GAP;
+        int left = cardX + CARD_PAD + 2;
+        int right = cardX + cardW() - CARD_PAD;
+        StripLayout layout = stripLayout(right - left, tasks.size(), rewards.size());
 
-        for (QuestTask task : tasks) {
-            if (ix + sz > cardX + cardW() - CARD_PAD) break;
+        for (int ti = 0; ti < tasks.size(); ti++) {
+            QuestTask task = tasks.get(ti);
+            int ix = stripTaskX(layout, left, ti);
+            int iy = cy + 4 + stripTaskRow(layout, ti) * (sz + gap);
             boolean done = isTaskDone(task);
             boolean hov = mx >= ix && mx < ix + sz && my >= iy && my < iy + sz;
             int border = done ? C_DONE : (task.isOptional() ? C_TEXT_FAINT : C_ACTIVE);
@@ -605,13 +680,12 @@ public class QuestTasksScreen extends Screen {
                 g.fill(ix + sz - 7, iy + sz - 8, ix + sz, iy + sz, 0xFF0A2210);
                 ChroniclesUIKit.drawString(g, font, "§a✔", ix + sz - 7, iy + sz - 8, 0xFFFFFFFF, false);
             }
-            ix += sz + gap;
         }
 
-        int rix = cardX + cardW() - CARD_PAD - sz;
         boolean claimed = rewardsClaimed();
         for (int ri = 0; ri < rewards.size(); ri++) {
-            if (rix < cardX + CARD_PAD) break;
+            int rix = layout.single() ? right - sz - ri * (sz + gap) : left + (ri % layout.perRow()) * (sz + gap);
+            int iy = cy + 4 + stripRewardRow(layout, ri) * (sz + gap);
             QuestReward reward = rewards.get(ri);
             QuestReward display = displayRewardFor(ri, reward);
             boolean picked = isSlotPicked(ri, claimed);
@@ -626,10 +700,11 @@ public class QuestTasksScreen extends Screen {
             }
             drawIconSlot(g, rix, iy, sz, bg, border, hov);
             int off = (sz - 16) / 2;
-            if (display instanceof QuestReward.ItemReward ir) {
-                ItemStack rewardStack = new ItemStack(ir.getItem(), ir.getCount());
-                g.renderItem(rewardStack, rix + off, iy + off);
-                g.renderItemDecorations(font, rewardStack, rix + off, iy + off);
+            ItemStack shownStack = display instanceof QuestReward.ItemReward ir0 ? shownRewardStack(ir0) :
+                    ItemStack.EMPTY;
+            if (!shownStack.isEmpty()) {
+                g.renderItem(shownStack, rix + off, iy + off);
+                g.renderItemDecorations(font, shownStack, rix + off, iy + off);
                 if (picked) g.fill(rix, iy, rix + sz, iy + sz, 0x55CC8800);
             } else {
                 ChroniclesUIKit.drawCenteredString(g, font, "§7" + rewardGlyph(display), rix + sz / 2, iy + sz / 2 - 4,
@@ -640,7 +715,6 @@ public class QuestTasksScreen extends Screen {
                 g.fill(rix + sz - 7, iy + sz - 8, rix + sz, iy + sz, 0xFF1A1000);
                 ChroniclesUIKit.drawString(g, font, "§6✔", rix + sz - 7, iy + sz - 8, 0xFFFFFFFF, false);
             }
-            rix -= sz + gap;
         }
     }
 
@@ -702,6 +776,7 @@ public class QuestTasksScreen extends Screen {
 
     private long emergencyArmedUntilMs = 0;
 
+    /** Quest is ACTIVE and the server says it has emergency items (its own or a chapter default). */
     private boolean emergencyShown() {
         if (playerData == null) return false;
         return playerData.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.ACTIVE &&
@@ -710,14 +785,15 @@ public class QuestTasksScreen extends Screen {
 
     private boolean emergencyUsedUp() {
         return playerData != null && playerData.hasUsedEmergency(node.getId()) &&
-                !net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable();
+                !net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable(node.getId());
     }
 
+    /** Millis until a repeatable quest's emergency items can be claimed again; 0 if available. */
     private long emergencyCooldownRemainingMs() {
         if (playerData == null || !playerData.hasUsedEmergency(node.getId())) return 0;
-        if (!net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable()) return 0;
+        if (!net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable(node.getId())) return 0;
         long ends = playerData.getEmergencyUsedAt(node.getId()) +
-                net.phoenixvine.chronicles.client.util.ClientEmergencyState.getCooldownSeconds() * 1000L;
+                net.phoenixvine.chronicles.client.util.ClientEmergencyState.getCooldownSeconds(node.getId()) * 1000L;
         return Math.max(0, ends - net.phoenixvine.chronicles.client.util.ClientEmergencyState.serverNow());
     }
 
@@ -731,16 +807,19 @@ public class QuestTasksScreen extends Screen {
         int fill = blocked ? 0xFF1A1A1A : armed ? 0xFF4A3A1A : hov ? 0xFF3A3220 : 0xFF2A2418;
         g.fill(x, y, x + w, y + h, fill);
         g.fill(x, y, x + w, y + 1, blocked ? 0xFF333333 : 0xFFB08A2E);
-        ChroniclesUIKit.drawCenteredString(g, font, blocked ? "§8⚠" : armed ? "§e⚠?" : "§6⚠", x + w / 2,
-                y + (h - 8) / 2, C_TEXT);
+        String glyph = cooldownMs > 0 ?
+                "§7" + net.phoenixvine.chronicles.client.util.ClientEmergencyState.compactDuration(cooldownMs) :
+                blocked ? "§8⚠" : armed ? "§e⚠?" : "§6⚠";
+        ChroniclesUIKit.drawCenteredString(g, font, glyph, x + w / 2, y + (h - 8) / 2, C_TEXT);
         if (hov) {
             hoveredHeaderTooltip = used ? "Emergency items already used" :
                     cooldownMs > 0 ? "Emergency items available again in " +
                             net.phoenixvine.chronicles.common.tracker.QuestProgressTracker.formatDuration(cooldownMs) :
                             armed ? "Click again to confirm" :
-                                    net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable() ?
-                                            "Lost a required item? Get fallback items" :
-                                            "Lost a required item? Get fallback items (one use)";
+                                    net.phoenixvine.chronicles.client.util.ClientEmergencyState
+                                            .isRepeatable(node.getId()) ?
+                                                    "Lost a required item? Get fallback items" :
+                                                    "Lost a required item? Get fallback items (one use)";
         }
     }
 
@@ -748,7 +827,7 @@ public class QuestTasksScreen extends Screen {
         if (!emergencyShown() || mx < x || mx >= x + w || my < y || my >= y + h) return false;
         if (emergencyUsedUp() || emergencyCooldownRemainingMs() > 0) return true;
         long now = System.currentTimeMillis();
-        boolean repeatable = net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable();
+        boolean repeatable = net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable(node.getId());
         if (!repeatable && now >= emergencyArmedUntilMs) {
             emergencyArmedUntilMs = now + 3000;
             return true;
@@ -761,6 +840,8 @@ public class QuestTasksScreen extends Screen {
 
     private void renderCompactFooter(GuiGraphics g, int cardX, int cy, int cardW, int h, int mx, int my) {
         drawEmergencyButton(g, cardX + 4, cy + 1, 22, h - 2, mx, my);
+        drawVoiceButton(g, cardX + 4 + voiceOffset(), cy + 1, 22, h - 2, mx, my);
+        drawLinkButton(g, cardX + 4 + linkOffset(), cy + 1, 22, h - 2, mx, my);
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
         boolean canClaim = state == QuestState.COMPLETED && !rewardsClaimed() && !content.effectiveRewards().isEmpty();
@@ -1004,9 +1085,50 @@ public class QuestTasksScreen extends Screen {
         g.pose().popPose();
     }
 
+    /**
+     * How the task and reward icons are arranged. When everything fits in one row, tasks sit on the left and rewards
+     * on the right. Otherwise the icons wrap: tasks fill rows from the top, then rewards get rows of their own.
+     */
+    private record StripLayout(boolean single, int perRow, int taskRows, int rows) {}
+
+    private static StripLayout stripLayout(int innerW, int taskCount, int rewardCount) {
+        int step = ICON_SZ + STRIP_GAP;
+        int perRow = Math.max(1, (innerW + STRIP_GAP) / step);
+        int groupGap = taskCount > 0 && rewardCount > 0 ? 1 : 0;
+        if (taskCount + rewardCount + groupGap <= perRow) return new StripLayout(true, perRow, 1, 1);
+
+        int taskRows = (taskCount + perRow - 1) / perRow;
+        int rewardRows = (rewardCount + perRow - 1) / perRow;
+        return new StripLayout(false, perRow, taskRows, Math.max(1, taskRows + rewardRows));
+    }
+
+    /** One row is exactly {@link #ICON_STRIP_H}; each extra row adds an icon plus the gap. */
+    private static int stripHeight(StripLayout l) {
+        return l.rows() * ICON_SZ + (l.rows() - 1) * STRIP_GAP + 8;
+    }
+
+    private static int stripTaskX(StripLayout l, int left, int i) {
+        return left + (l.single() ? i : i % l.perRow()) * (ICON_SZ + STRIP_GAP);
+    }
+
+    private static int stripTaskRow(StripLayout l, int i) {
+        return l.single() ? 0 : i / l.perRow();
+    }
+
+    private static int stripRewardRow(StripLayout l, int i) {
+        return l.single() ? 0 : l.taskRows() + i / l.perRow();
+    }
+
+    private int compactStripH() {
+        int innerW = cardW() - CARD_PAD * 2 - 2;
+        return stripHeight(stripLayout(innerW, content.effectiveTasks().size(), content.effectiveRewards().size()));
+    }
+
     private int reqBarH() {
-        boolean hasIcons = !content.effectiveTasks().isEmpty() || !content.effectiveRewards().isEmpty();
-        return hasIcons ? ICON_STRIP_H : 1;
+        List<QuestTask> tasks = content.effectiveTasks();
+        List<QuestReward> rewards = content.effectiveRewards();
+        if (tasks.isEmpty() && rewards.isEmpty()) return 1;
+        return stripHeight(stripLayout(width - MARGIN * 2 - 4, tasks.size(), rewards.size()));
     }
 
     private void renderRequirementsBar(GuiGraphics g, int mx, int my) {
@@ -1021,15 +1143,19 @@ public class QuestTasksScreen extends Screen {
         g.fill(0, headerH + barH - 1, width, headerH + barH, C_BORDER);
         if (barH <= 1) return;
 
-        int iconY = headerH + (ICON_STRIP_H - ICON_SZ) / 2;
-        int iconX = MARGIN + 2;
         int sz = ICON_SZ;
-        int gap = 3;
+        int gap = STRIP_GAP;
+        int stripLeft = MARGIN + 2;
+        int stripRight = width - MARGIN - 2;
 
         List<QuestTask> tasks = content.effectiveTasks();
         List<QuestReward> rewards = content.effectiveRewards();
+        StripLayout layout = stripLayout(stripRight - stripLeft, tasks.size(), rewards.size());
 
-        for (QuestTask task : tasks) {
+        for (int ti = 0; ti < tasks.size(); ti++) {
+            QuestTask task = tasks.get(ti);
+            int iconX = stripTaskX(layout, stripLeft, ti);
+            int iconY = headerH + 4 + stripTaskRow(layout, ti) * (sz + gap);
             boolean done = isTaskDone(task);
             boolean hov = mx >= iconX && mx < iconX + sz && my >= iconY && my < iconY + sz;
             int border = done ? C_DONE : (task.isOptional() ? C_TEXT_FAINT : C_ACTIVE);
@@ -1059,13 +1185,14 @@ public class QuestTasksScreen extends Screen {
                 g.fill(iconX + sz - 7, iconY + sz - 8, iconX + sz, iconY + sz, 0xFF0A2210);
                 ChroniclesUIKit.drawString(g, font, "§a✔", iconX + sz - 7, iconY + sz - 8, 0xFFFFFFFF, false);
             }
-            iconX += sz + gap;
         }
-
-        int rIconX = width - MARGIN - 2 - rewards.size() * sz - Math.max(0, rewards.size() - 1) * gap;
 
         boolean claimed = rewardsClaimed();
         for (int ri = 0; ri < rewards.size(); ri++) {
+            int rIconX = layout.single() ?
+                    stripRight - rewards.size() * sz - Math.max(0, rewards.size() - 1) * gap + ri * (sz + gap) :
+                    stripLeft + (ri % layout.perRow()) * (sz + gap);
+            int iconY = headerH + 4 + stripRewardRow(layout, ri) * (sz + gap);
             QuestReward reward = rewards.get(ri);
             QuestReward display = displayRewardFor(ri, reward);
             boolean picked = isSlotPicked(ri, claimed);
@@ -1083,10 +1210,11 @@ public class QuestTasksScreen extends Screen {
             drawIconSlot(g, rIconX, iconY, sz, bg, border, hov);
 
             int off = (sz - 16) / 2;
-            if (display instanceof QuestReward.ItemReward ir) {
-                ItemStack rewardStack = new ItemStack(ir.getItem(), ir.getCount());
-                g.renderItem(rewardStack, rIconX + off, iconY + off);
-                g.renderItemDecorations(font, rewardStack, rIconX + off, iconY + off);
+            ItemStack shownStack = display instanceof QuestReward.ItemReward ir0 ? shownRewardStack(ir0) :
+                    ItemStack.EMPTY;
+            if (!shownStack.isEmpty()) {
+                g.renderItem(shownStack, rIconX + off, iconY + off);
+                g.renderItemDecorations(font, shownStack, rIconX + off, iconY + off);
                 if (picked) g.fill(rIconX, iconY, rIconX + sz, iconY + sz, 0x55CC8800);
             } else {
                 ChroniclesUIKit.drawCenteredString(g, font, "§7" + rewardGlyph(display), rIconX + sz / 2,
@@ -1099,7 +1227,6 @@ public class QuestTasksScreen extends Screen {
                 g.fill(rIconX + sz - 7, iconY + sz - 8, rIconX + sz, iconY + sz, 0xFF1A1000);
                 ChroniclesUIKit.drawString(g, font, "§6✔", rIconX + sz - 7, iconY + sz - 8, 0xFFFFFFFF, false);
             }
-            rIconX += sz + gap;
         }
     }
 
@@ -1323,6 +1450,10 @@ public class QuestTasksScreen extends Screen {
         }
     }
 
+    /**
+     * Handles {@code [text](quest:<id>)} links in quest descriptions. The id may be a full {@code namespace:path}
+     * or just a path, which defaults to the {@code phoenix_chronicles} namespace.
+     */
     private void openQuestLink(String spec) {
         String raw = spec == null ? "" : spec.trim();
         if (raw.isEmpty() || minecraft == null) return;
@@ -1756,7 +1887,10 @@ public class QuestTasksScreen extends Screen {
 
             String label;
             if (display instanceof QuestReward.ItemReward ir) {
-                label = rewardStack(ir).getHoverName().getString() + " ×" + ir.getCount();
+                label = (rewardTargetMasked(ir) ? "???" : rewardStack(ir).getHoverName().getString()) + " ×" +
+                        (rewardAmountMasked(ir) ? "?" : String.valueOf(ir.getCount()));
+            } else if (rewardTargetMasked(display)) {
+                label = "???";
             } else if (reward instanceof QuestReward.ChoiceBoxReward) {
                 label = reward.getSummary().getString();
             } else {
@@ -1802,9 +1936,9 @@ public class QuestTasksScreen extends Screen {
         g.fill(x, y, x + 1, y + sz, C_BORDER);
         g.fill(x + sz - 1, y, x + sz, y + sz, C_BORDER);
 
-        if (reward instanceof QuestReward.ItemReward ir) {
+        ItemStack stack = reward instanceof QuestReward.ItemReward ir ? shownRewardStack(ir) : ItemStack.EMPTY;
+        if (!stack.isEmpty()) {
             int off = (sz - 16) / 2;
-            ItemStack stack = rewardStack(ir);
             g.renderItem(stack, x + off, y + off);
             if (sz >= 18) g.renderItemDecorations(font, stack, x + off, y + off);
         } else {
@@ -1818,6 +1952,8 @@ public class QuestTasksScreen extends Screen {
         g.fill(0, footerY, width, height, C_HEADER);
         g.fill(0, footerY, width, footerY + 1, C_BORDER);
         drawEmergencyButton(g, 6, footerY + 2, 22, FOOTER_H - 4, mx, my);
+        drawVoiceButton(g, 6 + voiceOffset(), footerY + 2, 22, FOOTER_H - 4, mx, my);
+        drawLinkButton(g, 6 + linkOffset(), footerY + 2, 22, FOOTER_H - 4, mx, my);
 
         QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                 QuestState.LOCKED;
@@ -1854,12 +1990,41 @@ public class QuestTasksScreen extends Screen {
         return stack;
     }
 
+    private boolean taskTargetMasked(QuestTask task) {
+        return task.hidesTarget() && !isTaskDone(task);
+    }
+
+    private boolean taskAmountMasked(QuestTask task) {
+        return task.hidesAmount() && !isTaskDone(task);
+    }
+
+    private boolean rewardsRevealed() {
+        return playerData != null &&
+                playerData.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.COMPLETED;
+    }
+
+    private boolean rewardTargetMasked(QuestReward reward) {
+        return reward.hidesTarget() && !rewardsRevealed();
+    }
+
+    private boolean rewardAmountMasked(QuestReward reward) {
+        return reward.hidesAmount() && !rewardsRevealed();
+    }
+
+    /** The stack to draw for an item reward - empty while its target is hidden, a single item while its amount is. */
+    private ItemStack shownRewardStack(QuestReward.ItemReward reward) {
+        if (rewardTargetMasked(reward)) return ItemStack.EMPTY;
+        ItemStack stack = rewardStack(reward);
+        if (rewardAmountMasked(reward)) stack.setCount(1);
+        return stack;
+    }
+
     private ItemStack getTaskIcon(QuestTask task) {
         ResourceLocation id = task.getDisplayItemId();
-        if (id == null) return ItemStack.EMPTY;
+        if (id == null || taskTargetMasked(task)) return ItemStack.EMPTY;
         Item item = ForgeRegistries.ITEMS.getValue(id);
         if (item == null || item == net.minecraft.world.item.Items.AIR) return ItemStack.EMPTY;
-        ItemStack stack = new ItemStack(item, taskRequiredCount(task));
+        ItemStack stack = new ItemStack(item, taskAmountMasked(task) ? 1 : taskRequiredCount(task));
 
         if (task instanceof ItemRequirementTask t && t.getNbtFilter() != null &&
                 !t.getNbtFilter().isEmpty()) {
@@ -1899,6 +2064,16 @@ public class QuestTasksScreen extends Screen {
     }
 
     private String getTaskDetail(QuestTask task) {
+        String raw = rawTaskDetail(task);
+        if (raw == null) return null;
+        if (taskTargetMasked(task)) {
+            return taskAmountMasked(task) || taskRequiredCount(task) <= 1 ? "???" :
+                    "???  ×" + taskRequiredCount(task);
+        }
+        return taskAmountMasked(task) ? raw.replaceAll("×\\s?\\d+", "×?") : raw;
+    }
+
+    private String rawTaskDetail(QuestTask task) {
         if (task instanceof ItemRequirementTask t) {
 
             String name = "item";
@@ -1991,12 +2166,37 @@ public class QuestTasksScreen extends Screen {
         if (prog != null && !done) lines.add(Component.translatable("phoenix_chronicles.ui.progress_label", prog));
         ItemStack icon = getTaskIcon(task);
         if (!icon.isEmpty()) lines.add(Component.translatable("phoenix_chronicles.ui.recipe_browser_hint"));
+        if (isEditMode && (task.hidesAmount() || task.hidesTarget())) {
+            String real = rawTaskDetail(task);
+            lines.add(ChroniclesUIKit.lit("§d✎ Editor only - hidden from players: §7" + (real != null ? real : "")));
+        }
         return lines;
     }
 
     private java.util.List<Component> buildRewardTooltip(QuestReward reward) {
+        java.util.List<Component> lines = buildPlayerRewardTooltip(reward);
+        if (isEditMode && (reward.hidesAmount() || reward.hidesTarget())) {
+            lines.add(
+                    ChroniclesUIKit.lit("§d✎ Editor only - hidden from players: §7" + reward.getSummary().getString()));
+        }
+        return lines;
+    }
+
+    private java.util.List<Component> buildPlayerRewardTooltip(QuestReward reward) {
         java.util.List<Component> lines = new java.util.ArrayList<>();
-        if (reward instanceof QuestReward.ItemReward ir) {
+        if (reward instanceof QuestReward.ItemReward ir && (rewardTargetMasked(ir) || rewardAmountMasked(ir))) {
+            Component name = rewardTargetMasked(ir) ? ChroniclesUIKit.lit("???") : rewardStack(ir).getHoverName();
+            lines.add(Component.translatable("phoenix_chronicles.ui.reward_line", name,
+                    rewardAmountMasked(ir) ? "?" : String.valueOf(ir.getCount())));
+            if (!rewardTargetMasked(ir)) {
+                java.util.List<Component> vanillaLines = rewardStack(ir).getTooltipLines(
+                        minecraft != null ? minecraft.player : null,
+                        net.minecraft.world.item.TooltipFlag.Default.NORMAL);
+                for (int i = 1; i < vanillaLines.size(); i++) lines.add(vanillaLines.get(i));
+            }
+        } else if (rewardTargetMasked(reward)) {
+            lines.add(ChroniclesUIKit.lit("§7Hidden reward"));
+        } else if (reward instanceof QuestReward.ItemReward ir) {
             ItemStack stack = rewardStack(ir);
             lines.add(Component.translatable("phoenix_chronicles.ui.reward_line", stack.getHoverName(),
                     ir.getCount()));
@@ -2177,7 +2377,7 @@ public class QuestTasksScreen extends Screen {
         java.util.List<net.minecraft.util.FormattedCharSequence> descLines = buildAllDescLines(tasks, questDescLines);
 
         int compactHeaderH = compactHeaderH();
-        int fixedH = compactHeaderH + 1 + ICON_STRIP_H + 2 + 1 + 18 + previewBlockH();
+        int fixedH = compactHeaderH + 1 + compactStripH() + 2 + 1 + 18 + previewBlockH();
         int rawDesc = Math.min(descLines.size(), CARD_MAX_DESC);
         int fittedDesc = Math.max(0, Math.min(rawDesc, ((maxCardH() - compactHeaderH) - fixedH - 9) / compactLineH));
         int descH = fittedDesc > 0 ? 4 + fittedDesc * compactLineH + 6 : (isEditMode ? 24 : 0);
@@ -2216,6 +2416,10 @@ public class QuestTasksScreen extends Screen {
             if (r.contains(mx, my)) {
                 if (r.span() instanceof net.phoenixvine.wiki.client.rich.RichSpan.Link l) {
                     openLink(l.url());
+                    return true;
+                }
+                if (r.span() instanceof net.phoenixvine.wiki.client.rich.RichSpan.TypewriterReveal reveal) {
+                    net.phoenixvine.wiki.client.rich.render.TypewriterSupport.start(reveal.key());
                     return true;
                 }
                 if (r.span() instanceof net.phoenixvine.wiki.client.rich.RichSpan.CodeCopy cc) {
@@ -2273,6 +2477,8 @@ public class QuestTasksScreen extends Screen {
 
         int footerY = cardY + cardH - 18;
         if (clickEmergencyButton(cardX + 4, footerY + 1, 22, 16, mx, my)) return true;
+        if (clickVoiceButton(cardX + 4 + voiceOffset(), footerY + 1, 22, 16, mx, my)) return true;
+        if (clickLinkButton(cardX + 4 + linkOffset(), footerY + 1, 22, 16, mx, my)) return true;
         if (my >= footerY && my < footerY + 18) {
             QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                     QuestState.LOCKED;
@@ -2432,6 +2638,8 @@ public class QuestTasksScreen extends Screen {
 
         int footerY = height - FOOTER_H;
         if (clickEmergencyButton(6, footerY + 2, 22, FOOTER_H - 4, mx, my)) return true;
+        if (clickVoiceButton(6 + voiceOffset(), footerY + 2, 22, FOOTER_H - 4, mx, my)) return true;
+        if (clickLinkButton(6 + linkOffset(), footerY + 2, 22, FOOTER_H - 4, mx, my)) return true;
         if (my >= footerY + 2 && my < footerY + 20) {
             QuestState state = playerData != null ? playerData.getQuestState(node.getId(), QuestState.LOCKED) :
                     QuestState.LOCKED;
@@ -2446,6 +2654,10 @@ public class QuestTasksScreen extends Screen {
             if (r.contains(mx, my)) {
                 if (r.span() instanceof net.phoenixvine.wiki.client.rich.RichSpan.Link l) {
                     openLink(l.url());
+                    return true;
+                }
+                if (r.span() instanceof net.phoenixvine.wiki.client.rich.RichSpan.TypewriterReveal reveal) {
+                    net.phoenixvine.wiki.client.rich.render.TypewriterSupport.start(reveal.key());
                     return true;
                 }
                 if (r.span() instanceof net.phoenixvine.wiki.client.rich.RichSpan.CodeCopy cc) {
@@ -2605,6 +2817,7 @@ public class QuestTasksScreen extends Screen {
 
     @Override
     public void onClose() {
+        net.phoenixvine.chronicles.client.audio.ChroniclesAudio.stopVoice();
         if (phantasiaPreview != null) {
             net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat.closePreview(phantasiaPreview);
             phantasiaPreview = null;
@@ -2696,6 +2909,11 @@ public class QuestTasksScreen extends Screen {
     }
 
     private String taskProgressString(QuestTask task) {
+        String raw = rawTaskProgressString(task);
+        return raw != null && taskAmountMasked(task) ? "?" : raw;
+    }
+
+    private String rawTaskProgressString(QuestTask task) {
         if (player == null) return null;
         if (playerData != null && playerData.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.COMPLETED) {
 
@@ -2802,6 +3020,7 @@ public class QuestTasksScreen extends Screen {
         minecraft.player.connection.sendCommand("chronicles resettask " + task.getTaskId().getPath());
     }
 
+    /** Clicking a consuming item task hands its items in. Returns false if the click isn't for this to handle. */
     private boolean trySubmitItemTask(QuestTask task) {
         if (!(task instanceof ItemRequirementTask it) || !it.shouldConsume() || minecraft == null ||
                 minecraft.player == null) {
@@ -2813,6 +3032,7 @@ public class QuestTasksScreen extends Screen {
                 QuestState.LOCKED;
         if (state != QuestState.UNLOCKED && state != QuestState.ACTIVE) return false;
 
+        // AE2 storage isn't reliably visible on the client, so let the server make the call for those tasks.
         if (!it.hasRequiredItems(minecraft.player) && !it.usesAe2Storage()) return false;
 
         ChronicleNetwork.CHANNEL.sendToServer(

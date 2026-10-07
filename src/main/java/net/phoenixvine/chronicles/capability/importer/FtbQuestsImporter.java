@@ -436,7 +436,7 @@ public class FtbQuestsImporter {
             groupIdToChapters.computeIfAbsent(groupId, k -> new ArrayList<>()).add(idx.categorySlug());
         }
         if (!standaloneChapters.isEmpty()) {
-            CategoryRegistry.ensureStandaloneOrder(standaloneChapters);
+            CategoryRegistry.ensureLeadingStandalone(standaloneChapters);
         }
         if (groupIdToChapters.isEmpty()) return;
 

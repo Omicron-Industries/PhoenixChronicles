@@ -111,6 +111,7 @@ public class S2CSyncQuestsPacket {
             String externalScreenId = buf.readUtf();
             String unlockSoundId = buf.readUtf();
             String completeSoundId = buf.readUtf();
+            CompoundTag audio = buf.readNbt();
 
             snapshotMap.put(id, new QuestSnapshot(
                     id, title, description, chapter, shapeType, iconItemId,
@@ -119,7 +120,7 @@ public class S2CSyncQuestsPacket {
                     prereqLineShape, prereqLineVisual, prereqLineSpeed, prereqLineArrow, prereqLineStyleId,
                     optionalPrereqMinCount, tasksNbt, rewardsNbt, linkTarget, iconTexture, shapeTexture,
                     nodeSize, sizeOverridePx, iconFluid, backgroundType, externalScreenId, unlockSoundId,
-                    completeSoundId));
+                    completeSoundId, audio));
         }
     }
 
@@ -183,6 +184,7 @@ public class S2CSyncQuestsPacket {
             buf.writeUtf(snap.externalScreenId != null ? snap.externalScreenId : "");
             buf.writeUtf(snap.unlockSoundId != null ? snap.unlockSoundId : "");
             buf.writeUtf(snap.completeSoundId != null ? snap.completeSoundId : "");
+            buf.writeNbt(snap.audio != null ? snap.audio : new CompoundTag());
         }
     }
 
@@ -239,6 +241,7 @@ public class S2CSyncQuestsPacket {
         final String externalScreenId;
         final String unlockSoundId;
         final String completeSoundId;
+        final CompoundTag audio;
 
         QuestSnapshot(QuestNode node, net.minecraft.server.MinecraftServer server) {
             this.id = node.getId();
@@ -267,6 +270,7 @@ public class S2CSyncQuestsPacket {
             this.externalScreenId = node.getExternalScreenId() != null ? node.getExternalScreenId() : "";
             this.unlockSoundId = node.getUnlockSoundId() != null ? node.getUnlockSoundId() : "";
             this.completeSoundId = node.getCompleteSoundId() != null ? node.getCompleteSoundId() : "";
+            this.audio = node.getAudio().toTag();
 
             this.childIds = new ArrayList<>();
             for (QuestNode child : node.getChildren()) {
@@ -308,7 +312,7 @@ public class S2CSyncQuestsPacket {
             this.tasksNbt = new ArrayList<>();
             for (QuestTask task : node.getEffectiveTasks(server)) {
                 if (task == null) continue;
-                CompoundTag tag = task.serializeNBT();
+                CompoundTag tag = task.serializeWithMeta();
                 if (tag != null) {
                     if (!tag.contains("task_id") && task.getTaskId() != null)
                         tag.putString("task_id", task.getTaskId().toString());
@@ -322,7 +326,7 @@ public class S2CSyncQuestsPacket {
             this.rewardsNbt = new ArrayList<>();
             for (QuestReward reward : node.getEffectiveRewards(server)) {
                 if (reward == null) continue;
-                CompoundTag tag = reward.serializeNBT();
+                CompoundTag tag = reward.serializeWithMeta();
                 if (tag != null) {
                     rewardsNbt.add(tag);
                 }
@@ -344,7 +348,7 @@ public class S2CSyncQuestsPacket {
                       ResourceLocation linkTarget, String iconTexture, String shapeTexture,
                       String nodeSize, int sizeOverridePx, String iconFluid,
                       String backgroundType, String externalScreenId, String unlockSoundId,
-                      String completeSoundId) {
+                      String completeSoundId, CompoundTag audio) {
             this.id = id;
             this.fullQuestData = new FullQuestData(title, description, null, new ArrayList<>(), new ArrayList<>());
             this.chapter = chapter;
@@ -381,6 +385,7 @@ public class S2CSyncQuestsPacket {
             this.externalScreenId = externalScreenId;
             this.unlockSoundId = unlockSoundId;
             this.completeSoundId = completeSoundId;
+            this.audio = audio;
         }
     }
 
@@ -412,6 +417,7 @@ public class S2CSyncQuestsPacket {
                 node.setExternalScreenId(snap.externalScreenId);
                 node.setUnlockSoundId(snap.unlockSoundId);
                 node.setCompleteSoundId(snap.completeSoundId);
+                node.setAudio(net.phoenixvine.chronicles.common.model.QuestAudio.fromTag(snap.audio));
                 try {
                     if (snap.nodeSize != null) node.setNodeSize(QuestNode.NodeSize.valueOf(snap.nodeSize));
                 } catch (Exception ignored) {}

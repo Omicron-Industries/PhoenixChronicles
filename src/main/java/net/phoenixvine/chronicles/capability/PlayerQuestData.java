@@ -14,11 +14,38 @@ public class PlayerQuestData {
     private final Map<ResourceLocation, CompoundTag> taskProgress = new HashMap<>();
     private final Map<ResourceLocation, Long> lastCompleted = new HashMap<>();
     private final Set<ResourceLocation> claimedRewards = new HashSet<>();
+    private final Map<ResourceLocation, Set<Integer>> claimedRewardIndices = new HashMap<>();
     private final Map<ResourceLocation, Set<Integer>> chosenRewardIndices = new HashMap<>();
     private final Map<ResourceLocation, Map<Integer, Integer>> resolvedChoiceBoxes = new HashMap<>();
     private final Set<ResourceLocation> pinnedQuestIds = new LinkedHashSet<>();
     private final Map<ResourceLocation, Long> emergencyUsed = new HashMap<>();
     private final Set<ResourceLocation> repeatHold = new HashSet<>();
+
+    private boolean autoClaimEnabled = false;
+    private final java.util.EnumSet<net.phoenixvine.chronicles.common.model.AutoClaimCategory> autoClaimCategories = java.util.EnumSet
+            .allOf(net.phoenixvine.chronicles.common.model.AutoClaimCategory.class);
+
+    public boolean isAutoClaimEnabled() {
+        return autoClaimEnabled;
+    }
+
+    public void setAutoClaimEnabled(boolean enabled) {
+        this.autoClaimEnabled = enabled;
+    }
+
+    public java.util.EnumSet<net.phoenixvine.chronicles.common.model.AutoClaimCategory> getAutoClaimCategories() {
+        return java.util.EnumSet.copyOf(autoClaimCategories);
+    }
+
+    public void setAutoClaimCategories(
+                                       java.util.Set<net.phoenixvine.chronicles.common.model.AutoClaimCategory> categories) {
+        autoClaimCategories.clear();
+        autoClaimCategories.addAll(categories);
+    }
+
+    public boolean isAutoClaimCategory(net.phoenixvine.chronicles.common.model.AutoClaimCategory category) {
+        return autoClaimCategories.contains(category);
+    }
 
     public QuestState getQuestState(ResourceLocation questId, QuestState defaultState) {
         return questStates.getOrDefault(questId, defaultState);
@@ -58,6 +85,19 @@ public class PlayerQuestData {
 
     public void clearClaimedRewards(ResourceLocation questId) {
         claimedRewards.remove(questId);
+        claimedRewardIndices.remove(questId);
+    }
+
+    /**
+     * Reward slots already granted. A quest can be claimed in pieces - auto-claim takes the kinds the player
+     * enabled and leaves the rest - so "claimed" alone can't say what is still owed.
+     */
+    public boolean isRewardIndexClaimed(ResourceLocation questId, int index) {
+        return claimedRewardIndices.getOrDefault(questId, Set.of()).contains(index);
+    }
+
+    public void markRewardIndexClaimed(ResourceLocation questId, int index) {
+        claimedRewardIndices.computeIfAbsent(questId, k -> new HashSet<>()).add(index);
     }
 
     public Set<Integer> getChosenRewardIndices(ResourceLocation questId) {
@@ -104,6 +144,7 @@ public class PlayerQuestData {
         taskIds.forEach(taskProgress::remove);
         lastCompleted.remove(questId);
         claimedRewards.remove(questId);
+        claimedRewardIndices.remove(questId);
         chosenRewardIndices.remove(questId);
         resolvedChoiceBoxes.remove(questId);
         emergencyUsed.remove(questId);
@@ -192,6 +233,15 @@ public class PlayerQuestData {
         }
         root.put("ClaimedRewards", claimedList);
 
+        var claimedIndexList = new ListTag();
+        claimedRewardIndices.forEach((id, indices) -> {
+            var e = new CompoundTag();
+            e.putString("id", id.toString());
+            e.putIntArray("indices", indices.stream().mapToInt(Integer::intValue).toArray());
+            claimedIndexList.add(e);
+        });
+        root.put("ClaimedRewardIndices", claimedIndexList);
+
         var chosenList = new ListTag();
         chosenRewardIndices.forEach((id, indices) -> {
             var e = new CompoundTag();
@@ -242,6 +292,12 @@ public class PlayerQuestData {
         }
         root.put("RepeatHold", holdList);
 
+        CompoundTag autoClaim = new CompoundTag();
+        autoClaim.putBoolean("enabled", autoClaimEnabled);
+        autoClaim.putInt("categories",
+                net.phoenixvine.chronicles.common.model.AutoClaimCategory.toMask(autoClaimCategories));
+        root.put("AutoClaim", autoClaim);
+
         return root;
     }
 
@@ -250,11 +306,23 @@ public class PlayerQuestData {
         taskProgress.clear();
         lastCompleted.clear();
         claimedRewards.clear();
+        claimedRewardIndices.clear();
         chosenRewardIndices.clear();
         resolvedChoiceBoxes.clear();
         pinnedQuestIds.clear();
         emergencyUsed.clear();
         repeatHold.clear();
+        autoClaimEnabled = false;
+        autoClaimCategories.clear();
+        autoClaimCategories
+                .addAll(java.util.EnumSet.allOf(net.phoenixvine.chronicles.common.model.AutoClaimCategory.class));
+        if (root.contains("AutoClaim", net.minecraft.nbt.Tag.TAG_COMPOUND)) {
+            CompoundTag autoClaim = root.getCompound("AutoClaim");
+            autoClaimEnabled = autoClaim.getBoolean("enabled");
+            autoClaimCategories.clear();
+            autoClaimCategories.addAll(
+                    net.phoenixvine.chronicles.common.model.AutoClaimCategory.fromMask(autoClaim.getInt("categories")));
+        }
 
         readCompoundList(root, "Quests", tag -> {
             ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
@@ -287,6 +355,14 @@ public class PlayerQuestData {
         readCompoundList(root, "EmergencyUsed", tag -> {
             ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
             if (id != null) emergencyUsed.put(id, tag.getLong("time"));
+        });
+
+        readCompoundList(root, "ClaimedRewardIndices", tag -> {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id == null) return;
+            Set<Integer> indices = new HashSet<>();
+            for (int index : tag.getIntArray("indices")) indices.add(index);
+            claimedRewardIndices.put(id, indices);
         });
 
         readCompoundList(root, "ClaimedRewards", tag -> {

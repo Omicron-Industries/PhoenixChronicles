@@ -1,6 +1,6 @@
 package net.phoenixvine.chronicles.mixin;
 
-import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.loading.LoadingModList;
 
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
@@ -12,6 +12,7 @@ import java.util.Set;
 public class PhoenixChroniclesMixinPlugin implements IMixinConfigPlugin {
 
     private static final String MULTIBLOCK_MIXIN = "net.phoenixvine.chronicles.mixin.MultiblockFormedMixin";
+    private static final String RECIPE_FINISHED_MIXIN = "net.phoenixvine.chronicles.mixin.GTRecipeFinishedMixin";
 
     @Override
     public void onLoad(String mixinPackage) {}
@@ -23,8 +24,8 @@ public class PhoenixChroniclesMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (mixinClassName.equals(MULTIBLOCK_MIXIN)) {
-            return ModList.get().isLoaded("gtceu");
+        if (mixinClassName.equals(MULTIBLOCK_MIXIN) || mixinClassName.equals(RECIPE_FINISHED_MIXIN)) {
+            return LoadingModList.get().getModFileById("gtceu") != null;
         }
         return true;
     }

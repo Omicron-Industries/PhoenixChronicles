@@ -773,43 +773,9 @@ public class LangEditorScreen extends Screen {
             Path enUsFile = langDir.resolve("en_us.json");
             String newJson = gson.toJson(lang);
             Files.writeString(enUsFile, newJson, StandardCharsets.UTF_8);
-            syncOtherLangFiles(langDir, lang, gson);
+            QuestLangRegistry.syncTranslations(base);
         } catch (IOException e) {
             e.printStackTrace();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void syncOtherLangFiles(Path langDir, Map<String, String> enUs, Gson gson) {
-        try (java.util.stream.Stream<Path> files = Files.list(langDir)) {
-            files.filter(p -> p.getFileName().toString().endsWith(".json") &&
-                    !p.getFileName().toString().equals("en_us.json"))
-                    .forEach(langFile -> {
-                        try {
-                            Map<String, String> existing;
-                            if (Files.exists(langFile)) {
-                                String raw = Files.readString(langFile, java.nio.charset.StandardCharsets.UTF_8);
-                                existing = gson.fromJson(raw, LinkedHashMap.class);
-                                if (existing == null) existing = new LinkedHashMap<>();
-                            } else {
-                                existing = new LinkedHashMap<>();
-                            }
-                            boolean changed = false;
-                            for (Map.Entry<String, String> e : enUs.entrySet()) {
-                                if (!existing.containsKey(e.getKey())) {
-                                    existing.put(e.getKey(), e.getValue());
-                                    changed = true;
-                                }
-                            }
-                            if (changed)
-                                Files.writeString(langFile, gson.toJson(existing),
-                                        java.nio.charset.StandardCharsets.UTF_8);
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
-                    });
-        } catch (IOException ex) {
-            ex.printStackTrace();
         }
     }
 

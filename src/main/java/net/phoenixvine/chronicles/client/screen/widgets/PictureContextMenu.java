@@ -23,7 +23,14 @@ public class PictureContextMenu implements TogglePanel {
     private static final int CTX_W = ChronicleOverviewScreen.CTX_W;
     private static final int CTX_ROW = ChronicleOverviewScreen.CTX_ROW;
     private static final int CTX_SEP = ChronicleOverviewScreen.CTX_SEP;
-    private static final int MENU_H = 4 + CTX_ROW * 7 + CTX_SEP;
+    private static final String[] ROTATE_NAMES = { "Reset to 0°", "Clockwise 90°", "Counter-clockwise 90°",
+            "Flip 180°", "Clockwise 45°", "Counter-clockwise 45°", "Clockwise 15°", "Counter-clockwise 15°" };
+    private static final float[] ROTATE_DELTAS = { Float.NaN, 90f, -90f, 180f, 45f, -45f, 15f, -15f };
+    private static final String[] PARALLAX_NAMES = { "Fixed to screen  §8(0)", "Far away  §8(0.25)",
+            "Distant  §8(0.5)", "Slightly behind  §8(0.75)", "With the quests  §8(1)", "Near  §8(1.25)",
+            "Foreground  §8(1.5)" };
+    private static final float[] PARALLAX_VALUES = { 0f, 0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f };
+    private static final int MENU_H = 4 + CTX_ROW * 9 + CTX_SEP;
 
     private final ScreenContext ctx;
 
@@ -36,6 +43,8 @@ public class PictureContextMenu implements TogglePanel {
     private boolean moveCatOpen = false;
     private boolean opacityOpen = false;
     private boolean tintOpen = false;
+    private boolean rotateOpen = false;
+    private boolean parallaxOpen = false;
 
     public PictureContextMenu(ScreenContext ctx) {
         this.ctx = ctx;
@@ -58,6 +67,8 @@ public class PictureContextMenu implements TogglePanel {
         moveCatOpen = false;
         opacityOpen = false;
         tintOpen = false;
+        rotateOpen = false;
+        parallaxOpen = false;
         target = pic;
         this.x = x;
         this.y = y;
@@ -75,6 +86,8 @@ public class PictureContextMenu implements TogglePanel {
         moveCatOpen = false;
         opacityOpen = false;
         tintOpen = false;
+        rotateOpen = false;
+        parallaxOpen = false;
         target = null;
     }
 
@@ -121,6 +134,8 @@ public class PictureContextMenu implements TogglePanel {
         iy = drawRow(g, x, iy, "Resize (scroll + drag)…", "§7", false, mx, my);
         iy = drawRow(g, x, iy, "Opacity  ▸", "§7", false, mx, my);
         iy = drawRow(g, x, iy, "Tint  ▸", "§7", false, mx, my);
+        iy = drawRow(g, x, iy, "Rotate  ▸", "§7", false, mx, my);
+        iy = drawRow(g, x, iy, "Parallax  ▸", "§7", false, mx, my);
         iy = drawRow(g, x, iy, "Move to Chapter  ▸", "§7", false, mx, my);
         g.fill(x + 6, iy + 2, x + CTX_W - 6, iy + 3, ChronicleOverviewScreen.C_CTX_SEP);
         iy += CTX_SEP;
@@ -129,7 +144,9 @@ public class PictureContextMenu implements TogglePanel {
         if (resizeOpen) renderResizeSubmenu(g, x, y + 2 + CTX_ROW, mx, my);
         if (opacityOpen) renderOpacitySubmenu(g, x, y + 2 + CTX_ROW * 3, mx, my);
         if (tintOpen) renderTintSubmenu(g, x, y + 2 + CTX_ROW * 4, mx, my);
-        if (moveCatOpen) renderMoveCatSubmenu(g, x, y + 2 + CTX_ROW * 5, mx, my);
+        if (rotateOpen) renderRotateSubmenu(g, x, y + 2 + CTX_ROW * 5, mx, my);
+        if (parallaxOpen) renderParallaxSubmenu(g, x, y + 2 + CTX_ROW * 6, mx, my);
+        if (moveCatOpen) renderMoveCatSubmenu(g, x, y + 2 + CTX_ROW * 7, mx, my);
 
         g.pose().popPose();
     }
@@ -192,6 +209,37 @@ public class PictureContextMenu implements TogglePanel {
             boolean isCurrent = target != null && target.color == TINT_PRESETS[i];
             String mark = isCurrent ? "§a● §7" : "§8  §7";
             drawRow(g, subX, sy, mark + TINT_NAMES[i], "", false, mx, my);
+            sy += CTX_ROW;
+        }
+    }
+
+    private void renderRotateSubmenu(@NotNull GuiGraphics g, int x, int subY, int mx, int my) {
+        int subX = x + CTX_W + 2;
+        int subH = ROTATE_NAMES.length * CTX_ROW + 4;
+        g.fill(subX + 2, subY + 2, subX + CTX_W + 2, subY + subH + 2, 0x55000000);
+        g.fill(subX, subY, subX + CTX_W, subY + subH, ChronicleOverviewScreen.C_CTX_BG);
+        ChroniclesUIKit.drawBorder(g, subX, subY, CTX_W, subH, ChronicleOverviewScreen.C_CTX_BORDER);
+        int sy = subY + 2;
+        String current = target != null ? "§b" + Math.round(target.rotation) + "° §8now" : "";
+        g.drawString(ctx.font(), current, subX + CTX_W - 6 - ctx.font().width(current.replaceAll("§.", "")),
+                subY - 9, ChronicleOverviewScreen.C_CTX_TEXT);
+        for (String name : ROTATE_NAMES) {
+            drawRow(g, subX, sy, "§7" + name, "", false, mx, my);
+            sy += CTX_ROW;
+        }
+    }
+
+    private void renderParallaxSubmenu(@NotNull GuiGraphics g, int x, int subY, int mx, int my) {
+        int subX = x + CTX_W + 2;
+        int subH = PARALLAX_NAMES.length * CTX_ROW + 4;
+        g.fill(subX + 2, subY + 2, subX + CTX_W + 2, subY + subH + 2, 0x55000000);
+        g.fill(subX, subY, subX + CTX_W, subY + subH, ChronicleOverviewScreen.C_CTX_BG);
+        ChroniclesUIKit.drawBorder(g, subX, subY, CTX_W, subH, ChronicleOverviewScreen.C_CTX_BORDER);
+        int sy = subY + 2;
+        for (int i = 0; i < PARALLAX_NAMES.length; i++) {
+            boolean isCurrent = target != null && Math.abs(target.parallax - PARALLAX_VALUES[i]) < 0.01f;
+            String mark = isCurrent ? "§a● §7" : "§8  §7";
+            drawRow(g, subX, sy, mark + PARALLAX_NAMES[i], "", false, mx, my);
             sy += CTX_ROW;
         }
     }
@@ -305,11 +353,67 @@ public class PictureContextMenu implements TogglePanel {
                 return true;
             }
         }
+        if (parallaxOpen) {
+            int subX = x + CTX_W + 2;
+            int sy = y + 2 + CTX_ROW * 6 + 2;
+            for (int i = 0; i < PARALLAX_VALUES.length; i++) {
+                if (mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW) {
+                    final float oldParallax = pic.parallax;
+                    final float newParallax = PARALLAX_VALUES[i];
+                    pic.parallax = newParallax;
+                    ctx.pushUndo("Undo: picture parallax reverted", () -> {
+                        pic.parallax = oldParallax;
+                        BackgroundPictureConfig.save();
+                    }, () -> {
+                        pic.parallax = newParallax;
+                        BackgroundPictureConfig.save();
+                    });
+                    BackgroundPictureConfig.save();
+                    ctx.setFeedbackDone("Picture parallax set to %s", String.valueOf(newParallax));
+                    close();
+                    return true;
+                }
+                sy += CTX_ROW;
+            }
+            if (mx < x || mx > x + CTX_W + 2 + CTX_W || my < y || my > y + MENU_H) {
+                close();
+                return true;
+            }
+        }
+        if (rotateOpen) {
+            int subX = x + CTX_W + 2;
+            int sy = y + 2 + CTX_ROW * 5 + 2;
+            for (int i = 0; i < ROTATE_DELTAS.length; i++) {
+                if (mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW) {
+                    final float oldRotation = pic.rotation;
+                    float delta = ROTATE_DELTAS[i];
+                    if (Float.isNaN(delta)) pic.rotation = 0f;
+                    else pic.rotateBy(delta);
+                    final float newRotation = pic.rotation;
+                    ctx.pushUndo("Undo: picture rotation reverted", () -> {
+                        pic.rotation = oldRotation;
+                        BackgroundPictureConfig.save();
+                    }, () -> {
+                        pic.rotation = newRotation;
+                        BackgroundPictureConfig.save();
+                    });
+                    BackgroundPictureConfig.save();
+                    ctx.setFeedbackDone("Picture rotated to %d°", Math.round(newRotation));
+                    close();
+                    return true;
+                }
+                sy += CTX_ROW;
+            }
+            if (mx < x || mx > x + CTX_W + 2 + CTX_W || my < y || my > y + MENU_H) {
+                close();
+                return true;
+            }
+        }
         if (moveCatOpen) {
             List<String> cats = ctx.buildChapterList();
             cats.remove("ALL");
             cats.remove(ctx.selectedChapter());
-            int subX = x + CTX_W + 2, subY = y + 2 + CTX_ROW * 5;
+            int subX = x + CTX_W + 2, subY = y + 2 + CTX_ROW * 7;
             int sy = subY + 2;
             for (String cat : cats) {
                 if (mx >= subX && mx <= subX + CTX_W && my >= sy && my <= sy + CTX_ROW) {
@@ -342,7 +446,9 @@ public class PictureContextMenu implements TogglePanel {
         int rowY3 = rowY2 + CTX_ROW;
         int rowY4 = rowY3 + CTX_ROW;
         int rowY5 = rowY4 + CTX_ROW;
-        int rowY6 = rowY5 + CTX_ROW + CTX_SEP;
+        int rowYParallax = rowY5 + CTX_ROW;
+        int rowYMove = rowYParallax + CTX_ROW;
+        int rowY6 = rowYMove + CTX_ROW + CTX_SEP;
 
         if (mx < x || mx > x + CTX_W) {
             close();
@@ -356,6 +462,7 @@ public class PictureContextMenu implements TogglePanel {
         }
         if (my >= rowY1 && my < rowY1 + CTX_ROW) {
             resizeOpen = !resizeOpen;
+            parallaxOpen = false;
             opacityOpen = false;
             tintOpen = false;
             moveCatOpen = false;
@@ -370,6 +477,7 @@ public class PictureContextMenu implements TogglePanel {
         }
         if (my >= rowY3 && my < rowY3 + CTX_ROW) {
             opacityOpen = !opacityOpen;
+            parallaxOpen = false;
             resizeOpen = false;
             tintOpen = false;
             moveCatOpen = false;
@@ -377,13 +485,34 @@ public class PictureContextMenu implements TogglePanel {
         }
         if (my >= rowY4 && my < rowY4 + CTX_ROW) {
             tintOpen = !tintOpen;
+            parallaxOpen = false;
             resizeOpen = false;
             opacityOpen = false;
             moveCatOpen = false;
             return true;
         }
         if (my >= rowY5 && my < rowY5 + CTX_ROW) {
+            rotateOpen = !rotateOpen;
+            parallaxOpen = false;
+            moveCatOpen = false;
+            resizeOpen = false;
+            opacityOpen = false;
+            tintOpen = false;
+            return true;
+        }
+        if (my >= rowYParallax && my < rowYParallax + CTX_ROW) {
+            parallaxOpen = !parallaxOpen;
+            rotateOpen = false;
+            moveCatOpen = false;
+            resizeOpen = false;
+            opacityOpen = false;
+            tintOpen = false;
+            return true;
+        }
+        if (my >= rowYMove && my < rowYMove + CTX_ROW) {
             moveCatOpen = !moveCatOpen;
+            parallaxOpen = false;
+            rotateOpen = false;
             resizeOpen = false;
             opacityOpen = false;
             tintOpen = false;

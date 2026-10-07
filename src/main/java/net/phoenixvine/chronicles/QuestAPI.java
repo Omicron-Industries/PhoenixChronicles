@@ -11,6 +11,7 @@ import net.phoenixvine.chronicles.common.model.QuestState;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 import net.phoenixvine.chronicles.common.registry.QuestTreeRegistry;
 import net.phoenixvine.chronicles.common.tasks.ExternalTriggerTask;
+import net.phoenixvine.chronicles.common.tasks.RecipeTask;
 import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 
 import org.jetbrains.annotations.Nullable;
@@ -119,6 +120,44 @@ public final class QuestAPI {
                 }
 
                 QuestProgressTracker.checkAndTryComplete(player, node);
+            }
+        });
+    }
+
+    /**
+     * Reports that a player ran a recipe: recipe tasks for that recipe type (and, when set, that exact recipe) in
+     * their active quests advance by {@code times}. Machines call this when a run finishes; it must be called on the
+     * server.
+     */
+    public static void fireRecipeCompleted(@Nullable Player player, @Nullable ResourceLocation recipeType,
+                                           @Nullable ResourceLocation recipeId, int times) {
+        if (player == null || recipeType == null || player.level().isClientSide() || player.getServer() == null) return;
+
+        player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).ifPresent(questData -> {
+            boolean changedAny = false;
+            for (QuestNode node : QuestTreeRegistry.getAllQuests().values()) {
+                if (node.isFlagDisabled(player.getServer())) continue;
+                QuestState state = questData.getQuestState(node.getId(), QuestState.LOCKED);
+                if (state != QuestState.ACTIVE && state != QuestState.UNLOCKED) continue;
+
+                boolean changed = false;
+                for (Object task : node.getEffectiveTasks(player.getServer(), player)) {
+                    if (!(task instanceof RecipeTask recipeTask) || recipeTask.isCompletedFor(player)) continue;
+                    if (!recipeTask.matches(recipeType, recipeId)) continue;
+                    PhoenixChronicles.LOGGER.debug(
+                            "[RecipeTask] {} finished {} (recipe id {}) -> counts for task {} (wants {})",
+                            player.getGameProfile().getName(), recipeType, recipeId, recipeTask.getTaskId(),
+                            recipeTask.getRecipeId());
+                    recipeTask.onRecipeCompleted(player, times);
+                    changed = true;
+                }
+                if (changed) {
+                    QuestProgressTracker.checkAndTryComplete(player, node);
+                    changedAny = true;
+                }
+            }
+            if (changedAny && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                QuestProgressTracker.sendProgressSync(sp);
             }
         });
     }

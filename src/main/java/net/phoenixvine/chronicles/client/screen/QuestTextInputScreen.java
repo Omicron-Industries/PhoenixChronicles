@@ -90,6 +90,9 @@ public class QuestTextInputScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+        // A resize rebuilds the screen; keep what has been typed instead of snapping back to the original text.
+        String keptText = inputBox != null ? inputBox.getValue() : initial;
+        String keptHex = hexBox != null ? hexBox.getValue() : "";
 
         this.pw = Math.min(900, width - 80);
         this.ph = Math.min(700, height - 80);
@@ -98,7 +101,7 @@ public class QuestTextInputScreen extends Screen {
         this.btnY = py + ph - 24;
 
         inputBox = addRenderableWidget(new MultilineTextArea(font, px + 8, py + 26, pw - 16, ph - 100, maxLength));
-        inputBox.setValue(initial);
+        inputBox.setValue(keptText);
         inputBox.seekToStart();
         setInitialFocus(inputBox);
 
@@ -106,6 +109,7 @@ public class QuestTextInputScreen extends Screen {
         hexBox = new EditBox(font, px + 8 + font.width("Hex: "), hexY, 58, 12, Component.empty());
         hexBox.setMaxLength(7);
         hexBox.setHint(Component.translatable("phoenix_chronicles.ui.hex_color_hint"));
+        hexBox.setValue(keptHex);
         addRenderableWidget(hexBox);
     }
 

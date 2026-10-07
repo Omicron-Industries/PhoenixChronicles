@@ -309,7 +309,8 @@ public class QuestHudOverlay {
             for (int i = 0; i < rewards.size(); i++) {
                 int rx = wx + PAD + (i % perRow) * (REWARD_ICON_SZ + REWARD_ICON_GAP);
                 int ry = ty + (i / perRow) * (REWARD_ICON_SZ + REWARD_ICON_GAP);
-                drawRewardIcon(g, rewards.get(i), rx, ry, REWARD_ICON_SZ);
+                drawRewardIcon(g, rewards.get(i), rx, ry, REWARD_ICON_SZ,
+                        net.phoenixvine.chronicles.client.util.HiddenParts.rewardTargetHidden(node, rewards.get(i)));
             }
         }
 
@@ -326,14 +327,17 @@ public class QuestHudOverlay {
         g.disableScissor();
     }
 
-    private static void drawRewardIcon(GuiGraphics g, QuestReward reward, int x, int y, int size) {
+    private static void drawRewardIcon(GuiGraphics g, QuestReward reward, int x, int y, int size,
+                                       boolean masked) {
         g.fill(x, y, x + size, y + size, 0xFF0F0F18);
         g.fill(x, y, x + size, y + 1, 0xFF333344);
         g.fill(x, y + size - 1, x + size, y + size, 0xFF333344);
         g.fill(x, y, x + 1, y + size, 0xFF333344);
         g.fill(x + size - 1, y, x + size, y + size, 0xFF333344);
 
-        if (reward instanceof QuestReward.ItemReward ir) {
+        if (masked) {
+            g.drawString(Minecraft.getInstance().font, "§7?", x + size / 2 - 2, y + size / 2 - 4, 0xFF888898, false);
+        } else if (reward instanceof QuestReward.ItemReward ir) {
             float scale = size / 16f;
             g.pose().pushPose();
             try {

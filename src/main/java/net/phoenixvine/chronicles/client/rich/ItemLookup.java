@@ -8,6 +8,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.screen.ChronicleOverviewScreen;
+import net.phoenixvine.chronicles.client.util.HiddenParts;
 import net.phoenixvine.chronicles.common.model.QuestNode;
 import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestTask;
@@ -72,10 +73,11 @@ public final class ItemLookup {
 
     private static boolean referencesItem(QuestNode node, ItemStack stack, ResourceLocation itemId) {
         for (QuestTask task : node.getTasks()) {
-
+            if (HiddenParts.taskTargetHidden(node, task)) continue;
             if (task.matchesItem(stack)) return true;
         }
         for (QuestReward reward : node.getRewards()) {
+            if (HiddenParts.rewardTargetHidden(node, reward)) continue;
             if (reward instanceof QuestReward.ItemReward ir) {
                 ResourceLocation id = ForgeRegistries.ITEMS.getKey(ir.getItem());
                 if (id != null && id.equals(itemId)) return true;

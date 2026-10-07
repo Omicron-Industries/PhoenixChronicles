@@ -114,6 +114,20 @@ public class ChronicleNetwork {
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
 
         CHANNEL.registerMessage(id++,
+                C2SReopenCompletedQuestPacket.class,
+                C2SReopenCompletedQuestPacket::encode,
+                C2SReopenCompletedQuestPacket::new,
+                C2SReopenCompletedQuestPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
+                C2SSetAutoClaimPacket.class,
+                C2SSetAutoClaimPacket::encode,
+                C2SSetAutoClaimPacket::new,
+                C2SSetAutoClaimPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
+        CHANNEL.registerMessage(id++,
                 C2SSetFilterTokenPacket.class,
                 C2SSetFilterTokenPacket::encode,
                 C2SSetFilterTokenPacket::new,

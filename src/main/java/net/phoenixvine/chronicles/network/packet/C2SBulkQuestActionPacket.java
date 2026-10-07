@@ -55,6 +55,9 @@ public class C2SBulkQuestActionPacket {
                     if (node == null) continue;
 
                     if (action == Action.FORCE_COMPLETE) {
+                        if (data.getQuestState(questId, QuestState.LOCKED) != QuestState.COMPLETED) {
+                            data.clearClaimedRewards(questId);
+                        }
                         data.setQuestState(questId, QuestState.COMPLETED);
                         QuestProgressTracker.updateActiveTracking(player.getUUID(), node, QuestState.COMPLETED);
                     } else {
@@ -66,6 +69,9 @@ public class C2SBulkQuestActionPacket {
                         }
                     }
                 }
+
+                if (action == Action.FORCE_COMPLETE) QuestProgressTracker.autoClaimSweep(player);
+                else QuestProgressTracker.relockUnsatisfied(player);
 
                 ChronicleNetwork.CHANNEL.send(
                         net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),

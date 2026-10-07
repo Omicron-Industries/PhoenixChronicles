@@ -1,11 +1,13 @@
 {
   "required": true,
   "package": "net.phoenixvine.chronicles.mixin",
+  "refmap": "phoenix_chronicles.refmap.json",
   "plugin": "net.phoenixvine.chronicles.mixin.PhoenixChroniclesMixinPlugin",
   "compatibilityLevel": "JAVA_17",
   "minVersion": "0.8",
   "mixins": [
-    "MultiblockFormedMixin"
+    "MultiblockFormedMixin",
+    "GTRecipeFinishedMixin"
   ],
   "client": [
     "MixinGameRenderer"

@@ -22,10 +22,31 @@ public abstract class QuestTask implements INBTSerializable<CompoundTag> {
     @Override
     public abstract void deserializeNBT(CompoundTag nbt);
 
+    /** Hidden-part bits: the amount / the target stay masked in the quest viewer until the task is done. */
+    public static final int HIDE_AMOUNT = 1;
+    public static final int HIDE_TARGET = 2;
+
     private final ResourceLocation taskId;
     private Component description;
     @Setter
     private boolean optional = false;
+    @Setter
+    private int hiddenParts = 0;
+
+    public boolean hidesAmount() {
+        return (hiddenParts & HIDE_AMOUNT) != 0;
+    }
+
+    public boolean hidesTarget() {
+        return (hiddenParts & HIDE_TARGET) != 0;
+    }
+
+    /** {@link #serializeNBT()} plus the metadata every task shares (currently the hidden parts). */
+    public CompoundTag serializeWithMeta() {
+        CompoundTag tag = serializeNBT();
+        if (hiddenParts != 0) tag.putInt("hide", hiddenParts);
+        return tag;
+    }
 
     public QuestTask(ResourceLocation taskId, Component description) {
         this.taskId = taskId;

@@ -32,10 +32,14 @@ public class C2SRequestEmergencyItemsPacket {
             ServerPlayer player = ctx.get().getSender();
             if (player == null || questId == null) return;
 
-            QuestNode node = QuestTreeRegistry.getQuest(questId);
-            if (node == null) return;
-
-            QuestProgressTracker.EmergencyResult result = QuestProgressTracker.claimEmergencyItems(player, node);
+            QuestProgressTracker.EmergencyResult result;
+            if (net.phoenixvine.chronicles.common.registry.ChapterEmergencyItems.isStation(questId)) {
+                result = QuestProgressTracker.claimEmergencyStation(player, questId);
+            } else {
+                QuestNode node = QuestTreeRegistry.getQuest(questId);
+                if (node == null) return;
+                result = QuestProgressTracker.claimEmergencyItems(player, node);
+            }
             player.sendSystemMessage(Component.literal((result.success() ? "§a" : "§c") + result.message()));
         });
         ctx.get().setPacketHandled(true);

@@ -62,7 +62,8 @@ public class GraphLayoutEngine {
     private static final int MIN_NODE_FLOOR_PX = 12;
 
     public int scaledNodeSize(QuestNode node) {
-        int pixelSize = node.getNodePixelSize();
+        float pixelSize = node.getNodePixelSize();
+        if (node.getSizeOverridePx() <= 0) pixelSize *= NodeShapeRenderer.visualSizeScale(node.getShapeType());
         float zoom = ctx.rawZoom();
         return Math.max(MIN_NODE_FLOOR_PX, Math.round(pixelSize * zoom));
     }

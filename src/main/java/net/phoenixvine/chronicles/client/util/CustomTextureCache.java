@@ -66,9 +66,11 @@ public final class CustomTextureCache {
         if (RESOLVED.remove(key) != null) Minecraft.getInstance().getTextureManager().release(rl);
         MISSING.remove(key);
         NATIVE_SIZE.remove(key);
+        AnimatedTexture.invalidate(rl);
     }
 
     public static void invalidateAll() {
+        AnimatedTexture.invalidateAll();
         Minecraft mc = Minecraft.getInstance();
         for (ResourceLocation loc : RESOLVED.values()) mc.getTextureManager().release(loc);
         RESOLVED.clear();

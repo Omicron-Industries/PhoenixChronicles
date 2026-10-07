@@ -6,6 +6,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.phoenixvine.chronicles.client.util.AnimatedTexture;
 import net.phoenixvine.chronicles.client.util.CustomTextureCache;
 import net.phoenixvine.wiki.theme.PhoenixTheme;
 
@@ -112,8 +113,7 @@ public class TextureBrowserScreen extends Screen {
             }
 
             try {
-                g.blit(CustomTextureCache.resolve(rl),
-                        tx, ty, 0, 0, THUMB, THUMB, THUMB, THUMB);
+                AnimatedTexture.blit(g, CustomTextureCache.resolve(rl), tx, ty, THUMB, THUMB);
             } catch (Exception ignored) {
                 g.fill(tx, ty, tx + THUMB, ty + THUMB, 0xFF441144);
                 g.drawCenteredString(font, "§c?", tx + THUMB / 2, ty + THUMB / 2 - 4, 0xFFFF4444);

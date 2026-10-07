@@ -21,6 +21,7 @@ import java.util.Random;
 public class RewardTableSimulatorScreen extends Screen {
 
     private static final int ROLLS = 1000;
+    private static final int PANEL_W = 400;
 
     private final Screen parent;
     private final String tableId;
@@ -101,12 +102,13 @@ public class RewardTableSimulatorScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        int panelW = 300, panelH = 220;
+        int panelW = Math.min(Math.max(240, width - 20), PANEL_W), panelH = 220;
         int panelX = width / 2 - panelW / 2, panelY = height / 2 - panelH / 2;
         ChroniclesUIKit.drawModalChrome(g, font, width, height, panelX, panelY, panelW, panelH, 20,
                 "Reward Table Simulator");
 
-        g.drawCenteredString(font, statusLine, width / 2, panelY + 30, ChroniclesThemePalette.TEXT);
+        g.drawCenteredString(font, ChroniclesUIKit.fitText(font, statusLine, panelW - 20), width / 2, panelY + 30,
+                ChroniclesThemePalette.TEXT);
 
         int rowY = panelY + 46;
         int rowH = 11;
@@ -114,9 +116,9 @@ public class RewardTableSimulatorScreen extends Screen {
         for (int i = 0; i < Math.min(results.size(), maxRows); i++) {
             Result r = results.get(i);
             double pct = 100.0 * r.hits() / ROLLS;
-            String line = ChroniclesUIKit.fitText(font, r.summary(), panelW - 90);
-            g.drawString(font, "§7" + line, panelX + 10, rowY, ChroniclesThemePalette.TEXT_DIM, false);
             String pctStr = String.format("§f%.1f%% §8(%d/%d)", pct, r.hits(), ROLLS);
+            String line = ChroniclesUIKit.fitText(font, r.summary(), panelW - 20 - font.width(pctStr) - 8);
+            g.drawString(font, "§7" + line, panelX + 10, rowY, ChroniclesThemePalette.TEXT_DIM, false);
             g.drawString(font, pctStr, panelX + panelW - 10 - font.width(pctStr), rowY,
                     ChroniclesThemePalette.TEXT, false);
             rowY += rowH;

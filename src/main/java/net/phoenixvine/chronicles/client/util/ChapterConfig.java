@@ -97,6 +97,12 @@ public class ChapterConfig {
 
     private String completeSoundId = "";
 
+    private float bgParallax = 0f;
+
+    private String musicId = "";
+    private float musicVolume = 1f;
+    private int musicFadeMs = net.phoenixvine.chronicles.common.model.QuestAudio.DEFAULT_FADE_MS;
+
     private @NotNull String parentChapter = "";
 
     public BgStyle getStyle() {
@@ -207,6 +213,33 @@ public class ChapterConfig {
         this.completeSoundId = id == null ? "" : id.trim();
     }
 
+    /** 0 keeps a custom texture background fixed; above 0 it scrolls (and tiles) at that fraction of the pan speed. */
+    public float getBgParallax() {
+        return bgParallax;
+    }
+
+    public void setBgParallax(float parallax) {
+        this.bgParallax = Math.max(0f, Math.min(2f, parallax));
+    }
+
+    public String getMusicId() {
+        return musicId;
+    }
+
+    public float getMusicVolume() {
+        return musicVolume;
+    }
+
+    public int getMusicFadeMs() {
+        return musicFadeMs;
+    }
+
+    public void setMusic(@Nullable String id, float volume, int fadeMs) {
+        this.musicId = id == null ? "" : id.trim();
+        this.musicVolume = Math.max(0f, Math.min(1f, volume));
+        this.musicFadeMs = Math.max(0, fadeMs);
+    }
+
     public String getParentChapter() {
         return parentChapter;
     }
@@ -285,6 +318,13 @@ public class ChapterConfig {
         if (!icon.isEmpty()) o.addProperty("icon", icon);
         if (!unlockSoundId.isEmpty()) o.addProperty("unlock_sound", unlockSoundId);
         if (!completeSoundId.isEmpty()) o.addProperty("complete_sound", completeSoundId);
+        if (bgParallax > 0f) o.addProperty("bg_parallax", bgParallax);
+        if (!musicId.isEmpty()) {
+            o.addProperty("music", musicId);
+            if (musicVolume != 1f) o.addProperty("music_volume", musicVolume);
+            if (musicFadeMs != net.phoenixvine.chronicles.common.model.QuestAudio.DEFAULT_FADE_MS)
+                o.addProperty("music_fade_ms", musicFadeMs);
+        }
         if (!parentChapter.isEmpty()) o.addProperty("parent", parentChapter);
         return o;
     }
@@ -343,6 +383,10 @@ public class ChapterConfig {
         if (o.has("icon")) cfg.icon = o.get("icon").getAsString();
         if (o.has("unlock_sound")) cfg.unlockSoundId = o.get("unlock_sound").getAsString();
         if (o.has("complete_sound")) cfg.completeSoundId = o.get("complete_sound").getAsString();
+        if (o.has("bg_parallax")) cfg.bgParallax = o.get("bg_parallax").getAsFloat();
+        if (o.has("music")) cfg.musicId = o.get("music").getAsString();
+        if (o.has("music_volume")) cfg.musicVolume = o.get("music_volume").getAsFloat();
+        if (o.has("music_fade_ms")) cfg.musicFadeMs = o.get("music_fade_ms").getAsInt();
         if (o.has("parent")) cfg.parentChapter = o.get("parent").getAsString().toUpperCase();
         return cfg;
     }
@@ -354,6 +398,21 @@ public class ChapterConfig {
     public static ChapterConfig get(String chapter) {
         if (!loaded) load();
         return CACHE.getOrDefault(chapter, new ChapterConfig());
+    }
+
+    /** The chapter's music, or its parent chapter's when it has none of its own. */
+    public static net.phoenixvine.chronicles.common.model.QuestAudio musicFor(@Nullable String chapter) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        String c = chapter;
+        while (c != null && !c.isEmpty() && visited.add(c)) {
+            ChapterConfig cfg = get(c);
+            if (!cfg.musicId.isEmpty()) {
+                return net.phoenixvine.chronicles.common.model.QuestAudio.NONE.withMusic(cfg.musicId, cfg.musicVolume,
+                        cfg.musicFadeMs);
+            }
+            c = cfg.parentChapter;
+        }
+        return net.phoenixvine.chronicles.common.model.QuestAudio.NONE;
     }
 
     public static @NotNull ChapterConfig getEffective(String chapter) {

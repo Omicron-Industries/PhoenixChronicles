@@ -28,6 +28,9 @@ public final class CategoryRegistry {
     private static final Set<String> collapsed = new HashSet<>();
     private static final List<String> categoryOrder = new ArrayList<>();
     private static final List<String> standaloneOrder = new ArrayList<>();
+    private static final List<String> topLevelOrder = new ArrayList<>();
+    private static final String CATEGORY_TOKEN_PREFIX = "C:";
+    private static final String CHAPTER_TOKEN_PREFIX = "S:";
 
     private static Path categoriesFolder = null;
     private static Path uiStatePath = null;
@@ -91,48 +94,91 @@ public final class CategoryRegistry {
         return Collections.unmodifiableList(standaloneOrder);
     }
 
-    public static synchronized void ensureStandaloneOrder(List<String> orderedChapterIds) {
+    public static String categoryToken(String categoryId) {
+        return CATEGORY_TOKEN_PREFIX + categoryId;
+    }
+
+    public static String chapterToken(String chapter) {
+        return CHAPTER_TOKEN_PREFIX + chapter.toUpperCase(java.util.Locale.ROOT);
+    }
+
+    public static boolean isCategoryToken(String token) {
+        return token.startsWith(CATEGORY_TOKEN_PREFIX);
+    }
+
+    public static String tokenId(String token) {
+        return token.substring(CATEGORY_TOKEN_PREFIX.length());
+    }
+
+    /**
+     * The sidebar's top-level display order: categories and standalone (ungrouped) chapters
+     * interleaved, as {@link #categoryToken}/{@link #chapterToken} tokens. Anything not yet
+     * placed in the stored order falls in after it - categories first, then standalone chapters
+     * in their legacy standalone order - which matches how the sidebar looked before the two
+     * could be mixed.
+     */
+    public static synchronized List<String> resolveTopLevel(List<String> standaloneChapters) {
+        Set<String> valid = new HashSet<>();
+        List<String> categoryTokens = new ArrayList<>();
+        for (CategoryDefinition c : getCategories()) {
+            String token = categoryToken(c.id());
+            valid.add(token);
+            categoryTokens.add(token);
+        }
+        Set<String> standaloneUpper = new HashSet<>();
+        for (String c : standaloneChapters) standaloneUpper.add(c.toUpperCase(java.util.Locale.ROOT));
+        List<String> standaloneTokens = new ArrayList<>();
+        for (String c : standaloneOrder) if (standaloneUpper.contains(c)) standaloneTokens.add(chapterToken(c));
+        for (String c : standaloneUpper) if (!standaloneOrder.contains(c)) standaloneTokens.add(chapterToken(c));
+        valid.addAll(standaloneTokens);
+
+        List<String> result = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String token : topLevelOrder) if (valid.contains(token) && seen.add(token)) result.add(token);
+        for (String token : categoryTokens) if (seen.add(token)) result.add(token);
+        for (String token : standaloneTokens) if (seen.add(token)) result.add(token);
+        return result;
+    }
+
+    /** Moves {@code token} to just before {@code beforeToken}, or to the very end when that is null. */
+    public static synchronized void moveTopLevel(String token, @Nullable String beforeToken,
+                                                 List<String> standaloneChapters) {
+        if (token.equals(beforeToken)) return;
+        List<String> order = resolveTopLevel(standaloneChapters);
+        order.remove(token);
+        int idx = beforeToken == null ? order.size() : order.indexOf(beforeToken);
+        if (idx < 0) idx = order.size();
+        order.add(idx, token);
+        storeTopLevel(order);
+    }
+
+    /**
+     * Places chapters not yet in the top-level order at the very front, in the given order - used
+     * after importing so ungrouped chapters (e.g. an intro chapter meant to come first) land above
+     * the categories instead of below them. Chapters already placed keep their position.
+     */
+    public static synchronized void ensureLeadingStandalone(List<String> orderedChapterIds) {
+        int insertAt = 0;
         boolean changed = false;
         for (String id : orderedChapterIds) {
-            String upper = id.toUpperCase(java.util.Locale.ROOT);
-            if (!standaloneOrder.contains(upper)) {
-                standaloneOrder.add(upper);
-                changed = true;
-            }
+            String token = chapterToken(id);
+            if (topLevelOrder.contains(token)) continue;
+            topLevelOrder.add(insertAt++, token);
+            changed = true;
         }
         if (changed) saveUiState();
     }
 
-    public static synchronized void reorderStandaloneChapter(String chapId, String targetId,
-                                                             List<String> currentOrder) {
-        List<String> order = new ArrayList<>(currentOrder);
-
-        for (String id : standaloneOrder) {
-            if (!order.contains(id)) {
-                order.add(id);
-            }
-        }
-
-        String upperChapId = chapId.toUpperCase();
-        order.remove(upperChapId);
-
-        int idx;
-        if (targetId == null) {
-            idx = order.size();
-        } else {
-            String upperTargetId = targetId.toUpperCase();
-            int targetIdx = order.indexOf(upperTargetId);
-
-            if (targetIdx >= 0) {
-                idx = targetIdx;
-            } else {
-                idx = order.size();
-            }
-        }
-
-        order.add(Math.max(0, Math.min(order.size(), idx)), upperChapId);
+    private static void storeTopLevel(List<String> order) {
+        for (String previous : topLevelOrder) if (!order.contains(previous)) order.add(previous);
+        topLevelOrder.clear();
+        topLevelOrder.addAll(order);
+        categoryOrder.clear();
         standaloneOrder.clear();
-        standaloneOrder.addAll(order);
+        for (String token : order) {
+            if (isCategoryToken(token)) categoryOrder.add(tokenId(token));
+            else standaloneOrder.add(tokenId(token));
+        }
         saveUiState();
     }
 
@@ -181,26 +227,6 @@ public final class CategoryRegistry {
             QuestFileWatcher.suppressNextReload();
             CategoryLoader.deleteCategoryFile(categoriesFolder, id);
         }
-    }
-
-    public static synchronized void reorderCategory(String id, int newIndex) {
-        List<String> order = new ArrayList<>();
-        for (CategoryDefinition c : getCategories()) order.add(c.id());
-
-        for (CategoryDefinition c : CATEGORIES.values()) {
-            if (!order.contains(c.id())) {
-                order.add(c.id());
-            }
-        }
-
-        if (!order.remove(id)) return;
-
-        int clamped = Math.max(0, Math.min(order.size(), newIndex));
-        order.add(clamped, id);
-
-        categoryOrder.clear();
-        categoryOrder.addAll(order);
-        saveUiState();
     }
 
     public static synchronized void renameCategory(String id, String newLabel) {
@@ -253,6 +279,7 @@ public final class CategoryRegistry {
         collapsed.clear();
         categoryOrder.clear();
         standaloneOrder.clear();
+        topLevelOrder.clear();
         if (uiStatePath == null || !Files.exists(uiStatePath)) return;
         try {
             String raw = Files.readString(uiStatePath, StandardCharsets.UTF_8);
@@ -268,6 +295,10 @@ public final class CategoryRegistry {
             if (root.contains("standaloneOrder")) {
                 ListTag l = root.getList("standaloneOrder", Tag.TAG_STRING);
                 for (int i = 0; i < l.size(); i++) standaloneOrder.add(l.getString(i).toUpperCase());
+            }
+            if (root.contains("topLevelOrder")) {
+                ListTag l = root.getList("topLevelOrder", Tag.TAG_STRING);
+                for (int i = 0; i < l.size(); i++) topLevelOrder.add(l.getString(i));
             }
         } catch (Exception e) {
             System.err.println("[Phoenix Chronicles] Failed to load category_ui_state.snbt: " + e.getMessage());
@@ -289,6 +320,9 @@ public final class CategoryRegistry {
             ListTag standaloneList = new ListTag();
             for (String chap : standaloneOrder) standaloneList.add(StringTag.valueOf(chap));
             root.put("standaloneOrder", standaloneList);
+            ListTag topLevelList = new ListTag();
+            for (String token : topLevelOrder) topLevelList.add(StringTag.valueOf(token));
+            root.put("topLevelOrder", topLevelList);
             Files.createDirectories(uiStatePath.getParent());
             Files.writeString(uiStatePath, root.toString(), StandardCharsets.UTF_8);
         } catch (Exception e) {
