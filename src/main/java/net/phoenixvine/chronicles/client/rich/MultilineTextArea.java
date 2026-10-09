@@ -110,11 +110,6 @@ public class MultilineTextArea extends AbstractWidget {
         }
     }
 
-    /**
-     * Width of the text exactly as typed. Plain string drawing and measuring run through the formatting decomposer,
-     * which is where Text Animator turns {@code <grad ...>} tags into effects and hides them. An editor has to show
-     * every symbol, so the text is drawn and measured as a raw character sequence that decomposer never sees.
-     */
     private int rawWidth(String text) {
         return font.width(FormattedCharSequence.forward(text, Style.EMPTY));
     }
@@ -368,7 +363,7 @@ public class MultilineTextArea extends AbstractWidget {
             if (kc == GLFW.GLFW_KEY_V) {
                 String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
                 if (clip != null && !clip.isEmpty()) {
-                    forceInsert(convertPastedCodes(clip.replace("\r\n", "\n").replace("\r", "\n")));
+                    forceInsert(CodeInput.convertPasted(clip.replace("\r\n", "\n").replace("\r", "\n")));
                 }
                 return true;
             }
@@ -380,42 +375,20 @@ public class MultilineTextArea extends AbstractWidget {
         return super.keyPressed(kc, sc, mod);
     }
 
-    /**
-     * Turns what was just typed into formatting: {@code &c} becomes {@code §c} and {@code &#RRGGBB} becomes
-     * {@code {#RRGGBB}}. The editor displays {@code §} as {@code &}, so typing looks the same either way.
-     */
     private void convertTypedCodes() {
         String v = textField.value();
         int c = textField.cursor();
-        if (c >= 2 && v.charAt(c - 2) == '&' && isCodeChar(v.charAt(c - 1))) {
+        if (c >= 2 && v.charAt(c - 2) == '&' && CodeInput.isCodeChar(v.charAt(c - 1))) {
             textField.setValue(v.substring(0, c - 2) + '§' + v.substring(c - 1));
             textField.seekCursor(Whence.ABSOLUTE, c);
             return;
         }
-        if (c >= 8 && v.charAt(c - 8) == '&' && v.charAt(c - 7) == '#' && isHex6(v, c - 6)) {
+        if (c >= 8 && v.charAt(c - 8) == '&' && v.charAt(c - 7) == '#' && CodeInput.isHex6(v, c - 6)) {
             String hex = v.substring(c - 6, c);
             String replaced = v.substring(0, c - 8) + "{#" + hex + "}" + v.substring(c);
             textField.setValue(replaced);
             textField.seekCursor(Whence.ABSOLUTE, c - 8 + 9);
         }
-    }
-
-    private static boolean isCodeChar(char ch) {
-        return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'k' && ch <= 'o') || ch == 'r';
-    }
-
-    private static boolean isHex6(String v, int from) {
-        if (from < 0 || from + 6 > v.length()) return false;
-        for (int i = from; i < from + 6; i++) {
-            char ch = v.charAt(i);
-            if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))) return false;
-        }
-        return true;
-    }
-
-    /** Same conversion for pasted text. */
-    private static String convertPastedCodes(String text) {
-        return text.replaceAll("&#([0-9A-Fa-f]{6})", "{#$1}").replaceAll("&([0-9a-fk-or])", "§$1");
     }
 
     @Override

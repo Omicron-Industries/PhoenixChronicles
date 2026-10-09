@@ -69,10 +69,6 @@ public class ItemPickerScreen extends Screen {
         this.hasJei = isModLoaded("jei");
     }
 
-    /**
-     * Receives every item of a multi-selection at once instead of one {@code onPick} call per item, so a caller can
-     * turn a multi-select into a batch (one task or reward per item). A single pick still goes through onPick.
-     */
     public ItemPickerScreen withBulk(Consumer<List<ItemStack>> onPickMany) {
         this.onPickMany = onPickMany;
         return this;
@@ -267,7 +263,7 @@ public class ItemPickerScreen extends Screen {
         String countLabel = "§8" + displayItems.size() + " items";
         if (!multiSelected.isEmpty()) {
             countLabel += "  §9" + multiSelected.size() + " selected";
-            // The right-click hint only fits when there is room; it must never run under the Select button.
+
             String withHint = countLabel + " §8(right-click to toggle)";
             if (font.width(withHint.replaceAll("§.", "")) <= labelMaxW) countLabel = withHint;
         }

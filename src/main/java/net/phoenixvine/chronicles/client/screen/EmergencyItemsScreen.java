@@ -26,10 +26,6 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Edits an emergency kit - the rewards a player can claim while a quest is stuck - and how often they can claim
- * them. The rewards themselves are edited in the full reward editor, so every reward type except Choice Box works.
- */
 public class EmergencyItemsScreen extends Screen {
 
     private static final int PANEL_W = 300;
@@ -50,7 +46,6 @@ public class EmergencyItemsScreen extends Screen {
     private final QuestNode node;
     private final Supplier<String> chapterSupplier;
 
-    /** Quest kits need that quest active; chapter and questbook kits can be claimed whatever is unlocked. */
     private enum Scope {
         QUEST,
         CHAPTER,
@@ -72,7 +67,6 @@ public class EmergencyItemsScreen extends Screen {
         this.chapterSupplier = chapterSupplier;
     }
 
-    /** Opens straight on a chapter's default kit, for the chapter editor where there is no quest. */
     public EmergencyItemsScreen(Screen parent, String chapter) {
         this(parent, null, () -> chapter);
         this.scope = Scope.CHAPTER;
@@ -97,18 +91,12 @@ public class EmergencyItemsScreen extends Screen {
         return storedKit;
     }
 
-    /** Quest kits are edited on the live quest and saved with it; a chapter's default has its own file. */
     private void persist() {
         if (scope == Scope.CHAPTER) ChapterEmergencyItems.save(configDir(), chapter(), kit());
         else if (scope == Scope.QUESTBOOK) ChapterEmergencyItems.saveQuestbook(configDir(), kit());
         resyncEmergencyState();
     }
 
-    /**
-     * Which quests have emergency items reaches the client only with a progress sync, and nothing else sends one
-     * after a kit is edited - so the header pill and the quest popup button wouldn't show up until the next claim
-     * or relog. Ask the integrated server for a fresh sync.
-     */
     private static void resyncEmergencyState() {
         Minecraft mc = Minecraft.getInstance();
         net.minecraft.server.MinecraftServer server = mc.getSingleplayerServer();
@@ -261,7 +249,6 @@ public class EmergencyItemsScreen extends Screen {
         } + " §8▾";
     }
 
-    /** -1 for blank (inherit), -2 for text that isn't a duration yet, otherwise seconds. */
     static int parseSeconds(String text) {
         String trimmed = text == null ? "" : text.trim();
         if (trimmed.isEmpty()) return -1;
@@ -279,7 +266,6 @@ public class EmergencyItemsScreen extends Screen {
         return (int) Math.min(Integer.MAX_VALUE, total);
     }
 
-    /** What the claim rules come to for the kit being edited, after inheritance. */
     private String effectiveSummary() {
         EmergencyKit kit = kit();
         boolean repeatable;

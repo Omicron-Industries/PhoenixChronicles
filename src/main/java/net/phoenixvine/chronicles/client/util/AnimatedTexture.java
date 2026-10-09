@@ -25,12 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Draws a texture the way the game would animate it: a texture with a {@code .mcmeta} animation
- * section is a vertical (or gridded) sheet of frames, so blitting it whole squashes every frame into
- * the target rectangle. This picks the current frame instead, honoring the mcmeta's frame size,
- * explicit frame order and per-frame timing. Textures without an animation draw whole, as before.
- */
 public final class AnimatedTexture {
 
     private static final String CUSTOM_PREFIX = "textures/custom/";

@@ -1329,9 +1329,7 @@ public class DependencyLineRenderer {
         int alpha = Math.max(200, (col >>> 24) & 0xFF);
         int r = (col >> 16) & 0xFF, g = (col >> 8) & 0xFF, b = col & 0xFF;
         int tr = (targetRgb >> 16) & 0xFF, tg = (targetRgb >> 8) & 0xFF, tb = targetRgb & 0xFF;
-        // Mostly the line's own state color (themed done/almost/active/locked), only nudged toward the direction hue.
-        // At 60% the fixed cyan/orange swamped it, so hovered lines looked the same in every theme and whether or not
-        // the quests were complete.
+
         float a = 0.25f;
         int nr = Math.min(255, Math.round(r + (tr - r) * a));
         int ng = Math.min(255, Math.round(g + (tg - g) * a));

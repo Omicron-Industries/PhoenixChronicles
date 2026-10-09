@@ -46,10 +46,6 @@ public class ChroniclesClient {
         registerHudBar(mc);
     }
 
-    /**
-     * Lets wiki image tags use short texture ids: {@code [img:ae2:block/dense_energy_cell_3,64,64]} resolves to
-     * {@code ae2:textures/block/dense_energy_cell_3.png}. Full paths pass through untouched.
-     */
     private static ResourceLocation wikiTexturePath(ResourceLocation loc) {
         String path = loc.getPath();
         if (!path.startsWith("textures/")) path = "textures/" + path;

@@ -5,10 +5,6 @@ import net.minecraft.client.gui.GuiGraphics;
 
 import com.mojang.math.Axis;
 
-/**
- * The "chapter complete" stamp: a tilted double-bordered badge drawn in code (no texture), slammed down with a short
- * scale-and-fade the first time it appears.
- */
 public final class ChapterStamp {
 
     public static final int W = 104;
@@ -17,10 +13,6 @@ public final class ChapterStamp {
 
     private ChapterStamp() {}
 
-    /**
-     * @param sinceMs time the stamp first appeared (0 = already there, no animation)
-     * @param color   ARGB border/text colour, usually the theme's "done" colour
-     */
     public static void draw(GuiGraphics g, Font font, int cx, int cy, long sinceMs, int color) {
         float t = sinceMs <= 0 ? 1f : Math.min(1f, (System.currentTimeMillis() - sinceMs) / (float) ANIM_MS);
         float eased = 1f - (1f - t) * (1f - t);

@@ -35,7 +35,6 @@ public class QuestTasksScreen extends Screen
 
     private boolean voiceAutoStarted = false;
 
-    /** The quest's own music, or its chapter's when the quest has none. */
     @Override
     public net.phoenixvine.chronicles.common.model.QuestAudio desiredAudio() {
         return node.getAudio().hasMusic() ? node.getAudio() :
@@ -46,12 +45,10 @@ public class QuestTasksScreen extends Screen
         return node.getAudio().hasVoice();
     }
 
-    /** Horizontal shift that keeps the voice button clear of the emergency button when both are visible. */
     private int voiceOffset() {
         return emergencyShown() ? 26 : 0;
     }
 
-    /** Shift for the share-link button, which sits after the emergency and voice buttons. */
     private int linkOffset() {
         return voiceOffset() + (voiceShown() ? 26 : 0);
     }
@@ -116,8 +113,6 @@ public class QuestTasksScreen extends Screen
     private static final float MAX_CARD_WIDTH_FRACTION = 0.82f;
     private static final float MAX_CARD_HEIGHT_FRACTION = 0.82f;
 
-    // The scaled screen gets small in a restored window, where a fixed 82% share fills almost all of it. These
-    // fractions reach the full 82% at roughly the scaled size a fullscreen window has and shrink toward 55% below it.
     private static final float CARD_FRACTION_FLOOR = 0.55f;
     private static final float CARD_WIDTH_FULL_AT = 520f;
     private static final float CARD_HEIGHT_FULL_AT = 330f;
@@ -134,10 +129,10 @@ public class QuestTasksScreen extends Screen
         return Math.max(60, Math.round(height * fraction));
     }
 
-    private java.util.List<net.minecraft.util.FormattedCharSequence> wrapSubtitle(String subtitle, int maxW) {
+    private java.util.List<String> wrapSubtitle(String subtitle, int maxW) {
         if (subtitle == null || subtitle.isBlank()) return java.util.List.of();
-        java.util.List<net.minecraft.util.FormattedCharSequence> lines = font.split(ChroniclesUIKit.lit(subtitle),
-                Math.max(20, maxW));
+        java.util.List<String> lines = net.phoenixvine.chronicles.client.util.EffectText.wrap(font,
+                net.phoenixvine.chronicles.client.render.ChroniclesThemePalette.adapt(subtitle), Math.max(20, maxW));
         return lines.size() > SUBTITLE_MAX_LINES ? lines.subList(0, SUBTITLE_MAX_LINES) : lines;
     }
 
@@ -461,7 +456,7 @@ public class QuestTasksScreen extends Screen
                 .nCopies(questDescLineCount, net.minecraft.util.FormattedCharSequence.EMPTY);
         java.util.List<net.minecraft.util.FormattedCharSequence> descLines = buildAllDescLines(tasks, questDescLines);
 
-        java.util.List<net.minecraft.util.FormattedCharSequence> compactSubtitleLines = wrapSubtitle(node.getSubtitle(),
+        java.util.List<String> compactSubtitleLines = wrapSubtitle(node.getSubtitle(),
                 cardW() - 12);
         int compactHeaderH = compactHeaderH();
 
@@ -488,8 +483,9 @@ public class QuestTasksScreen extends Screen
 
         g.fill(cardX, cy, cardX + cardW(), cy + compactHeaderH, C_HEADER);
         String title = (node.isOptional() ? "§d[Optional] §f" : "") + content.title().getString();
-        if (font.width(title.replaceAll("§.", "")) > cardW() - 50)
-            title = font.plainSubstrByWidth(title, cardW() - 50 - font.width("…")) + "…";
+        if (net.phoenixvine.chronicles.client.util.EffectText.width(font, title) > cardW() - 50)
+            title = net.phoenixvine.chronicles.client.util.EffectText.cut(font, title, cardW() - 50 - font.width("…")) +
+                    "…";
         ChroniclesUIKit.drawString(g, font, "§f" + title, cardX + CARD_PAD, cy + 6, C_TEXT, false);
 
         for (int i = 0; i < compactSubtitleLines.size(); i++) {
@@ -776,7 +772,6 @@ public class QuestTasksScreen extends Screen
 
     private long emergencyArmedUntilMs = 0;
 
-    /** Quest is ACTIVE and the server says it has emergency items (its own or a chapter default). */
     private boolean emergencyShown() {
         if (playerData == null) return false;
         return playerData.getQuestState(node.getId(), QuestState.LOCKED) == QuestState.ACTIVE &&
@@ -788,7 +783,6 @@ public class QuestTasksScreen extends Screen
                 !net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable(node.getId());
     }
 
-    /** Millis until a repeatable quest's emergency items can be claimed again; 0 if available. */
     private long emergencyCooldownRemainingMs() {
         if (playerData == null || !playerData.hasUsedEmergency(node.getId())) return 0;
         if (!net.phoenixvine.chronicles.client.util.ClientEmergencyState.isRepeatable(node.getId())) return 0;
@@ -931,11 +925,12 @@ public class QuestTasksScreen extends Screen
 
         float titleAvailPreScale = titleMaxW / headerTextScale;
         String titleStr = (node.isOptional() ? "§d[Optional] §f" : "") + content.title().getString();
-        if (font.width(titleStr.replaceAll("§.", "")) > titleAvailPreScale)
-            titleStr = font.plainSubstrByWidth(titleStr, (int) titleAvailPreScale - font.width("…")) + "…";
+        if (net.phoenixvine.chronicles.client.util.EffectText.width(font, titleStr) > titleAvailPreScale)
+            titleStr = net.phoenixvine.chronicles.client.util.EffectText.cut(font, titleStr,
+                    (int) titleAvailPreScale - font.width("…")) + "…";
         ChroniclesUIKit.drawScaledString(g, font, "§f" + titleStr, 28, 10, C_TEXT, headerTextScale);
 
-        java.util.List<net.minecraft.util.FormattedCharSequence> subtitleLines = wrapSubtitle(node.getSubtitle(),
+        java.util.List<String> subtitleLines = wrapSubtitle(node.getSubtitle(),
                 titleMaxW);
         for (int i = 0; i < subtitleLines.size(); i++) {
             ChroniclesUIKit.drawString(g, font, subtitleLines.get(i), 28, 24 + i * SUBTITLE_LINE_H, C_TEXT_DIM, false);
@@ -1023,8 +1018,9 @@ public class QuestTasksScreen extends Screen
                     QuestState.LOCKED;
             String title = target.getTitle().getString();
             int maxW = innerW - padW * 2 - 10;
-            if (font.width(title.replaceAll("§.", "")) > maxW)
-                title = font.plainSubstrByWidth(title, Math.max(0, maxW - font.width("…"))) + "…";
+            if (net.phoenixvine.chronicles.client.util.EffectText.width(font, title) > maxW)
+                title = net.phoenixvine.chronicles.client.util.EffectText.cut(font, title,
+                        Math.max(0, maxW - font.width("…"))) + "…";
             ChroniclesUIKit.drawString(g, font,
                     (state == QuestState.COMPLETED ? "§a●" : "§8○") + " " + (hov ? "§f" : "§7") + title,
                     popupX + padW + 8, ry + 2, hov ? C_TEXT : C_TEXT_DIM, false);
@@ -1085,10 +1081,6 @@ public class QuestTasksScreen extends Screen
         g.pose().popPose();
     }
 
-    /**
-     * How the task and reward icons are arranged. When everything fits in one row, tasks sit on the left and rewards
-     * on the right. Otherwise the icons wrap: tasks fill rows from the top, then rewards get rows of their own.
-     */
     private record StripLayout(boolean single, int perRow, int taskRows, int rows) {}
 
     private static StripLayout stripLayout(int innerW, int taskCount, int rewardCount) {
@@ -1102,7 +1094,6 @@ public class QuestTasksScreen extends Screen
         return new StripLayout(false, perRow, taskRows, Math.max(1, taskRows + rewardRows));
     }
 
-    /** One row is exactly {@link #ICON_STRIP_H}; each extra row adds an icon plus the gap. */
     private static int stripHeight(StripLayout l) {
         return l.rows() * ICON_SZ + (l.rows() - 1) * STRIP_GAP + 8;
     }
@@ -1450,10 +1441,6 @@ public class QuestTasksScreen extends Screen
         }
     }
 
-    /**
-     * Handles {@code [text](quest:<id>)} links in quest descriptions. The id may be a full {@code namespace:path}
-     * or just a path, which defaults to the {@code phoenix_chronicles} namespace.
-     */
     private void openQuestLink(String spec) {
         String raw = spec == null ? "" : spec.trim();
         if (raw.isEmpty() || minecraft == null) return;
@@ -1740,8 +1727,9 @@ public class QuestTasksScreen extends Screen
                         QuestState.LOCKED;
                 String reqTitle = req.getTitle().getString();
                 int titleMaxW = w - m * 2 - 12;
-                if (font.width(reqTitle.replaceAll("§.", "")) > titleMaxW)
-                    reqTitle = font.plainSubstrByWidth(reqTitle, Math.max(0, titleMaxW - font.width("…"))) + "…";
+                if (net.phoenixvine.chronicles.client.util.EffectText.width(font, reqTitle) > titleMaxW)
+                    reqTitle = net.phoenixvine.chronicles.client.util.EffectText.cut(font, reqTitle,
+                            Math.max(0, titleMaxW - font.width("…"))) + "…";
                 boolean reqHov = mx >= x + m && mx < x + w - m && my >= cy && my < cy + 10;
                 if (lineFullyVisible(cy, y, viewBot)) {
                     if (reqHov) g.fill(x + m - 2, cy - 1, x + w - m, cy + 9, 0x22FFFFFF);
@@ -1766,8 +1754,9 @@ public class QuestTasksScreen extends Screen
                         QuestState.LOCKED;
                 String depTitle = dep.getTitle().getString();
                 int titleMaxW = w - m * 2 - 12;
-                if (font.width(depTitle.replaceAll("§.", "")) > titleMaxW)
-                    depTitle = font.plainSubstrByWidth(depTitle, Math.max(0, titleMaxW - font.width("…"))) + "…";
+                if (net.phoenixvine.chronicles.client.util.EffectText.width(font, depTitle) > titleMaxW)
+                    depTitle = net.phoenixvine.chronicles.client.util.EffectText.cut(font, depTitle,
+                            Math.max(0, titleMaxW - font.width("…"))) + "…";
                 boolean depHov = mx >= x + m && mx < x + w - m && my >= cy && my < cy + 10;
                 if (lineFullyVisible(cy, y, viewBot)) {
                     if (depHov) g.fill(x + m - 2, cy - 1, x + w - m, cy + 9, 0x22FFFFFF);
@@ -2011,7 +2000,6 @@ public class QuestTasksScreen extends Screen
         return reward.hidesAmount() && !rewardsRevealed();
     }
 
-    /** The stack to draw for an item reward - empty while its target is hidden, a single item while its amount is. */
     private ItemStack shownRewardStack(QuestReward.ItemReward reward) {
         if (rewardTargetMasked(reward)) return ItemStack.EMPTY;
         ItemStack stack = rewardStack(reward);
@@ -3020,7 +3008,6 @@ public class QuestTasksScreen extends Screen
         minecraft.player.connection.sendCommand("chronicles resettask " + task.getTaskId().getPath());
     }
 
-    /** Clicking a consuming item task hands its items in. Returns false if the click isn't for this to handle. */
     private boolean trySubmitItemTask(QuestTask task) {
         if (!(task instanceof ItemRequirementTask it) || !it.shouldConsume() || minecraft == null ||
                 minecraft.player == null) {
@@ -3032,7 +3019,6 @@ public class QuestTasksScreen extends Screen
                 QuestState.LOCKED;
         if (state != QuestState.UNLOCKED && state != QuestState.ACTIVE) return false;
 
-        // AE2 storage isn't reliably visible on the client, so let the server make the call for those tasks.
         if (!it.hasRequiredItems(minecraft.player) && !it.usesAe2Storage()) return false;
 
         ChronicleNetwork.CHANNEL.sendToServer(

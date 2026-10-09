@@ -10,11 +10,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Fallback rewards a player can claim while a quest is active (a lost required item, say), plus how often they can
- * be claimed. A quest has its own kit and each chapter has a default one; the timer settings fall back from the
- * quest, to its chapter, to the engine-wide defaults.
- */
 public final class EmergencyKit {
 
     public enum Repeat {
@@ -58,7 +53,6 @@ public final class EmergencyKit {
         this.cooldownSeconds = seconds < 0 ? INHERIT_COOLDOWN : seconds;
     }
 
-    /** Nothing set at all: no rewards and both timer settings inherited, so there is nothing worth saving. */
     public boolean isDefault() {
         return rewards.isEmpty() && repeat == Repeat.INHERIT && cooldownSeconds == INHERIT_COOLDOWN;
     }
@@ -110,7 +104,6 @@ public final class EmergencyKit {
         return kit;
     }
 
-    /** Kits used to be a plain list of item stacks; each becomes an item reward. */
     public static EmergencyKit fromLegacyItems(ListTag items) {
         EmergencyKit kit = new EmergencyKit();
         if (items == null) return kit;

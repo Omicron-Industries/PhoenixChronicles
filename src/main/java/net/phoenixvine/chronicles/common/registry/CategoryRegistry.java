@@ -110,13 +110,6 @@ public final class CategoryRegistry {
         return token.substring(CATEGORY_TOKEN_PREFIX.length());
     }
 
-    /**
-     * The sidebar's top-level display order: categories and standalone (ungrouped) chapters
-     * interleaved, as {@link #categoryToken}/{@link #chapterToken} tokens. Anything not yet
-     * placed in the stored order falls in after it - categories first, then standalone chapters
-     * in their legacy standalone order - which matches how the sidebar looked before the two
-     * could be mixed.
-     */
     public static synchronized List<String> resolveTopLevel(List<String> standaloneChapters) {
         Set<String> valid = new HashSet<>();
         List<String> categoryTokens = new ArrayList<>();
@@ -140,7 +133,6 @@ public final class CategoryRegistry {
         return result;
     }
 
-    /** Moves {@code token} to just before {@code beforeToken}, or to the very end when that is null. */
     public static synchronized void moveTopLevel(String token, @Nullable String beforeToken,
                                                  List<String> standaloneChapters) {
         if (token.equals(beforeToken)) return;
@@ -152,11 +144,6 @@ public final class CategoryRegistry {
         storeTopLevel(order);
     }
 
-    /**
-     * Places chapters not yet in the top-level order at the very front, in the given order - used
-     * after importing so ungrouped chapters (e.g. an intro chapter meant to come first) land above
-     * the categories instead of below them. Chapters already placed keep their position.
-     */
     public static synchronized void ensureLeadingStandalone(List<String> orderedChapterIds) {
         int insertAt = 0;
         boolean changed = false;

@@ -124,11 +124,6 @@ public final class QuestAPI {
         });
     }
 
-    /**
-     * Reports that a player ran a recipe: recipe tasks for that recipe type (and, when set, that exact recipe) in
-     * their active quests advance by {@code times}. Machines call this when a run finishes; it must be called on the
-     * server.
-     */
     public static void fireRecipeCompleted(@Nullable Player player, @Nullable ResourceLocation recipeType,
                                            @Nullable ResourceLocation recipeId, int times) {
         if (player == null || recipeType == null || player.level().isClientSide() || player.getServer() == null) return;

@@ -88,10 +88,6 @@ public class PlayerQuestData {
         claimedRewardIndices.remove(questId);
     }
 
-    /**
-     * Reward slots already granted. A quest can be claimed in pieces - auto-claim takes the kinds the player
-     * enabled and leaves the rest - so "claimed" alone can't say what is still owed.
-     */
     public boolean isRewardIndexClaimed(ResourceLocation questId, int index) {
         return claimedRewardIndices.getOrDefault(questId, Set.of()).contains(index);
     }

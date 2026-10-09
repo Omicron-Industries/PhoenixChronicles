@@ -18,7 +18,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Per-chapter default emergency kits, used by quests in the chapter that have no kit of their own. */
 public final class ChapterEmergencyItems {
 
     private ChapterEmergencyItems() {}
@@ -50,7 +49,6 @@ public final class ChapterEmergencyItems {
         }
     }
 
-    /** A copy of the chapter's kit; empty (with every setting inherited) when the chapter has none. */
     public static EmergencyKit get(String chapter) {
         if (chapter == null) return new EmergencyKit();
         EmergencyKit stored = kitsByChapter.get(chapter.toUpperCase());
@@ -69,8 +67,7 @@ public final class ChapterEmergencyItems {
             else root.put(key, kit.serializeNBT());
 
             Files.createDirectories(configDir);
-            // Any .snbt written under the config folder makes the file watcher reload every quest from disk and
-            // resync all clients. This write is already reflected in memory, so skip that reload.
+
             QuestFileWatcher.suppressNextReload();
             Files.writeString(file, root.toString(), StandardCharsets.UTF_8);
             load(configDir);
@@ -81,11 +78,6 @@ public final class ChapterEmergencyItems {
         }
     }
 
-    /**
-     * Chapter and questbook kits aren't tied to any quest, so they can be claimed even when every quest in the
-     * chapter is locked - which is the point, for a softlock. Each one is claimed under a stable id of its own so
-     * the player's claim history and cooldown are tracked like a quest's.
-     */
     public static final String QUESTBOOK_KEY = "_QUESTBOOK";
     private static final String STATION_NAMESPACE = "phoenix_chronicles";
     private static final String STATION_PREFIX = "_emergency_station/";
@@ -109,7 +101,6 @@ public final class ChapterEmergencyItems {
         return id != null && STATION_NAMESPACE.equals(id.getNamespace()) && id.getPath().startsWith(STATION_PREFIX);
     }
 
-    /** Chapters (not the questbook) that currently have a kit with rewards. */
     public static List<String> chaptersWithKits() {
         List<String> chapters = new ArrayList<>();
         for (Map.Entry<String, EmergencyKit> e : kitsByChapter.entrySet()) {
@@ -118,7 +109,6 @@ public final class ChapterEmergencyItems {
         return chapters;
     }
 
-    /** The kit a station id stands for, or null when it doesn't exist (any more). */
     @Nullable
     public static EmergencyKit stationKit(ResourceLocation id) {
         if (QUESTBOOK_STATION.equals(id)) {

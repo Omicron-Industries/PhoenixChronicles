@@ -70,31 +70,33 @@ public class ChronicleClientEvents {
 
     @SubscribeEvent
     public static void onRegisterGotoCommand(@NotNull RegisterClientCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal("chronicles")
-                .then(Commands.literal("goto")
-                        .then(Commands.argument("quest", StringArgumentType.greedyString())
-                                .suggests((ctx, builder) -> {
-                                    for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
-                                        builder.suggest(n.getId().toString());
-                                    }
-                                    return builder.buildFuture();
-                                })
-                                .executes(ctx -> {
-                                    String raw = StringArgumentType.getString(ctx, "quest").trim();
-                                    net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation
-                                            .tryParse(raw);
-                                    QuestNode target = id != null ? QuestTreeRegistry.getQuest(id) : null;
-                                    if (target == null) {
-                                        ctx.getSource().sendFailure(Component.literal("No quest with id " + raw));
-                                        return 0;
-                                    }
-                                    Minecraft.getInstance().tell(() -> {
-                                        ChronicleOverviewScreen screen = new ChronicleOverviewScreen();
-                                        Minecraft.getInstance().setScreen(screen);
-                                        screen.navigateToNode(target);
-                                    });
-                                    return 1;
-                                }))));
+        var dispatcher = event.getDispatcher();
+        var questArg = Commands.argument("quest", StringArgumentType.greedyString())
+                .suggests((ctx, builder) -> {
+                    for (QuestNode n : QuestTreeRegistry.getAllQuests().values()) {
+                        builder.suggest(n.getId().toString());
+                    }
+                    return builder.buildFuture();
+                })
+                .executes(ctx -> gotoQuest(ctx.getSource(), StringArgumentType.getString(ctx, "quest")));
+        dispatcher.register(Commands.literal("chronicles_goto").then(questArg));
+        dispatcher.register(Commands.literal("chronicles").then(Commands.literal("goto").then(questArg)));
+    }
+
+    private static int gotoQuest(net.minecraft.commands.CommandSourceStack source, String rawId) {
+        String raw = rawId.trim();
+        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(raw);
+        QuestNode target = id != null ? QuestTreeRegistry.getQuest(id) : null;
+        if (target == null) {
+            source.sendFailure(Component.literal("No quest with id " + raw));
+            return 0;
+        }
+        Minecraft.getInstance().tell(() -> {
+            ChronicleOverviewScreen screen = new ChronicleOverviewScreen();
+            Minecraft.getInstance().setScreen(screen);
+            screen.navigateToNode(target);
+        });
+        return 1;
     }
 
     private static void ensureTutorialTrackerInit() {

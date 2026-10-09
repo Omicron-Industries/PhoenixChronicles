@@ -22,10 +22,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
-/**
- * Picks whole chapters and categories a quest waits on. The quest stays locked until every counted quest in each
- * picked chapter (or in every chapter of a picked category) is complete, on top of its normal prerequisites.
- */
 public class ChapterDependencyScreen extends Screen {
 
     private static final int PANEL_W = 280;

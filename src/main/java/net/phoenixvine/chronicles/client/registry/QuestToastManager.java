@@ -144,8 +144,10 @@ public class QuestToastManager {
             String label = (t.entry.type == ToastType.COMPLETED) ? "Quest Complete!" : "Quest Unlocked";
             g.drawString(font, "§7" + label, textX, y + 2, (C_LABEL & 0x00FFFFFF) | a, false);
             String rawTitle = node.getTitle().getString();
-            String titleStr = font.width(rawTitle) > availW ?
-                    font.plainSubstrByWidth(rawTitle, Math.max(0, availW - 6)) + "…" : rawTitle;
+            String titleStr = net.phoenixvine.chronicles.client.util.EffectText.width(font, rawTitle) > availW ?
+                    net.phoenixvine.chronicles.client.util.EffectText.cut(font, rawTitle, Math.max(0, availW - 6)) +
+                            "…" :
+                    rawTitle;
             g.drawString(font, titleStr, textX, y + 11, (titleCol & 0x00FFFFFF) | a, false);
         }
     }
@@ -183,8 +185,8 @@ public class QuestToastManager {
             g.drawCenteredString(font, "§7" + label, cx, y + 3, (C_LABEL & 0x00FFFFFF) | a);
             String rawTitle = node.getTitle().getString();
             int maxW = BANNER_W - 10;
-            String titleStr = font.width(rawTitle) > maxW ?
-                    font.plainSubstrByWidth(rawTitle, maxW - 6) + "…" : rawTitle;
+            String titleStr = net.phoenixvine.chronicles.client.util.EffectText.width(font, rawTitle) > maxW ?
+                    net.phoenixvine.chronicles.client.util.EffectText.cut(font, rawTitle, maxW - 6) + "…" : rawTitle;
             g.drawCenteredString(font, titleStr, cx, y + BANNER_H - 11, (titleCol & 0x00FFFFFF) | a);
         }
     }

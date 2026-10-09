@@ -12,6 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.rich.CodeEditBox;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.common.model.CategoryDefinition;
 import net.phoenixvine.chronicles.common.model.EmergencyKit;
@@ -396,7 +397,7 @@ public class QuestCreatorScreen extends Screen {
     private int buildBasicInfo(int y) {
         int rowY = y + LABEL_H + LABEL_GAP;
         labels.add(new LabelEntry(cx, y, "§fTitle", C_TEXT_FAINT));
-        titleBox = new EditBox(font, cx, rowY, cw - EDIT_W - 2, FIELD_H, Component.empty());
+        titleBox = new CodeEditBox(font, cx, rowY, cw - EDIT_W - 2, FIELD_H, Component.empty());
         titleBox.setMaxLength(160);
         titleBox.setHint(ChroniclesUIKit.lit("§fQuest title shown to players"));
         titleBox.setValue(cachedTitle);
@@ -423,7 +424,7 @@ public class QuestCreatorScreen extends Screen {
 
         rowY = y + LABEL_H + LABEL_GAP;
         labels.add(new LabelEntry(cx, y, "§fDescription", C_TEXT_FAINT));
-        descBox = new EditBox(font, cx, rowY, cw - EDIT_W - 2, FIELD_H, Component.empty());
+        descBox = new CodeEditBox(font, cx, rowY, cw - EDIT_W - 2, FIELD_H, Component.empty());
         descBox.setMaxLength(512);
         descBox.setHint(ChroniclesUIKit.lit("§fShort description / lore text"));
         descBox.setValue(cachedDesc);
@@ -470,7 +471,7 @@ public class QuestCreatorScreen extends Screen {
                 chapterBox.setFocused(true);
             }
         }).bounds(cx + catBoxW + 2 + catPickW + 2, rowY, newCatW, FIELD_H).build());
-        subtitleBox = new EditBox(font, subX, rowY, subW - EDIT_W - 2, FIELD_H, Component.empty());
+        subtitleBox = new CodeEditBox(font, subX, rowY, subW - EDIT_W - 2, FIELD_H, Component.empty());
         subtitleBox.setMaxLength(256);
         subtitleBox.setHint(ChroniclesUIKit.lit("§fSubtitle…"));
         subtitleBox.setValue(cachedSubtitle);

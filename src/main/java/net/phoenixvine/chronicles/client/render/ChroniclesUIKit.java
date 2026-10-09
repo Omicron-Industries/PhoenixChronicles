@@ -15,13 +15,50 @@ public final class ChroniclesUIKit {
         return Component.literal(ChroniclesThemePalette.adapt(raw));
     }
 
+    private static void drawText(GuiGraphics g, Font font, String text, int x, int y, int color, boolean shadow) {
+        if (text.indexOf('<') >= 0) {
+            logTaggedText(text);
+            g.drawString(font, taggedComponent(text), x, y, color, shadow);
+        } else {
+            g.drawString(font, text, x, y, color, shadow);
+        }
+    }
+
+    private static Component taggedComponent(String text) {
+        net.minecraft.network.chat.Style lead = net.minecraft.network.chat.Style.EMPTY;
+        int i = 0;
+        while (i + 1 < text.length() && text.charAt(i) == '§') {
+
+            if (text.charAt(i + 1) == '[' || net.phoenixvine.chronicles.client.util.ChromaticCodes
+                    .isCode(text.charAt(i + 1)))
+                break;
+            net.minecraft.ChatFormatting fmt = net.minecraft.ChatFormatting.getByCode(text.charAt(i + 1));
+            if (fmt == null) break;
+            lead = fmt == net.minecraft.ChatFormatting.RESET ? net.minecraft.network.chat.Style.EMPTY :
+                    lead.applyLegacyFormat(fmt);
+            i += 2;
+        }
+        return i == 0 ? Component.literal(text) : Component.literal(text.substring(i)).withStyle(lead);
+    }
+
+    private static final java.util.Set<String> LOGGED_TAGGED = new java.util.HashSet<>();
+
+    private static void logTaggedText(String text) {
+        net.minecraft.client.gui.screens.Screen screen = net.minecraft.client.Minecraft.getInstance().screen;
+        String where = screen != null ? screen.getClass().getSimpleName() : "no screen";
+        if (LOGGED_TAGGED.size() < 200 && LOGGED_TAGGED.add(where + "|" + text)) {
+            net.phoenixvine.chronicles.PhoenixChronicles.LOGGER.info("[EffectText] {} draws tagged text: {}", where,
+                    text.replace('§', '&'));
+        }
+    }
+
     public static void drawString(GuiGraphics g, Font font, String text, int x, int y, int color) {
-        g.drawString(font, ChroniclesThemePalette.adapt(text), x, y, color);
+        drawText(g, font, ChroniclesThemePalette.adapt(text), x, y, color, true);
     }
 
     public static void drawString(GuiGraphics g, Font font, String text, int x, int y, int color,
                                   boolean dropShadow) {
-        g.drawString(font, ChroniclesThemePalette.adapt(text), x, y, color, dropShadow);
+        drawText(g, font, ChroniclesThemePalette.adapt(text), x, y, color, dropShadow);
     }
 
     public static void drawString(GuiGraphics g, Font font, Component text, int x, int y, int color) {
@@ -34,7 +71,9 @@ public final class ChroniclesUIKit {
     }
 
     public static void drawCenteredString(GuiGraphics g, Font font, String text, int x, int y, int color) {
-        g.drawCenteredString(font, ChroniclesThemePalette.adapt(text), x, y, color);
+        String adapted = ChroniclesThemePalette.adapt(text);
+        drawText(g, font, adapted, x - net.phoenixvine.chronicles.client.util.EffectText.width(font, adapted) / 2, y,
+                color, true);
     }
 
     public static void drawCenteredString(GuiGraphics g, Font font, Component text, int x, int y, int color) {
@@ -67,7 +106,8 @@ public final class ChroniclesUIKit {
     }
 
     public static String fitText(Font font, String text, int maxW) {
-        return font.width(text) > maxW ? font.plainSubstrByWidth(text, Math.max(0, maxW - 4)) + "…" : text;
+        return net.phoenixvine.chronicles.client.util.EffectText.width(font, text) > maxW ?
+                net.phoenixvine.chronicles.client.util.EffectText.cut(font, text, Math.max(0, maxW - 4)) + "…" : text;
     }
 
     public static void drawModalChrome(GuiGraphics g, Font font, int screenW, int screenH,
@@ -179,28 +219,31 @@ public final class ChroniclesUIKit {
 
     public static void drawScaledString(GuiGraphics g, Font font, String text, float x, float y, int color,
                                         float scale) {
+        text = net.phoenixvine.chronicles.client.util.EffectText.clean(text);
         if (scale == 1.0f) {
-            g.drawString(font, text, (int) x, (int) y, color, false);
+            drawText(g, font, text, (int) x, (int) y, color, false);
             return;
         }
         g.pose().pushPose();
         g.pose().translate(x, y, 0);
         g.pose().scale(scale, scale, 1f);
-        g.drawString(font, text, 0, 0, color, false);
+        drawText(g, font, text, 0, 0, color, false);
         g.pose().popPose();
     }
 
     public static void drawScaledCenteredString(GuiGraphics g, Font font, String text, float centerX, float y,
                                                 int color, float scale) {
+        text = net.phoenixvine.chronicles.client.util.EffectText.clean(text);
         if (scale == 1.0f) {
-            g.drawCenteredString(font, text, (int) centerX, (int) y, color);
+            int w1 = net.phoenixvine.chronicles.client.util.EffectText.width(font, text);
+            drawText(g, font, text, (int) centerX - w1 / 2, (int) y, color, true);
             return;
         }
-        float w = font.width(text) * scale;
+        float w = net.phoenixvine.chronicles.client.util.EffectText.width(font, text) * scale;
         g.pose().pushPose();
         g.pose().translate(centerX - w / 2f, y, 0);
         g.pose().scale(scale, scale, 1f);
-        g.drawString(font, text, 0, 0, color, false);
+        drawText(g, font, text, 0, 0, color, false);
         g.pose().popPose();
     }
 

@@ -10,21 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Builds Phoenix Archive lore entries from Java or KubeJS without touching Archive classes. Entries registered here
- * are handed to Archive whenever it (re)loads its lore, so register them early (mod setup or a KubeJS startup script).
- * Does nothing when Archive isn't installed.
- *
- * <pre>
- * ArchiveEntries.entry("mypack:intro").title("First contact").category("Story")
- *         .content("&amp;7You hear a hum...").icon("minecraft:book").unlockedByQuest("phoenix_chronicles:intro")
- *         .register();
- * ArchiveEntries.forQuest(node).category("Quests").register();   // title, text and icon taken from the quest
- * </pre>
- */
 public final class ArchiveEntries {
 
-    /** Everything an entry is made of; plain data so it can be held without Archive on the classpath. */
     public record Spec(ResourceLocation id, String title, String category, String content, String iconItem,
                        String lockedContent, String voiceLine, int order, String shader, boolean hidden,
                        String hiddenUntilId, List<String> questConditions, boolean anyQuest) {}
@@ -39,7 +26,6 @@ public final class ArchiveEntries {
                 ResourceLocation.fromNamespaceAndPath("phoenix_chronicles", id));
     }
 
-    /** A builder pre-filled from a quest: its title, description and icon, unlocked when that quest is completed. */
     public static Builder forQuest(QuestNode node) {
         Builder b = new Builder(ResourceLocation.fromNamespaceAndPath("phoenix_chronicles",
                 "quest_" + node.getId().getPath().replace('/', '_')))
@@ -96,7 +82,6 @@ public final class ArchiveEntries {
             return this;
         }
 
-        /** Body text; supports Archive's {@code &} colour codes and {@code &#RRGGBB}. */
         public Builder content(String content) {
             this.content = content;
             return this;
@@ -107,7 +92,6 @@ public final class ArchiveEntries {
             return this;
         }
 
-        /** What the entry shows while still locked. */
         public Builder lockedContent(String lockedContent) {
             this.lockedContent = lockedContent;
             return this;
@@ -128,26 +112,22 @@ public final class ArchiveEntries {
             return this;
         }
 
-        /** Leaves the entry out of the list entirely until it is unlocked. */
         public Builder hidden(boolean hidden) {
             this.hidden = hidden;
             return this;
         }
 
-        /** Hidden until a different entry is unlocked. */
         public Builder hiddenUntil(String entryId) {
             this.hidden = true;
             this.hiddenUntilId = entryId;
             return this;
         }
 
-        /** Unlocks when this Chronicles quest is completed. Call again to require several (all, unless anyQuest). */
         public Builder unlockedByQuest(String questId) {
             this.quests.add(questId);
             return this;
         }
 
-        /** With several quest conditions, unlock on whichever is completed first instead of requiring all. */
         public Builder anyQuest() {
             this.anyQuest = true;
             return this;

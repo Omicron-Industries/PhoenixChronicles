@@ -1,9 +1,5 @@
 package net.phoenixvine.chronicles.integration.gtceu;
 
-import com.gregtechceu.gtceu.api.GTCEuAPI;
-import com.gregtechceu.gtceu.api.data.chemical.material.event.MaterialRegistryEvent;
-import com.gregtechceu.gtceu.api.registry.registrate.GTRegistrate;
-
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.phoenixvine.chronicles.PhoenixChronicles;
@@ -20,13 +16,24 @@ public final class GTCEuCompat {
         return ModList.get().isLoaded(GTCEU_MOD_ID);
     }
 
-    public static void init(@NotNull IEventBus modEventBus) {
-        PhoenixChronicles.CHRONICLES_REGISTRATE = GTRegistrate.create(PhoenixChronicles.MOD_ID);
-        PhoenixChronicles.CHRONICLES_REGISTRATE.registerRegistrate();
-        modEventBus.addListener(GTCEuCompat::addMaterialRegistries);
+    public static boolean usesNewApi() {
+        try {
+            Class.forName("com.gregtechceu.gtceu.api.multiblock.MultiblockWorldSavedData", false,
+                    GTCEuCompat.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
+        }
     }
 
-    private static void addMaterialRegistries(MaterialRegistryEvent event) {
-        GTCEuAPI.materialManager.createRegistry(PhoenixChronicles.MOD_ID);
+    public static void init(@NotNull IEventBus modEventBus) {
+        String name = "net.phoenixvine.chronicles.integration.gtceu." + (usesNewApi() ? "GtmBootstrap8" :
+                "GtmBootstrap7");
+        try {
+            ((GtmBootstrap) Class.forName(name).getDeclaredConstructor().newInstance()).init(modEventBus);
+        } catch (ReflectiveOperationException | LinkageError e) {
+            PhoenixChronicles.LOGGER.error("Could not start the GregTech integration ({}); GregTech features of " +
+                    "Chronicles are disabled.", name, e);
+        }
     }
 }

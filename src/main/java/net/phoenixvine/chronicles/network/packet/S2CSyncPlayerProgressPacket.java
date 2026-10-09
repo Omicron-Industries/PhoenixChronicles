@@ -67,7 +67,6 @@ public class S2CSyncPlayerProgressPacket {
         this.initialSync = initialSync;
     }
 
-    /** A station carries its own label and rewards, since the client has no quest to read them from. */
     private static void addEmergencyStation(net.minecraft.nbt.ListTag out, net.minecraft.resources.ResourceLocation id,
                                             net.phoenixvine.chronicles.common.model.EmergencyKit kit) {
         CompoundTag entry = new CompoundTag();

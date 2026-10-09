@@ -36,11 +36,6 @@ public class QuestLangRegistry {
         }
     }
 
-    /**
-     * Adds every key from en_us.json that another language file in the pack is missing, using the English text
-     * as the starting value, so a freshly created file (fr_fr.json, an empty one included) fills itself in and
-     * only has to be translated. Keys a translator already wrote are never touched.
-     */
     public static void syncTranslations(Path configDir) {
         Path dir = langDir(configDir);
         Path enFile = dir.resolve("en_us.json");
@@ -75,7 +70,6 @@ public class QuestLangRegistry {
         }
     }
 
-    /** Written beside the file and moved over it, so a crash mid-write can't leave a half-written translation. */
     private static void writeAtomically(Path file, String content) throws IOException {
         Path temp = file.resolveSibling(file.getFileName() + ".tmp");
         Files.writeString(temp, content, StandardCharsets.UTF_8);

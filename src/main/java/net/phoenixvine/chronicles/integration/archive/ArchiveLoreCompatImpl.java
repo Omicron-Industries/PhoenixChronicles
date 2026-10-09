@@ -19,7 +19,6 @@ final class ArchiveLoreCompatImpl {
         net.phoenix_archives.phoenix_archive.ArchiveAPI.unlockEntry(player, entryId);
     }
 
-    /** Hands every {@link ArchiveEntries} spec to Archive each time it collects lore entries. */
     static void installEntryListener() {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener(
                 (net.phoenix_archives.phoenix_archive.api.ArchiveRegisterEntriesEvent event) -> {

@@ -2,14 +2,6 @@ package net.phoenixvine.chronicles.common.model;
 
 import net.minecraft.nbt.CompoundTag;
 
-/**
- * A quest's narration and music. {@code voiceId} is a sound event played as a voice line (optionally the moment the
- * quest viewer opens), {@code musicId} a sound event looped while the quest is on screen. Blank ids mean none.
- *
- * @param voiceAuto   play the voice line automatically when the quest viewer opens
- * @param musicVolume 0..1 multiplier on the player's music volume
- * @param fadeMs      fade in / out time for the music, in milliseconds
- */
 public record QuestAudio(String voiceId, boolean voiceAuto, String musicId, float musicVolume, int fadeMs) {
 
     public static final int DEFAULT_FADE_MS = 1500;

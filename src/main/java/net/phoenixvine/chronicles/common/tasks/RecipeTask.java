@@ -9,11 +9,6 @@ import net.phoenixvine.chronicles.common.model.QuestTask;
 
 import org.jetbrains.annotations.Nullable;
 
-/**
- * Completes after the player has run a recipe a number of times - any recipe of a recipe type (every macerator
- * recipe), or one specific recipe. Machines report each finished run through
- * {@code QuestAPI.fireRecipeCompleted}; the GregTech integration does that for GT machines.
- */
 public class RecipeTask extends QuestTask {
 
     private ResourceLocation recipeType;
@@ -53,7 +48,6 @@ public class RecipeTask extends QuestTask {
         return Math.min(current, required) + "/" + required;
     }
 
-    /** Whether a finished recipe counts toward this task. */
     public boolean matches(ResourceLocation finishedType, @Nullable ResourceLocation finishedId) {
         boolean sameType = recipeType.equals(finishedType) ||
                 (recipeType.getNamespace().equals("minecraft") && recipeType.getPath().equals(finishedType.getPath()));

@@ -18,10 +18,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumSet;
 
-/**
- * The player's own auto-claim settings. Turning it on claims the covered rewards of every already-completed quest
- * right away, then of each quest as it completes. Rewards in a category left off are not touched.
- */
 public class AutoClaimSettingsScreen extends Screen {
 
     private static final int PANEL_W = 280;

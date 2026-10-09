@@ -26,10 +26,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Every active quest that has emergency items, with the items, a claim button, and - when the server runs
- * emergency items on a cooldown - a live countdown to the next claim.
- */
 public class EmergencyClaimScreen extends Screen {
 
     private static final int HEADER_H = 32;
@@ -95,7 +91,7 @@ public class EmergencyClaimScreen extends Screen {
                         node.getEffectiveEmergencyKit().getRewards(),
                         ClientEmergencyState.availability(data, node.getId())));
             }
-            // Chapter and questbook kits don't depend on any quest being active, so a softlocked player sees them.
+
             for (ResourceLocation stationId : ClientEmergencyState.stationIds()) {
                 var kit = ClientEmergencyState.stationKit(stationId);
                 if (kit == null) continue;
@@ -125,7 +121,6 @@ public class EmergencyClaimScreen extends Screen {
         return "§8Quest items need that quest active; chapter and questbook items are always here.";
     }
 
-    /** "one use", "repeatable" or "repeatable - 10m cooldown", for the quest's row. */
     private static String frequencyTag(ResourceLocation id) {
         if (!ClientEmergencyState.isRepeatable(id)) return "one use";
         int seconds = ClientEmergencyState.getCooldownSeconds(id);
@@ -173,7 +168,6 @@ public class EmergencyClaimScreen extends Screen {
         if (!hoveredTip.isEmpty()) g.renderComponentTooltip(font, hoveredTip, mx, my);
     }
 
-    /** Draws one row and returns the tooltip lines of the reward under the mouse, if any. */
     private List<Component> renderRow(GuiGraphics g, Row row, int ty, int rowW, int mx, int my, int panel, int text,
                                       int textDim) {
         ClientEmergencyState.Availability av = row.availability();
@@ -287,7 +281,6 @@ public class EmergencyClaimScreen extends Screen {
         return super.mouseClicked(mx, my, btn);
     }
 
-    /** One-use items can't be taken back, so they need a second click; repeatable ones go straight through. */
     private void claim(Row row) {
         ResourceLocation id = row.id();
         if (!ClientEmergencyState.isRepeatable(id) && !isArmed(id)) {

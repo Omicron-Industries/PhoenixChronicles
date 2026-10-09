@@ -63,8 +63,7 @@ public class ClaimRewardsScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        // The claimed state arrives from the server a moment after a claim is sent, so re-reading the list here
-        // (rather than reopening the screen right away, which showed the stale pre-claim list) picks it up.
+
         if (++refreshTicks >= REFRESH_INTERVAL_TICKS) {
             refreshTicks = 0;
             refreshList();
@@ -97,7 +96,6 @@ public class ClaimRewardsScreen extends Screen {
         unclaimed = list;
     }
 
-    /** The quest's rewards minus the ones auto-claim has already granted. */
     private List<QuestReward> remainingRewards(QuestNode node) {
         List<QuestReward> all = node.getRewards();
         PlayerQuestData data = minecraft != null && minecraft.player != null ?
@@ -167,8 +165,9 @@ public class ClaimRewardsScreen extends Screen {
                     List<QuestReward> remaining = remainingRewards(node);
                     int maxTitleW = rowW - 3 - 60 -
                             (unclaimed.size() > 0 ? remaining.size() * (ICON_SZ + 2) : 0) - 70;
-                    if (font.width(title) > Math.max(20, maxTitleW))
-                        title = font.plainSubstrByWidth(title, Math.max(20, maxTitleW) - 6) + "…";
+                    if (net.phoenixvine.chronicles.client.util.EffectText.width(font, title) > Math.max(20, maxTitleW))
+                        title = net.phoenixvine.chronicles.client.util.EffectText.cut(font, title,
+                                Math.max(20, maxTitleW) - 6) + "…";
                     g.drawString(font, "§f" + title, MARGIN + 6, ty + (ROW_H - 8) / 2, text, false);
 
                     int ix = MARGIN + rowW - 66 - remaining.size() * (ICON_SZ + 2);

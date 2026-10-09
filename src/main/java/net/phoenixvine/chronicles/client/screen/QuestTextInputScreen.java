@@ -90,7 +90,7 @@ public class QuestTextInputScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        // A resize rebuilds the screen; keep what has been typed instead of snapping back to the original text.
+
         String keptText = inputBox != null ? inputBox.getValue() : initial;
         String keptHex = hexBox != null ? hexBox.getValue() : "";
 

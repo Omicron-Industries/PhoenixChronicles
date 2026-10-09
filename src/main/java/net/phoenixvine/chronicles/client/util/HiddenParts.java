@@ -7,10 +7,6 @@ import net.phoenixvine.chronicles.common.model.QuestReward;
 import net.phoenixvine.chronicles.common.model.QuestState;
 import net.phoenixvine.chronicles.common.model.QuestTask;
 
-/**
- * Whether a task's or reward's hidden parts are still masked for the local player: tasks unmask once done, rewards
- * once their quest is completed.
- */
 public final class HiddenParts {
 
     private HiddenParts() {}

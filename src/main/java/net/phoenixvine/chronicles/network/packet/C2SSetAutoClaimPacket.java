@@ -10,7 +10,6 @@ import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 
-/** A player's own auto-claim choices: whether it is on, and which reward categories it may claim. */
 public class C2SSetAutoClaimPacket {
 
     private final boolean enabled;

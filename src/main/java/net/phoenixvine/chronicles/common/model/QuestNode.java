@@ -163,10 +163,6 @@ public class QuestNode {
         this.pooledProgress = v;
     }
 
-    /**
-     * Whole chapters and categories this quest waits on: it stays locked until every counted quest in each is
-     * complete. They apply on top of the quest's own prerequisites, never instead of them.
-     */
     private final java.util.Set<String> chapterPrereqs = new java.util.LinkedHashSet<>();
     private final java.util.Set<String> categoryPrereqs = new java.util.LinkedHashSet<>();
 
@@ -915,7 +911,6 @@ public class QuestNode {
         return (v != null && v.subtitle != null && !v.subtitle.isBlank()) ? v.subtitle : getSubtitle();
     }
 
-    /** This quest's own emergency kit (live object, edited in place). */
     public EmergencyKit getEmergencyKit() {
         return emergencyKit;
     }
@@ -924,7 +919,6 @@ public class QuestNode {
         this.emergencyKit = kit != null ? kit.copy() : new EmergencyKit();
     }
 
-    /** Chapter and questbook kits are claimed separately from any quest, so a quest only ever uses its own. */
     public EmergencyKit getEffectiveEmergencyKit() {
         return emergencyKit;
     }

@@ -14,6 +14,7 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.rich.CodeEditBox;
 import net.phoenixvine.chronicles.common.model.QuestGroup;
 import net.phoenixvine.chronicles.common.model.QuestGroupManager;
 import net.phoenixvine.chronicles.integration.phantasia.PhantasiaCompat;
@@ -84,7 +85,7 @@ public class QuestGroupEditorScreen extends Screen {
         int fieldW = DIALOG_W - 20;
         int row = dy + 30;
 
-        labelBox = new EditBox(font, fieldX, row, fieldW, FIELD_H, Component.empty());
+        labelBox = new CodeEditBox(font, fieldX, row, fieldW, FIELD_H, Component.empty());
         labelBox.setHint(Component.literal("§8Group label…"));
         labelBox.setMaxLength(48);
         if (existing != null) labelBox.setValue(existing.getLabel());

@@ -21,7 +21,6 @@ public final class ArchiveLoreCompat {
         if (isAvailable()) ArchiveLoreCompatImpl.openLoreFor(returnTo, questId);
     }
 
-    /** Registers the "unlock Archive entry" reward when the Archive mod is present. */
     public static void registerRewards() {
         if (!isAvailable()) return;
         net.phoenixvine.chronicles.common.registry.PhoenixRewardRegistry.register("archive_unlock")

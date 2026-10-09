@@ -147,10 +147,6 @@ public final class NodeShapeRenderer {
         return 4.0;
     }
 
-    /**
-     * A star's points only reach the node's bounding box at a few tips, so at the same box size it
-     * reads as much smaller than the other shapes; scaling its box up makes it look comparable.
-     */
     public static float visualSizeScale(String shapeType) {
         return "STAR".equalsIgnoreCase(shapeType) ? 1.2f : 1.0f;
     }

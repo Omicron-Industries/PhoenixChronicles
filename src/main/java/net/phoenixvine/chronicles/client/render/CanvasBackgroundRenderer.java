@@ -207,7 +207,7 @@ public final class CanvasBackgroundRenderer {
                 g.blit(loc, x1, y1, 0, 0, w, h, w, h);
                 return;
             }
-            // Tiled and shifted by a fraction of the pan, so the background drifts behind the quests.
+
             int ox = Math.floorMod(Math.round(viewOffX * parallax), w);
             int oy = Math.floorMod(Math.round(viewOffY * parallax), h);
             g.enableScissor(x1, y1, x2, y2);

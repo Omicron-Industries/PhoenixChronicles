@@ -54,7 +54,6 @@ public abstract class QuestReward {
 
     public abstract CompoundTag serializeNBT();
 
-    /** Hidden-part bits: the amount / the target stay masked in the quest viewer until the quest is completed. */
     public static final int HIDE_AMOUNT = 1;
     public static final int HIDE_TARGET = 2;
 
@@ -76,7 +75,6 @@ public abstract class QuestReward {
         return (hiddenParts & HIDE_TARGET) != 0;
     }
 
-    /** {@link #serializeNBT()} plus the metadata every reward shares (currently the hidden parts). */
     public CompoundTag serializeWithMeta() {
         CompoundTag tag = serializeNBT();
         if (hiddenParts != 0) tag.putInt("hide", hiddenParts);
@@ -678,7 +676,6 @@ public abstract class QuestReward {
         }
     }
 
-    /** A reward whose behavior is registered by another mod or script in {@link PhoenixRewardRegistry}. */
     public static class ExternalReward extends QuestReward {
 
         private final String typeId;

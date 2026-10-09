@@ -5,11 +5,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.EnumSet;
 import java.util.Set;
 
-/**
- * The kinds of reward a player can choose to have claimed for them the moment a quest completes. Only rewards in an
- * enabled category are granted; the rest of the quest's rewards stay waiting in the claim screen, so nothing a
- * player turned off is ever granted behind their back.
- */
 public enum AutoClaimCategory {
 
     ITEMS("Items & XP", "Item, fluid and XP rewards"),
@@ -34,7 +29,6 @@ public enum AutoClaimCategory {
         return description;
     }
 
-    /** The category a reward belongs to, or null for rewards that are never auto-claimed (they open a screen). */
     @Nullable
     public static AutoClaimCategory of(QuestReward reward) {
         return switch (reward.getType()) {

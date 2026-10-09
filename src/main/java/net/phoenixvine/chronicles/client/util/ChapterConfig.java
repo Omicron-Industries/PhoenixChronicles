@@ -213,7 +213,6 @@ public class ChapterConfig {
         this.completeSoundId = id == null ? "" : id.trim();
     }
 
-    /** 0 keeps a custom texture background fixed; above 0 it scrolls (and tiles) at that fraction of the pan speed. */
     public float getBgParallax() {
         return bgParallax;
     }
@@ -400,7 +399,6 @@ public class ChapterConfig {
         return CACHE.getOrDefault(chapter, new ChapterConfig());
     }
 
-    /** The chapter's music, or its parent chapter's when it has none of its own. */
     public static net.phoenixvine.chronicles.common.model.QuestAudio musicFor(@Nullable String chapter) {
         java.util.Set<String> visited = new java.util.HashSet<>();
         String c = chapter;

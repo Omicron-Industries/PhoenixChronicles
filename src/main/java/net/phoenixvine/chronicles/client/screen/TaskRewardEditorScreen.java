@@ -19,6 +19,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.phoenixvine.chronicles.client.registry.LangSyncScheduler;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemeRenderer;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.rich.CodeEditBox;
 import net.phoenixvine.chronicles.client.screen.utils.UndoRedoManager;
 import net.phoenixvine.chronicles.common.codec.QuestFileSaver;
 import net.phoenixvine.chronicles.common.filter.FluidFilters;
@@ -88,11 +89,9 @@ public class TaskRewardEditorScreen extends Screen {
         return parent;
     }
 
-    /** Null only when editing a chapter's default emergency kit, where there is no quest. */
     @Nullable
     private final QuestNode questNode;
 
-    /** Emergency mode edits one list of rewards (a kit) and hands it to the sink; there are no tasks. */
     private final boolean emergencyMode;
     @Nullable
     private final Consumer<List<QuestReward>> emergencySink;
@@ -171,8 +170,6 @@ public class TaskRewardEditorScreen extends Screen {
 
     private final UndoRedoManager undoRedo = new UndoRedoManager(msg -> {});
 
-    // "reward_table" is not offered for new rewards - tables are added as options of a Choice Box. Rewards already
-    // saved with the old standalone type still load, grant, and edit through the branch below.
     private static final String[] REWARD_TYPES = { "item", "xp", "command", "loot_table", "script_event",
             "choice_box", "fluid", "open_screen", "quest_action", "external" };
 
@@ -230,7 +227,6 @@ public class TaskRewardEditorScreen extends Screen {
         this.rewards.addAll(emergencyRewards);
     }
 
-    /** Choice boxes need the player to open them, which an emergency claim has no screen for. */
     private String[] rewardTypes() {
         if (!emergencyMode) return REWARD_TYPES;
         return java.util.Arrays.stream(REWARD_TYPES).filter(t -> !t.equals("choice_box")).toArray(String[]::new);
@@ -266,10 +262,6 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
-    /**
-     * Hint text sits inside the box, so a long one runs out of it at small window sizes. Cut it to what fits
-     * and put the whole text in a hover tooltip instead.
-     */
     private void setHintFitted(EditBox box, String hint) {
         String plain = hint.replaceAll("§.", "");
         int maxW = Math.max(10, box.getWidth() - 10);
@@ -279,7 +271,6 @@ public class TaskRewardEditorScreen extends Screen {
         if (cut) box.setTooltip(Tooltip.create(ChroniclesUIKit.lit(plain)));
     }
 
-    /** The box only says what it is; the tables that exist are listed in its hover tooltip. */
     private void setTableIdHint(EditBox box) {
         box.setHint(ChroniclesUIKit.lit("§8Table ID"));
         List<String> known = new ArrayList<>(RewardTableRegistry.getAll().keySet());
@@ -380,7 +371,7 @@ public class TaskRewardEditorScreen extends Screen {
             default -> false;
         };
 
-        taskDescBox = new EditBox(font, tx, fy, colW, FIELD_H, Component.empty());
+        taskDescBox = new CodeEditBox(font, tx, fy, colW, FIELD_H, Component.empty());
         setHintFitted(taskDescBox, "§8Task label shown to player");
         taskDescBox.setMaxLength(128);
         taskDescBox.setValue(descVal);
@@ -593,7 +584,7 @@ public class TaskRewardEditorScreen extends Screen {
             taskSecondaryBox.setMaxLength(128);
             taskSecondaryBox.setValue(secondVal);
             if (taskType.equals("block_interact")) {
-                // The mode is a fixed choice, so a toggle replaces the text box; the box only holds the value.
+
                 String curMode = secondVal.trim().equalsIgnoreCase("RIGHT_CLICK") ? "RIGHT_CLICK" : "PLACE";
                 taskSecondaryBox.setValue(curMode);
                 addRenderableWidget(Button.builder(ChroniclesUIKit.lit("§fMode: §e" + curMode), b -> {
@@ -1332,7 +1323,6 @@ public class TaskRewardEditorScreen extends Screen {
         rebuildWidgets();
     }
 
-    /** One task per picked item, all sharing the form's count, consume, optional and hide settings. */
     private void bulkAddItemTasks(List<ItemStack> picked) {
         if (editingTaskIndex >= 0 || taskTargetBox == null) return;
         String descTemplate = taskDescBox != null ? taskDescBox.getValue().trim() : "";
@@ -1359,7 +1349,6 @@ public class TaskRewardEditorScreen extends Screen {
         }
     }
 
-    /** One item reward per picked item, each using the form's quantity. */
     private void bulkAddItemRewards(List<ItemStack> picked) {
         if (editingRewardIndex >= 0) return;
         int count = 1;
@@ -2184,7 +2173,7 @@ public class TaskRewardEditorScreen extends Screen {
         int listH = Math.max(0, listBottom - listTop);
         int taskTotalH = tasks.size() * ROW_H;
         taskListScroll = Math.max(0, Math.min(taskListScroll, Math.max(0, taskTotalH - listH)));
-        // GuiGraphics scissor ignores the pose scale used on small windows, so scale the rectangle by hand.
+
         g.enableScissor(Math.round(MARGIN * uiScale), Math.round(listTop * uiScale),
                 Math.round((splitX - COL_GAP) * uiScale), Math.round(listBottom * uiScale));
         int ty = listTop - taskListScroll;
@@ -2342,8 +2331,7 @@ public class TaskRewardEditorScreen extends Screen {
             drawBorder(g, MARGIN, dy, colW, dropH, C_ACCENT);
 
             hoveredDropRow = -1;
-            // Rows that are only partly inside the list must be cut off at its edges. GuiGraphics scissor ignores the
-            // pose scale used for small windows, so the rectangle is scaled by hand.
+
             g.enableScissor(Math.round(MARGIN * uiScale), Math.round(dy * uiScale),
                     Math.round((MARGIN + colW) * uiScale), Math.round((dy + dropH) * uiScale));
             for (int i = 0; i < editorTypes.size(); i++) {
@@ -2613,7 +2601,6 @@ public class TaskRewardEditorScreen extends Screen {
         return order.size() * ROW_H + (tableSectionStart < order.size() ? ROW_HEADER_H : 0);
     }
 
-    /** Scrolls a list while a row is being dragged near its top or bottom edge. */
     private int dragAutoScroll(double my, int scroll, int totalH) {
         int listH = Math.max(0, listBottom - listTop);
         int maxScroll = Math.max(0, totalH - listH);

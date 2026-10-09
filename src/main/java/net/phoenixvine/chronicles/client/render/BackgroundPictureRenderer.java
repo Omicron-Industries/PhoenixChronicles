@@ -72,7 +72,6 @@ public final class BackgroundPictureRenderer {
         FrameProfiler.end("background:pictures");
     }
 
-    /** Whether a screen point is on the picture, allowing for its rotation. */
     public static boolean contains(BackgroundPictureConfig.Picture pic, double mx, double my, int cl, int top,
                                    float zoom, int viewOffX, int viewOffY) {
         int[] rect = screenRect(pic, cl, top, zoom, viewOffX, viewOffY);
@@ -88,12 +87,10 @@ public final class BackgroundPictureRenderer {
         return Math.abs(dx) <= (rect[2] - rect[0]) / 2.0 && Math.abs(dy) <= (rect[3] - rect[1]) / 2.0;
     }
 
-    /** The zoom a picture is drawn at: it follows the canvas zoom only as far as its parallax factor allows. */
     public static float parallaxZoom(BackgroundPictureConfig.Picture pic, float zoom) {
         return 1f + (zoom - 1f) * pic.parallax;
     }
 
-    /** The pan a picture sees: the canvas offset scaled by its parallax factor. */
     public static int parallaxOffset(BackgroundPictureConfig.Picture pic, int viewOff) {
         return Math.round(viewOff * pic.parallax);
     }

@@ -27,13 +27,8 @@ public final class BackgroundPictureConfig {
         public float opacity = 1.0f;
         public int color = 0xFFFFFF;
 
-        /** Clockwise degrees around the picture's center; 0 for older saves that have no rotation. */
         public float rotation = 0f;
 
-        /**
-         * How much this picture follows the canvas when it is panned and zoomed: 1 moves with the quests, 0 stays
-         * fixed on screen, in between drifts slower like a distant layer, above 1 slides past like a foreground.
-         */
         public float parallax = 1f;
 
         public void rotateBy(float degrees) {

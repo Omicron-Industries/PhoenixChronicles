@@ -13,6 +13,7 @@ import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
 import net.phoenixvine.chronicles.client.render.background.BackgroundRenderUtil;
 import net.phoenixvine.chronicles.client.render.shader.DynamicShaderManager;
+import net.phoenixvine.chronicles.client.rich.CodeEditBox;
 import net.phoenixvine.chronicles.client.util.ChapterConfig;
 import net.phoenixvine.chronicles.common.model.CategoryDefinition;
 import net.phoenixvine.chronicles.common.registry.CategoryRegistry;
@@ -233,7 +234,7 @@ public class ChapterThemeScreen extends Screen {
         overrideShaderBoxes.clear();
         overrideStyleButtonY.clear();
 
-        nameBox = new EditBox(font, fx, rowTop(ROW_NAME) + 11, fw, FIELD_H, Component.empty());
+        nameBox = new CodeEditBox(font, fx, rowTop(ROW_NAME) + 11, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(64);
         nameBox.setValue(cachedDisplayName);
         nameBox.setResponder(v -> cachedDisplayName = v.replace('&', '§').trim());

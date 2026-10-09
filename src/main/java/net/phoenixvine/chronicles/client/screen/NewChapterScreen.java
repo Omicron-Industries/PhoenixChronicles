@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.phoenixvine.chronicles.client.render.ChroniclesThemePalette;
 import net.phoenixvine.chronicles.client.render.ChroniclesUIKit;
+import net.phoenixvine.chronicles.client.rich.CodeEditBox;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -47,7 +48,7 @@ public class NewChapterScreen extends Screen {
         int fw = PANEL_W - MARGIN * 2;
         int y = panelTop + 34;
 
-        nameBox = new EditBox(font, fx, y, fw, FIELD_H, Component.empty());
+        nameBox = new CodeEditBox(font, fx, y, fw, FIELD_H, Component.empty());
         nameBox.setMaxLength(32);
         nameBox.setHint(Component.translatable("phoenix_chronicles.screen.new_chapter.hint"));
         nameBox.setResponder(v -> name = v);

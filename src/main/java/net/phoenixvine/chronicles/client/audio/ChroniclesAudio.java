@@ -19,16 +19,9 @@ import net.phoenixvine.chronicles.common.model.QuestAudio;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Plays quest narration (voice lines) and chapter / quest music. Music follows whichever Chronicles screen is open: a
- * screen that implements {@link AudioSource} says what it wants playing, the track fades in (and the previous one
- * out) over the quest's fade time, and everything fades out once the player leaves Chronicles. Music plays on the
- * vanilla music slider, pushes vanilla music out of the way while it runs, and ducks under a voice line.
- */
 @Mod.EventBusSubscriber(modid = PhoenixChronicles.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ChroniclesAudio {
 
-    /** Implemented by screens that decide what audio should be playing while they are shown. */
     public interface AudioSource {
 
         QuestAudio desiredAudio();
@@ -48,7 +41,6 @@ public final class ChroniclesAudio {
         return SoundEvent.createVariableRangeEvent(ResourceLocation.parse(id));
     }
 
-    /** Starts a voice line, replacing any that is playing. */
     public static void playVoice(String id) {
         stopVoice();
         if (id == null || id.isBlank()) return;

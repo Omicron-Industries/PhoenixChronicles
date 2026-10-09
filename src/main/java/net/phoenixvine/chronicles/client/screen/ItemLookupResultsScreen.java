@@ -110,7 +110,8 @@ public class ItemLookupResultsScreen extends Screen {
                 int textX = iconX + ICON_SZ + 10;
                 int maxTextW = cardsRight - textX - 8;
                 String title = node.getTitle().getString();
-                if (font.width(title) > maxTextW) title = font.plainSubstrByWidth(title, maxTextW - 6) + "…";
+                if (net.phoenixvine.chronicles.client.util.EffectText.width(font, title) > maxTextW)
+                    title = net.phoenixvine.chronicles.client.util.EffectText.cut(font, title, maxTextW - 6) + "…";
                 g.drawString(font, "§f" + title, textX, cy + 8, text, false);
 
                 String chapter = node.getChapter();

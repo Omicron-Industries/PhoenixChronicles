@@ -452,10 +452,6 @@ public class QuestProgressTracker {
         }
     }
 
-    /**
-     * Locks every unlocked / active quest whose prerequisites or chapter dependencies are no longer met, repeating
-     * until nothing changes so a reset ripples down the whole chain. Completed quests are left alone.
-     */
     public static void relockUnsatisfied(Player player) {
         PlayerQuestData data = resolveData(player);
         if (data == null) return;
@@ -535,7 +531,6 @@ public class QuestProgressTracker {
         }
     }
 
-    /** Every chapter and category the quest waits on has all of its counted quests complete. */
     private static boolean chapterDependenciesMet(QuestNode node, PlayerQuestData data,
                                                   net.minecraft.server.MinecraftServer server) {
         for (String chapter : node.getChapterPrereqs()) {
@@ -552,10 +547,6 @@ public class QuestProgressTracker {
         return true;
     }
 
-    /**
-     * A chapter is complete when each quest in it is - skipping disabled and optional ones, as quest
-     * prerequisites do. A quest can't wait on the chapter it belongs to, and an empty chapter waits on nothing.
-     */
     private static boolean chapterComplete(String chapter, QuestNode dependent, PlayerQuestData data,
                                            net.minecraft.server.MinecraftServer server) {
         if (chapter.equalsIgnoreCase(dependent.getChapter())) return true;
@@ -570,7 +561,6 @@ public class QuestProgressTracker {
         return true;
     }
 
-    /** Whether the quest has a chapter or category dependency that the completed quest's chapter counts toward. */
     private static boolean waitsOnChapterOf(QuestNode node, QuestNode completed) {
         String chapter = completed.getChapter() == null ? "" : completed.getChapter().toUpperCase();
         if (chapter.isEmpty()) return false;
@@ -589,10 +579,6 @@ public class QuestProgressTracker {
         return category != null && data.isAutoClaimCategory(category);
     }
 
-    /**
-     * Claims the rewards of a completed quest that this player's auto-claim settings cover, and leaves the rest
-     * for them to claim by hand. Pick-N quests are always left alone - the player's picks are the point.
-     */
     private static void autoClaimForPlayer(ServerPlayer player, PlayerQuestData data, QuestNode node) {
         if (!data.isAutoClaimEnabled() || node.isRewardChoice()) return;
         if (data.hasClaimedRewards(node.getId())) return;
@@ -607,7 +593,6 @@ public class QuestProgressTracker {
         if (anyCovered) grantRewardsMatching(player, node, reward -> playerAllows(data, reward));
     }
 
-    /** Claims what the player's auto-claim settings now cover on every quest they already completed. */
     public static void autoClaimSweep(ServerPlayer player) {
         PlayerQuestData data = resolveData(player);
         if (data == null || !data.isAutoClaimEnabled()) return;
@@ -666,11 +651,6 @@ public class QuestProgressTracker {
         grantRewardsMatching(player, node, reward -> true);
     }
 
-    /**
-     * Grants the rewards that pass {@code allowed} and haven't been granted yet. Once every slot is settled the
-     * quest counts as claimed; until then it stays claimable for what is left, which is how auto-claim can take
-     * only the kinds a player enabled.
-     */
     private static void grantRewardsMatching(ServerPlayer player, QuestNode node,
                                              java.util.function.Predicate<QuestReward> allowed) {
         PlayerQuestData data = resolveData(player);
@@ -743,7 +723,6 @@ public class QuestProgressTracker {
                 node.isEmergencyRepeatable(), node.getEmergencyCooldownSeconds());
     }
 
-    /** Claims a chapter's or the whole questbook's kit; no quest has to be active, or even unlocked. */
     public static EmergencyResult claimEmergencyStation(ServerPlayer player, ResourceLocation stationId) {
         PlayerQuestData data = resolveData(player);
         if (data == null) return new EmergencyResult(false, "Quest data unavailable.");

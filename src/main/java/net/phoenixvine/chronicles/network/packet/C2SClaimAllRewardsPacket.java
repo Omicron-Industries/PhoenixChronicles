@@ -31,8 +31,6 @@ public class C2SClaimAllRewardsPacket {
             PlayerQuestData data = player.getCapability(QuestCapabilityProvider.PLAYER_QUESTS).orElse(null);
             if (data == null) return;
 
-            // Granting a reward can complete other quests or fail outright; snapshot the list first and keep going
-            // past a failure so one bad quest can't leave every quest after it unclaimed (and the client unsynced).
             List<QuestNode> candidates = new ArrayList<>(QuestTreeRegistry.getAllQuests().values());
             for (QuestNode node : candidates) {
                 try {

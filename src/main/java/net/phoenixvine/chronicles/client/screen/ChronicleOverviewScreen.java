@@ -2513,7 +2513,6 @@ public class ChronicleOverviewScreen extends Screen
     private long stampSinceMs = 0;
     private int stampFrame = 0;
 
-    /** Re-checks a couple of times a second whether the selected chapter's required quests are all done. */
     private void refreshChapterStamp() {
         boolean chapterChanged = !selectedChapter.equals(stampChapterKey);
         if (!chapterChanged && ++stampFrame % 30 != 0) return;
@@ -3768,11 +3767,6 @@ public class ChronicleOverviewScreen extends Screen
     private EmergencyPill cachedEmergencyPill = new EmergencyPill(0, 0);
     private long emergencyPillStampMs = 0;
 
-    /**
-     * How many active quests have emergency items ready, or else how long until the soonest comes off cooldown.
-     * Scanning every quest is too much to repeat for each of the header's layout, click and draw passes, so the
-     * result is kept for a quarter second - still fine-grained enough for a seconds countdown.
-     */
     private EmergencyPill emergencyPill() {
         long now = System.currentTimeMillis();
         if (now - emergencyPillStampMs < 250) return cachedEmergencyPill;
@@ -3852,14 +3846,16 @@ public class ChronicleOverviewScreen extends Screen
         String t = node.getEffectiveTitleRaw(server, minecraft.player).getString();
 
         int maxW = (int) (scaledNodeSize(node) * 1.6f) + 40;
-        return font.width(t) > maxW ? font.plainSubstrByWidth(t, maxW - 4) + "…" : t;
+        return net.phoenixvine.chronicles.client.util.EffectText.width(font, t) > maxW ?
+                net.phoenixvine.chronicles.client.util.EffectText.cut(font, t, maxW - 4) + "…" : t;
     }
 
     @Override
     public String shortName(QuestNode node, int maxW) {
         MinecraftServer server = minecraft != null ? minecraft.getSingleplayerServer() : null;
         String t = node.getEffectiveTitleRaw(server, minecraft.player).getString();
-        return font.width(t) > maxW ? font.plainSubstrByWidth(t, maxW - 4) + "…" : t;
+        return net.phoenixvine.chronicles.client.util.EffectText.width(font, t) > maxW ?
+                net.phoenixvine.chronicles.client.util.EffectText.cut(font, t, maxW - 4) + "…" : t;
     }
 
     private void fitToCanvas() {

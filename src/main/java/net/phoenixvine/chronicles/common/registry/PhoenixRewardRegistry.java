@@ -15,11 +15,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-/**
- * Reward types that other mods or scripts define. A quest stores an "external" reward as a type id plus a data tag;
- * when it is granted, the handler registered under that id receives the player and the tag. Declared fields make
- * the quest editor draw inputs for the data, the same way {@link PhoenixTaskRegistry} does for external tasks.
- */
 public final class PhoenixRewardRegistry {
 
     public record Entry(

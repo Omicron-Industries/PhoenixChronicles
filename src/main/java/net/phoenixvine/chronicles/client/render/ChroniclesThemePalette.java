@@ -51,6 +51,8 @@ public class ChroniclesThemePalette {
     }
 
     public static String adapt(String raw) {
+        raw = net.phoenixvine.chronicles.client.util.ChromaticCodes.normalize(raw);
+        if (raw != null && raw.indexOf('<') >= 0) raw = net.phoenixvine.chronicles.client.util.EffectText.clean(raw);
         if (!IS_LIGHT || raw == null || raw.indexOf('§') < 0) return raw;
         StringBuilder sb = new StringBuilder(raw.length());
         for (int i = 0; i < raw.length(); i++) {

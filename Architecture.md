@@ -194,37 +194,6 @@ Estimated amount of work
 Why it was deffered/chosen as important/labeled as never.
 
 
-Hide Reward/Task portions.
-Hiding specific parts of rewards/tasks. Useful for example showing needing iron but not showing the amount until you actually get what was needed.
-Moderate, needs changes to the reward/task editor and the quest viewer card rendering.
-Specific asked for feature I feel Chronicles would do well to have.
-
-
-
-Narrated quests.
-Voice line/audio quests. This would probably be a system of setting voice lines to auto start or be clicked by players for the chronicles side and have support in the wiki side
-for in markdown voicelines/audio and would not show visually when smth doesnt have a voiceline/audio clip attached.
-High, more UI work on the already heavy quest viewer screens and plumbing for sound.
-Something I really want from Chronicles and has been suggested a few times.
-
-
-Bulk adding items to multi item selections.
-Having the ability to say multi select collect item tasks to give some authoring qol. Also copy/paste for rewards/tasks.
-High, risky touches of the internal undo/redo stack along with edge cases of many task/reward types.
-Highly requested feature that does help packdevs.
-
-
-
-Archive entry reward type.
-Adding the ability to autogen an archive entry through chronicles. 
-High, archives already has the api to externally make entries but it's a lot of UI work and usability decisions.
-THE most requested cross mod feature and it is something I want to use myself.
-
-Music support. 
-Adding the ability to add per chapter/per quest music that properly handles fade in/out and volume. 
-High, having to deal with vannila's music, handling audio registry itself, adding the UI for all of this.
-Something that would really help the ambience. 
-
 ## Purposefully deferred.
 The ideas below might be reconsidered at some point but were put away for sanity and polish reasons.
 
@@ -260,7 +229,6 @@ A config to handle turning off pooled progress when being in an team or guild.
 Small, a config to tell TeamProgress to not count it on them. Would have to be server side though.
 Deferred due to no current demand and the multiplayer aspect.
 
-
 Global Rewards
 The ability to mark a reward as only certain amount of people who can claim it.
 Moderate, needs more work to the reward type.
@@ -295,11 +263,6 @@ Reveal cards for choice rewards.
 Making cards that you can flip over to choose a reward. Would be very cool
 Moderate, a new UI for the cards
 Deferred due to being mostly visual and niche
-
-Parallax backgrounds.
-Adding support for parallax in the canvas/quest veiwers.
-High, performance and visual concerns.
-Deferred due to difficulty.
 
 Personal notes.
 We have dev notes but these would be player facing.

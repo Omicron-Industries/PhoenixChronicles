@@ -20,7 +20,6 @@ public final class ClientEmergencyState {
     public static final String QUESTS_KEY = "EmergencyQuests";
     public static final String SERVER_NOW_KEY = "EmergencyServerNow";
 
-    /** Timer settings are per quest now - a quest's own kit, its chapter's, or the engine default. */
     private record Info(boolean repeatable, int cooldownSeconds, @Nullable String label,
                         @Nullable EmergencyKit kit) {}
 
@@ -50,7 +49,6 @@ public final class ClientEmergencyState {
         return quests.containsKey(questId);
     }
 
-    /** Chapter and questbook kits: ids that aren't quests and carry their own label and rewards. */
     public static List<ResourceLocation> stationIds() {
         List<ResourceLocation> ids = new ArrayList<>();
         for (Map.Entry<ResourceLocation, Info> e : quests.entrySet())
@@ -90,7 +88,6 @@ public final class ClientEmergencyState {
         USED
     }
 
-    /** Whether a quest's emergency items can be claimed right now, and if not, how long until they can. */
     public record Availability(State state, long remainingMs, long totalMs) {
 
         public float cooldownProgress() {
@@ -107,7 +104,6 @@ public final class ClientEmergencyState {
                 new Availability(State.READY, 0, totalMs);
     }
 
-    /** Short enough for a small button: "45s", "12m", "3h". */
     public static String compactDuration(long ms) {
         long seconds = Math.max(0, (ms + 999) / 1000);
         if (seconds < 60) return seconds + "s";

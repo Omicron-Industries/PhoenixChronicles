@@ -13,11 +13,6 @@ import net.phoenixvine.chronicles.common.tracker.QuestProgressTracker;
 
 import java.util.function.Supplier;
 
-/**
- * Sent by the quest editor when a required task was added to a quest: every online player who had already completed
- * it gets it back as unlocked, so the new task has to be done. Claimed rewards stay claimed, and quests that depended
- * on the completion lock again until it is redone.
- */
 public class C2SReopenCompletedQuestPacket {
 
     private final ResourceLocation questId;

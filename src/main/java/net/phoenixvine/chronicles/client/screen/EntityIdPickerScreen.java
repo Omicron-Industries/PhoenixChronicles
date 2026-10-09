@@ -87,10 +87,6 @@ public class EntityIdPickerScreen extends Screen {
         rebuildList();
     }
 
-    /**
-     * The registry holds every entity - items, projectiles, boats, paintings, the player. Only things that can
-     * actually be killed or fought are useful here, so keep the ones that spawn as a living entity.
-     */
     private void keepMobsOnly() {
         if (mobsFiltered || minecraft == null || minecraft.level == null) return;
         mobsFiltered = true;
@@ -110,7 +106,7 @@ public class EntityIdPickerScreen extends Screen {
             if (minecraft == null || minecraft.level == null) return Optional.empty();
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(i);
             if (type == null) return Optional.empty();
-            // The player type can't be created from the registry; the local player stands in for its preview.
+
             if (type == EntityType.PLAYER) return Optional.ofNullable(minecraft.player);
             try {
                 Optional<LivingEntity> living = Optional.ofNullable(type.create(minecraft.level))
@@ -123,9 +119,6 @@ public class EntityIdPickerScreen extends Screen {
         });
     }
 
-    /**
-     * Entities default to yaw 0, which faces away from the screen here; inventory previews turn them half way round.
-     */
     private static void faceViewer(LivingEntity entity) {
         float yaw = 180f + 25f;
         entity.setYRot(yaw);
@@ -204,16 +197,13 @@ public class EntityIdPickerScreen extends Screen {
     }
 
     private void renderIcon(GuiGraphics g, LivingEntity entity, int x, int bottomY) {
-        // renderEntityInInventory's scale is pixels per block, so the mob is drawn bbHeight * scale tall. Fit both its
-        // height and its width into the icon cell; a fixed multiplier drew most mobs several times too big, and the
-        // cell's scissor then clipped them down to an unrecognizable slice of the model.
         float fitHeight = (ICON_W - 4) / Math.max(0.2f, entity.getBbHeight());
         float fitWidth = (ICON_W - 2) / Math.max(0.2f, entity.getBbWidth());
         int scale = Math.max(1, Math.round(Math.min(fitHeight, fitWidth)));
         PoseStack pose = g.pose();
         pose.pushPose();
         g.enableScissor(x - ICON_W / 2, bottomY - ICON_W, x + ICON_W / 2, bottomY);
-        // The local player is the real, moving entity, so turn it for the preview and then put it back.
+
         boolean isLocalPlayer = entity == minecraft.player;
         float yRot = entity.getYRot(), xRot = entity.getXRot();
         float bodyRot = entity.yBodyRot, headRot = entity.yHeadRot;

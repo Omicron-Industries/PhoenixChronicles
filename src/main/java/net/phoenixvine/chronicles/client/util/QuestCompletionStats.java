@@ -41,7 +41,6 @@ public final class QuestCompletionStats {
 
     public final Map<String, Tally> chapters = new LinkedHashMap<>();
 
-    /** Per chapter, required (non-optional) quests only - what a chapter-complete stamp is judged on. */
     public final Map<String, Tally> chaptersRequired = new LinkedHashMap<>();
 
     public Tally overall() {

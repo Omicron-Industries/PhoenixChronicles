@@ -248,7 +248,7 @@ public class NodeRenderer {
             case "TOP" -> ChroniclesUIKit.drawScaledCenteredString(g, ctx.font(), label, x + nodeSz / 2f,
                     y - gap - lineH, color, scale);
             case "LEFT" -> {
-                float w = ctx.font().width(label) * scale;
+                float w = net.phoenixvine.chronicles.client.util.EffectText.width(ctx.font(), label) * scale;
                 ChroniclesUIKit.drawScaledString(g, ctx.font(), label, x - gap - w,
                         y + nodeSz / 2f - lineH / 2f, color, scale);
             }
@@ -336,7 +336,7 @@ public class NodeRenderer {
                     else NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
                 }
                 case "NONE" -> {
-                    // No frame, so no drop shadow either.
+
                 }
                 default -> NodeShapeRenderer.queueFillRect(g, x + 2, y + 2, x + sz + 2, y + sz + 2, 0x44000000);
             }
@@ -392,7 +392,7 @@ public class NodeRenderer {
                 NodeShapeRenderer.outlineCross(g, x, y, sz, border, thickness);
             }
             case "NONE" -> {
-                // Icon-only node: no fill and no border. The icon is drawn by the caller.
+
             }
             case "CUSTOM" -> {
                 if (shapeTex != null) {
@@ -400,9 +400,7 @@ public class NodeRenderer {
                     int pad = Math.max(1, thickness);
                     NodeShapeRenderer.blitCustomShape(g, shapeTex, x - pad, y - pad, sz + pad * 2, sz + pad * 2,
                             border);
-                    // The state fill colors are very dark, and the texture is multiplied by whatever tint it gets,
-                    // so using the fill left custom shapes almost black. A lightened state color keeps the artwork
-                    // readable and still carries the state hue.
+
                     int textureTint = ChronicleOverviewScreen.blendColor(border, 0xFFFFFFFF, 0.7f);
                     if (!hasBackground) NodeShapeRenderer.blitCustomShape(g, shapeTex, x, y, sz, sz, textureTint);
                 } else {
@@ -443,10 +441,6 @@ public class NodeRenderer {
         }
     }
 
-    /**
-     * Fills the node's own outline instead of its bounding square, so dimming overlays follow the shape. A square
-     * overlay left a visible translucent box around stars, circles, and the other non-square shapes.
-     */
     private void fillNodeOutline(GuiGraphics g, QuestNode node, int x, int y, int sz, int color) {
         String shape = node.getShapeType() != null ? node.getShapeType().toUpperCase() : "SQUARE";
         switch (shape) {
@@ -459,7 +453,7 @@ public class NodeRenderer {
             case "SHIELD" -> NodeShapeRenderer.fillShield(g, x, y, sz, color);
             case "CROSS" -> NodeShapeRenderer.fillCross(g, x, y, sz, color);
             case "NONE" -> {
-                // No frame to dim.
+
             }
             case "CUSTOM" -> {
                 ResourceLocation tex = resolveShapeTexture(node);
@@ -692,8 +686,8 @@ public class NodeRenderer {
         if (sw > 20) {
             String label = grp.getLabel();
             int maxLabelW = sw - 8;
-            if (ctx.font().width(label.replaceAll("§.", "")) > maxLabelW) {
-                label = ctx.font().plainSubstrByWidth(label, maxLabelW - 6) + "…";
+            if (net.phoenixvine.chronicles.client.util.EffectText.width(ctx.font(), label) > maxLabelW) {
+                label = net.phoenixvine.chronicles.client.util.EffectText.cut(ctx.font(), label, maxLabelW - 6) + "…";
             }
             g.drawString(ctx.font(), "§f" + label, sx + 4, sy + 2, 0xFFFFFFFF);
         }
@@ -878,7 +872,9 @@ public class NodeRenderer {
         float ts = QuestChroniclesSettings.get().getTextScaleMultiplier();
         int lineH = Math.round((ctx.font().lineHeight + 2) * ts);
         int padH = 6, padW = 8;
-        int tipW = Math.round(lines.stream().mapToInt(ctx.font()::width).max().orElse(60) * ts) + padW * 2;
+        int tipW = Math.round(lines.stream()
+                .mapToInt(l -> net.phoenixvine.chronicles.client.util.EffectText.width(ctx.font(), l)).max()
+                .orElse(60) * ts) + padW * 2;
         int tipH = lines.size() * lineH + padH * 2;
 
         int tx = mx + 10, ty = my + 12;
